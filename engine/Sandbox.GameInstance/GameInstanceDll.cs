@@ -917,8 +917,8 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 		if ( context != "game" ) return;
 		Log.Trace( $"OnPackageInstalled: {package.Package.FullIdent} {context}" );
 
-		// Register assemblies from this package so types are available immediately.
-		AssemblyEnroller?.LoadPackage( package.Package.FullIdent, true );
+		FileSystem.Mounted.Mount( package.FileSystem );
+		System.Threading.Interlocked.Increment( ref PackageManager.MountGeneration );
 	}
 
 	/// <summary>
@@ -990,22 +990,22 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 			foreach ( var effect in scene.Query<ParticleEffect>() ) particleCount += effect.Particles.Count;
 		}
 
-		Api.Performance.CollectStat( "GameObjectCount", sceneValid ? scene.Directory.GameObjectCount : 0 );
-		Api.Performance.CollectStat( "ComponentCount", sceneValid ? scene.Directory.ComponentCount : 0 );
-		Api.Performance.CollectStat( "RootGameObjects", sceneValid ? scene.Children.Count : 0 );
-		Api.Performance.CollectStat( "CameraCount", cameraCount );
-		Api.Performance.CollectStat( "ColliderCount", sceneValid ? scene.PhysicsWorld.BodyCount : 0 );
-		Api.Performance.CollectStat( "Particles", particleCount );
-
-		Api.Performance.CollectStat( "GameObjectsDestroyed", SceneMetrics.GameObjectsDestroyed );
-		Api.Performance.CollectStat( "ParticlesCreated", SceneMetrics.ParticlesCreated );
-		Api.Performance.CollectStat( "ParticlesDestroyed", SceneMetrics.ParticlesDestroyed );
-		Api.Performance.CollectStat( "GameObjectsCreated", SceneMetrics.GameObjectsCreated );
-		Api.Performance.CollectStat( "GameObjectsDestroyed", SceneMetrics.GameObjectsDestroyed );
-		Api.Performance.CollectStat( "ComponentsCreated", SceneMetrics.ComponentsCreated );
-		Api.Performance.CollectStat( "ComponentsDestroyed", SceneMetrics.ComponentsDestroyed );
-		Api.Performance.CollectStat( "RayTrace", SceneMetrics.RayTrace );
-		Api.Performance.CollectStat( "RayTraceAll", SceneMetrics.RayTraceAll );
+		Api.Performance.CollectStats( [
+			("GameObjectCount", sceneValid ? scene.Directory.GameObjectCount : 0),
+			("ComponentCount", sceneValid ? scene.Directory.ComponentCount : 0),
+			("RootGameObjects", sceneValid ? scene.Children.Count : 0),
+			("CameraCount", cameraCount),
+			("ColliderCount", sceneValid ? scene.PhysicsWorld.BodyCount : 0),
+			("Particles", particleCount),
+			("GameObjectsDestroyed", SceneMetrics.GameObjectsDestroyed),
+			("ParticlesCreated", SceneMetrics.ParticlesCreated),
+			("ParticlesDestroyed", SceneMetrics.ParticlesDestroyed),
+			("GameObjectsCreated", SceneMetrics.GameObjectsCreated),
+			("ComponentsCreated", SceneMetrics.ComponentsCreated),
+			("ComponentsDestroyed", SceneMetrics.ComponentsDestroyed),
+			("RayTrace", SceneMetrics.RayTrace),
+			("RayTraceAll", SceneMetrics.RayTraceAll),
+		] );
 
 		SceneMetrics.Flip();
 	}
@@ -1102,14 +1102,5 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 
 		GlobalContext.Current.UISystem = uiSystem;
 		GlobalContext.Current.InputContext = input;
-	}
-
-	/// <summary>
-	/// Load the assemblies from this package into the current game instance
-	/// </summary>
-	public Task LoadPackageAssembliesAsync( Package package )
-	{
-		AssemblyEnroller.LoadPackage( package.FullIdent, true );
-		return Task.CompletedTask;
 	}
 }

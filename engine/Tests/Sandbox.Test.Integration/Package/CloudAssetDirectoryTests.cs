@@ -659,6 +659,63 @@ public class CloudAssetDirectoryTest
 	}
 
 	/// <summary>
+	/// A local parent browses its own project even if a published package with the same ident is installed.
+	/// </summary>
+	[TestMethod]
+	public void GetPackageFiles_LocalParentWithInstalledNamesake()
+	{
+		using var directory = new CloudAssetDirectory( DbPath( "local_parent" ) );
+		var installed = MakePackage( "clouddirtest", "parent", "game", 3 );
+		directory.AddPackage( installed );
+		directory.AddFile( "/cloud/parent/model.vmdl_c", "crc", 100, installed );
+
+		var project = new Project( Path.Combine( TestDir, "parent.sbproj" ) )
+		{
+			Config = new() { Org = "clouddirtest", Ident = "parent", Type = "game" }
+		};
+
+		try
+		{
+			var local = project.Package;
+			Assert.AreSame( project, local.GetLocalProject() );
+			Assert.AreEqual( 0, directory.GetPackageFiles( local ).Count );
+			Assert.IsNull( installed.GetLocalProject() );
+			Assert.AreEqual( "/cloud/parent/model.vmdl_c", directory.GetPackageFiles( installed ).Single() );
+		}
+		finally
+		{
+			project.Dispose();
+		}
+	}
+
+	/// <summary>
+	/// Partial remote metadata can list the installed files without fetching a revision.
+	/// An explicit revision still matches only its own files.
+	/// </summary>
+	[TestMethod]
+	public void GetPackageFiles_RevisionlessRemoteUsesInstalledRevision()
+	{
+		using var directory = new CloudAssetDirectory( DbPath( "partial_listing" ) );
+		var partial = MakePackage( "clouddirtest", "partial", "game", 0 );
+		partial.Version = null;
+		Assert.IsFalse( directory.GetPackageFiles( partial ).Any() );
+
+		var installed = MakePackage( "clouddirtest", "partial", "game", 3 );
+		directory.AddPackage( installed );
+		directory.AddFile( "/cloud/parent/model.vmdl_c", "crc", 100, installed );
+
+		var listing = directory.GetPackageFiles( partial );
+		Assert.AreEqual( "/cloud/parent/model.vmdl_c", listing.Single() );
+
+		var otherRevision = MakePackage( "clouddirtest", "partial", "game", 4 );
+		Assert.IsFalse( directory.GetPackageFiles( otherRevision ).Any() );
+
+		directory.RemovePackage( installed );
+		Assert.IsFalse( directory.GetPackageFiles( partial ).Any() );
+		Assert.AreEqual( "/cloud/parent/model.vmdl_c", listing.Single() );
+	}
+
+	/// <summary>
 	/// Package lookup from file
 	/// </summary>
 	[TestMethod]

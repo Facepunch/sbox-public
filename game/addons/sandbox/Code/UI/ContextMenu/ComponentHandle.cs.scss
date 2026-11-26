@@ -4,14 +4,12 @@
 {
 	ComponentHandle
 	{
-		@include ui-button-face;
+		@include ui-header-button;
 		width: 38px;
 		height: 38px;
-		border-radius: 2px;
+		background-color: $ui-catalog-surface;
+		border: 1px solid $ui-separator;
 		position: absolute;
-		justify-content: center;
-		align-items: center;
-		cursor: pointer;
 		pointer-events: all;
 		transform: scale( 1 ) translateX( -50% ) translateY( -50% );
 		z-index: 100;
@@ -20,7 +18,7 @@
 		{
 			font-family: $ui-icon;
 			font-variation-settings: $ui-icon-filled-axes;
-			color: $ui-blue;
+			color: $ui-sidebar-heading-text;
 			font-size: 23px;
 			pointer-events: none;
 		}
@@ -28,13 +26,14 @@
 		&:hover
 		{
 			opacity: 1;
-			background-color: $ui-blue-soft;
+			background-color: $ui-control-bg;
+			border-color: $ui-hover-border;
 		}
 
 		&:active
 		{
 			border-color: $ui-blue;
-			background-color: $ui-blue-soft;
+			background-color: $ui-control-bg;
 			opacity: 1;
 			transform: scale( 0.95 ) translateX( -50% ) translateY( -50% );
 		}
@@ -46,14 +45,13 @@
 
 		&.active
 		{
-			@include ui-selected;
-			background-image: none;
+			@include ui-selected( $ui-catalog-selected-bg );
 			border-color: $ui-blue;
 			opacity: 1;
 
 			.icon
 			{
-				color: #fff;
+				color: $ui-selected-text;
 			}
 		}
 

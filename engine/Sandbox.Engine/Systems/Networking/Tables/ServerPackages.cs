@@ -41,6 +41,7 @@ internal class ServerPackages
 		public bool IsDownloading;
 		public bool IsMounted;
 		public bool IsErrored;
+		internal float? DownloadFraction;
 		public PackageManager.ActivePackage activePackage;
 		private bool resourcesLoaded;
 
@@ -67,6 +68,7 @@ internal class ServerPackages
 
 			IsDownloading = true;
 			IsErrored = false;
+			DownloadFraction = null;
 			try
 			{
 				using var loading = new UpdateLoadingScreen();

@@ -13,12 +13,11 @@ public partial class ScriptLoadingTests
 	/// Package downloads and network requirements share one installed item until the final owner releases it.
 	/// </summary>
 	[TestMethod]
-	public void WorkshopMountsSharePackageFilesAndPreserveCodeOnlyViews()
+	public void WorkshopMountsSharePackageFilesUntilLastRelease()
 	{
 		var folder = CreateWorkshopContent( "addon" );
 		WorkshopFileSystem first = null;
 		BaseFileSystem packageFiles = null;
-		WorkshopFileSystem code = null;
 		try
 		{
 			AsyncPump.RunSynchronously( async () =>
@@ -26,27 +25,21 @@ public partial class ScriptLoadingTests
 				first = await WorkshopFileSystem.OpenInstalledAsync( 4321, folder, default );
 				var package = new RemotePackage { Org = new Package.Organization { Ident = "test" }, Ident = "workshop-addon", TypeName = "addon", Version = new PackageRevision { Meta = "{\"WorkshopId\":4321}" } };
 				packageFiles = await package.Download();
-				code = await WorkshopFileSystem.OpenInstalledAsync( 4321, folder, default, codeOnly: true );
 			} );
 
 			Assert.IsInstanceOfType<WorkshopFileSystem>( packageFiles );
 			Assert.IsTrue( packageFiles.FileExists( "content.txt" ) );
-			Assert.IsTrue( code.FileExists( ".bin/package.cll" ) );
-			Assert.IsFalse( code.FileExists( "content.txt" ) );
 			Assert.IsFalse( packageFiles.FileExists( ".bin/unsafe.dll" ) );
 			first.Dispose();
 			Assert.IsTrue( WorkshopFileSystem.IsInUse( 4321 ) );
 			Assert.AreEqual( "content", packageFiles.ReadAllText( "content.txt" ) );
 			packageFiles.Dispose();
-			Assert.IsTrue( WorkshopFileSystem.IsInUse( 4321 ) );
-			code.Dispose();
 			Assert.IsFalse( WorkshopFileSystem.IsInUse( 4321 ) );
 		}
 		finally
 		{
 			first?.Dispose();
 			packageFiles?.Dispose();
-			code?.Dispose();
 			Directory.Delete( folder, true );
 		}
 	}
@@ -138,7 +131,6 @@ public partial class ScriptLoadingTests
 		File.WriteAllText( Path.Combine( folder, "metadata.json" ), Json.Serialize( new WorkshopItemMetaData { Title = "Test content", TypeName = type, Meta = "{}" } ) );
 		File.WriteAllText( Path.Combine( folder, "content.txt" ), "content" );
 		Directory.CreateDirectory( Path.Combine( folder, ".bin" ) );
-		File.WriteAllText( Path.Combine( folder, ".bin", "package.cll" ), "code archive" );
 		File.WriteAllText( Path.Combine( folder, ".bin", "unsafe.dll" ), "not an assembly" );
 		return folder;
 	}

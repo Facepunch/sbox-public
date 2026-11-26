@@ -13,13 +13,12 @@ public partial class Scene : GameObject
 		LoadingScreen.UpdateLoadingTasks( _loadingTasks );
 	}
 
-	public void StartLoading()
-	{
-		if ( _loadingMainTask is not null )
-			return;
+	/// <summary>
+	/// Begin loading this scene and running its startup callbacks.
+	/// </summary>
+	public void StartLoading() => StartLoading( null );
 
-		_loadingMainTask = WaitForLoading();
-	}
+	internal Task StartLoading( Func<bool> isCurrent ) => _loadingMainTask ??= WaitForLoading( isCurrent );
 
 	/// <summary>
 	/// Return true if we're in an initial loading phase
@@ -40,8 +39,10 @@ public partial class Scene : GameObject
 	/// <summary>
 	/// Wait for scene loading to finish
 	/// </summary>
-	internal async Task WaitForLoading()
+	internal async Task WaitForLoading( Func<bool> isCurrent = null )
 	{
+		bool IsStale() => isCurrent?.Invoke() == false;
+
 		if ( _loadingMainTask is not null )
 		{
 			await _loadingMainTask;
@@ -55,11 +56,18 @@ public partial class Scene : GameObject
 			// wait one frame for all the tasks to build up
 			await Task.Yield();
 
+			if ( IsStale() )
+				return;
+
 			// wait for all the loading tasks to finish
 			while ( _loadingTasks.Count > 0 )
 			{
 				LoadingScreen.UpdateLoadingTasks( _loadingTasks );
 				await Task.WhenAny( _loadingTasks.Select( x => x.Task ) );
+
+				if ( IsStale() )
+					return;
+
 				_loadingTasks.RemoveAll( x => x.IsCompleted );
 			}
 
@@ -85,6 +93,9 @@ public partial class Scene : GameObject
 
 				await NavMesh.Load( PhysicsWorld );
 
+				if ( IsStale() )
+					return;
+
 				LoadingScreen.Subtitle = "Loading Finished..";
 			}
 
@@ -95,11 +106,20 @@ public partial class Scene : GameObject
 				// tell the game instance we finished loading
 				instance?.OnLoadingFinished();
 
+				if ( IsStale() )
+					return;
+
 				// shoot events
 				RunEvent<ISceneLoadingEvents>( x => x.AfterLoad( this ) );
 
+				if ( IsStale() )
+					return;
+
 				// Run pending startups
 				RunPendingStarts();
+
+				if ( IsStale() )
+					return;
 
 				if ( WantsSystemScene && this is not PrefabScene && !Application.IsUnitTest )
 				{
@@ -117,7 +137,9 @@ public partial class Scene : GameObject
 		finally
 		{
 			_loadingMainTask = default;
-			LoadingScreen.IsVisible = false;
+
+			if ( !IsStale() )
+				LoadingScreen.IsVisible = false;
 		}
 	}
 }

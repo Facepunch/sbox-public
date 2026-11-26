@@ -1,4 +1,5 @@
-﻿using System.IO;
+﻿using System;
+using System.IO;
 
 namespace Editor;
 
@@ -151,12 +152,21 @@ public static class FileSystem
 		Localization = new LocalFileSystem( localizationFolder );
 
 		var sboxFolder = Path.Combine( root, ".sbox" );
-		Directory.CreateDirectory( sboxFolder );
+		var sboxDirectory = Directory.CreateDirectory( sboxFolder );
 		ProjectTemporary = new LocalFileSystem( sboxFolder );
 
-		// Set folder as hidden. Will hide it from explorer (by default) and from the asset browser
-		var di = new DirectoryInfo( sboxFolder );
-		di.Attributes |= FileAttributes.Hidden;
+		try
+		{
+			var attributes = sboxDirectory.Attributes;
+			if ( !attributes.HasFlag( FileAttributes.Hidden ) )
+			{
+				sboxDirectory.Attributes = attributes | FileAttributes.Hidden;
+			}
+		}
+		catch ( Exception e ) when ( e is IOException or UnauthorizedAccessException )
+		{
+			// The project cache is usable even when the filesystem won't let us hide it.
+		}
 
 		var cloudFolder = Path.Combine( sboxFolder, "cloud" );
 		Directory.CreateDirectory( cloudFolder );

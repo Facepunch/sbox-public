@@ -120,7 +120,7 @@ public sealed class BuilderTool : ToolMode
 
 	public override string MenuAction => "#tool.hint.builder.shapes";
 
-	static bool IsOtherMenuOpen => SpawnMenuHost.IsOpen || ChatBox.IsOpen || Inventory.IsOpen || Input.Down( "score" );
+	static bool IsOtherMenuOpen => SpawnMenuHost.IsOpen || Inventory.IsOpen || Input.Down( "score" );
 
 	bool UpdateShapeMenu()
 	{

@@ -273,7 +273,7 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 	/// <summary>
 	/// Called when the host has provided us with a snapshot for a newly loaded scene.
 	/// </summary>
-	private async Task OnLoadSceneSnapshotMsg( LoadSceneSnapshotMsg msg, Connection connection, Guid msgId )
+	internal async Task OnLoadSceneSnapshotMsg( LoadSceneSnapshotMsg msg, Connection connection, Guid msgId )
 	{
 		if ( !connection.IsHost )
 			return;
@@ -288,7 +288,15 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		MountedVPKs = MountMaps( msg.MountedVPKs );
 		previousVPKs?.Dispose();
 
-		await SetSnapshotAsync( msg.Snapshot );
+		try
+		{
+			await SetSnapshotAsync( msg.Snapshot );
+		}
+		catch ( OperationCanceledException ) when ( NetworkSystem.IsDisconnecting || NetworkSystem.IsDisconnected )
+		{
+			// Leaving the session cancelled the scene load. There's nothing to acknowledge.
+			return;
+		}
 
 		// Let them know we have now loaded this scene.
 		var loadedMsg = new SceneLoadedMsg { SceneId = msg.SceneId, Id = msg.Id };
@@ -623,24 +631,34 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 	/// <summary>
 	/// We have received a snapshot of the world.
 	/// </summary>
-	public override async Task SetSnapshotAsync( SnapshotMsg msg )
+	public override Task SetSnapshotAsync( SnapshotMsg msg ) => SetSnapshotAsync( msg, null );
+
+	internal override async Task SetSnapshotAsync( SnapshotMsg msg, Func<bool> isCurrent )
 	{
+		bool IsStale() => isCurrent?.Invoke() == false;
+
 		ThreadSafe.AssertIsMainThread();
 
 		// Nothing we destroy here is news to anyone
 		using ( SuppressDestroyMessages() )
 		{
-			Game.ActiveScene?.Destroy();
-			Game.ActiveScene = null;
+			var previousScene = Game.ActiveScene;
+			previousScene?.Destroy();
+
+			if ( Game.ActiveScene == previousScene )
+				Game.ActiveScene = null;
 		}
 
-		Game.ActiveScene = new();
-		using var snapshotScope = Game.ActiveScene.LoadingSnapshotScope();
-		Game.ActiveScene.StartLoading();
+		if ( IsStale() )
+			return;
+
+		var scene = Game.ActiveScene = new();
+		using var snapshotScope = scene.LoadingSnapshotScope();
+		var loading = scene.StartLoading( isCurrent );
 
 		Time.Now = (float)msg.Time;
 		Time.NowDouble = msg.Time;
-		Game.ActiveScene.UpdateTimeFromHost( msg.Time );
+		scene.UpdateTimeFromHost( msg.Time );
 
 		var createdNetworkObjects = new List<(GameObject, ObjectCreateMsg)>();
 
@@ -651,7 +669,7 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 			if ( !string.IsNullOrWhiteSpace( msg.SceneData ) )
 			{
 				var sceneData = JsonNode.Parse( msg.SceneData ).AsObject();
-				Game.ActiveScene.Deserialize( sceneData, networkDeserializeOptionsCreate );
+				scene.Deserialize( sceneData, networkDeserializeOptionsCreate );
 			}
 
 			foreach ( var nwo in msg.NetworkObjects )
@@ -674,29 +692,37 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 			}
 		}
 
-		ReadGameObjectSystems( Game.ActiveScene, msg );
+		if ( !IsStale() )
+			ReadGameObjectSystems( scene, msg );
 
 		MountedVPKs?.Dispose();
 		MountedVPKs = null;
 
-		LoadingScreen.Title = null;
+		if ( !IsStale() )
+			LoadingScreen.Title = null;
 
-		// Wait for loading to finish
-		if ( Game.ActiveScene is not null )
-		{
-			await Game.ActiveScene.WaitForLoading();
-		}
+		await loading;
+
+		if ( IsStale() )
+			return;
 
 		ReapplyCreateTables( createdNetworkObjects );
 
-		if ( Game.ActiveScene.IsValid() )
-		{
-			Game.ActiveScene.Signal( GameObjectSystem.Stage.SceneLoaded );
+		if ( IsStale() )
+			return;
 
-			Game.ActiveScene.RunEvent<ISceneStartup>( x => x.OnClientInitialize() );
+		if ( scene.IsValid() )
+		{
+			scene.Signal( GameObjectSystem.Stage.SceneLoaded );
+
+			if ( IsStale() )
+				return;
+
+			scene.RunEvent<ISceneStartup>( x => x.OnClientInitialize() );
 		}
 
-		Game.IsPlaying = true;
+		if ( !IsStale() )
+			Game.IsPlaying = true;
 	}
 
 	private static void ReadGameObjectSystems( Scene scene, SnapshotMsg msg )

@@ -1,3 +1,4 @@
+using Sandbox.Diagnostics;
 using System;
 using System.Collections.Generic;
 
@@ -133,6 +134,57 @@ public class CallbackBatchCoverageTest : SceneTest
 		Assert.AreEqual( 1, recorder.EnabledCalls );
 
 		scene.Destroy();
+	}
+
+	/// <summary>
+	/// Destroying a component in an isolated batch can unlink it before its queued Awake runs.
+	/// The outer batch should skip it and still wake the surviving component.
+	/// </summary>
+	[TestMethod]
+	public void AwakeSkipsComponentDestroyedBeforeBatchFlush()
+	{
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+		var go = scene.CreateObject();
+		var errors = new List<string>();
+
+		void CaptureError( LogEvent entry )
+		{
+			if ( entry.Level == LogLevel.Error && ThreadSafe.IsMainThread )
+				errors.Add( entry.Exception?.ToString() ?? entry.Message );
+		}
+
+		// The batch catches callback exceptions, so the counters alone would miss a failed Awake.
+		Logging.OnEmitted += CaptureError;
+		try
+		{
+			SceneCoreProbe destroyed;
+			SceneCoreProbe survivor;
+
+			using ( scene.BatchGroup() )
+			{
+				destroyed = go.Components.Create<SceneCoreProbe>();
+				survivor = go.Components.Create<SceneCoreProbe>();
+
+				using ( CallbackBatch.Isolated() )
+				{
+					destroyed.Destroy();
+				}
+
+				Assert.IsNull( destroyed.GameObject );
+				Assert.AreEqual( 1, destroyed.DestroyCalls );
+				Assert.AreEqual( 0, survivor.AwakeCalls );
+			}
+
+			Assert.AreEqual( 0, errors.Count, string.Join( Environment.NewLine, errors ) );
+			Assert.AreEqual( 0, destroyed.AwakeCalls );
+			Assert.AreEqual( 1, survivor.AwakeCalls );
+		}
+		finally
+		{
+			Logging.OnEmitted -= CaptureError;
+			scene.Destroy();
+		}
 	}
 
 	/// <summary>

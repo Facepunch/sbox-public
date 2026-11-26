@@ -45,7 +45,7 @@ public static partial class Cloud
 	/// <summary>
 	/// Loads a model from the cloud by its identifier. The asset is downloaded during code compilation, so it's treated like a local model since it's shipped along with your package.
 	/// <br></br>
-	/// If you wish to load a model at runtime, use <see cref="Load{T}(string,bool)"/> instead.
+	/// If you wish to load a model at runtime, use <see cref="Load{T}(string)"/> instead.
 	/// </summary>
 	/// <param name="ident">The cloud ident/url of the model</param>
 	[CloudAssetProvider]
@@ -55,7 +55,7 @@ public static partial class Cloud
 	/// <summary>
 	/// Loads a material from the cloud by its identifier. The asset is downloaded during code compilation, so it's treated like a local material since it's shipped along with your package.
 	/// <br></br>
-	/// If you wish to load a material at runtime, use <see cref="Load{T}(string,bool)"/> instead.
+	/// If you wish to load a material at runtime, use <see cref="Load{T}(string)"/> instead.
 	/// </summary>
 	/// <param name="ident">The cloud ident/url of the material</param>
 	[CloudAssetProvider]
@@ -70,7 +70,7 @@ public static partial class Cloud
 	/// <summary>
 	/// Loads a sound event from the cloud by its identifier. The asset is downloaded during code compilation, so it's treated like a local particle system since it's shipped along with your package.
 	/// <br></br>
-	/// If you wish to load a sound event at runtime, use <see cref="Load{T}(string,bool)"/> instead.
+	/// If you wish to load a sound event at runtime, use <see cref="Load{T}(string)"/> instead.
 	/// </summary>
 	/// <param name="ident">The cloud ident/url of the particle system</param>
 	[CloudAssetProvider]
@@ -80,7 +80,7 @@ public static partial class Cloud
 	/// <summary>
 	/// Loads a shader from the cloud by its identifier. The asset is downloaded during code compilation, so it's treated like a local shader since it's shipped along with your package.
 	/// <br></br>
-	/// If you wish to load a shader at runtime, use <see cref="Load{T}(string,bool)"/> instead.
+	/// If you wish to load a shader at runtime, use <see cref="Load{T}(string)"/> instead.
 	/// </summary>
 	/// <param name="ident">The cloud ident/url of the shader</param>
 	[CloudAssetProvider]
@@ -90,7 +90,7 @@ public static partial class Cloud
 	/// <summary>
 	/// Loads a resource asynchronously from the cloud by its identifier, downloading the package if the client doesn't have it locally.
 	/// </summary>
-	public static async Task<T> Load<T>( string ident, bool withCode = false ) where T : Resource
+	public static async Task<T> Load<T>( string ident ) where T : Resource
 	{
 		var (package, primaryAsset) = await GetPackageAndPrimaryAsset( ident );
 
@@ -107,7 +107,7 @@ public static partial class Cloud
 		if ( typeof( T ) == typeof( SoundEvent ) && package.TypeName != "sound" ) return default;
 		if ( typeof( T ) == typeof( PrefabFile ) && package.TypeName != "prefab" ) return default;
 
-		var fs = await package.MountAsync( withCode );
+		var fs = await package.MountAsync();
 		if ( fs is null )
 		{
 			Log.Warning( $"Cloud: Package {ident} couldn't be mounted" );
@@ -116,6 +116,12 @@ public static partial class Cloud
 
 		return await ResourceLibrary.LoadAsync<T>( primaryAsset );
 	}
+
+	/// <summary>
+	/// Loads a cloud resource by its identifier. The <paramref name="withCode"/> argument is ignored.
+	/// </summary>
+	[Obsolete( "Use Load<T>( ident ). Mounting a package only loads its content." )]
+	public static Task<T> Load<T>( string ident, bool withCode ) where T : Resource => Load<T>( ident );
 
 	/// <summary>
 	/// Checks if a cloud package is installed.
@@ -143,15 +149,7 @@ public static partial class Cloud
 
 		if ( package is null ) return;
 
-		bool withCode = true;
-
-		// Try to determine if we need code. This needs better handling in the future.
-		if ( package.TypeName == "model" || package.TypeName == "material" )
-		{
-			withCode = false;
-		}
-
-		var fs = await package.MountAsync( withCode );
+		var fs = await package.MountAsync();
 		if ( fs is null )
 		{
 			Log.Warning( $"Cloud: Package {ident} couldn't be mounted" );

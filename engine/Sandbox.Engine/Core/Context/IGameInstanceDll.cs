@@ -69,11 +69,6 @@ internal unsafe interface IGameInstanceDll
 	/// Get the replicated var value from the host
 	/// </summary>
 	public bool TryGetReplicatedVarValue( string name, out string value );
-
-	/// <summary>
-	/// Load the assemblies from this package into the current game instance
-	/// </summary>
-	public Task LoadPackageAssembliesAsync( Package package );
 }
 
 [Flags]

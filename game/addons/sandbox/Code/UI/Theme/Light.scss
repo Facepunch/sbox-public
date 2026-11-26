@@ -7,10 +7,8 @@ $ui-danger: #d04040;
 // a row of a menu under the mouse, a stronger blue than the soft one of the lists
 $ui-hover-fill: rgba( $ui-blue, 0.35 );
 $ui-hover-border: rgba( $ui-blue, 0.68 );
-$ui-hover-text: #56759e;
 $ui-selected-bg: $ui-blue;
 $ui-selected-text: white;
-$ui-title-bg: $ui-blue;
 
 // text inside a section
 $ui-text: #555555;
@@ -21,20 +19,6 @@ $ui-text-placeholder: #a8a8a8;
 $ui-text-disabled: #afafaf;
 $ui-text-disabled-hover: #8a8a8a;
 
-// text drawn straight on the gray block of the menu
-$ui-text-on-gray: rgba( 255, 255, 255, 0.55 );
-$ui-heading-on-gray: rgba( 255, 255, 255, 0.85 );
-$ui-line-on-gray: rgba( 255, 255, 255, 0.24 );
-$ui-subtext-on-gray: rgba( 255, 255, 255, 0.75 );
-
-// the gray block and the white section on it
-$ui-block-top: rgba( 140, 140, 140, 0.66 );
-// the bottom of the block fades into the accent blue ($color-accent blended over the gray)
-$ui-block-bottom: rgba( 78, 137, 180, 0.66 );
-$ui-block-border: rgba( 255, 255, 255, 0.38 );
-$ui-section-top: rgba( 255, 255, 255, 0.90 );
-$ui-section-bottom: rgba( 245, 245, 245, 0.80 );
-$ui-section-border: rgba( 0, 0, 0, 0.51 );
 $ui-menu-body: rgba( 222, 229, 235, 0.94 );
 $ui-catalog-surface: rgba( 246, 248, 250, 0.94 );
 $ui-resource-preview-bg: $ui-catalog-surface;
@@ -54,9 +38,6 @@ $ui-control-border-hover: #6f6f6f;
 $ui-input-bg: rgba( 255, 255, 255, 0.96 );
 $ui-input-border: rgba( 0, 0, 0, 0.51 );
 $ui-check-bg: rgba( 255, 255, 255, 0.55 );
-$ui-button-top: rgba( 248, 248, 248, 0.9 );
-$ui-button-bottom: rgba( 230, 230, 230, 0.9 );
-$ui-button-border: rgba( 0, 0, 0, 0.33 );
 $ui-row-alt: rgba( 0, 0, 0, 0.05 );
 $ui-row-hover-outline: rgba( 0, 0, 0, 0.15 );
 $ui-field-border: $ui-row-hover-outline;

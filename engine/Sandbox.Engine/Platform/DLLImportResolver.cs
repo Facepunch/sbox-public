@@ -23,9 +23,12 @@ internal static class DLLImportResolver
 		if ( assembly.IsDynamic )
 			return;
 
-		// SetDllImportResolver throws if called twice for the same assembly
-		if ( !registeredAssemblies.Add( assembly.FullName ) )
-			return;
+		// AssemblyLoad callbacks can run concurrently. Only one caller should register each name.
+		lock ( registeredAssemblies )
+		{
+			if ( !registeredAssemblies.Add( assembly.FullName ) )
+				return;
+		}
 
 		NativeLibrary.SetDllImportResolver( assembly, ResolveFromNativePath );
 	}

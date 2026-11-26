@@ -127,7 +127,7 @@ internal class StartupFailedPopup : BaseWindow
 		var sb = new System.Text.StringBuilder();
 		foreach ( var diag in errors )
 		{
-			sb.AppendLine( diag.ToString() );
+			sb.AppendLine( diag.FormatForClipboard() );
 		}
 
 		EditorUtility.Clipboard.Copy( sb.ToString() );
@@ -186,11 +186,10 @@ file class DiagnosticWidget : Widget
 
 		Cursor = CursorShape.Finger;
 
-		var span = diag.Location.GetLineSpan();
-		var mappedSpan = diag.Location.GetMappedLineSpan();
+		var mappedSpan = diag.GetDisplayLocation().GetMappedLineSpan();
 
 		// Path can be null if the spans are not valid (not related to a file)
-		FilePath = mappedSpan.HasMappedPath ? mappedSpan.Path : span.Path;
+		FilePath = mappedSpan.Path;
 		LineNumber = mappedSpan.Span.Start.Line + 1;
 		CharNumber = mappedSpan.Span.Start.Character + 1;
 
@@ -204,11 +203,14 @@ file class DiagnosticWidget : Widget
 			WordWrap = true,
 		}, 1 ).SetStyles( "background-color: transparent;" );
 
-		Layout.Add( new Label( $"{System.IO.Path.GetFileName( FilePath )}:{LineNumber}" )
+		if ( mappedSpan.IsValid )
 		{
-			Alignment = TextFlag.RightTop,
-			TranslucentBackground = true,
-		} ).SetStyles( $"color: {Color.White.WithAlpha( 0.5f ).Hex}; background-color: transparent;" );
+			Layout.Add( new Label( $"{System.IO.Path.GetFileName( FilePath )}:{LineNumber}" )
+			{
+				Alignment = TextFlag.RightTop,
+				TranslucentBackground = true,
+			} ).SetStyles( $"color: {Color.White.WithAlpha( 0.5f ).Hex}; background-color: transparent;" );
+		}
 	}
 
 	protected override void OnPaint()
@@ -263,7 +265,7 @@ file class DiagnosticWidget : Widget
 		menu.AddSeparator();
 		menu.AddOption( $"Copy", "content_paste", () =>
 		{
-			EditorUtility.Clipboard.Copy( Diagnostic.ToString() );
+			EditorUtility.Clipboard.Copy( Diagnostic.FormatForClipboard() );
 		} );
 
 		menu.OpenAtCursor();

@@ -199,7 +199,7 @@ public sealed class VehicleCamera : Component, ICameraModifier
 		var position = pivot + (desired - pivot).Normal * _blocked;
 
 		// a little shake when it's flying
-		var shake = SpeedShake * scale * speedFraction * speedFraction * GamePreferences.Screenshake / 0.3f;
+		var shake = SpeedShake * scale * speedFraction * speedFraction;
 		if ( shake > 0.01f * scale )
 		{
 			var t = Time.Now * 9f;

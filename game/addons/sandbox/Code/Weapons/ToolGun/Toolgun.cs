@@ -43,7 +43,7 @@
 
 			if ( Components.Get( mode.TargetType, FindMode.EverythingInSelf ) is null )
 			{
-				Components.Create( mode, false );
+				TryCreateMode( mode );
 			}
 		}
 
@@ -112,6 +112,25 @@
 		return GetComponent<T>( true );
 	}
 
+	private ToolMode GetMode( TypeDescription mode )
+	{
+		return GetComponents<ToolMode>( true ).FirstOrDefault( x => x.GetType() == mode.TargetType );
+	}
+
+	private ToolMode TryCreateMode( TypeDescription mode )
+	{
+		try
+		{
+			return Components.Create( mode, false ) as ToolMode;
+		}
+		// An optional mode can fail in its constructor. Once attached, it is no longer safe to skip.
+		catch ( Exception e ) when ( mode.TargetType != typeof( RopeTool ) && GetMode( mode ) is null )
+		{
+			Log.Warning( e, $"Couldn't create tool mode '{mode.FullName}'." );
+			return null;
+		}
+	}
+
 	[Rpc.Host]
 	public void SetToolMode( string name )
 	{
@@ -124,12 +143,12 @@
 			return;
 		}
 
-		var newMode = GetComponents<ToolMode>( true ).Where( x => x.GetType() == targetMode.TargetType ).FirstOrDefault();
+		var newMode = GetMode( targetMode );
 		if ( newMode == null )
 		{
 			// Newly hotloaded tools aren't on existing toolguns yet. Create the requested
 			// mode disabled, then switch normally so only one mode remains active.
-			newMode = Components.Create( targetMode, false ) as ToolMode;
+			newMode = TryCreateMode( targetMode );
 			if ( newMode is null ) return;
 		}
 

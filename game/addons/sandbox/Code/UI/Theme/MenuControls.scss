@@ -4,10 +4,44 @@ $ui-menu-control-height: 30px;
 $ui-menu-tab-height: 32px;
 $ui-menu-title-height: 51px;
 
+// Floating tool windows use the same body, header and spacing as the spawn menu.
+@mixin ui-menu-window
+{
+	flex-direction: column;
+	overflow: hidden;
+	border-radius: 8px;
+	background-color: $ui-menu-body;
+	backdrop-filter: blur( $ui-menu-blur );
+	font-family: $body-font;
+	font-size: $ui-settings-font;
+	color: $ui-text;
+}
+
+@mixin ui-menu-window-header
+{
+	align-items: center;
+	flex-shrink: 0;
+	height: $ui-menu-title-height;
+	padding: 0 $spawn-menu-content-inset;
+	gap: 8px;
+	background-color: $ui-catalog-surface;
+	border-bottom: 1px solid $ui-separator;
+	font-size: 20px;
+	font-weight: 600;
+	color: $ui-text-strong;
+}
+
 @mixin ui-control-surface
 {
 	background-image: none;
 	background-color: $ui-control-bg;
+}
+
+@mixin ui-menu-control
+{
+	@include ui-control-surface;
+	height: $ui-menu-control-height;
+	border-radius: $ui-menu-radius;
 }
 
 // Clickable fields in property sheets and the object inspector.
@@ -265,14 +299,4 @@ $ui-menu-title-height: 51px;
 	font-size: 13px;
 	font-weight: 600;
 	white-space: normal;
-}
-
-@mixin ui-section-band
-{
-	background-color: rgba( $ui-text-strong, 0.06 );
-	border-bottom: 1px solid $ui-separator;
-	border-radius: 0;
-	color: $ui-text-strong;
-	font-size: 13px;
-	font-weight: 700;
 }

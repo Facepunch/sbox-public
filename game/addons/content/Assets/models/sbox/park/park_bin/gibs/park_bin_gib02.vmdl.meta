@@ -1,3 +1,29 @@
 {
-  "guid": "52e3f628-fc35-483f-81bf-3f81a061d06e"
+  "guid": "52e3f628-fc35-483f-81bf-3f81a061d06e",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "Park Bin Gib 02",
+      "Type": "model",
+      "Org": "local",
+      "Ident": "park_bin_gib02",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [
+        "facepunch.park_bin#281598"
+      ],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/park/park_bin/gibs/park_bin_gib02.vmdl",
+        "ParentPackage": "facepunch.sbox_content"
+      }
+    }
+  }
 }

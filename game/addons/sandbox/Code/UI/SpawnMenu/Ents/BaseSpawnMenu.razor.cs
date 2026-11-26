@@ -210,6 +210,23 @@ public partial class BaseSpawnMenu : Panel
 		} );
 	}
 
+	/// <summary>
+	/// Adds one sidebar option per enum value under the given parent or the current header.
+	/// </summary>
+	protected void AddCategoryOptions<T>( Func<string, Panel> createPanel, SpawnMenuOption parent = null ) where T : struct, Enum
+	{
+		foreach ( var category in TypeLibrary.GetEnumDescription( typeof( T ) ) )
+		{
+			AddOption( parent, new SpawnMenuOption
+			{
+				Key = parent is null ? category.Title : $"{parent.Key}/{category.Name}",
+				Name = category.Title,
+				Icon = category.Icon,
+				PanelCreator = () => createPanel( category.Name )
+			} );
+		}
+	}
+
 	public SpawnMenuOption AddOption( string icon, string name, Func<Panel> createPanelFunction )
 	{
 		return AddOption( new SpawnMenuOption

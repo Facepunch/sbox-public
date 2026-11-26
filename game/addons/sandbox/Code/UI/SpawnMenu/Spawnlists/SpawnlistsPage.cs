@@ -12,23 +12,17 @@ public abstract class SpawnlistsPage : BaseSpawnMenu
 
 	public SpawnlistsPage()
 	{
-		BindCollection();
+		Collection.OnChanged = OnCollectionChanged;
 		SpawnlistData.SpawnlistCreated += Collection.Refresh;
 		Collection.Refresh();
-	}
-
-	void BindCollection()
-	{
-		Collection.OnChanged = OnCollectionChanged;
-		Collection.OnInstalled = OnCollectionInstalled;
 	}
 
 	public override void OnHotloaded()
 	{
 		// Constructors do not run again for existing panels during hotload.
-		BindCollection();
+		Collection.OnChanged = OnCollectionChanged;
 		base.OnHotloaded();
-		OnParametersSet();
+		Collection.Refresh();
 	}
 
 	void OnCollectionChanged()
@@ -46,23 +40,16 @@ public abstract class SpawnlistsPage : BaseSpawnMenu
 		}
 	}
 
-	void OnCollectionInstalled( string name )
-	{
-		OnParametersSet();
-		SelectOption( name );
-	}
-
 	public override void OnDeleted()
 	{
 		SpawnlistData.SpawnlistCreated -= Collection.Refresh;
 		Collection.OnChanged = null;
-		Collection.OnInstalled = null;
 		base.OnDeleted();
 	}
 
 	protected void AddSpawnlistOptions()
 	{
-		SpawnMenuOption header = AddHeader( "#spawnmenu.section.workshop_spawnlists" );
+		SpawnMenuOption header = AddHeader( "#spawnmenu.section.your_spawnlists" );
 
 		AddResourceSpawnlists();
 		AddProceduralSpawnlists();
@@ -112,18 +99,17 @@ public abstract class SpawnlistsPage : BaseSpawnMenu
 	void AddUserSpawnlists()
 	{
 		_spawnlistOptions.Clear();
-		if ( Collection.Entries.Count > 0 || Collection.PendingCount > 0 )
+
+		foreach ( var entry in Collection.Entries )
 		{
-			foreach ( var entry in Collection.Entries )
-			{
-				var captured = entry;
-				_spawnlistOptions[entry.StorageEntry.Id] = AddOption( entry.Icon, entry.Name,
-					() => new SpawnlistView { Entry = captured.StorageEntry },
-					entry.IsEditable
-						? () => OnEditableRightClick( captured )
-						: () => OnInstalledRightClick( captured ) );
-				_spawnlistOptions[entry.StorageEntry.Id].Tokenize = false;
-			}
+			var storage = entry.StorageEntry;
+			var option = AddOption( "folder", entry.Name,
+				() => new SpawnlistView { Entry = storage },
+				() => OnLocalRightClick( storage ) );
+
+			option.Tokenize = false;
+			option.Key = storage.Id;
+			_spawnlistOptions[storage.Id] = option;
 		}
 	}
 
@@ -142,35 +128,21 @@ public abstract class SpawnlistsPage : BaseSpawnMenu
 		SwitchOption( option );
 	}
 
-	void OnEditableRightClick( SpawnlistCollection.Entry entry )
+	/// <summary>
+	/// Opens the local list in edit mode with keyboard focus on its name.
+	/// </summary>
+	internal void EditSpawnlist( Storage.Entry entry )
 	{
-		var menu = new Sandbox.UI.Menu();
-
-		if ( entry.StorageEntry.GetMeta( "_workshopId", 0ul ) == 0 )
-		{
-			menu.AddOption( "#spawnmenu.spawnlist.rename", "edit", () =>
-			{
-				var data = SpawnlistData.Load( entry.StorageEntry );
-				UIModal.Prompt( this, "#spawnmenu.spawnlist.rename_title", data.Name, newName =>
-				{
-					if ( entry.StorageEntry.GetMeta( "_workshopId", 0ul ) != 0 ) return;
-					SpawnlistData.Rename( entry.StorageEntry, newName );
-					Collection.Refresh();
-				}, placeholder: "#spawnmenu.spawnlist.name_placeholder", confirmText: "#spawnmenu.spawnlist.rename_button" );
-			} );
-		}
-
-		menu.AddOption( "#spawnmenu.spawnlist.delete", "delete", () => Collection.Delete( entry.StorageEntry ) );
-
-		menu.Open( this, Popup.PositionMode.UnderMouse );
+		SelectSpawnlist( entry );
+		if ( ActivePanel is SpawnlistView view && view.Entry?.Id == entry.Id )
+			view.EditName();
 	}
 
-	void OnInstalledRightClick( SpawnlistCollection.Entry entry )
+	void OnLocalRightClick( Storage.Entry entry )
 	{
 		var menu = new Sandbox.UI.Menu();
-		menu.AddOption( "#spawnmenu.spawnlist.remove", "delete", () => Collection.Uninstall( entry.WorkshopId ) );
-
+		menu.AddOption( "#spawnmenu.spawnlist.rename", "edit", () => EditSpawnlist( entry ) );
+		menu.AddOption( "#spawnmenu.spawnlist.delete", "delete", () => Collection.Delete( entry ) );
 		menu.Open( this, Popup.PositionMode.UnderMouse );
 	}
 }
-

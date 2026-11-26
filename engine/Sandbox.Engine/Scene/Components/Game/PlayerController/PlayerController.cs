@@ -204,7 +204,7 @@ public sealed partial class PlayerController : Component, IScenePhysicsEvents, C
 	{
 		UpdateBody();
 
-		if ( IsProxy )
+		if ( IsProxy || Mode is null )
 		{
 			_stepGrounded = false;
 			return;

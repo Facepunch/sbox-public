@@ -1,0 +1,30 @@
+{
+  "guid": "3c1f5549-dc35-45c7-bbe2-0da17a88f6a3",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "Post Box",
+      "Type": "material",
+      "Org": "local",
+      "OrgTitle": null,
+      "Ident": "postbox",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [
+        "jase.carddebris_a_02#12112"
+      ],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/street/postbox/materials/postbox.vmat"
+      }
+    },
+    "HammerAutoPackageReferences": null
+  }
+}

@@ -1,5 +1,4 @@
 @import "/UI/Popup.scss";
-
 @import "/UI/Theme.scss";
 
 @mixin component-theme
@@ -8,92 +7,173 @@
 	{
 		.preset-window
 		{
-			@include ui-block;
+			@include ui-menu-window;
 			width: 900px;
 			height: 720px;
 			max-width: 90vw;
 			max-height: 90vh;
-			flex-direction: column;
-			gap: 8px;
-			font-family: $body-font;
-			font-size: $ui-settings-font;
-			color: $ui-text;
 		}
+
 		.editor-heading
 		{
-			@include ui-title-bar;
-			flex-shrink: 0;
-			align-items: center;
-			> label { flex-grow: 1; }
-			UIButton { width: 24px; height: 24px; }
+			@include ui-menu-window-header;
+
+			> label
+			{
+				@include ui-ellipsis;
+				flex-grow: 1;
+			}
+
+			> UIButton.button
+			{
+				@include ui-header-button;
+				width: $ui-menu-tab-height;
+				background-image: none;
+				background-color: transparent;
+			}
 		}
-		.editor-columns { flex-grow: 1; min-height: 0px; gap: 10px; }
+
+		.editor-columns
+		{
+			flex-grow: 1;
+			min-height: 0;
+		}
+
 		.preset-list
 		{
-			@include ui-section;
+			@include ui-sidebar;
 			@include ui-scroll;
 			width: 220px;
-			flex-shrink: 0;
-			flex-direction: column;
 			overflow-y: scroll;
-			padding: 4px;
-			gap: 3px;
+			gap: 2px;
+
+			.preset-row
+			{
+				@include ui-sidebar-row;
+				min-height: $ui-menu-control-height;
+				align-items: center;
+				padding: 4px 10px;
+				flex-shrink: 0;
+
+				label
+				{
+					@include ui-ellipsis;
+				}
+
+				&.selected
+				{
+					@include ui-selected( $ui-catalog-selected-bg );
+				}
+			}
 		}
-		.preset-row
-		{
-			padding: 8px 10px;
-			flex-shrink: 0;
-			cursor: pointer;
-			background-color: $ui-row-alt;
-			label { white-space: nowrap; text-overflow: ellipsis; overflow: hidden; }
-			&:hover { background-color: $ui-popup-hover; sound-in: ui.hover; }
-			&.selected { @include ui-selected; }
-		}
+
 		.preset-details
 		{
-			@include ui-section;
 			flex-direction: column;
 			flex-grow: 1;
-			min-width: 0px;
-			padding: 10px;
-			gap: 8px;
+			min-width: 0;
+			padding: $spawn-menu-content-inset;
+			gap: 12px;
+
+			.name-row
+			{
+				align-items: center;
+				flex-shrink: 0;
+				gap: 10px;
+
+				.textentry
+				{
+					@include ui-text-entry;
+					flex-grow: 1;
+					height: $ui-menu-control-height;
+					padding: 0 10px;
+					border-radius: $ui-menu-radius;
+				}
+			}
+
+			.draft-properties
+			{
+				@include ui-scroll-column;
+				flex-grow: 1;
+				min-height: 0;
+
+				EnumControl > .button.popupbutton.dropdown
+				{
+					@include ui-control-surface;
+				}
+			}
 		}
-		.name-row
+
+		.editor-status
 		{
-			align-items: center;
 			flex-shrink: 0;
-			gap: 10px;
-			.textentry { @include ui-text-entry; flex-grow: 1; }
+			padding: 8px $spawn-menu-content-inset 0;
+			border-top: 1px solid $ui-separator;
+			background-color: $ui-catalog-surface;
+			font-size: 12px;
+			color: $ui-text-muted;
+
+			.error
+			{
+				color: $ui-danger;
+			}
 		}
-		.draft-properties { @include ui-scroll; flex-direction: column; flex-grow: 1; min-height: 0px; overflow-y: scroll; }
-		.editor-status { flex-shrink: 0; min-height: 16px; font-size: 11px; color: $ui-text-muted; }
-		.error { color: #edac92; }
-		.empty { padding: 12px; color: $ui-text-muted; }
+
+		.empty
+		{
+			padding: 6px;
+			color: $ui-text-muted;
+		}
+
 		.button-row
 		{
 			gap: 8px;
 			flex-shrink: 0;
+
+			> UIButton.button
+			{
+				@include ui-menu-control;
+			}
+
+			.spacer
+			{
+				flex-grow: 1;
+			}
 		}
-		.spacer { flex-grow: 1; }
+
+		.preset-window > .button-row
+		{
+			padding: 8px $spawn-menu-content-inset 10px;
+			background-color: $ui-catalog-surface;
+		}
+
 		.confirmation-shade
 		{
 			position: absolute;
-			left: 0px; right: 0px; top: 0px; bottom: 0px;
+			left: 0;
+			right: 0;
+			top: 0;
+			bottom: 0;
 			background-color: #000a;
 			align-items: center;
 			justify-content: center;
 			z-index: 10;
-		}
-		.confirmation
-		{
-			@include ui-block;
-			width: 440px;
-			max-width: 90vw;
-			flex-direction: column;
-			padding: 16px;
-			gap: 14px;
-			color: $ui-text;
-			.confirmation-title { font-weight: 700; font-size: 16px; }
+
+			.confirmation
+			{
+				@include ui-menu-window;
+				width: 440px;
+				max-width: 90vw;
+				padding: $spawn-menu-content-inset;
+				gap: 14px;
+
+				.confirmation-title
+				{
+					font-weight: 600;
+					font-size: 20px;
+					color: $ui-text-strong;
+				}
+			}
 		}
 	}
 }

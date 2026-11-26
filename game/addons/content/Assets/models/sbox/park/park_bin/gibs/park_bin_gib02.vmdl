@@ -17,6 +17,10 @@
 								from = "park_bin.vmat"
 								to = "models/sbox/park/park_bin/park_bin.vmat"
 							},
+							{
+								from = "models/sbox/park/park_bin/park_bin.vmat"
+								to = "models/sbox/park/park_bin/park_bin.vmat"
+							},
 						]
 						use_global_default = false
 						global_default_material = ""
@@ -71,8 +75,8 @@
 						target_body = ""
 						mass_override = 7.0
 						inertia_scale = 1.0
-						linear_damping = 0.0
-						angular_damping = 0.0
+						linear_damping = 0.08
+						angular_damping = 0.3
 						use_mass_center_override = false
 						mass_center_override = [ 0.0, 0.0, 0.0 ]
 						gravity_scale = 1.0

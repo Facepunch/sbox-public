@@ -285,7 +285,7 @@ public class DefaultUpgrader : Hotload.InstanceUpgrader
 	/// <summary>
 	/// Get all fields on this type, and types it inherits from, that we should process.
 	/// </summary>
-	private (FieldInfo? SrcField, FieldInfo DstField)[] GetFieldsToProcess( Type? oldType, Type newType, bool canSkip )
+	internal (FieldInfo? SrcField, FieldInfo DstField)[] GetFieldsToProcess( Type? oldType, Type newType, bool canSkip )
 	{
 		var key = (oldType, newType, canSkip);
 

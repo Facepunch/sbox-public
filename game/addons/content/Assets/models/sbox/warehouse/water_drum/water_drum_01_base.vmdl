@@ -6,146 +6,6 @@
 		children =
 		[
 			{
-				_class = "GameDataList"
-				children =
-				[
-					{
-						_class = "GenericGameData"
-						game_class = "prop_data"
-						game_keys =
-						{
-							bakelighting = true
-							health = -1.0
-							min_impact_damage_speed = -1.0
-							impact_damage = -1.0
-							parent_bodygroup_name = ""
-							parent_bodygroup_value = 0
-							flammable = false
-							explosive = false
-							explosive_damage = -1.0
-							explosive_radius = -1.0
-							explosive_force = -1.0
-						}
-					},
-				]
-			},
-			{
-				_class = "MaterialGroupList"
-				children =
-				[
-					{
-						_class = "DefaultMaterialGroup"
-						remaps =
-						[
-							{
-								from = "plastic_trim.vmat"
-								to = "materials/sbox/trimsheets/plastic/plastic_trim_clean_blend.vmat"
-							},
-						]
-						use_global_default = false
-						global_default_material = ""
-					},
-				]
-			},
-			{
-				_class = "RenderMeshList"
-				children =
-				[
-					{
-						_class = "RenderMeshFile"
-						name = "LOD0"
-						children =
-						[
-							{
-								_class = "RenameStream"
-								from_name = "color$1"
-								to_name = "VertexPaintTintColor"
-							},
-							{
-								_class = "RenameStream"
-								from_name = "color$0"
-								to_name = "VertexPaintBlendParams$"
-							},
-						]
-						filename = "models/sbox/warehouse/water_drum/water_drum.fbx"
-						import_translation = [ 0.0, 0.0, 0.0 ]
-						import_rotation = [ 0.0, 0.0, 0.0 ]
-						import_scale = 1.0
-						align_origin_x_type = "None"
-						align_origin_y_type = "None"
-						align_origin_z_type = "None"
-						parent_bone = ""
-						import_filter =
-						{
-							exclude_by_default = true
-							exception_list =
-							[
-								"Cylinder_002",
-								"Cylinder_003",
-								"water_drum_01_001",
-								"water_drum_01_002",
-								"water_drum_01",
-							]
-						}
-					},
-				]
-			},
-			{
-				_class = "PhysicsShapeList"
-				children =
-				[
-					{
-						_class = "PhysicsHullFile"
-						name = "water_drum"
-						parent_bone = ""
-						surface_prop = "plastic.sheet"
-						collision_tags = "solid"
-						recenter_on_parent_bone = false
-						offset_origin = [ 0.0, 0.0, 0.0 ]
-						offset_angles = [ 0.0, 0.0, 0.0 ]
-						align_origin_x_type = "None"
-						align_origin_y_type = "None"
-						align_origin_z_type = "None"
-						filename = "models/sbox/warehouse/water_drum/water_drum.fbx"
-						import_scale = 1.0
-						faceMergeAngle = 10.0
-						maxHullVertices = 0
-						import_mode = "HullPerElement"
-						optimization_algorithm = "QEM"
-						import_filter =
-						{
-							exclude_by_default = false
-							exception_list =
-							[
-								"water_drum_01_phy_004",
-								"water_drum_01_lid_001",
-								"water_drum_01_002",
-								"water_drum_01_lid",
-								"water_drum_01",
-								"water_drum_01_phy",
-							]
-						}
-					},
-				]
-			},
-			{
-				_class = "PhysicsBodyMarkupList"
-				children =
-				[
-					{
-						_class = "PhysicsBodyMarkup"
-						target_body = ""
-						mass_override = 6.0
-						inertia_scale = 1.0
-						linear_damping = 0.0
-						angular_damping = 1.0
-						use_mass_center_override = false
-						mass_center_override = [ 0.0, 0.0, 0.0 ]
-						gravity_scale = 0.9
-					},
-				]
-			},
-			{
 				_class = "LODGroupList"
 				children =
 				[
@@ -160,56 +20,207 @@
 						auto_protect_uv_seams = true
 						auto_regularize = 1
 						auto_prune_isolated_components = false
+						auto_strip_vertex_color = false
+						auto_material_culling_enabled = false
 						meshes =
 						[
 							"LOD0",
 						]
+						material_culls = [  ]
+					},
+				]
+			},
+			{
+				_class = "PhysicsShapeList"
+				children =
+				[
+					{
+						_class = "PhysicsShapeCylinder"
+						name = "collar"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						radius = 13.35
+						point0 = [ 0.0, 0.0, 47.650002 ]
+						point1 = [ 0.0, 0.0, 49.77 ]
 					},
 					{
-						_class = "LODGroup"
-						switch_threshold = 20.0
-						auto_simplify_mode = 1
-						auto_reduction = 0.5
-						auto_max_error = 0.0
-						auto_lock_border_vertices = true
-						auto_permissive_simplification = false
-						auto_protect_uv_seams = true
-						auto_regularize = 1
-						auto_prune_isolated_components = true
-						meshes = [  ]
+						_class = "PhysicsShapeCylinder"
+						name = "lid"
+						parent_bone = ""
+						surface_prop = "plastic"
+						collision_tags = "solid"
+						radius = 12.32
+						point0 = [ 0.0, 0.0, 48.740002 ]
+						point1 = [ 0.0, 0.0, 51.880001 ]
 					},
 					{
-						_class = "LODGroup"
-						switch_threshold = 50.0
-						auto_simplify_mode = 1
-						auto_reduction = 0.2939
-						auto_max_error = 0.0
-						auto_lock_border_vertices = true
-						auto_permissive_simplification = true
-						auto_protect_uv_seams = false
-						auto_regularize = 0
-						auto_prune_isolated_components = false
-						meshes = [  ]
+						_class = "PhysicsHullFile"
+						name = "water_barrel"
+						parent_bone = ""
+						surface_prop = "plastic.sheet"
+						collision_tags = "solid"
+						recenter_on_parent_bone = false
+						offset_origin = [ 0.0, 0.0, 0.0 ]
+						offset_angles = [ 0.0, 0.0, 0.0 ]
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						filename = "models/sbox/warehouse/water_drum/water_drum.fbx"
+						import_scale = 1.0
+						faceMergeAngle = 10.0
+						maxHullVertices = 0
+						import_mode = "HullPerElement"
+						optimization_algorithm = "Exact"
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"waterdrum_phy",
+							]
+						}
+					},
+				]
+			},
+			{
+				_class = "RenderMeshList"
+				children =
+				[
+					{
+						_class = "RenderMeshFile"
+						name = "LOD0"
+						filename = "models/sbox/warehouse/water_drum/water_drum.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"waterdrum_LOD0",
+							]
+						}
+					},
+				]
+			},
+			{
+				_class = "MaterialGroupList"
+				children =
+				[
+					{
+						_class = "DefaultMaterialGroup"
+						remaps =
+						[
+							{
+								from = "water_barrel.vmat"
+								to = "models/sbox/warehouse/water_drum/materials/water_drum.vmat"
+							},
+							{
+								from = "models/sbox/warehouse/water_drum/materials/water_drum.vmat"
+								to = "models/sbox/warehouse/water_drum/materials/water_drum.vmat"
+							},
+						]
+						use_global_default = false
+						global_default_material = ""
+					},
+				]
+			},
+			{
+				_class = "PhysicsBodyMarkupList"
+				children =
+				[
+					{
+						_class = "PhysicsBodyMarkup"
+						target_body = ""
+						mass_override = 11.0
+						inertia_scale = 1.0
+						linear_damping = 0.04
+						angular_damping = 0.15
+						use_mass_center_override = true
+						mass_center_override = [ 0.0, 0.0, 15.0 ]
+						gravity_scale = 1.0
+					},
+				]
+			},
+			{
+				_class = "GameDataList"
+				children =
+				[
+					{
+						_class = "GenericGameData"
+						game_class = "prop_data"
+						game_keys =
+						{
+							health = 50
+							min_impact_damage_speed = 1200.0
+							impact_damage = 25.0
+							flammable = false
+							explosive = false
+							bakelighting = true
+							explosive_damage = -1.0
+							explosive_radius = -1.0
+							explosive_force = -1.0
+						}
+					},
+				]
+			},
+			{
+				_class = "BreakPieceList"
+				children =
+				[
+					{
+						_class = "BreakPieceExternal"
+						placement_mode = "default"
+						placement_bone = ""
+						placement_attach = ""
+						offset = [ 0.0, 0.0, 0.0 ]
+						fadetime = 30.0
+						random_spawn_chance = 1.0
+						is_essential_piece = true
+						clientonly = false
+						collision_tags = "solid"
+						model = "models/sbox/warehouse/water_drum/gibs/water_drum_gib_01.vmdl"
 					},
 					{
-						_class = "LODGroup"
-						switch_threshold = 90.0
-						auto_simplify_mode = 1
-						auto_reduction = 0.3956
-						auto_max_error = 0.0
-						auto_lock_border_vertices = false
-						auto_permissive_simplification = true
-						auto_protect_uv_seams = false
-						auto_regularize = 0
-						auto_prune_isolated_components = false
-						meshes = [  ]
+						_class = "BreakPieceExternal"
+						placement_mode = "default"
+						placement_bone = ""
+						placement_attach = ""
+						offset = [ -1.652733, -1.561897, 56.748707 ]
+						fadetime = 30.0
+						random_spawn_chance = 1.0
+						is_essential_piece = true
+						clientonly = false
+						collision_tags = "solid"
+						model = "models/sbox/warehouse/water_drum/water_drum_lid.vmdl"
+					},
+					{
+						_class = "BreakPieceExternal"
+						placement_mode = "default"
+						placement_bone = ""
+						placement_attach = ""
+						offset = [ 2.059734, -2.555145, 53.882698 ]
+						fadetime = 30.0
+						random_spawn_chance = 1.0
+						is_essential_piece = true
+						clientonly = false
+						collision_tags = "solid"
+						model = "models/sbox/warehouse/water_drum/water_drum_collar.vmdl"
 					},
 				]
 			},
 		]
-		model_archetype = "physics_prop_model"
-		primary_associated_entity = "prop_physics"
+		model_archetype = ""
+		primary_associated_entity = ""
 		anim_graph_name = ""
+		animation_graph_name = resource:""
+		skeleton_name = resource:""
 		base_model_name = ""
 	}
 }

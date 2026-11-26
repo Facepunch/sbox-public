@@ -1,0 +1,274 @@
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:modeldoc30:version{8c2d7a91-9c42-4bf0-883a-5a3b1762d4f1} -->
+{
+	rootNode =
+	{
+		_class = "RootNode"
+		children =
+		[
+			{
+				_class = "MaterialGroupList"
+				children =
+				[
+					{
+						_class = "DefaultMaterialGroup"
+						remaps =
+						[
+							{
+								from = "signs_atlas.vmat"
+								to = "models/sbox/street/street_signs/materials/signs_atlas.vmat"
+							},
+							{
+								from = "models/sbox/street/street_signs/materials/signs_atlas.vmat"
+								to = "models/sbox/street/street_signs/materials/signs_atlas.vmat"
+							},
+						]
+						use_global_default = true
+						global_default_material = "models/sbox/street/street_signs/materials/signs_atlas.vmat"
+					},
+				]
+			},
+			{
+				_class = "PhysicsShapeList"
+				children =
+				[
+					{
+						_class = "PhysicsShapeCylinder"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						radius = 1.3347
+						point0 = [ -0.0007, 0.015, -0.0002 ]
+						point1 = [ -0.0007, 0.015, 106.9574 ]
+					},
+					{
+						_class = "PhysicsShapeHull"
+						parent_bone = ""
+						surface_prop = "metal.sheet"
+						collision_tags = "solid"
+						origin = [ 0.0, 0.0, 0.0 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						hull_vertices =
+						[
+							[ 2.341, 13.7838, 84.6274 ],
+							[ 2.641, -15.2938, 86.3175 ],
+							[ 2.341, 13.2591, 84.5838 ],
+							[ 2.641, -13.9325, 84.6662 ],
+							[ 2.341, -13.4099, 84.588 ],
+							[ 2.641, -13.4099, 84.588 ],
+							[ 2.341, -13.9325, 84.6662 ],
+							[ 2.641, -15.2226, 85.8561 ],
+							[ 2.341, -14.3934, 84.8496 ],
+							[ 2.641, -15.0376, 85.444 ],
+							[ 2.341, -14.745, 85.0968 ],
+							[ 2.641, -14.745, 85.0968 ],
+							[ 2.341, -15.0376, 85.444 ],
+							[ 2.641, -15.2513, 86.8102 ],
+							[ 2.341, -15.2226, 85.8561 ],
+							[ 2.341, -15.2938, 86.3175 ],
+							[ 2.641, -1.2646, 111.0627 ],
+							[ 2.341, -15.2513, 86.8102 ],
+							[ 2.341, -1.5627, 110.6625 ],
+							[ 2.341, -15.0324, 87.3154 ],
+							[ 2.641, -15.0324, 87.3154 ],
+							[ -1.2584, 0.5455, 94.8484 ],
+							[ 2.341, 0.8549, 111.3631 ],
+							[ -1.3629, 0.0171, 94.8484 ],
+							[ 2.641, 0.8549, 111.3631 ],
+							[ -1.2584, -0.509, 94.8484 ],
+							[ 2.641, 0.4258, 111.533 ],
+							[ 2.641, -0.0204, 111.6052 ],
+							[ 2.641, -0.4667, 111.5214 ],
+							[ 1.378, 10.5069, 94.9319 ],
+							[ 2.641, -0.8958, 111.3379 ],
+							[ 2.341, 0.4258, 111.533 ],
+							[ 2.341, -0.0204, 111.6052 ],
+							[ 2.341, -0.4667, 111.5214 ],
+							[ 2.341, -0.8958, 111.3379 ],
+							[ 2.341, -1.2646, 111.0627 ],
+							[ 2.641, -1.5627, 110.6625 ],
+							[ 2.341, 1.2683, 111.0627 ],
+							[ 2.641, 1.2683, 111.0627 ],
+							[ 1.378, -10.378, 94.9307 ],
+							[ 2.641, 15.2939, 86.244 ],
+							[ 2.641, 1.5969, 110.6139 ],
+							[ 2.641, 14.2489, 84.7776 ],
+							[ 2.341, 1.5969, 110.6139 ],
+							[ 2.641, 15.2676, 86.7377 ],
+							[ -1.3629, 0.0171, 94.007 ],
+							[ 2.641, 15.0739, 87.2467 ],
+							[ 2.341, 15.0739, 87.2467 ],
+							[ 2.341, 15.2676, 86.7377 ],
+							[ 2.641, 14.6781, 85.037 ],
+							[ -1.2584, -0.509, 94.007 ],
+							[ 2.641, 14.9964, 85.377 ],
+							[ 2.341, 15.2939, 86.244 ],
+							[ 2.341, 15.2033, 85.7845 ],
+							[ -1.2584, 0.5455, 94.007 ],
+							[ 2.641, 15.2033, 85.7845 ],
+							[ 2.341, 14.9964, 85.377 ],
+							[ 2.641, 13.7838, 84.6274 ],
+							[ 2.341, 14.6781, 85.037 ],
+							[ 2.641, 13.2591, 84.5838 ],
+							[ 2.341, 14.2489, 84.7776 ],
+							[ 2.641, -14.3934, 84.8496 ],
+						]
+					},
+				]
+			},
+			{
+				_class = "RenderMeshList"
+				children =
+				[
+					{
+						_class = "RenderMeshFile"
+						name = "lod0"
+						filename = "models/sbox/street/street_signs/street_signs.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"sign_roadworks_lod0",
+							]
+						}
+					},
+				]
+			},
+			{
+				_class = "LODGroupList"
+				children =
+				[
+					{
+						_class = "LODGroup"
+						switch_threshold = 0.0
+						auto_simplify_mode = 0
+						auto_reduction = 0.5
+						auto_max_error = 0.0
+						auto_lock_border_vertices = true
+						auto_permissive_simplification = false
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						auto_strip_vertex_color = false
+						auto_material_culling_enabled = false
+						meshes =
+						[
+							"lod0",
+						]
+						material_culls = [  ]
+					},
+					{
+						_class = "LODGroup"
+						switch_threshold = 60.0
+						auto_simplify_mode = 1
+						auto_reduction = 0.5
+						auto_max_error = 0.0
+						auto_lock_border_vertices = true
+						auto_permissive_simplification = false
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						auto_strip_vertex_color = false
+						auto_material_culling_enabled = false
+						meshes = [  ]
+						material_culls = [  ]
+					},
+				]
+			},
+			{
+				_class = "BreakPieceList"
+				children =
+				[
+					{
+						_class = "BreakPieceExternal"
+						placement_mode = "default"
+						placement_bone = ""
+						placement_attach = ""
+						offset = [ 0.0, 0.0, 0.35 ]
+						fadetime = 20.0
+						random_spawn_chance = 1.0
+						is_essential_piece = false
+						clientonly = false
+						collision_tags = "debris"
+						model = "models/sbox/street/street_signs/gibs/sign_gib_01.vmdl"
+					},
+					{
+						_class = "BreakPieceExternal"
+						placement_mode = "default"
+						placement_bone = ""
+						placement_attach = ""
+						offset = [ -1.8, 0.0, 94.43 ]
+						fadetime = 20.0
+						random_spawn_chance = 1.0
+						is_essential_piece = false
+						clientonly = false
+						collision_tags = "debris"
+						model = "models/sbox/street/street_signs/gibs/sign_gib_02.vmdl"
+					},
+					{
+						_class = "BreakPieceExternal"
+						placement_mode = "default"
+						placement_bone = ""
+						placement_attach = ""
+						offset = [ 2.340994, 0.00176, 96.174077 ]
+						fadetime = 20.0
+						random_spawn_chance = 1.0
+						is_essential_piece = false
+						clientonly = false
+						collision_tags = "debris"
+						model = "models/sbox/street/street_signs/sign_plate_roadworks.vmdl"
+					},
+				]
+			},
+			{
+				_class = "GameDataList"
+				children =
+				[
+					{
+						_class = "GenericGameData"
+						game_class = "prop_data"
+						game_keys =
+						{
+							allowstatic = false
+							bakelighting = false
+							spawn_motion_disabled = false
+							health = 100.0
+							min_impact_damage_speed = -1.0
+							impact_damage = -1.0
+							parent_bodygroup_name = ""
+							parent_bodygroup_value = 0
+						}
+					},
+				]
+			},
+			{
+				_class = "PhysicsBodyMarkupList"
+				children =
+				[
+					{
+						_class = "PhysicsBodyMarkup"
+						target_body = ""
+						mass_override = 12.5
+						inertia_scale = 1.0
+						linear_damping = 0.04
+						angular_damping = 0.15
+						use_mass_center_override = false
+						mass_center_override = [ 0.0, 0.0, 0.0 ]
+						gravity_scale = 1.0
+					},
+				]
+			},
+		]
+		model_archetype = ""
+		primary_associated_entity = ""
+		anim_graph_name = ""
+		base_model_name = ""
+	}
+}

@@ -30,20 +30,6 @@ internal static partial class GamePreferences
 	[Group( "Camera" )]
 	public static bool ViewBobbing { get; set; } = true;
 
-	/// <summary>
-	/// Maximum first-person camera roll in degrees when moving sideways.
-	/// </summary>
-	[ConVar( "sandbox.viewtilt", ConVarFlags.Saved, Help = "Maximum sideways camera tilt in degrees. Defaults to 0." )]
-	[Range( 0f, 1f ), Step( 0.05f ), Group( "Camera" )]
-	public static float ViewTilt { get; set; } = 0f;
-
-	/// <summary>
-	/// Intensity of your camera's screenshake
-	/// </summary>
-	[ConVar( "sandbox.screenshake", ConVarFlags.Saved )]
-	[Range( 0.1f, 2f ), Step( 0.1f ), Group( "Camera" )]
-	public static float Screenshake { get; set; } = 0.3f;
-
 	public static void Reset( string group )
 	{
 		foreach ( var property in Game.TypeLibrary.GetType( typeof( GamePreferences ) )?.Properties ?? [] )

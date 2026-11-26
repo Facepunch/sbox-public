@@ -10,27 +10,40 @@
 		padding-bottom: 10px;
 		border-bottom: 1px solid $ui-separator;
 
-		&.collapsed { display: none; }
+		&.collapsed
+		{
+			display: none;
+		}
+
+		.new-preset
+		{
+			margin-top: 5px;
+
+			.textentry
+			{
+				@include ui-text-entry;
+				height: $ui-menu-control-height;
+				border-radius: $ui-menu-radius;
+				flex-grow: 1;
+				min-width: 0px;
+			}
+		}
 
 		.preset-controls
 		{
 			width: 100%;
-			gap: 5px;
-			align-items: center;
-			UIDropdown { flex-grow: 1; min-width: 0px; }
-			UIButton { width: 24px; height: 24px; flex-shrink: 0; }
-		}
-	}
-
-	.menu-panel ToolPresetBar
-	{
-		.preset-controls
-		{
 			gap: 6px;
+			align-items: center;
 
 			> *
 			{
 				height: $ui-menu-control-height;
+			}
+
+			UIDropdown
+			{
+				flex-grow: 1;
+				min-width: 0;
 			}
 
 			UIButton.button.icon-only
@@ -42,14 +55,9 @@
 		.preset-error
 		{
 			color: $ui-danger;
+			font-size: 11px;
+			margin-top: 5px;
 		}
-	}
-
-	.preset-error
-	{
-		color: #edac92;
-		font-size: 11px;
-		margin-top: 5px;
 	}
 }
 

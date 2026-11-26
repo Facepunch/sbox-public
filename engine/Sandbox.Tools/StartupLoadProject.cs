@@ -119,6 +119,12 @@ static class StartupLoadProject
 	{
 		// should never be one existing once we remove all this shit
 		Project project = Project.AddFromFile( path, false );
+		if ( project is null )
+		{
+			Log.Warning( $"Couldn't open project '{path}'." );
+			return false;
+		}
+
 		var parentPackage = project.Config.GetMetaOrDefault<string>( "ParentPackage", null );
 
 		Step( "Initializing filesystem" );
@@ -242,8 +248,7 @@ static class StartupLoadProject
 			}
 
 			Log.Info( $"MountAsync" );
-			// Mount our current project, and load the source!
-			await project.Package.MountAsync( true );
+			await project.Package.MountAsync();
 
 			// Mount our current project into the filesystem and make sure to load all assets
 			FileSystem.Mounted.Mount( project.AssetsFileSystem );

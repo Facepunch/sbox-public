@@ -18,7 +18,11 @@ internal sealed class SaveSystem : GameObjectSystem<SaveSystem>, ISceneLoadingEv
 	private Dictionary<string, string> _metadata = new();
 	private readonly List<LoadedSceneEntry> _loadedScenes = new();
 	private bool _suppressSystemScene;
-	private bool _loadingSave;
+
+	/// <summary>
+	/// Whether the host is downloading or restoring a save.
+	/// </summary>
+	internal bool IsLoadingSave { get; private set; }
 
 	/// <summary>
 	/// The path of the save file that was most recently loaded, if any.
@@ -179,6 +183,7 @@ internal sealed class SaveSystem : GameObjectSystem<SaveSystem>, ISceneLoadingEv
 		var saveData = new JsonObject
 		{
 			["Version"] = CurrentSaveVersion,
+			["Map"] = CurrentMap,
 			["SceneId"] = Scene.Id.ToString(),
 			["SceneSources"] = sceneSources,
 			["SceneProperties"] = primarySceneFile is not null ? SerializeScenePropertyDiffs( Scene, primarySceneFile ) : null,
@@ -213,22 +218,47 @@ internal sealed class SaveSystem : GameObjectSystem<SaveSystem>, ISceneLoadingEv
 	/// Load a previously saved game state from a file, applying the differences to the original scene file(s) to reconstruct the saved scene.
 	/// </summary>
 	/// <returns>True if the load was successful.</returns>
-	public async Task<bool> Load( string path )
-	{
-		if ( !Networking.IsHost || _loadingSave ) return false;
+	public Task<bool> Load( string path ) => Load( path, null );
 
-		_loadingSave = true;
+	/// <summary>
+	/// Loads a workshop save for the active map through the same restore path as a local save.
+	/// </summary>
+	internal Task<bool> LoadWorkshop( Storage.QueryItem item ) => Load( WorkshopFileName, item );
+
+	internal const string WorkshopFileName = "world.sav";
+	internal string CurrentMap => Scene.GetAllComponents<MapInstance>().FirstOrDefault( x => x.UseMapFromLaunch )?.MapName;
+	private bool CanLoad => Networking.IsHost && Scene.IsValid() && Scene == Game.ActiveScene;
+
+	private async Task<bool> Load( string path, Storage.QueryItem item )
+	{
+		if ( !CanLoad || IsLoadingSave ) return false;
+
+		IsLoadingSave = true;
 		try
 		{
-			return await LoadSave( path );
+			if ( item is null )
+				return await LoadSave( FileSystem.Data, path, null );
+
+			var map = CurrentMap;
+			if ( string.IsNullOrWhiteSpace( map ) ) return false;
+
+			var entry = await item.Install();
+			if ( !CanLoad || entry?.Type != "save" ) return false;
+
+			return await LoadSave( entry.Files, path, map );
+		}
+		catch ( Exception e )
+		{
+			Log.Warning( $"SaveSystem: Failed to load '{item?.Title ?? path}': {e.Message}" );
+			return false;
 		}
 		finally
 		{
-			_loadingSave = false;
+			IsLoadingSave = false;
 		}
 	}
 
-	private async Task<bool> LoadSave( string path )
+	private async Task<bool> LoadSave( BaseFileSystem files, string path, string workshopMap )
 	{
 		if ( string.IsNullOrWhiteSpace( path ) )
 		{
@@ -242,7 +272,7 @@ internal sealed class SaveSystem : GameObjectSystem<SaveSystem>, ISceneLoadingEv
 			return false;
 		}
 
-		if ( !FileSystem.Data.FileExists( path ) )
+		if ( !files.FileExists( path ) )
 		{
 			Log.Warning( $"SaveSystem: Save file '{path}' does not exist." );
 			return false;
@@ -252,7 +282,7 @@ internal sealed class SaveSystem : GameObjectSystem<SaveSystem>, ISceneLoadingEv
 
 		try
 		{
-			var text = FileSystem.Data.ReadAllText( path );
+			var text = files.ReadAllText( path );
 			saveRoot = JsonNode.Parse( text )?.AsObject();
 		}
 		catch ( Exception e )
@@ -275,36 +305,8 @@ internal sealed class SaveSystem : GameObjectSystem<SaveSystem>, ISceneLoadingEv
 			return false;
 		}
 
-		var sceneSources = new List<string>();
-		if ( saveRoot["SceneSources"] is JsonArray sourcesArray )
-		{
-			foreach ( var source in sourcesArray )
-			{
-				var val = source?.GetValue<string>();
-				if ( !string.IsNullOrEmpty( val ) )
-					sceneSources.Add( val );
-			}
-		}
-
-		if ( sceneSources.Count == 0 )
-		{
-			Log.Warning( $"SaveSystem: Save file '{path}' has no scene sources." );
-			return false;
-		}
-
-		// Resolve all scene files from disk, the first being the primary scene
-		var sceneFiles = new List<SceneFile>();
-		foreach ( var source in sceneSources )
-		{
-			var sf = ResourceLibrary.Get<SceneFile>( source );
-			if ( sf is null )
-			{
-				Log.Warning( $"SaveSystem: Scene source '{source}' not found. Skipping." );
-				continue;
-			}
-			sceneFiles.Add( sf );
-		}
-
+		var sceneSources = ReadSceneSources( saveRoot );
+		var sceneFiles = ResolveSceneFiles( sceneSources );
 		if ( sceneFiles.Count == 0 )
 		{
 			Log.Warning( $"SaveSystem: None of the scene sources from save '{path}' could be found." );
@@ -317,37 +319,17 @@ internal sealed class SaveSystem : GameObjectSystem<SaveSystem>, ISceneLoadingEv
 			await MountRequiredPackages( pkgArray );
 		}
 
-		Json.Patch savedPatch = null;
-		if ( saveRoot["Patch"] is JsonObject patchNode )
-		{
-			savedPatch = Json.FromNode<Json.Patch>( patchNode );
-		}
+		if ( !CanLoad ) return false;
 
-		savedPatch ??= new Json.Patch();
-
-		// Use the saved scene ID for the baseline root so the patch applies correctly
-		var savedSceneId = Guid.TryParse( saveRoot["SceneId"]?.GetValue<string>(), out var parsedId )
-			? parsedId
-			: sceneFiles[0].Id;
-
-		var baseline = BuildCompositeBaselineFromFiles( sceneFiles, savedSceneId );
-		if ( baseline is null )
-		{
-			Log.Warning( "SaveSystem: Failed to build baseline from scene sources." );
+		var patchedSceneFile = ReconstructScene( saveRoot, sceneFiles );
+		var savedMap = FindLaunchMapName( patchedSceneFile.GameObjects );
+		if ( workshopMap is not null && (!string.Equals( workshopMap, savedMap, StringComparison.OrdinalIgnoreCase )
+			|| !string.Equals( workshopMap, CurrentMap, StringComparison.OrdinalIgnoreCase )) )
 			return false;
-		}
 
-		// Reconstruct the target world from the original sources and the saved patch.
-		var patched = Json.ApplyPatch( baseline, savedPatch, GameObject.DiffObjectDefinitions );
-		var primarySceneFile = sceneFiles[0];
-		var savedSceneProperties = saveRoot["SceneProperties"];
-		var patchedSceneFile = BuildPatchedSceneFile( primarySceneFile, patched, savedSceneProperties );
 		var metadata = saveRoot["Metadata"] is JsonObject metaNode
 			? JsonSerializer.Deserialize<Dictionary<string, string>>( metaNode )
 			: null;
-
-		if ( !Scene.IsValid() || Scene != Game.ActiveScene || !Networking.IsHost )
-			return false;
 
 		Scene.RunEvent<Global.ISaveEvents>( x => x.BeforeLoad( path ) );
 
@@ -368,7 +350,8 @@ internal sealed class SaveSystem : GameObjectSystem<SaveSystem>, ISceneLoadingEv
 			BroadcastShowLoadingScreen();
 			await Task.Delay( 50 );
 
-			var savedMap = FindLaunchMapName( patchedSceneFile.GameObjects );
+			if ( !CanLoad ) return false;
+
 			if ( !string.IsNullOrWhiteSpace( savedMap ) )
 			{
 				LaunchArguments.Map = savedMap;
@@ -435,7 +418,7 @@ internal sealed class SaveSystem : GameObjectSystem<SaveSystem>, ISceneLoadingEv
 		var properties = Scene.SerializeProperties();
 		foreach ( var (name, value) in saved.SceneProperties )
 		{
-			if ( name is nameof( Scene.TimeScale ) or nameof( Scene.NetworkInterpolation ) or nameof( Scene.WantsSystemScene ) )
+			if ( name is nameof( Scene.TimeScale ) or nameof( Scene.WantsSystemScene ) )
 				continue;
 
 			if ( !JsonNode.DeepEquals( value, properties[name] ) )
@@ -487,9 +470,6 @@ internal sealed class SaveSystem : GameObjectSystem<SaveSystem>, ISceneLoadingEv
 
 		if ( saved.SceneProperties[nameof( Scene.TimeScale )] is JsonValue timeScale )
 			Scene.TimeScale = timeScale.GetValue<float>();
-
-		if ( saved.SceneProperties[nameof( Scene.NetworkInterpolation )] is JsonValue interpolation )
-			Scene.NetworkInterpolation = interpolation.GetValue<bool>();
 
 		foreach ( var go in restored.SelectMany( x => x.GetAllObjects( false ) ).ToArray() )
 		{
@@ -937,6 +917,75 @@ internal sealed class SaveSystem : GameObjectSystem<SaveSystem>, ISceneLoadingEv
 				}
 			}
 		}
+	}
+
+	private static List<string> ReadSceneSources( JsonObject saveRoot )
+	{
+		var sceneSources = new List<string>();
+		if ( saveRoot["SceneSources"] is JsonArray sourcesArray )
+		{
+			foreach ( var source in sourcesArray )
+			{
+				var val = source?.GetValue<string>();
+				if ( !string.IsNullOrEmpty( val ) )
+					sceneSources.Add( val );
+			}
+		}
+		return sceneSources;
+	}
+
+	private static List<SceneFile> ResolveSceneFiles( List<string> sceneSources )
+	{
+		var sceneFiles = new List<SceneFile>();
+		foreach ( var source in sceneSources )
+		{
+			var sf = ResourceLibrary.Get<SceneFile>( source );
+			if ( sf is null )
+			{
+				Log.Warning( $"SaveSystem: Scene source '{source}' not found. Skipping." );
+				continue;
+			}
+			sceneFiles.Add( sf );
+		}
+		return sceneFiles;
+	}
+
+	private static SceneFile ReconstructScene( JsonObject saveRoot, List<SceneFile> sceneFiles )
+	{
+		Json.Patch savedPatch = null;
+		if ( saveRoot["Patch"] is JsonObject patchNode )
+		{
+			savedPatch = Json.FromNode<Json.Patch>( patchNode );
+		}
+
+		savedPatch ??= new Json.Patch();
+
+		// Use the saved scene ID for the baseline root so the patch applies correctly
+		var savedSceneId = Guid.TryParse( saveRoot["SceneId"]?.GetValue<string>(), out var parsedId )
+			? parsedId
+			: sceneFiles[0].Id;
+
+		var baseline = BuildCompositeBaselineFromFiles( sceneFiles, savedSceneId );
+
+		// Reconstruct the target world from the original sources and the saved patch.
+		var patched = Json.ApplyPatch( baseline, savedPatch, GameObject.DiffObjectDefinitions );
+		var primarySceneFile = sceneFiles[0];
+		var savedSceneProperties = saveRoot["SceneProperties"];
+		return BuildPatchedSceneFile( primarySceneFile, patched, savedSceneProperties );
+	}
+
+	/// <summary>
+	/// Reads the map from the saved scene, including saves made before workshop publishing was available.
+	/// </summary>
+	internal static string GetSavedMap( string json )
+	{
+		var root = JsonNode.Parse( json )?.AsObject();
+		if ( root?["Version"]?.GetValue<int>() != CurrentSaveVersion ) return null;
+
+		if ( root["Map"]?.GetValue<string>() is { Length: > 0 } map ) return map;
+
+		var files = ResolveSceneFiles( ReadSceneSources( root ) );
+		return files.Count == 0 ? null : FindLaunchMapName( ReconstructScene( root, files ).GameObjects );
 	}
 
 	/// <summary>

@@ -8,7 +8,8 @@ namespace Sandbox;
 public sealed class AchievementCollection
 {
 	private string packageIdent;
-	Dictionary<string, Achievement> _entries = new( StringComparer.OrdinalIgnoreCase );
+	readonly OrderedDictionary<string, Achievement> _entries = new( StringComparer.OrdinalIgnoreCase );
+	int _nextUnlockIndex;
 
 	public IReadOnlyCollection<Achievement> All => _entries.Values;
 
@@ -44,7 +45,9 @@ public sealed class AchievementCollection
 		if ( _pendingManualUnlocks is not null )
 		{
 			foreach ( var name in _pendingManualUnlocks )
+			{
 				ManualUnlock( name );
+			}
 
 			_pendingManualUnlocks = null;
 		}
@@ -76,6 +79,14 @@ public sealed class AchievementCollection
 	/// </summary>
 	internal void ManualUnlock( string name )
 	{
+		if ( !ThreadSafe.IsMainThread )
+		{
+			MainThread.Queue( () => ManualUnlock( name ) );
+			return;
+		}
+
+		if ( Application.GamePackage?.GetCachedAchievements() != this || AccountInformation.SteamId == 0 ) return;
+
 		if ( !_fetched )
 		{
 			_pendingManualUnlocks ??= new();
@@ -84,38 +95,9 @@ public sealed class AchievementCollection
 		}
 
 		if ( !_entries.TryGetValue( name, out Achievement entry ) ) return;
-		if ( entry.IsUnlocked ) return;
 		if ( !entry.IsUnlockedManually ) return;
 
-		Unlock( name );
-	}
-
-	/// <summary>
-	/// Unlock this achievement. It can be anything.
-	/// </summary>
-	async void Unlock( string name )
-	{
-		if ( !_entries.TryGetValue( name, out Achievement entry ) ) return;
-		if ( entry.IsUnlocked ) return;
-		if ( Backend.Achievements is null ) return;
-
-		entry.UnlockTimestamp = DateTime.UtcNow;
-
-		try
-		{
-			await Backend.Achievements.Unlock( packageIdent, entry.Name );
-		}
-		catch ( System.Exception e )
-		{
-			Log.Warning( e, "Exception when trying to unlock achievement" );
-
-			Sentry.SentrySdk.CaptureException( e, scope =>
-			{
-				scope.SetExtra( "package", packageIdent );
-				scope.SetExtra( "achievement", entry.Name );
-			} );
-
-		}
+		_ = entry.Unlock( packageIdent, Backend.Achievements );
 	}
 
 	/// <summary>
@@ -123,43 +105,26 @@ public sealed class AchievementCollection
 	/// </summary>
 	internal void TestAchivementsForUnlock()
 	{
-		var stats = Sandbox.Services.Stats.GetLocalPlayerStats( packageIdent );
+		if ( Backend.Achievements is null || AccountInformation.SteamId == 0 ) return;
 
-		foreach ( var entry in _entries.Values )
+		var stats = Stats.GetLocalPlayerStats( packageIdent );
+
+		var index = _nextUnlockIndex;
+		for ( int remaining = _entries.Count; remaining > 0; remaining-- )
 		{
-			if ( string.IsNullOrWhiteSpace( entry.Dto.SourceStat ) ) continue;
+			var entry = _entries.GetAt( index ).Value;
+			if ( ++index == _entries.Count ) index = 0;
 
-			// If we unlock an achievement, we want to wait
-			// for 5 seconds before checking again and triggering the next one.
-			// The notifications are queued, I just don't want people starting a game
-			// and immediately sending 30 unlock notices to the backend.
-			if ( UnlockTest( entry, stats ) )
-			{
-				Services.Achievements.DelayAchievementUnlocks( 5 );
-				return;
-			}
-		}
-	}
+			if ( !entry.CanUnlock || !entry.IsUnlockedWithStat || string.IsNullOrWhiteSpace( entry.Dto.SourceStat ) ) continue;
 
-	private bool UnlockTest( Achievement entry, Stats.PlayerStats stats )
-	{
-		if ( entry.IsUnlocked ) return false;
-		if ( entry.IsUnlockedManually ) return false;
-
-		if ( entry.IsUnlockedWithStat )
-		{
 			var stat = stats.Get( entry.Dto.SourceStat );
-			var fraction = entry.GetFractionFromStat( stat );
+			if ( entry.GetFractionFromStat( stat ) is not >= 1 ) continue;
 
-			//Log.Info( $"{entry.Name} - {fraction} ({stat.Sum})" );
-
-			if ( fraction >= 1 )
-			{
-				Unlock( entry.Name );
-				return true;
-			}
+			// Give the next eligible achievement a turn even if this request fails.
+			_nextUnlockIndex = index;
+			_ = entry.Unlock( packageIdent, Backend.Achievements );
+			Services.Achievements.DelayAchievementUnlocks( 5 );
+			return;
 		}
-
-		return false;
 	}
 }

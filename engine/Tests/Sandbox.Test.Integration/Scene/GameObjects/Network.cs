@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json.Nodes;
+using Sandbox.Diagnostics;
 using Sandbox.Internal;
 using Sandbox.Mapping;
 using Sandbox.Network;
@@ -38,6 +39,137 @@ public class NetworkTest
 		{
 			Game.ActiveScene?.Destroy();
 			Game.ActiveScene = _oldActiveScene;
+		}
+	}
+
+	/// <summary>
+	/// Interrupt an initial snapshot at each stage and check which callbacks the client ran.
+	/// </summary>
+	[TestMethod]
+	[DataRow( "current", 7 )]
+	[DataRow( "leaving", 0 )]
+	[DataRow( "OnDestroy", 1 )]
+	[DataRow( "receive", 2 )]
+	[DataRow( "restart", 2 )]
+	[DataRow( "cancel", 2 )]
+	[DataRow( "OnLoadingFinished", 2 )]
+	[DataRow( "AfterLoad", 3 )]
+	[DataRow( "OnStart", 4 )]
+	[DataRow( "reapply", 5 )]
+	[DataRow( "SceneLoaded", 6 )]
+	[DataRow( "OnClientInitialize", 7 )]
+	public void InitialSnapshotStartup( string scenario, int expectedStages )
+	{
+		var outgoingScene = new Scene();
+		using var scope = outgoingScene.Push();
+		using var peers = new ClientAndHost( TypeLibrary );
+		peers.BecomeHost();
+		var obj = new GameObject();
+		var outgoing = obj.Components.Create<SnapshotStartupProbe>();
+		outgoing.SnapshotValue = true;
+		obj.NetworkSpawn( null );
+
+		var snapshot = SnapshotMsg.Create();
+		SceneNetworkSystem.Instance.GetSnapshot( null, ref snapshot );
+		peers.BecomeClient();
+		using var mainThread = Sandbox.Tasks.SyncContext.Scope( Sandbox.Tasks.SyncContext.MainThread );
+
+		var previousTitle = LoadingScreen.Title;
+		var previousInstance = IGameInstance.Current;
+		var previousSceneName = GameNetworkSystem.CurrentSceneName;
+		var wasPlaying = Game.IsPlaying;
+		string[] stages = ["OnDestroy", "receive", "AfterLoad", "OnStart", "reapply", "SceneLoaded", "OnClientInitialize"];
+		var observed = new List<string>();
+		Scene replacement = null;
+		bool loggedCancellation = false;
+
+		void OnStage( string stage )
+		{
+			observed.Add( stage );
+			if ( stage != scenario )
+				return;
+
+			Networking.Disconnect();
+			if ( stage == "OnStart" )
+				peers.BecomeHost();
+
+			if ( stage == "OnDestroy" )
+				Game.ActiveScene = replacement = new Scene();
+
+			GameNetworkSystem.CurrentSceneName = "replacement scene";
+			LoadingScreen.Title = "replacement load";
+		}
+
+		void OnLog( LogEvent entry )
+		{
+			if ( entry.Exception is OperationCanceledException )
+				loggedCancellation = true;
+		}
+
+		Logging.OnEmitted += OnLog;
+		SnapshotStartupProbe.OnStage = ( probe, stage ) =>
+		{
+			// The outgoing scene and its network copy share ids. Only the outgoing destruction starts the load.
+			if ( probe.Id == outgoing.Id && (stage != "OnDestroy" || probe == outgoing) )
+				OnStage( stage );
+		};
+		try
+		{
+			Game.IsPlaying = false;
+			if ( scenario == "OnLoadingFinished" )
+				IGameInstance.Current = new RestartOnLoadingFinished();
+
+			peers.Client.State = Connection.ChannelState.MountVPKs;
+			peers.Client.HandshakeId = Guid.NewGuid();
+			Networking.System.IsDisconnecting = scenario == "leaving";
+			var msg = new InitialSnapshotResponse { HandshakeId = peers.Client.HandshakeId, Snapshot = snapshot };
+			var loading = Networking.System.On_Handshake_Snapshot( msg, peers.Host, default );
+
+			var scene = Game.ActiveScene;
+			using var hook = scene?.AddHook( GameObjectSystem.Stage.SceneLoaded, 0, () => OnStage( "SceneLoaded" ), nameof( InitialSnapshotStartup ), "" );
+
+			if ( scenario is "restart" or "cancel" )
+				Networking.System.RestartHandshake();
+
+			if ( scenario == "cancel" )
+				scene.Enabled = false;
+
+			Sandbox.Tasks.SyncContext.RunBlocking( loading.WaitAsync( TimeSpan.FromSeconds( 5 ) ) );
+
+			CollectionAssert.AreEqual( stages[..expectedStages], observed, string.Join( ", ", observed ) );
+			Assert.AreEqual( scenario == "current", Game.IsPlaying );
+			Assert.AreEqual( scenario == "current", peers.Host.Messages.Any( x => x.Payload is ClientReady ) );
+			Assert.IsFalse( loggedCancellation );
+
+			if ( scenario == "receive" )
+				Assert.IsNull( scene.Directory.FindSystemByGuid( snapshot.GameObjectSystems.First().Id ), "A stale snapshot must not install the host's system IDs." );
+
+			if ( scenario == "OnLoadingFinished" )
+				Assert.IsTrue( peers.Host.Messages.Any( x => x.Payload is RestartHandshakeMsg ) );
+
+			if ( replacement is not null )
+				Assert.AreSame( replacement, Game.ActiveScene );
+
+			if ( stages.Contains( scenario ) )
+			{
+				Assert.AreEqual( "replacement scene", GameNetworkSystem.CurrentSceneName );
+				Assert.AreEqual( "replacement load", LoadingScreen.Title );
+			}
+		}
+		finally
+		{
+			SnapshotStartupProbe.OnStage = null;
+			IGameInstance.Current = previousInstance;
+			if ( outgoingScene.IsValid() )
+				outgoingScene.Destroy();
+
+			if ( replacement.IsValid() && replacement != Game.ActiveScene )
+				replacement.Destroy();
+
+			Logging.OnEmitted -= OnLog;
+			LoadingScreen.Title = previousTitle;
+			GameNetworkSystem.CurrentSceneName = previousSceneName;
+			Game.IsPlaying = wasPlaying;
 		}
 	}
 
@@ -1052,6 +1184,48 @@ public class NetworkTest
 		}
 	}
 
+	/// <summary>
+	/// A cancelled scene change is a load failure while its network session is live.
+	/// During or after disconnect it should finish quietly, even if another session is current.
+	/// </summary>
+	[TestMethod]
+	[DataRow( false, false, DisplayName = "Active session" )]
+	[DataRow( true, false, DisplayName = "Shutting down" )]
+	[DataRow( false, true, DisplayName = "Disconnected and replaced" )]
+	public void SceneChangeSnapshotCancellation( bool disconnecting, bool replaced )
+	{
+		using var scope = new Scene().Push();
+		using var peers = new ClientAndHost( TypeLibrary );
+		peers.BecomeClient();
+
+		using var mainThread = Sandbox.Tasks.SyncContext.Scope( Sandbox.Tasks.SyncContext.MainThread );
+		var previousTasks = LoadingScreen.Tasks.ToList();
+		using var restoreTasks = new Sandbox.Utility.DisposeAction( () => LoadingScreen.UpdateLoadingTasks( previousTasks ) );
+
+		var msg = new LoadSceneSnapshotMsg { Snapshot = SnapshotMsg.Create() };
+		var handling = SceneNetworkSystem.Instance.OnLoadSceneSnapshotMsg( msg, peers.Host, default );
+
+		// Keep WaitForLoading inside WhenAny until we cancel the scene's task source.
+		var scene = Game.ActiveScene;
+		scene.AddLoadingTask( new LoadingContext { Task = new TaskCompletionSource().Task } );
+		Sandbox.Tasks.SyncContext.MainThread.ProcessQueue();
+		Assert.IsFalse( handling.IsCompleted );
+
+		using var disconnect = disconnecting ? Networking.DisconnectScope() : null;
+		if ( replaced )
+		{
+			Networking.Disconnect();
+			peers.BecomeHost();
+		}
+
+		scene.Enabled = false;
+		Sandbox.Tasks.SyncContext.RunBlocking( handling.WaitAsync( TimeSpan.FromSeconds( 5 ) ) );
+
+		var expected = disconnecting || replaced ? TaskStatus.RanToCompletion : TaskStatus.Canceled;
+		Assert.AreEqual( expected, handling.Status );
+		Assert.IsFalse( peers.Host.Messages.Any( x => x.Payload is SceneLoadedMsg ) );
+	}
+
 	[TestMethod]
 	public async Task NetworkedMeshSurvivesLateJoinSnapshot()
 	{
@@ -1441,6 +1615,43 @@ public class NetworkTest
 		peers.Client.Messages.Clear();
 		go.Network.Refresh( component );
 		Assert.IsTrue( peers.Client.Messages.Any( x => x.Payload is ObjectRefreshComponentMsg ) );
+	}
+
+	private sealed class RestartOnLoadingFinished() : GameInstance( "test.game", default ), IGameInstance
+	{
+		void IGameInstance.OnLoadingFinished() => Networking.System.RestartHandshake();
+	}
+
+	private sealed class SnapshotStartupProbe : Component, ISceneLoadingEvents, ISceneStartup
+	{
+		internal static Action<SnapshotStartupProbe, string> OnStage;
+		private bool _snapshotValue;
+
+		/// <summary>
+		/// The host's value is restored after OnStart overwrites it on the client.
+		/// </summary>
+		[Sync]
+		public bool SnapshotValue
+		{
+			get => _snapshotValue;
+			set
+			{
+				_snapshotValue = value;
+				OnStage?.Invoke( this, StartCalled ? "reapply" : "receive" );
+			}
+		}
+
+		protected override void OnDestroy() => OnStage?.Invoke( this, nameof( OnDestroy ) );
+
+		protected override void OnStart()
+		{
+			_snapshotValue = false;
+			OnStage?.Invoke( this, nameof( OnStart ) );
+		}
+
+		void ISceneLoadingEvents.AfterLoad( Scene scene ) => OnStage?.Invoke( this, nameof( ISceneLoadingEvents.AfterLoad ) );
+
+		void ISceneStartup.OnClientInitialize() => OnStage?.Invoke( this, nameof( ISceneStartup.OnClientInitialize ) );
 	}
 
 	private class SerializationProbe : Component

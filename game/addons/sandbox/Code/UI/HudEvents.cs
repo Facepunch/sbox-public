@@ -68,8 +68,9 @@ public enum HudElement
 	AmmoPickups = 1 << 11,
 
 	/// <summary>
-	/// The chat box and the recent messages.
+	/// Former Sandbox chat HUD flag. The platform now controls chat visibility.
 	/// </summary>
+	[Obsolete( "Chat visibility is controlled by the platform." )]
 	Chat = 1 << 12,
 
 	/// <summary>

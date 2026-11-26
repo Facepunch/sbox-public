@@ -25,14 +25,6 @@
 	  <TreatWarningsAsErrors>True</TreatWarningsAsErrors>
 	</PropertyGroup>
 
-	<PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
-		<DefineConstants>WIN;$(DefineConstants)</DefineConstants>
-	</PropertyGroup>
-
-	<PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
-		<DefineConstants>WIN;$(DefineConstants)</DefineConstants>
-	</PropertyGroup>
-
 	<PropertyGroup Condition="'$(OS)' != 'Windows_NT'">
 		<DefineConstants>$(DefineConstants);STEAMWORKS_POSIX</DefineConstants>
 	</PropertyGroup>

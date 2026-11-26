@@ -8,12 +8,8 @@ public class DupesPage : BaseSpawnMenu
 	{
 		AddHeader( "#spawnmenu.section.categories" );
 
-		foreach ( var entry in TypeLibrary.GetEnumDescription( typeof( DupeCategory ) ) )
-		{
-			AddOption( entry.Icon, entry.Title, () => new DupesWorkshop { Category = entry.Name.ToString() } );
-		}
-
-		AddOption( "apps", "#spawnmenu.entity.all", () => new DupesWorkshop() );
+		AddCategoryOptions<DupeCategory>( category => new WorkshopBrowser { IsDupe = true, Category = category } );
+		AddOption( "apps", "#spawnmenu.entity.all", () => new WorkshopBrowser { IsDupe = true } );
 	}
 }
 

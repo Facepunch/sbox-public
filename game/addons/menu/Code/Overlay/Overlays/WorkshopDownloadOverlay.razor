@@ -258,9 +258,13 @@
     /// </summary>
     string Eta( long bytesLeft )
     {
-        if ( bytesLeft <= 0 || mbps <= 0 ) return null;
+        var bytesPerSecond = mbps * (1024 * 1024 / 8);
+        if ( bytesLeft <= 0 || bytesPerSecond <= 0 || !double.IsFinite( bytesPerSecond ) ) return null;
 
-        var time = TimeSpan.FromSeconds( Math.Max( 1, Math.Round( bytesLeft / (mbps * 1024 * 1024 / 8) ) ) );
+        var seconds = Math.Round( bytesLeft / bytesPerSecond );
+        if ( seconds > TimeSpan.MaxValue.TotalSeconds ) return null;
+
+        var time = TimeSpan.FromSeconds( Math.Max( 1, seconds ) );
 
         // Seconds only once it's under a minute
         return time.ToCountdownString( includeSeconds: time.TotalMinutes < 1 );

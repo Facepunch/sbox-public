@@ -3,14 +3,8 @@ using System.Diagnostics;
 namespace Sandbox;
 
 /// <summary>
-/// Loads UI thumbnails (<c>thumb:</c>, mounts, packages, web images) without hitching the game.
-/// <para>
-/// Setting <c>background-image: url( thumb:... )</c> straight on a panel loads the texture inline on the
-/// frame the style is applied - fine for one icon, but the first open of a spawn page asks for dozens at
-/// once, and mounted models have to be loaded and rendered to make theirs, so the game freezes. Instead
-/// icons ask here each frame they're on screen, and the queue starts a few loads a frame inside a small
-/// time budget. Finished textures are kept, so recycled grid cells and later visits are instant.
-/// </para>
+/// Queues thumbnails requested by visible UI cells and limits the work started each frame.
+/// Recycled cells reuse the loaded textures.
 /// </summary>
 public static class ThumbnailLoader
 {
@@ -44,20 +38,9 @@ public static class ThumbnailLoader
 	/// <summary>
 	/// Waiting paths, oldest first, and the frame each was last asked for.
 	/// </summary>
-	static readonly List<string> Queue = new();
+	static readonly Queue<string> Queue = new();
 	static readonly Dictionary<string, int> Wanted = new( StringComparer.OrdinalIgnoreCase );
 	static readonly HashSet<string> InFlight = new( StringComparer.OrdinalIgnoreCase );
-
-	/// <summary>
-	/// Paths the async loader gave nothing back for, to be tried with the plain loader.
-	/// </summary>
-	static readonly HashSet<string> NeedsSync = new( StringComparer.OrdinalIgnoreCase );
-
-	/// <summary>
-	/// Schemes (<c>thumb</c>, <c>mount</c>...) the async loader can't do but the plain one can, so later
-	/// loads skip straight to it.
-	/// </summary>
-	static readonly HashSet<string> SyncOnlySchemes = new( StringComparer.OrdinalIgnoreCase );
 
 	static int _frame;
 	static double _spentMs;
@@ -77,7 +60,7 @@ public static class ThumbnailLoader
 
 		if ( want && !InFlight.Contains( path ) )
 		{
-			if ( !Wanted.ContainsKey( path ) ) Queue.Add( path );
+			if ( !Wanted.ContainsKey( path ) ) Queue.Enqueue( path );
 			Wanted[path] = _frame;
 		}
 
@@ -99,7 +82,7 @@ public static class ThumbnailLoader
 	/// <summary>
 	/// Charge the frame's budget for work started at <paramref name="startTimestamp"/> (<see cref="Stopwatch.GetTimestamp"/>).
 	/// </summary>
-	public static void Spend( long startTimestamp ) => _spentMs += ElapsedMs( startTimestamp );
+	public static void Spend( long startTimestamp ) => _spentMs += Stopwatch.GetElapsedTime( startTimestamp ).TotalMilliseconds;
 
 	/// <summary>
 	/// Forget everything loaded, e.g. after content changed on disk.
@@ -110,7 +93,6 @@ public static class ThumbnailLoader
 		Failed.Clear();
 		Queue.Clear();
 		Wanted.Clear();
-		NeedsSync.Clear();
 	}
 
 	/// <summary>
@@ -122,72 +104,23 @@ public static class ThumbnailLoader
 		_spentMs = 0;
 		_jobs = 0;
 
-		for ( var i = 0; i < Queue.Count; )
+		while ( Queue.TryPeek( out var path ) )
 		{
-			var path = Queue[i];
-
-			if ( !Wanted.TryGetValue( path, out var lastWanted ) || _frame - lastWanted > StaleFrames || Loaded.ContainsKey( path ) || Failed.Contains( path ) )
+			if ( _frame - Wanted[path] > StaleFrames )
 			{
-				Drop( i, path );
+				Queue.Dequeue();
+				Wanted.Remove( path );
 				continue;
 			}
 
-			var mounted = MountedEntity( path );
-			var sync = mounted is null && (NeedsSync.Contains( path ) || SyncOnlySchemes.Contains( Scheme( path ) ));
-
-			// async loads only cost the time to kick them off, but don't flood the downloader
-			if ( !sync && InFlight.Count >= MaxInFlight )
-			{
-				i++;
-				continue;
-			}
-
-			if ( !TryTakeSlot() ) break;
+			if ( InFlight.Count >= MaxInFlight || !TryTakeSlot() ) break;
 
 			var start = Stopwatch.GetTimestamp();
-			Queue.RemoveAt( i );
+			Queue.Dequeue();
 			Wanted.Remove( path );
-
-			if ( mounted is not null )
-				LoadMounted( path, mounted );
-			else if ( sync )
-				LoadNow( path );
-			else
-				LoadAsync( path );
-
+			LoadAsync( path );
 			Spend( start );
 		}
-	}
-
-	static void Drop( int index, string path )
-	{
-		Queue.RemoveAt( index );
-		Wanted.Remove( path );
-	}
-
-	static void LoadNow( string path )
-	{
-		var fallback = NeedsSync.Remove( path );
-		Texture texture = null;
-
-		try
-		{
-			texture = Texture.Load( path );
-		}
-		catch ( Exception e )
-		{
-			Log.Warning( $"Couldn't load thumbnail '{path}': {e.Message}" );
-		}
-
-		// The plain loader managed what the async one couldn't - go straight to it for this scheme from now on.
-		// Never for the web, a plain load there would block on the download.
-		if ( fallback && texture.IsValid() && !IsWeb( path ) )
-		{
-			var scheme = Scheme( path );
-			if ( scheme.Length > 0 ) SyncOnlySchemes.Add( scheme );
-		}
-
-		Finish( path, texture );
 	}
 
 	static async void LoadAsync( string path )
@@ -197,25 +130,20 @@ public static class ThumbnailLoader
 
 		try
 		{
-			texture = await Texture.LoadAsync( path );
+			var entity = MountedEntity( path );
+			texture = entity is null ? await Texture.LoadAsync( path ) : await entity.LoadMountedIconAsync();
 		}
-		catch
+		catch ( Exception e )
 		{
-			// some schemes only load through the plain loader, tried below
+			Log.Warning( $"Couldn't load thumbnail '{path}': {e.Message}" );
 		}
 
 		InFlight.Remove( path );
 
-		if ( texture.IsValid() || IsWeb( path ) )
-		{
-			Finish( path, texture );
-			return;
-		}
-
-		// Back through the queue, at the front, so the plain load still happens inside a frame's budget
-		NeedsSync.Add( path );
-		if ( !Wanted.ContainsKey( path ) ) Queue.Insert( 0, path );
-		Wanted[path] = _frame;
+		if ( texture.IsValid() )
+			Loaded[path] = texture;
+		else
+			Failed.Add( path );
 	}
 
 	/// <summary>
@@ -231,41 +159,6 @@ public static class ThumbnailLoader
 		return string.IsNullOrEmpty( entity?.RequiredMount ) ? null : entity;
 	}
 
-	static async void LoadMounted( string path, ScriptedEntity entity )
-	{
-		InFlight.Add( path );
-		Texture texture = null;
-
-		try
-		{
-			texture = await entity.LoadMountedIconAsync();
-		}
-		catch ( Exception e )
-		{
-			Log.Warning( $"Couldn't load thumbnail '{path}': {e.Message}" );
-		}
-
-		InFlight.Remove( path );
-		Finish( path, texture );
-	}
-
-	static void Finish( string path, Texture texture )
-	{
-		if ( texture.IsValid() )
-			Loaded[path] = texture;
-		else
-			Failed.Add( path );
-	}
-
-	static bool IsWeb( string path ) => path.StartsWith( "http://", StringComparison.OrdinalIgnoreCase ) || path.StartsWith( "https://", StringComparison.OrdinalIgnoreCase );
-
-	static string Scheme( string path )
-	{
-		var colon = path.IndexOf( ':' );
-		return colon > 0 ? path[..colon] : "";
-	}
-
-	static double ElapsedMs( long startTimestamp ) => (Stopwatch.GetTimestamp() - startTimestamp) * 1000.0 / Stopwatch.Frequency;
 }
 
 /// <summary>

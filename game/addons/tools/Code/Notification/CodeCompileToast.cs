@@ -147,7 +147,8 @@ internal class CodeCompileNotice : ToastWidget
 		foreach ( var diag in diagnostics )
 		{
 			var btn = bodyWidget.Layout.Add( new DiagnosticWidget( diag ) );
-			files.Add( btn.FilePath );
+			if ( btn.FilePath is not null )
+				files.Add( btn.FilePath );
 		}
 
 		SetBodyWidget( bodyWidget );
@@ -181,14 +182,13 @@ internal class DiagnosticWidget : Widget
 		MinimumWidth = 400;
 		Cursor = CursorShape.Finger;
 
-		ToolTip = $"{diag.GetMessage()}\n{diag.Location}";
-
-		var span = diag.Location.GetLineSpan();
-		var mappedSpan = diag.Location.GetMappedLineSpan();
+		var location = diag.GetDisplayLocation();
+		var mappedSpan = location.GetMappedLineSpan();
 
 		Message = diag.GetMessage();
+		ToolTip = mappedSpan.IsValid ? $"{Message}\n{location}" : Message;
 		// Path can be null if the spans are not valid (not related to a file)
-		FilePath = mappedSpan.HasMappedPath ? mappedSpan.Path : span.Path;
+		FilePath = mappedSpan.Path;
 		LineNumber = mappedSpan.Span.Start.Line + 1;
 		CharNumber = mappedSpan.Span.Start.Character + 1;
 	}
@@ -207,7 +207,7 @@ internal class DiagnosticWidget : Widget
 
 		var color = Theme.Red;
 		if ( diag.Severity == DiagnosticSeverity.Warning ) color = Theme.Yellow;
-		var bareFilename = System.IO.Path.GetFileName( FilePath );
+		var filePosition = FilePath is null ? "" : $"{System.IO.Path.GetFileName( FilePath )}:{LineNumber}";
 		var rect = LocalRect;
 
 		var textColor = Color.Lerp( Color.White, color, 0.5f );
@@ -219,13 +219,13 @@ internal class DiagnosticWidget : Widget
 			Paint.DrawRect( rect );
 		}
 
-		var measureText = $"{diag.Id}: {Message}  {bareFilename}:{LineNumber}";
+		var measureText = $"{diag.Id}: {Message}  {filePosition}";
 		var size = Paint.MeasureText( new Rect( 0, 1000 ), measureText, TextFlag.LeftCenter );
 
 		rect = rect.Shrink( 4, 0 );
 
 		Paint.SetPen( textColor.WithAlpha( 0.8f ) );
-		var fileRect = Paint.DrawText( rect, $"{bareFilename}:{LineNumber}", TextFlag.RightCenter );
+		var fileRect = Paint.DrawText( rect, filePosition, TextFlag.RightCenter );
 
 		rect.Right -= fileRect.Width;
 		rect.Right -= 8;

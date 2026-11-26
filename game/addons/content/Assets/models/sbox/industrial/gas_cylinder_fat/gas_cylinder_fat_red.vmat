@@ -46,7 +46,7 @@ Layer0
 	TextureNormal "models/sbox/industrial/gas_cylinder_fat/gas_cylinder_fat_red_normal.png"
 
 	//---- Roughness ----
-	g_flRoughnessScaleFactor "1.000"
+	g_flRoughnessScaleFactor "1.271"
 	TextureRoughness "models/sbox/industrial/gas_cylinder_fat/gas_cylinder_fat_red_rough.png"
 
 	//---- Texture Coordinates ----

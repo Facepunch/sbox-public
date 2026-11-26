@@ -220,37 +220,6 @@
           "Children": []
         },
         {
-          "__guid": "5c1f0e7a-3b24-4d8e-9a61-7e2d4b8f0c93",
-          "__version": 2,
-          "Flags": 0,
-          "Name": "Chat",
-          "Position": "0,0,0",
-          "Rotation": "0,0,0,1",
-          "Scale": "1,1,1",
-          "Tags": "",
-          "Enabled": true,
-          "NetworkMode": 2,
-          "NetworkFlags": 0,
-          "NetworkOrphaned": 0,
-          "NetworkTransmit": true,
-          "OwnerTransfer": 1,
-          "Components": [
-            {
-              "__type": "Sandbox.ChatBox",
-              "__guid": "a84d2e19-6f03-4c5b-8d7a-1b9e3f60c2d4",
-              "__enabled": true,
-              "Flags": 0,
-              "OnComponentDestroy": null,
-              "OnComponentDisabled": null,
-              "OnComponentEnabled": null,
-              "OnComponentFixedUpdate": null,
-              "OnComponentStart": null,
-              "OnComponentUpdate": null
-            }
-          ],
-          "Children": []
-        },
-        {
           "__guid": "ec4456d1-df73-4613-aa9a-9dff58bd05bf",
           "__version": 2,
           "Flags": 0,

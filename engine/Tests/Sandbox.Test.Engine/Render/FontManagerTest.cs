@@ -130,4 +130,35 @@ public class FontManagerTest
 		fs.WriteAllBytes( $"/fonts/{file}", File.ReadAllBytes( Path.Combine( FontsFolder, file ) ) );
 		return fs;
 	}
+
+	/// <summary>
+	/// A font that disappears before the watcher opens it must not prevent a later font in the batch from loading.
+	/// </summary>
+	[DataTestMethod]
+	[DataRow( "/fonts/removed.ttf" )]
+	[DataRow( "/fonts/removed/removed.ttf" )]
+	[DoNotParallelize]
+	public async Task WatcherLoadsNextFontAfterDeletion( string missingPath )
+	{
+		const string addedPath = "/fonts/added.ttf";
+		var fs = new MemoryFileSystem();
+		var fonts = new FontManager();
+
+		try
+		{
+			fs.CreateDirectory( "/fonts" );
+			fonts.LoadAll( fs );
+
+			fs.AddChangedFile( missingPath );
+			fs.WriteAllBytes( addedPath, File.ReadAllBytes( Path.Combine( FontsFolder, "Roboto-Regular.ttf" ) ) );
+
+			Assert.IsTrue( await FileWatch.TickUntilFileChanged( addedPath ) );
+			CollectionAssert.Contains( fonts.FontFamilies.ToArray(), "Roboto" );
+		}
+		finally
+		{
+			fonts.Clear( true );
+			fs.Dispose();
+		}
+	}
 }

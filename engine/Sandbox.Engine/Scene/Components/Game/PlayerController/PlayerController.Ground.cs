@@ -124,10 +124,9 @@ public sealed partial class PlayerController : Component
 	{
 		var up = UpDirection;
 
-		if ( !Mode.AllowGrounding )
+		if ( Mode?.AllowGrounding != true )
 		{
 			PreventGrounding( 0.1f );
-			UpdateGroundFromTraceResult( default );
 			return;
 		}
 

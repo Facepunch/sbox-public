@@ -65,7 +65,12 @@ public abstract partial class GameNetworkSystem : IDisposable
 	/// </summary>
 	internal virtual void GetHandoffSnapshot( ref SnapshotMsg msg ) => GetSnapshot( null, ref msg );
 
+	/// <summary>
+	/// Load the scene and objects supplied by the host.
+	/// </summary>
 	public virtual Task SetSnapshotAsync( SnapshotMsg data ) => Task.CompletedTask;
+
+	internal virtual Task SetSnapshotAsync( SnapshotMsg data, Func<bool> isCurrent ) => SetSnapshotAsync( data );
 
 	public virtual Task MountVPKs( Connection source, MountedVPKsResponse msg ) => Task.CompletedTask;
 

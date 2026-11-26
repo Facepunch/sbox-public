@@ -1,0 +1,104 @@
+@using Sandbox;
+@using Sandbox.UI;
+@inherits Panel
+@namespace Sandbox
+
+<root>
+
+	@if ( !string.IsNullOrWhiteSpace( Item.Description ) )
+	{
+		<UICardDescription class="description" Text="@Item.Description" />
+	}
+
+	<div class="footer">
+
+		<div class="avatar" style="background-image: url('@Item.Owner.Avatar');"></div>
+		<div class="name">@Item.Title</div>
+
+	</div>
+
+</root>
+
+@code
+{
+    /// <summary>
+    /// Workshop item supplying the preview, title and author.
+    /// </summary>
+    [Parameter] public Storage.QueryItem Item { get; set; }
+
+    /// <summary>
+    /// Enables the duplicator's drag and spawnlist actions on dupe results.
+    /// </summary>
+    [Parameter] public bool IsDupe { get; set; }
+
+    /// <summary>
+    /// Selects the dupe or loads the save represented by this tile.
+    /// </summary>
+    [Parameter] public Action OnActivate { get; set; }
+
+    /// <inheritdoc/>
+    public override bool WantsDrag => IsDupe;
+
+    protected override void OnParametersSet()
+    {
+        Style.SetBackgroundImage( Item.Preview );
+    }
+
+    protected override void OnClick( MousePanelEvent e )
+    {
+        base.OnClick( e );
+        OnActivate?.Invoke();
+    }
+
+    protected override void OnRightClick( MousePanelEvent e )
+    {
+        var menu = new Sandbox.UI.Menu();
+        var itemId = (long)Item.Id;
+
+        if ( IsDupe )
+        {
+            SpawnlistData.PopulateContextMenu( menu, this, new SpawnlistItem
+            {
+                Ident = SpawnlistItem.MakeIdent( "dupe", Item.Id.ToString(), "workshop" ),
+                Title = Item.Title,
+                Icon = Item.Preview,
+            } );
+
+            menu.AddSeparator();
+        }
+        else if ( OnActivate is not null && Networking.IsHost )
+        {
+            menu.AddOption( "#spawnmenu.saves.load_context", "download", OnActivate );
+        }
+
+        menu.AddOption( "#ui.open_workshop", "open_in_new", () => Game.Overlay.ViewWorkshopItem( itemId, steamOverlay: true ) );
+        menu.Open( this, Popup.PositionMode.UnderMouse );
+        e.StopPropagation();
+    }
+
+    protected override async void OnDragStart( DragEvent e )
+    {
+        var data = new DragData
+        {
+            Type = "dupe",
+            Icon = Item.Preview,
+            Title = Item.Title,
+            Source = this
+        };
+
+        DragHandler.StartDragging( data );
+
+		var installed = await Item.Install();
+		if ( installed is null ) return;
+
+		data.Data = installed.Files.ReadAllText( "/dupe.json" );
+	}
+
+    protected override void OnDragEnd(DragEvent e)
+    {
+        if ( DragHandler.IsDragging )
+        {
+            DragHandler.StopDragging();
+        }
+    }
+}

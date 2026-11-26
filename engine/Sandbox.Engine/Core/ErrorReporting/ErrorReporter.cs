@@ -153,7 +153,12 @@ internal static class ErrorReporter
 		StackFrame[] frames = stackTrace.GetFrames();
 		if ( frames.Length == 0 ) return false;
 
-		Assembly[] assm = frames.Select( x => x?.GetMethod()?.DeclaringType?.Assembly ).Distinct().ToArray();
+		Assembly[] assm = frames
+			.Select( x => x?.GetMethod()?.DeclaringType?.Assembly )
+			.Where( x => x is not null )
+			.Distinct()
+			.ToArray();
+
 		string[] assemblies = assm.Select( x => x.GetName().Name ).ToArray();
 
 		if ( assemblies.Any( x => x.StartsWith( menuAssembly ) ) ) source = "menu";

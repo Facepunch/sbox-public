@@ -19,7 +19,7 @@ internal static partial class Api
 		static Dictionary<string, Accum> Stages = new Dictionary<string, Accum>( 16 );
 		static Dictionary<string, Accum> statDict = new( 16 );
 
-		static Lock Lock = new Lock();
+		static readonly Lock Lock = new();
 		static readonly Diagnostics.GpuPassTimings gpuPassTimings = new();
 		static readonly Diagnostics.GpuTimingSamplingWindow gpuSamplingWindow = new();
 		static bool wasSamplingGpu;
@@ -135,6 +135,9 @@ internal static partial class Api
 			};
 		}
 
+		/// <summary>
+		/// Record this frame's timings and counters for the next activity report.
+		/// </summary>
 		public static void Frame()
 		{
 			var t = time.ElapsedMilliSeconds;
@@ -144,7 +147,6 @@ internal static partial class Api
 			// new, bucketed frames
 			int bucketId = (delta / 10).FloorToInt();
 			if ( bucketId >= 9 ) bucketId = 9;
-			FrameBucket[bucketId]++;
 
 			lock ( Lock )
 			{
@@ -157,38 +159,52 @@ internal static partial class Api
 				}
 
 				var s = FrameStats.Current;
-				CollectStat( "ObjectsRendered", s.ObjectsRendered );
-				CollectStat( "TrianglesRendered", s.TrianglesRendered );
-				CollectStat( "DrawCalls", s.DrawCalls );
-				CollectStat( "MaterialChanges", s.MaterialChanges );
-				CollectStat( "DisplayLists", s.DisplayLists );
-				CollectStat( "SceneViewsRendered", s.SceneViewsRendered );
-				CollectStat( "RenderTargetResolves", s.RenderTargetResolves );
-				CollectStat( "ObjectsCulledByVis", s.ObjectsCulledByVis );
-				CollectStat( "ObjectsCulledByScreenSize", s.ObjectsCulledByScreenSize );
-				CollectStat( "ObjectsCulledByFade", s.ObjectsCulledByFade );
-				CollectStat( "ObjectsFading", s.ObjectsFading );
-				CollectStat( "ShadowedLights", s.ShadowedLightsInView );
-				CollectStat( "UnshadowedLights", s.UnshadowedLightsInView );
-				CollectStat( "ShadowMaps", s.ShadowMaps );
-				CollectStat( "GpuFrametime", PerformanceStats.GpuFrametime );
-				CollectStat( "GC0", PerformanceStats.Gen0Collections );
-				CollectStat( "GC1", PerformanceStats.Gen1Collections );
-				CollectStat( "GC2", PerformanceStats.Gen2Collections );
-				CollectStat( "Exceptions", PerformanceStats.Exceptions );
-				CollectStat( "NetworkIn", Networking.LocalStats.InBytesPerSecond );
-				CollectStat( "NetworkOut", Networking.LocalStats.OutBytesPerSecond );
-				CollectStat( "NetworkPing", Networking.LocalStats.Ping );
+				AddStat( "ObjectsRendered", s.ObjectsRendered );
+				AddStat( "TrianglesRendered", s.TrianglesRendered );
+				AddStat( "DrawCalls", s.DrawCalls );
+				AddStat( "MaterialChanges", s.MaterialChanges );
+				AddStat( "DisplayLists", s.DisplayLists );
+				AddStat( "SceneViewsRendered", s.SceneViewsRendered );
+				AddStat( "RenderTargetResolves", s.RenderTargetResolves );
+				AddStat( "ObjectsCulledByVis", s.ObjectsCulledByVis );
+				AddStat( "ObjectsCulledByScreenSize", s.ObjectsCulledByScreenSize );
+				AddStat( "ObjectsCulledByFade", s.ObjectsCulledByFade );
+				AddStat( "ObjectsFading", s.ObjectsFading );
+				AddStat( "ShadowedLights", s.ShadowedLightsInView );
+				AddStat( "UnshadowedLights", s.UnshadowedLightsInView );
+				AddStat( "ShadowMaps", s.ShadowMaps );
+				AddStat( "GpuFrametime", PerformanceStats.GpuFrametime );
+				AddStat( "GC0", PerformanceStats.Gen0Collections );
+				AddStat( "GC1", PerformanceStats.Gen1Collections );
+				AddStat( "GC2", PerformanceStats.Gen2Collections );
+				AddStat( "Exceptions", PerformanceStats.Exceptions );
+				AddStat( "NetworkIn", Networking.LocalStats.InBytesPerSecond );
+				AddStat( "NetworkOut", Networking.LocalStats.OutBytesPerSecond );
+				AddStat( "NetworkPing", Networking.LocalStats.Ping );
+
+				FrameBucket[bucketId]++;
+				FrameCount++;
 			}
 
 			lastFrame = t;
-			FrameCount++;
 		}
 
 		/// <summary>
-		/// Collect a statistic. This should usually be called ONCE per frame, per stat.
+		/// Record a batch of samples in the same activity reporting interval.
 		/// </summary>
-		internal static void CollectStat( string name, double value )
+		internal static void CollectStats( ReadOnlySpan<(string Name, double Value)> samples )
+		{
+			lock ( Lock )
+			{
+				foreach ( var (name, value) in samples )
+				{
+					AddStat( name, value );
+				}
+			}
+		}
+
+		// The caller holds Lock so Flip cannot snapshot and clear a partially updated sample.
+		private static void AddStat( string name, double value )
 		{
 			statDict.TryGetValue( name, out var a );
 			a.Add( value, 0 );
@@ -204,16 +220,19 @@ internal static partial class Api
 			Stages[stat.Name] = a;
 		}
 
+		/// <summary>
+		/// Take a snapshot of the accumulated samples and start the next reporting interval.
+		/// </summary>
 		public static object Flip()
 		{
-			var time = RealTime.Now;
-			var delta = time - startTime;
-			if ( delta < 0 ) delta = 0;
-			if ( FrameCount <= 0 ) FrameCount = 1;
-
 			lock ( Lock )
 			{
-				var msPerFrame = (delta * 1000.0f) / ((float)FrameCount);
+				var time = RealTime.Now;
+				var delta = time - startTime;
+				if ( delta < 0 ) delta = 0;
+
+				var frames = Math.Max( FrameCount, 1 );
+				var msPerFrame = (delta * 1000.0f) / frames;
 				var gpuPasses = gpuPassTimings.Flip();
 
 				Process currentProc = Process.GetCurrentProcess();
@@ -221,7 +240,7 @@ internal static partial class Api
 				var o = new
 				{
 					Time = delta,
-					Frames = FrameCount,
+					Frames = frames,
 					Avg = msPerFrame,
 					Memory = (int)(currentProc.WorkingSet64 / (1024 * 1024)),
 					FrameBucket = FrameBucket.ToArray(), // need to copy

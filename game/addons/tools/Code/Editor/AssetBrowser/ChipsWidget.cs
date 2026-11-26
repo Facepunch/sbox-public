@@ -26,12 +26,20 @@ public class ChipsWidget : Widget
 	public IEnumerable<Chip> Chips => Scroller.Canvas.Children.OfType<Chip>();
 	public List<Chip> Active => Chips.Where( x => x.IsActive ).ToList();
 
-	public bool ShouldFilter( FileInfo file )
-	{
-		var asset = AssetSystem.FindByPath( file.FullName );
-		if ( asset == null ) return false;
+	internal string[] GetActiveTagNames() => Active.Select( chip => chip.InternalName ).ToArray();
 
-		return !Active.All( chip => asset.Tags.Any( tag => tag.Equals( chip.InternalName ) ) );
+	/// <summary>
+	/// Returns true when the file's asset is missing a selected chip tag.
+	/// </summary>
+	public bool ShouldFilter( FileInfo file ) => ShouldFilter( file, GetActiveTagNames() );
+
+	internal static bool ShouldFilter( FileInfo file, string[] activeTags )
+	{
+		if ( activeTags.Length == 0 )
+			return false;
+
+		var asset = AssetSystem.FindByPath( file.FullName );
+		return asset is not null && !activeTags.All( name => asset.Tags.Any( tag => tag.Equals( name ) ) );
 	}
 
 	public void Clear()

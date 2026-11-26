@@ -14,8 +14,11 @@
 
 		.box
 		{
-			@include ui-section;
-			padding: 5px 15px;
+			padding: 6px 12px;
+			border-radius: $ui-menu-radius;
+			background-color: $ui-catalog-surface;
+			backdrop-filter: blur( $ui-menu-blur );
+			color: $ui-text-strong;
 			opacity: 0;
 			transition: opacity 0.2s ease;
 		}
@@ -28,8 +31,8 @@
 		label
 		{
 			font-family: $body-font;
-			font-size: 12px;
-			font-weight: 500;
+			font-size: 13px;
+			font-weight: 600;
 			white-space: nowrap;
 		}
 	}

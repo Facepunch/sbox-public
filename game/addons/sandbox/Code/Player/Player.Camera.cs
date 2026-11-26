@@ -7,6 +7,11 @@ public sealed partial class Player : ICameraModifier
 	[Property, Group( "Camera" )] public float SeatedCameraPositionSpeed { get; set; } = 3f;
 	[Property, Group( "Camera" )] public float SeatedCameraVelocityScale { get; set; } = 0.1f;
 
+	/// <summary>
+	/// Strength of transient camera effects in Sandbox.
+	/// </summary>
+	internal const float ScreenShakeScale = 0.3f;
+
 	private ISitTarget _cachedSeat;
 
 	public bool IsSeated => _cachedSeat is not null;
@@ -54,9 +59,8 @@ public sealed partial class Player : ICameraModifier
 		if ( IsProxy || Scene.Camera != camera ) return;
 		if ( !Controller.IsValid() ) return;
 
-		// Keep the engine's camera effects scaled by the player's screenshake preference.
 		if ( CameraEffectSystem.Get( Scene ) is { } effects )
-			effects.Scale = GamePreferences.Screenshake;
+			effects.Scale = ScreenShakeScale;
 
 		camera.FovAxis = CameraComponent.Axis.Vertical;
 		view.FieldOfView = Screen.CreateVerticalFieldOfView( Preferences.FieldOfView, 9.0f / 16.0f );
@@ -69,9 +73,8 @@ public sealed partial class Player : ICameraModifier
 		// Legacy game events still receive the camera - write the view out, let them run, fold back.
 		BridgeCameraEvent( camera, ref view, static x => x.OnCameraSetup( _bridgeCamera ) );
 
-		ApplyStrafeTilt( ref view );
 		if ( _landingRoll != 0f && !Controller.ThirdPerson && GamePreferences.ViewBobbing )
-			view.Rotation *= Rotation.FromRoll( _landingRoll * (GamePreferences.Screenshake / 0.3f) );
+			view.Rotation *= Rotation.FromRoll( _landingRoll );
 
 		ApplySeatedCameraSetup( ref view );
 		ApplySeatedFirstPersonLean( ref view );
@@ -93,18 +96,6 @@ public sealed partial class Player : ICameraModifier
 		view.Position = camera.WorldPosition;
 		view.Rotation = camera.WorldRotation;
 		view.FieldOfView = camera.FieldOfView;
-	}
-
-	private void ApplyStrafeTilt( ref CameraView view )
-	{
-		var maxRoll = GamePreferences.ViewTilt.Clamp( 0f, 1f );
-		if ( maxRoll == 0f || !GamePreferences.ViewBobbing || Controller.ThirdPerson || IsNoclipping ) return;
-		if ( !Controller.Body.IsValid() ) return;
-
-		const float fullTiltSpeed = 200f;
-		var sideSpeed = Controller.Body.Velocity.Dot( EyeTransform.Right );
-		var roll = (sideSpeed / fullTiltSpeed).Clamp( -1f, 1f ) * maxRoll;
-		view.Rotation *= Rotation.FromRoll( roll );
 	}
 
 	protected override void OnFixedUpdate()

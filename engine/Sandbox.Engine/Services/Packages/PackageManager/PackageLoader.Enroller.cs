@@ -58,22 +58,18 @@ internal sealed partial class PackageLoader : IDisposable
 			loaded = null;
 		}
 
-		public bool LoadPackage( string packageName, bool loadAssemblies = true )
+		/// <summary>
+		/// Loads a package and its dependencies. Developer sessions enroll assemblies from the network instead.
+		/// </summary>
+		public void LoadPackage( string packageName, bool enrollAssemblies = true )
 		{
-			if ( !packageLoader.LoadPackage( packageName, true ) )
-			{
-				return false;
-			}
+			packageLoader.LoadPackage( packageName, true );
+			if ( !enrollAssemblies ) return;
 
-			if ( loadAssemblies )
+			foreach ( var assembly in packageLoader.GetLoadedAssemblies( packageName ) )
 			{
-				foreach ( var assm in packageLoader.GetLoadedAssemblies( packageName, true, true ) )
-				{
-					Add( assm );
-				}
+				Add( assembly );
 			}
-
-			return true;
 		}
 
 		public bool LoadAssemblyFromStream( string name, Stream stream )

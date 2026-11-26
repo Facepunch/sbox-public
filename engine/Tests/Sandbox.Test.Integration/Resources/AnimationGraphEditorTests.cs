@@ -31,7 +31,7 @@ public partial class AnimationGraphEditorTests
 		var project = Project.AddFromFile( "editor/AnimGraph/.sbproj" );
 		await Project.SyncWithPackageManager();
 		Assert.IsTrue( await Project.CompileAsync(), "Editor projects failed to compile" );
-		Assert.IsTrue( _enroller.LoadPackage( project.Package.FullIdent, true ) );
+		_enroller.LoadPackage( project.Package.FullIdent );
 		_loader.Tick();
 		foreach ( var loaded in _enroller.GetLoadedAssemblies() )
 			GlobalToolsNamespace.EditorTypeLibrary.AddAssembly( loaded.Assembly, true );

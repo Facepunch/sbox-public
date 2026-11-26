@@ -7,7 +7,7 @@
 @attribute [Title( "#spawnmenu.tab.spawn" )]
 @attribute [Order( -100 )]
 
-<root class="menu-panel">
+<root>
     <div class="container">
         <TabPanel class="spawnmenuleft" @ref="SpawnTabs" />
         <div class="tools-menu-slot" @ref="ToolsParent"></div>
@@ -17,6 +17,7 @@
 @code
 {
     TabPanel SpawnTabs;
+    Tab SavesTab;
     Button IconSizeButton;
     internal Panel ToolsParent { get; private set; }
 
@@ -46,7 +47,33 @@
     /// <summary>
     /// Builds the spawn tabs registered by the game and addons.
     /// </summary>
-    public void BuildTabs() => SpawnTabs.PopulateTabs<ISpawnMenuTab>( "spawnmenu.tab" );
+    public void BuildTabs()
+    {
+        SpawnTabs.PopulateTabs<ISpawnMenuTab>( "spawnmenu.tab" );
+        SavesTab = SpawnTabs?.TabBar.Tabs.FirstOrDefault( tab => tab.UserData is SavesPage );
+        UpdateSavesVisibility();
+    }
+
+    /// <summary>
+    /// Updates the Saves tab when the host changes.
+    /// </summary>
+    public override void Tick()
+    {
+        base.Tick();
+        UpdateSavesVisibility();
+    }
+
+    void UpdateSavesVisibility()
+    {
+        if ( !SavesTab.IsValid() ) return;
+
+        var display = Networking.IsHost ? DisplayMode.Flex : DisplayMode.None;
+        if ( SavesTab.Style.Display != display )
+            SavesTab.Style.Display = display;
+
+        if ( !Networking.IsHost && SpawnTabs.TabBar.SelectedTab == SavesTab )
+            SpawnTabs.TabBar.SelectTab( SpawnTabs.TabBar.Tabs.First( tab => tab != SavesTab ) );
+    }
 
     /// <summary>
     /// Builds the tabs in the shared tools menu.

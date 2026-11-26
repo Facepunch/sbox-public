@@ -81,7 +81,20 @@ class TextureGeneratorPopup : PopupEditor, IPopupEditor<TextureGenerator>
 			var gen = SerializedObject.Targets.OfType<TextureGenerator>().FirstOrDefault();
 			if ( gen is null ) return;
 
-			texturePreview.Texture = await gen.CreateAsync( TextureGenerator.Options.Default, default );
+			var preview = texturePreview;
+			Texture texture;
+
+			try
+			{
+				texture = await gen.CreateAsync( TextureGenerator.Options.Default, default );
+			}
+			catch ( Exception ex ) when ( ex is not OperationCanceledException )
+			{
+				Log.Warning( ex, $"Couldn't generate texture preview with {gen.GetType().FullName}" );
+				return;
+			}
+
+			preview.Texture = texture;
 		}
 		finally
 		{

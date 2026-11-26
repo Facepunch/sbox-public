@@ -1,4 +1,5 @@
 ﻿using Steamworks.Data;
+using System.Runtime.InteropServices;
 
 namespace Steamworks;
 
@@ -10,6 +11,17 @@ internal class SteamUtils : SteamSharedClass<SteamUtils>
 	internal static ISteamUtils Internal => Interface as ISteamUtils;
 
 	internal static bool IsInstalled => Internal?.IsValid ?? false;
+
+	[DllImport( Platform.LibraryName, EntryPoint = "SteamAPI_ISteamUtils_IsOverlayEnabled", CallingConvention = Platform.CC )]
+	[return: MarshalAs( UnmanagedType.I1 )]
+	static extern bool IsOverlayEnabled( IntPtr self );
+
+	/// <summary>
+	/// Whether this process can open the Steam overlay. Editor play sessions use the editor's windows.
+	/// </summary>
+	internal static bool IsOverlayAvailable =>
+		!Sandbox.Application.IsEditor && !Sandbox.Application.IsHeadless &&
+		SteamFriends.IsInstalled && InterfaceClient is { IsValid: true } client && IsOverlayEnabled( client.Self );
 
 	internal override void InitializeInterface( bool server )
 	{

@@ -120,7 +120,7 @@ public sealed partial class PlayerController : Component
 	void InputMove()
 	{
 		var rot = EyeAngles.ToRotation();
-		WishVelocity = Mode.UpdateMove( rot, Input.AnalogMove );
+		WishVelocity = Mode?.UpdateMove( rot, Input.AnalogMove ) ?? Vector3.Zero;
 	}
 
 	void InputJump()

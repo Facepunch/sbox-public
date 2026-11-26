@@ -52,31 +52,28 @@ internal static class BuildDisplay
 
 	public static bool IsActive => current != null;
 
-	private static void WriteHeader( IAnsiConsole console, bool rich, Session session )
+	private static void WritePlainHeader( IAnsiConsole console, Session session )
 	{
 		if ( session.Stages.Length == 0 ) return;
 
 		console.WriteLine();
-		if ( !rich || console.Profile.Width < 40 )
+		console.Write( new Text( "s&box / bootstrap\n" ) );
+		lock ( session.Sync )
 		{
-			console.Write( new Text( "s&box / bootstrap\n" ) );
-			if ( !rich )
-			{
-				lock ( session.Sync )
-				{
-					foreach ( var stage in session.Stages.Where( stage => stage.Children.Length > 0 ) )
-						Log.WriteConsole( $"{stage.Label}: {string.Join( ", ", stage.Children.Select( child => child.Label ) )}", "" );
-				}
-			}
-			return;
+			foreach ( var stage in session.Stages.Where( stage => stage.Children.Length > 0 ) )
+				Log.WriteConsole( $"{stage.Label}: {string.Join( ", ", stage.Children.Select( child => child.Label ) )}", "" );
 		}
+	}
+
+	private static IRenderable RenderHeader( int width )
+	{
+		if ( width < 40 ) return new Text( "\ns&box / bootstrap" );
 
 		const string blue = "#168BEB";
 		var path = Markup.Escape( Log.TerminalText( Directory.GetCurrentDirectory() ) );
-		console.MarkupLine( $" [on {blue}]        [/]   [bold]s&box[/]" );
-		console.MarkupLine( $" [bold white on {blue}]   s&   [/]   Engine bootstrap" );
-		console.MarkupLine( $" [on {blue}]        [/]   [grey]{path}[/]" );
-		console.WriteLine();
+		return new Markup( $"\n [on {blue}]        [/]   [bold]s&box[/]\n" +
+			$" [bold white on {blue}]   s&   [/]   Engine bootstrap\n" +
+			$" [on {blue}]        [/]   [grey]{path}[/]\n" );
 	}
 
 	internal static ExitCode Run( string title, Func<ExitCode> action, StageRow[] stages = null )
@@ -111,7 +108,6 @@ internal static class BuildDisplay
 				Out = new AnsiConsoleOutput( Console.Out )
 			} );
 			interactive &= console.Profile.Capabilities.Ansi && console.Profile.Capabilities.Interactive;
-			WriteHeader( console, interactive, session );
 
 			void Pump( LiveDisplayContext context )
 			{
@@ -123,7 +119,7 @@ internal static class BuildDisplay
 					Drain( session, context == null ? null : console );
 					if ( context != null && (session.Timer.Elapsed - lastRender >= TimeSpan.FromMilliseconds( 100 ) || task.IsCompleted) )
 					{
-						context.UpdateTarget( Render( session ) );
+						context.UpdateTarget( Render( session, console.Profile.Width ) );
 						context.Refresh();
 						lastRender = session.Timer.Elapsed;
 					}
@@ -164,14 +160,14 @@ internal static class BuildDisplay
 				while ( Drain( session, context == null ? null : console ) ) { }
 				if ( context != null )
 				{
-					context.UpdateTarget( Render( session ) );
+					context.UpdateTarget( Render( session, console.Profile.Width ) );
 					context.Refresh();
 				}
 			}
 
 			if ( interactive )
 			{
-				try { console.Live( Render( session ) ).AutoClear( false ).Start( Pump ); }
+				try { console.Live( Render( session, console.Profile.Width ) ).AutoClear( false ).Start( Pump ); }
 				catch ( Exception ex )
 				{
 					Log.Warning( $"Live display unavailable: {ex.Message}. Continuing with plain output." );
@@ -179,7 +175,11 @@ internal static class BuildDisplay
 					Pump( null );
 				}
 			}
-			else Pump( null );
+			else
+			{
+				WritePlainHeader( console, session );
+				Pump( null );
+			}
 
 			// Keep the outcome below visible without expanding anything.
 			GitHubActions.EndGroup();
@@ -389,7 +389,7 @@ internal static class BuildDisplay
 		}
 	}
 
-	private static IRenderable Render( Session session )
+	private static IRenderable Render( Session session, int width )
 	{
 		lock ( session.Sync )
 		{
@@ -403,8 +403,15 @@ internal static class BuildDisplay
 				table.AddRow( Markup.Escape( label ), $"[{color}]{row.Status}[/]", FormatTime( row.Timer.Elapsed ) );
 			}
 			var rows = new List<IRenderable>();
-			if ( session.Stages.Length > 0 ) rows.Add( table );
-			else rows.Add( new Text( session.Title, new Style( Color.Aqua ) ) );
+			if ( session.Stages.Length > 0 )
+			{
+				rows.Add( RenderHeader( width ) );
+				rows.Add( table );
+			}
+			else
+			{
+				rows.Add( new Text( session.Title, new Style( Color.Aqua ) ) );
+			}
 			if ( !session.Finished )
 			{
 				rows.Add( new Text( $"{session.Activity} ({FormatTime( session.Timer.Elapsed )})", new Style( Color.Aqua ) ).Overflow( Overflow.Ellipsis ) );

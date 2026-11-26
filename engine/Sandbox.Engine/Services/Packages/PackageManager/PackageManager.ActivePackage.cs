@@ -76,7 +76,6 @@ internal static partial class PackageManager
 				try
 				{
 					await o.DownloadAsync( token, options );
-					await o.PrepareAssemblies( options );
 					token.ThrowIfCancellationRequested();
 				}
 				catch
@@ -184,11 +183,14 @@ internal static partial class PackageManager
 				ProjectSettings.Mount( FileSystem.CreateSubSystem( "ProjectSettings" ) );
 			}
 
+			AssemblyFileSystem = new AggregateFileSystem();
+			if ( Package.TypeName is not ("game" or "library" or "tool") )
+				return;
+
 			//
 			// Only the package's code archives. Its files can come from a workshop item anyone can upload to, and
 			// nothing checks a dll before it loads, so dlls only ever come from the backend or our own compile.
 			//
-			AssemblyFileSystem = new AggregateFileSystem();
 			if ( FileSystem.DirectoryExists( ".bin" ) )
 			{
 				var archives = new MemoryFileSystem();
@@ -224,10 +226,12 @@ internal static partial class PackageManager
 			{
 				AssemblyFileSystem.Mount( dllFs );
 			}
+
+			await PrepareAssemblies( options );
 		}
 
 		/// <summary>
-		/// Only games compile on the backend. Everything else (addons, libraries, tools) compiles its code archives here.
+		/// Only games compile on the backend. Libraries and tools compile their code archives locally.
 		/// </summary>
 		private bool CompilesOnBackend()
 		{
@@ -506,11 +510,7 @@ internal static partial class PackageManager
 		/// </summary>
 		public void Delete( bool reloadResources = true )
 		{
-			MountedFileSystem.UnMount( FileSystem );
 			Interlocked.Increment( ref MountGeneration );
-
-			// Make sure we unmount the package from the global filesystem, so that any other packages that might have been mounted on top of it don't get broken.
-			Sandbox.FileSystem.Mounted?.UnMount( FileSystem );
 
 			DisposeFileSystems();
 			if ( reloadResources )

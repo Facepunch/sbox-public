@@ -309,6 +309,7 @@ public sealed class DecalTool : ToolMode
 	{
 		if ( !FireToolAction( sprayId == 0 ? ToolInput.Primary : ToolInput.Secondary ) ) return;
 
+		if ( Player?.Network.Owner is null ) return;
 		if ( definition?.Decal == null ) return;
 
 		var pos = point.WorldTransform();
@@ -317,7 +318,10 @@ public sealed class DecalTool : ToolMode
 		go.Tags.Add( "removable" );
 		go.WorldPosition = pos.Position + pos.Rotation.Forward * 1f;
 		go.WorldRotation = Rotation.LookAt( -pos.Rotation.Forward );
-		go.SetParent( point.GameObject, true );
+
+		// Static map collision is regenerated on load and its children are omitted from saves.
+		if ( !point.IsWorld )
+			go.SetParent( point.GameObject, true );
 
 		var decal = go.AddComponent<Decal>();
 		decal.Decals = new List<DecalDefinition> { definition.Decal };

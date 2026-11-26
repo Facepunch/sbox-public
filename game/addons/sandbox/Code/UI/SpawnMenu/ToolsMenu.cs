@@ -10,7 +10,6 @@ public sealed class ToolsMenu : TabPanel
 	readonly Button _searchToggle;
 	readonly Button _themeToggle;
 	readonly Button _pinToggle;
-	readonly Tab _savesTab;
 	ToolMenuSearch _search;
 	InterfaceTheme _theme;
 
@@ -19,10 +18,8 @@ public sealed class ToolsMenu : TabPanel
 	/// </summary>
 	public ToolsMenu()
 	{
-		AddClass( "spawnmenuright menu-panel" );
+		AddClass( "spawnmenuright" );
 		BuildTabs();
-		_savesTab = TabBar.Tabs.FirstOrDefault( tab => tab.UserData is SaveMenu );
-		UpdateSavesVisibility();
 
 		_searchToggle = TabBar.AddChild( new Button( null, ToggleSearch ) );
 		_searchToggle.AddClass( "search-toggle" );
@@ -50,12 +47,11 @@ public sealed class ToolsMenu : TabPanel
 	public void BuildTabs() => this.PopulateTabs<IUtilityTab>( "spawnmenu.utilitytab" );
 
 	/// <summary>
-	/// Keeps the theme button and host-only Saves tab up to date.
+	/// Keeps the theme button up to date.
 	/// </summary>
 	public override void Tick()
 	{
 		base.Tick();
-		UpdateSavesVisibility();
 
 		if ( _theme != GamePreferences.Theme )
 			UpdateThemeButton();
@@ -69,24 +65,12 @@ public sealed class ToolsMenu : TabPanel
 		_themeToggle.Tooltip = isDark ? "#spawnmenu.utility.theme.switch_light" : "#spawnmenu.utility.theme.switch_dark";
 	}
 
-	void UpdateSavesVisibility()
-	{
-		if ( !_savesTab.IsValid() ) return;
-
-		var display = Networking.IsHost ? DisplayMode.Flex : DisplayMode.None;
-		if ( _savesTab.Style.Display != display )
-			_savesTab.Style.Display = display;
-
-		if ( display == DisplayMode.None && TabBar.SelectedTab == _savesTab )
-			TabBar.SelectTab( TabBar.Tabs.First( tab => tab != _savesTab ) );
-	}
-
 	static void ToggleTheme() => GamePreferences.SetTheme( GamePreferences.Theme == InterfaceTheme.Dark ? InterfaceTheme.Light : InterfaceTheme.Dark );
 
 	void OnTabSelected( Tab tab )
 	{
 		CloseSearch();
-		SetClass( "hide-search", tab?.UserData is EffectsHost or SaveMenu );
+		SetClass( "hide-search", tab?.UserData is EffectsHost );
 	}
 
 	void ToggleSearch()

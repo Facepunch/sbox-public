@@ -274,7 +274,28 @@ internal static partial class Workshop
 	/// <summary>
 	/// An item's page on the Steam Workshop
 	/// </summary>
-	internal static string GetUrl( ulong id ) => $"https://steamcommunity.com/sharedfiles/filedetails/?id={id}";
+	internal static string GetUrl( ulong id ) => FormattableString.Invariant( $"https://steamcommunity.com/sharedfiles/filedetails/?id={id}" );
+
+	internal const int MaxPreviewBytes = 1024 * 1024;
+
+	/// <summary>
+	/// Encodes a Workshop preview as JPEG, lowering quality until it fits Steam's upload limit.
+	/// </summary>
+	internal static byte[] EncodePreviewJpeg( Bitmap bitmap )
+	{
+		using var resized = bitmap.Width > 1920
+			? bitmap.Resize( 1920, Math.Max( 1, (int)(bitmap.Height * (1920f / bitmap.Width)) ) )
+			: null;
+		var preview = resized ?? bitmap;
+
+		for ( var quality = 90; quality >= 40; quality -= 10 )
+		{
+			var jpg = preview.ToJpg( quality );
+			if ( jpg.Length < MaxPreviewBytes ) return jpg;
+		}
+
+		return null;
+	}
 
 	/// <summary>
 	/// Ask the backend which item an ident is linked to. 0 if there isn't one, or we couldn't ask.

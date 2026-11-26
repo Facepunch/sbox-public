@@ -1,5 +1,6 @@
 ﻿using System.IO;
 using System.IO.Enumeration;
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 using Zio.FileSystems;
 
@@ -15,6 +16,11 @@ public class BaseFileSystem
 
 	protected Zio.IFileSystem system;
 	protected Zio.IFileSystemWatcher watcher;
+
+	private protected static readonly System.Threading.Lock MountLock = new();
+
+	// A nested aggregate can keep a parent's Zio backend alive. Key by backend so we can still unmount from it.
+	private ConditionalWeakTable<Zio.FileSystems.AggregateFileSystem, BaseFileSystem> mountedIn;
 
 	internal List<FileWatch> watchers { get; } = new List<FileWatch>();
 	internal HashSet<string> changedFiles { get; } = new HashSet<string>( StringComparer.OrdinalIgnoreCase );
@@ -50,10 +56,10 @@ public class BaseFileSystem
 
 		lock ( FileWatch.WithChanges )
 		{
+			if ( PendingDispose ) return;
+
 			WatchEnabled = false;
 			PendingDispose = true;
-			disposedSystem = system;
-			system = null;
 
 			disposedWatcher = watcher;
 			watcher = null;
@@ -65,8 +71,23 @@ public class BaseFileSystem
 			FileWatch.WithChanges.Remove( this );
 		}
 
-		// Disposal can join the filesystem's event thread. Let any in-flight callback
-		// acquire WithChanges and observe the disposed state before waiting for that thread.
+		// Unmounting can dispose a watcher. Leave the change lock free for its event thread.
+		lock ( MountLock )
+		{
+			if ( mountedIn is not null )
+			{
+				foreach ( var parent in mountedIn )
+				{
+					parent.Value.UnMount( this );
+				}
+
+				mountedIn = null;
+			}
+
+			disposedSystem = system;
+			system = null;
+		}
+
 		try
 		{
 			disposedWatcher?.Dispose();
@@ -660,17 +681,17 @@ public class BaseFileSystem
 	/// <param name="filesystem"></param>
 	internal void Mount( BaseFileSystem filesystem )
 	{
-		if ( filesystem == null ) return;
-		if ( filesystem.system == null ) return;
-
-		if ( system is Zio.FileSystems.AggregateFileSystem fs )
+		lock ( MountLock )
 		{
-			if ( fs.GetFileSystems().Contains( filesystem.system ) )
-				return;
+			if ( system is not Zio.FileSystems.AggregateFileSystem fs || filesystem?.system is not { } child ) return;
+			if ( fs.GetFileSystems().Contains( child ) ) return;
+
+			// Zio adds the child before it starts its watchers, so even a failed watch needs an unmount.
+			(filesystem.mountedIn ??= new()).AddOrUpdate( fs, this );
 
 			try
 			{
-				fs.AddFileSystem( filesystem.system );
+				fs.AddFileSystem( child );
 			}
 			catch ( System.IO.IOException e )
 			{
@@ -684,15 +705,16 @@ public class BaseFileSystem
 
 	internal void UnMount( BaseFileSystem filesystem )
 	{
-		if ( filesystem == null ) return;
-		if ( filesystem.system == null ) return;
-
-		if ( system is Zio.FileSystems.AggregateFileSystem fs )
+		lock ( MountLock )
 		{
-			if ( !fs.GetFileSystems().Contains( filesystem.system ) )
-				return;
+			if ( system is not Zio.FileSystems.AggregateFileSystem fs || filesystem?.system is not { } child ) return;
 
-			fs.RemoveFileSystem( filesystem.system );
+			if ( fs.GetFileSystems().Contains( child ) )
+			{
+				fs.RemoveFileSystem( child );
+			}
+
+			filesystem.mountedIn?.Remove( fs );
 		}
 	}
 

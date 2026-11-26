@@ -175,7 +175,7 @@ public partial class AnimationLayer : BaseNpcLayer
 
 	protected override void OnUpdate()
 	{
-		if ( !Networking.IsHost )
+		if ( !Networking.IsHost || !Npc.IsValid() )
 			return;
 
 		LookObject = _addedLookTarget.IsValid() && !_addedLookExpires

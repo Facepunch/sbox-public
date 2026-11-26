@@ -86,47 +86,76 @@ internal static class Web
 			p.TotalBytes = response.Content.Headers.ContentLength ?? 0;
 			progress?.Invoke( p );
 
-			// Make sure the directory exists
-			var path = new DirectoryInfo( System.IO.Path.GetDirectoryName( tempName ) );
-			if ( !path.Exists ) path.Create();
-
-			using var fileStream = new FileStream( tempName, FileMode.Create );
-			using var bodyStream = await response.Content.ReadAsStreamAsync( stall.Token );
-
-			// Not HttpContentStream: it's for request bodies, wants a seekable stream, and drops the token
-			using var buffer = MemoryPool<byte>.Shared.Rent( 64 * 1024 );
-			int read;
-			long transferred = 0, reported = 0;
-
-			void Report()
+			IOException transferError = null;
+			try
 			{
-				if ( progress is null || transferred == reported ) return;
+				var path = new DirectoryInfo( System.IO.Path.GetDirectoryName( tempName ) );
+				if ( !path.Exists ) path.Create();
 
-				var tick = new DataProgress { TotalBytes = p.TotalBytes, ProgressBytes = transferred, DeltaBytes = transferred - reported };
-				reported = transferred;
-				MainThread.Queue( () => progress.Invoke( tick ) );
+				using var fileStream = new FileStream( tempName, FileMode.Create );
+				IOException writeError = null;
+				try
+				{
+					using var bodyStream = await response.Content.ReadAsStreamAsync( stall.Token );
+
+					// Not HttpContentStream: it's for request bodies, wants a seekable stream, and drops the token
+					using var buffer = MemoryPool<byte>.Shared.Rent( 64 * 1024 );
+					int read;
+					long transferred = 0, reported = 0;
+
+					void Report()
+					{
+						if ( progress is null || transferred == reported ) return;
+
+						var tick = new DataProgress { TotalBytes = p.TotalBytes, ProgressBytes = transferred, DeltaBytes = transferred - reported };
+						reported = transferred;
+						MainThread.Queue( () => progress.Invoke( tick ) );
+					}
+
+					while ( true )
+					{
+						stall.CancelAfter( StallTimeout );
+						read = await bodyStream.ReadAsync( buffer.Memory, stall.Token );
+						if ( read <= 0 ) break;
+
+						// Automatic decompression clears Content-Length; don't mistake expanded bytes for bandwidth.
+						if ( response.Content.Headers.ContentLength.HasValue ) TextureWebStreaming.RecordNetworkBytes( read );
+
+						// Only the network counts towards a stall, not a slow disk
+						stall.CancelAfter( Timeout.InfiniteTimeSpan );
+						try
+						{
+							await fileStream.WriteAsync( buffer.Memory[..read], cancelToken );
+						}
+						catch ( IOException e )
+						{
+							writeError = e;
+							throw;
+						}
+
+						transferred += read;
+
+						// Reads come back around 20KB, so coalesce rather than marshalling one of these each
+						if ( transferred - reported >= 256 * 1024 ) Report();
+					}
+
+					Report();
+				}
+				catch ( IOException e ) when ( e != writeError )
+				{
+					// Let the retry handler see this exception unless closing the file throws its own.
+					transferError = e;
+					throw;
+				}
 			}
-
-			while ( true )
+			catch ( IOException e ) when ( e != transferError )
 			{
-				stall.CancelAfter( StallTimeout );
-				read = await bodyStream.ReadAsync( buffer.Memory, stall.Token );
-				if ( read <= 0 ) break;
+				Fail();
+				cancelToken.ThrowIfCancellationRequested();
 
-				// Automatic decompression clears Content-Length; don't mistake expanded bytes for bandwidth.
-				if ( response.Content.Headers.ContentLength.HasValue ) TextureWebStreaming.RecordNetworkBytes( read );
-
-				// Only the network counts towards a stall, not a slow disk
-				stall.CancelAfter( Timeout.InfiniteTimeSpan );
-				await fileStream.WriteAsync( buffer.Memory[..read], cancelToken );
-
-				transferred += read;
-
-				// Reads come back around 20KB, so coalesce rather than marshalling one of these each
-				if ( transferred - reported >= 256 * 1024 ) Report();
+				Log.Warning( $"Couldn't write '{targetFileName}': {e.Message}" );
+				return false;
 			}
-
-			Report();
 		}
 		catch ( OperationCanceledException ) when ( !cancelToken.IsCancellationRequested && tries < DownloadAttempts )
 		{

@@ -1,5 +1,6 @@
 using System.IO.Hashing;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace Sandbox.ContentBuild;
 
@@ -11,10 +12,35 @@ public sealed class AssetRecord
 {
 	public string Source { get; set; }
 	public string Job { get; set; }
+
+	/// <summary>
+	/// Published output paths and their last known contents.
+	/// </summary>
+	[JsonRequired, JsonObjectCreationHandling( JsonObjectCreationHandling.Populate )]
 	public Dictionary<string, FileStamp> Outputs { get; set; } = new( StringComparer.OrdinalIgnoreCase );
+
+	/// <summary>
+	/// Source files checked for changes before reusing these outputs.
+	/// </summary>
+	[JsonRequired]
 	public List<InputStamp> Inputs { get; set; } = [];
+
+	/// <summary>
+	/// Compiler dependencies checked by fingerprint.
+	/// </summary>
+	[JsonRequired]
 	public List<SpecialDependency> Special { get; set; } = [];
+
+	/// <summary>
+	/// Compiler arguments used by this asset.
+	/// </summary>
+	[JsonRequired]
 	public Dictionary<string, string> Arguments { get; set; } = [];
+
+	/// <summary>
+	/// Compiled files read from other assets.
+	/// </summary>
+	[JsonRequired]
 	public List<RecordedPrerequisite> Prerequisites { get; set; } = [];
 
 	/// <summary>
@@ -53,8 +79,17 @@ public sealed class PublishFailedException( string message, Exception inner ) : 
 sealed class RecordStore
 {
 	readonly Func<string, string> resolve;
-	readonly string records, journals, backups;
-	static readonly JsonSerializerOptions Json = new() { WriteIndented = true };
+	readonly string records, journals, backups, deferredFile;
+	Dictionary<string, string> deferred;
+	readonly HashSet<string> quarantined;
+	readonly HashSet<string> unknownOwners = new( StringComparer.OrdinalIgnoreCase );
+
+	/// <summary>
+	/// Whether any live source still has unknown outputs.
+	/// </summary>
+	public bool HasUnknownOwners => unknownOwners.Count > 0;
+
+	static readonly JsonSerializerOptions Json = new() { WriteIndented = true, RespectRequiredConstructorParameters = true };
 
 	public Dictionary<string, AssetRecord> All { get; } = new( StringComparer.OrdinalIgnoreCase );
 
@@ -65,6 +100,8 @@ sealed class RecordStore
 		records = Directory.CreateDirectory( Path.Combine( state, "records" ) ).FullName;
 		journals = Directory.CreateDirectory( Path.Combine( state, "journal" ) ).FullName;
 		backups = Path.Combine( state, "backup" );
+		deferredFile = Path.Combine( state, "deferred-deletes.json" );
+		if ( File.Exists( deferredFile ) ) deferred = ReadCache( deferredFile, ReadDeferred );
 
 		// A journal still being written was never renamed, so nothing it lists was moved
 		foreach ( var partial in Directory.GetFiles( journals, "*.tmp" ) ) File.Delete( partial );
@@ -72,8 +109,89 @@ sealed class RecordStore
 
 		var files = Directory.GetFiles( records, "*.json" );
 		var loaded = new AssetRecord[files.Length];
-		Parallel.For( 0, files.Length, i => loaded[i] = JsonSerializer.Deserialize<AssetRecord>( File.ReadAllText( files[i] ) ) );
-		foreach ( var record in loaded ) All[record.Source] = record;
+		Func<string, AssetRecord> read = ReadRecord;
+		Parallel.For( 0, files.Length, i => loaded[i] = ReadCache( files[i], read ) );
+		foreach ( var record in loaded )
+		{
+			if ( record is not null ) All[record.Source] = record;
+		}
+
+		// Keep the damaged bytes for inspection even after the source has a new record.
+		quarantined = Directory.EnumerateFiles( records, "*.json.invalid" )
+			.Select( file => Path.ChangeExtension( file, null ) )
+			.Where( file => !File.Exists( file ) )
+			.ToHashSet( StringComparer.OrdinalIgnoreCase );
+	}
+
+	/// <summary>
+	/// Keep malformed cache data for inspection. Only journal recovery needs a readable commit marker.
+	/// </summary>
+	static T ReadCache<T>( string file, Func<string, T> read ) where T : class
+	{
+		try
+		{
+			return read( file );
+		}
+		catch ( JsonException )
+		{
+			File.Move( file, file + ".invalid", true );
+			return null;
+		}
+	}
+
+	static Dictionary<string, string> ReadDeferred( string file )
+	{
+		var entries = JsonSerializer.Deserialize<Dictionary<string, string>>( File.ReadAllText( file ) );
+		var paths = new Dictionary<string, string>( StringComparer.OrdinalIgnoreCase );
+		foreach ( var (key, hash) in entries ?? throw new JsonException( $"Missing deferred deletions: {file}" ) )
+		{
+			if ( string.IsNullOrWhiteSpace( key ) || key.Contains( '\0' ) || string.IsNullOrEmpty( hash ) || !paths.TryAdd( key, hash ) )
+				throw new JsonException( $"Invalid deferred deletion in {file}" );
+		}
+		return paths;
+	}
+
+	AssetRecord ReadRecord( string file )
+	{
+		var record = JsonSerializer.Deserialize<AssetRecord>( File.ReadAllText( file ), Json );
+
+		if ( string.IsNullOrWhiteSpace( record?.Source ) || !Guid.TryParseExact( record.Job, "N", out _ )
+			|| !RecordPath( record.Source ).Equals( file, StringComparison.OrdinalIgnoreCase ) )
+			throw new JsonException( $"Invalid source or job in content build record: {file}" );
+
+		if ( record.Outputs is not { Count: > 0 } || record.Inputs is null || record.Special is null
+			|| record.Arguments is null || record.Prerequisites is null )
+			throw new JsonException( $"Missing dependencies or outputs in content build record: {file}" );
+
+		if ( record.Outputs.Any( x => string.IsNullOrWhiteSpace( x.Key ) || x.Key.Contains( '\0' ) || string.IsNullOrEmpty( x.Value?.Hash ) )
+			|| record.Inputs.Any( x => !ValidPath( x?.Path ) )
+			|| record.Special.Any( x => x?.Compiler is null || x.Name is null )
+			|| record.Prerequisites.Any( x => !ValidPath( x?.File ) || string.IsNullOrEmpty( x.Hash ) || x.Output?.Contains( '\0' ) == true ) )
+			throw new JsonException( $"Invalid dependency or output in content build record: {file}" );
+
+		return record;
+
+		static bool ValidPath( string path ) => path is not null && Path.IsPathFullyQualified( path ) && !path.Contains( '\0' );
+	}
+
+	/// <summary>
+	/// Match quarantined filenames to live sources during inventory. Deleted sources no longer own files.
+	/// </summary>
+	public void CheckSource( string source, string output )
+	{
+		if ( All.TryGetValue( source, out var record ) )
+		{
+			if ( output is null || record.Outputs.ContainsKey( output ) ) return;
+
+			var file = RecordPath( source );
+			File.Move( file, file + ".invalid", true );
+			All.Remove( source );
+			unknownOwners.Add( source );
+		}
+		else if ( quarantined.Count > 0 && quarantined.Contains( RecordPath( source ) ) )
+		{
+			unknownOwners.Add( source );
+		}
 	}
 
 	public IEnumerable<string> Owners( string output ) => All.Values.Where( x => x.Outputs.ContainsKey( output ) ).Select( x => x.Source );
@@ -82,6 +200,7 @@ sealed class RecordStore
 
 	sealed record Move( string Target, string Staged, bool Existed );
 	sealed record Journal( string Job, string Source, bool Remove, List<Move> Moves );
+	sealed record CommitMarker( string Source, string Job );
 
 	/// <summary>
 	/// Puts staged outputs in place, deletes <paramref name="obsolete"/> outputs and commits
@@ -100,11 +219,26 @@ sealed class RecordStore
 			if ( existed && Hashing.File( target ) == record.Outputs[rel].Hash ) continue;
 			moves.Add( new Move( target, file, existed ) );
 		}
+
+		var deferredChanged = false;
 		foreach ( var rel in obsolete )
 		{
 			var target = resolve( rel );
-			if ( target is not null && File.Exists( target ) ) moves.Add( new Move( target, null, true ) );
+			if ( target is null || !File.Exists( target ) ) continue;
+
+			if ( HasUnknownOwners )
+			{
+				deferred ??= new( StringComparer.OrdinalIgnoreCase );
+				deferred[rel] = All[source].Outputs[rel].Hash;
+				deferredChanged = true;
+				continue;
+			}
+
+			moves.Add( new Move( target, null, true ) );
 		}
+
+		// Persist candidates before dropping ownership. If publication rolls back, the old record still protects them.
+		if ( deferredChanged ) WriteJson( deferredFile, deferred );
 
 		// Complete before anything moves, so recovery only ever sees a whole journal
 		var journal = Path.Combine( journals, $"{job}.json" );
@@ -142,6 +276,7 @@ sealed class RecordStore
 
 		if ( record is null ) All.Remove( source );
 		else All[source] = record;
+		unknownOwners.Remove( source );
 
 		File.Delete( journal );
 		if ( Directory.Exists( backup ) ) Directory.Delete( backup, true );
@@ -151,11 +286,54 @@ sealed class RecordStore
 	/// <summary>
 	/// Writes a record again with nothing to move, as when its outputs' stamps moved but their bytes didn't.
 	/// </summary>
-	public void Rewrite( string source, AssetRecord record )
+	public void Rewrite( string source, AssetRecord record ) => WriteJson( RecordPath( source ), record );
+
+	static void WriteJson<T>( string file, T value )
 	{
-		var temp = RecordPath( source ) + ".tmp";
-		File.WriteAllText( temp, JsonSerializer.Serialize( record, Json ) );
-		File.Move( temp, RecordPath( source ), true );
+		File.WriteAllText( file + ".tmp", JsonSerializer.Serialize( value, Json ) );
+		File.Move( file + ".tmp", file, true );
+	}
+
+	/// <summary>
+	/// Remove deferred root-local outputs only if they are still unowned and still the bytes their owner published.
+	/// An interruption leaves the list on disk for the next build.
+	/// </summary>
+	public IEnumerable<string> RemoveDeferredOutputs()
+	{
+		if ( deferred is null || HasUnknownOwners ) yield break;
+
+		foreach ( var file in DeletableOutputs() )
+		{
+			File.Delete( file );
+			yield return file;
+		}
+
+		File.Delete( deferredFile );
+		deferred = null;
+	}
+
+	/// <summary>
+	/// Damaged records that prevent removal of an otherwise obsolete output in this root.
+	/// </summary>
+	public IEnumerable<(string Source, string DamagedRecord)> OwnersBlockingCleanup()
+	{
+		if ( deferred is null || !HasUnknownOwners || !DeletableOutputs().Any() ) yield break;
+
+		foreach ( var source in unknownOwners )
+			yield return (source, RecordPath( source ) + ".invalid");
+	}
+
+	IEnumerable<string> DeletableOutputs()
+	{
+		var owned = All.Values.SelectMany( record => record.Outputs.Keys ).Select( resolve ).ToHashSet( StringComparer.OrdinalIgnoreCase );
+		foreach ( var (key, hash) in deferred )
+		{
+			if ( key.Contains( ':' ) ) continue;
+			var file = resolve( key );
+			if ( file is null || owned.Contains( file ) || !File.Exists( file ) || Hashing.File( file ) != hash ) continue;
+
+			yield return file;
+		}
 	}
 
 	PublishFailedException Undo( string journal, Exception e )
@@ -171,11 +349,8 @@ sealed class RecordStore
 	void Recover( string journalFile )
 	{
 		var journal = JsonSerializer.Deserialize<Journal>( File.ReadAllText( journalFile ) );
-		var recordFile = RecordPath( journal.Source );
-		var committed = journal.Remove ? !File.Exists( recordFile ) : File.Exists( recordFile ) && JsonSerializer.Deserialize<AssetRecord>( File.ReadAllText( recordFile ) ).Job == journal.Job;
-
 		var backup = Path.Combine( backups, journal.Job );
-		if ( !committed )
+		if ( !IsCommitted( journal ) )
 		{
 			foreach ( var move in Enumerable.Reverse( journal.Moves ) )
 			{
@@ -187,6 +362,19 @@ sealed class RecordStore
 
 		if ( Directory.Exists( backup ) ) Directory.Delete( backup, true );
 		File.Delete( journalFile );
+	}
+
+	bool IsCommitted( Journal journal )
+	{
+		var file = RecordPath( journal.Source );
+		if ( !File.Exists( file ) ) return journal.Remove;
+		if ( journal.Remove ) return false;
+
+		var marker = JsonSerializer.Deserialize<CommitMarker>( File.ReadAllText( file ), Json );
+		if ( !string.Equals( marker?.Source, journal.Source, StringComparison.OrdinalIgnoreCase ) || !Guid.TryParseExact( marker?.Job, "N", out _ ) )
+			throw new JsonException( $"Invalid commit marker: {file}" );
+
+		return string.Equals( marker.Job, journal.Job, StringComparison.OrdinalIgnoreCase );
 	}
 
 	static string BackupPath( string backup, string target ) => Path.Combine( backup, $"{XxHash3.HashToUInt64( System.Text.Encoding.UTF8.GetBytes( Path.GetFullPath( target ).ToLowerInvariant() ) ):x16}" );

@@ -1,7 +1,10 @@
 using Azure.Messaging.WebPubSub.Clients;
+using Sandbox.Diagnostics;
 using Sandbox.Services;
 using System;
 using System.Collections.Generic;
+using System.IO;
+using System.Net.WebSockets;
 using System.Threading;
 
 namespace ServicesTests;
@@ -47,6 +50,40 @@ public class MessagingLifecycleTest
 	/// </summary>
 	[TestCleanup]
 	public Task Cleanup() => Messaging.Shutdown();
+
+	/// <summary>
+	/// The startup observer logs the cause of a delayed failure without exposing the signed endpoint.
+	/// </summary>
+	[TestMethod]
+	public async Task MessagingStartupObserverLogsOnlyCauseType()
+	{
+		var startup = new TaskCompletionSource( TaskCreationOptions.RunContinuationsAsynchronously );
+		var observation = Api.ObserveMessagingStartup( startup.Task );
+		Assert.IsFalse( observation.IsCompleted );
+
+		var warnings = new List<LogEvent>();
+		void OnEmitted( LogEvent entry )
+		{
+			if ( entry.Level == LogLevel.Warn && entry.Message.StartsWith( "Messaging connection failed", StringComparison.Ordinal ) )
+				warnings.Add( entry );
+		}
+
+		Logging.OnEmitted += OnEmitted;
+		try
+		{
+			var cause = new IOException( "wss://example.invalid/?access_token=synthetic" );
+			startup.SetException( new WebSocketException( "Connection failed", cause ) );
+			await observation.WaitAsync( TimeSpan.FromSeconds( 5 ) );
+		}
+		finally
+		{
+			Logging.OnEmitted -= OnEmitted;
+		}
+
+		Assert.AreEqual( 1, warnings.Count );
+		Assert.AreEqual( "Messaging connection failed (IOException).", warnings[0].Message );
+		Assert.IsNull( warnings[0].Exception );
+	}
 
 	/// <summary>
 	/// Shutdown waits for replacement, and replacement waits for the old connection to stop.

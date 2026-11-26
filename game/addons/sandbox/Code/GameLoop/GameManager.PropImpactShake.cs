@@ -85,11 +85,11 @@ public sealed partial class GameManager : ISceneCollisionEvents
 	[Rpc.Broadcast( NetFlags.HostOnly | NetFlags.Unreliable )]
 	private void BroadcastImpact( Vector3 position, float amplitude )
 	{
-		if ( Scene.IsEditor || GamePreferences.Screenshake <= 0f ) return;
+		if ( Scene.IsEditor ) return;
 
 		var effects = CameraEffectSystem.Get( Scene );
 		if ( effects is null ) return;
-		effects.Scale = GamePreferences.Screenshake;
+		effects.Scale = Player.ScreenShakeScale;
 		var camera = Scene.Camera;
 		if ( !camera.IsValid() ) return;
 		if ( camera.WorldPosition.Distance( position ) >= ShakeRadius ) return;

@@ -1,0 +1,28 @@
+{
+  "guid": "25c6f9d0-1c85-4492-9324-8aefae0b16d5",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "Grit Box",
+      "Type": "material",
+      "Org": "local",
+      "OrgTitle": null,
+      "Ident": "grit_box",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/street/grit_bin/materials/grit_bin.vmat"
+      }
+    },
+    "HammerAutoPackageReferences": null
+  }
+}

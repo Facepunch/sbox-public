@@ -8,11 +8,6 @@ namespace Sandbox;
 /// </summary>
 internal struct PackageLoadOptions
 {
-	/// <summary>
-	/// Mounts assets from the package, but does not compile or load any code.
-	/// </summary>
-	public static PackageLoadOptions Default => new PackageLoadOptions();
-
 	public PackageLoadOptions()
 	{
 
@@ -45,11 +40,6 @@ internal struct PackageLoadOptions
 	/// For cancelling the task
 	/// </summary>
 	public CancellationToken CancellationToken { get; set; }
-
-	/// <summary>
-	/// If true we will only download the code files (.bin) and not the assets.
-	/// </summary>
-	public bool SkipAssetDownload { get; set; }
 
 	/// <summary>
 	/// If false, the resource system will not reload symlinked resident resources after mounting.

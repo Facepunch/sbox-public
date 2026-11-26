@@ -106,28 +106,6 @@
 			opacity: 0.45;
 			pointer-events: none;
 		}
-
-		// every pooled row carries a skeleton once it's been a loading row, only loading rows show it
-		SpawnlistSkeleton
-		{
-			display: none;
-		}
-
-		&.loading
-		{
-			opacity: 1;
-
-			.tree-content
-			{
-				flex-grow: 1;
-				align-self: stretch;
-			}
-
-			SpawnlistSkeleton
-			{
-				display: flex;
-			}
-		}
 	}
 
 	SpawnMenuPage .sidebar-controls

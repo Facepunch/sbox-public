@@ -1,10 +1,12 @@
-// the one stylesheet every sandbox UI element imports: fonts, the color palette and the shared building blocks
-// (blocks, sections, sidebars, buttons, inputs, headers, labels, tables, tabs, cards)
+// Shared fonts, palette and controls for the Sandbox UI.
 
 $deadzone-x: 2vw;
 $deadzone-y: 2vw;
 
 $hud-accent: #4d90fc;
+$hud-element-bg: #0006;
+$hud-radius: 8px;
+$hud-radius-sm: 4px;
 
 $color-accent: #0094ff;
 $color-text: #fafaff;
@@ -14,8 +16,6 @@ $title-font: $body-font;
 $subtitle-font: $body-font;
 $ui-icon: "Material Symbols Outlined";
 $ui-icon-filled-axes: 'FILL' 1, 'wght' 400, 'opsz' 24;
-
-$ui-mono: "Inconsolata";
 
 IconPanel, icon, i
 {
@@ -33,24 +33,6 @@ $ui-section-gap: 20px;
 
 // Components use the dark palette by default. Theme/Apply.scss adds their light variant.
 @import "/UI/Theme/Dark.scss";
-
-// base gray block, all UI stuff is built on top of them
-@mixin ui-block
-{
-	padding: 8px;
-	border: 1px solid $ui-block-border;
-	background-image: linear-gradient( to bottom, $ui-block-top, $ui-block-bottom );
-	border-radius: 2px;
-}
-
-// lists, settings, tool list, etc..
-@mixin ui-section
-{
-	color: $ui-text;
-	border: 1px solid $ui-section-border;
-	background-image: linear-gradient( to bottom, $ui-section-top, $ui-section-bottom );
-	border-radius: 2px;
-}
 
 // scrollbar
 @mixin ui-scroll
@@ -108,9 +90,9 @@ $ui-section-gap: 20px;
 @mixin ui-button-face
 {
 	color: $ui-text;
-	background-image: linear-gradient( to bottom, $ui-button-top 0%, $ui-button-top 46%, $ui-button-bottom 54%, $ui-button-bottom 100% );
-	border: 1px solid $ui-button-border;
-	border-radius: 2px;
+	@include ui-control-surface;
+	border: 1px solid $ui-control-border;
+	border-radius: $ui-menu-radius;
 	cursor: pointer;
 
 	&:hover
@@ -232,32 +214,6 @@ $ui-section-gap: 20px;
 	}
 }
 
-@mixin ui-title-bar
-{
-	flex-direction: row;
-	align-items: center;
-	flex-shrink: 0;
-	height: 23px;
-	padding: 0 10px;
-	background-color: $ui-title-bg;
-	color: white;
-	font-size: 12px;
-	font-weight: 800;
-	border-radius: 2px 2px 0px 0px;
-	text-transform: uppercase;
-	white-space: nowrap;
-}
-
-// the big heading of a page or of a section, drawn on the gray block of the menu, like the name of a spawnlist
-@mixin ui-display-heading
-{
-	font-size: 32px;
-	font-weight: 700;
-	color: $ui-heading-on-gray;
-	text-shadow: 1px 1px 0px rgba(0, 0, 0, 0.4);
-	@include ui-ellipsis;
-}
-
 // grey uppercase text of group and section names
 @mixin ui-heading-text
 {
@@ -265,13 +221,6 @@ $ui-section-gap: 20px;
 	font-weight: 800;
 	text-transform: uppercase;
 	color: $ui-text-muted;
-}
-
-// the same group names in the dark menus
-@mixin ui-heading-text-on-dark
-{
-	text-transform: uppercase;
-	color: rgba( 255, 255, 255, 0.35 );
 }
 
 // a group name with a line under it, the first one of a sheet or page sits at the top and the others get $ui-section-gap above
@@ -370,8 +319,8 @@ $ui-section-gap: 20px;
 	}
 }
 
-// slots in dupes menu, a card with the name (and the author's avatar) in a footer
-@mixin ui-dupe-card
+// Workshop tiles show the item name and author in the footer.
+@mixin ui-workshop-card
 {
 	@include ui-card;
 	border-radius: 7px;
@@ -494,13 +443,6 @@ $ui-section-gap: 20px;
 	color: $ui-text-muted;
 }
 
-// the same secondary text drawn on the block of the menu
-@mixin ui-subtitle-on-gray
-{
-	@include ui-subtitle;
-	color: $ui-text-on-gray;
-}
-
 // the name in front of a control, in settings and inspectors
 @mixin ui-label
 {
@@ -510,34 +452,5 @@ $ui-section-gap: 20px;
 	@include ui-ellipsis;
 }
 
-// tables: a title bar header, rows with a line under them and every other one shaded
-@mixin ui-table
-{
-	@include ui-section;
-	flex-direction: column;
-	overflow: hidden;
-}
-
-@mixin ui-table-header
-{
-	@include ui-title-bar;
-	gap: 8px;
-}
-
-@mixin ui-table-row
-{
-	flex-shrink: 0;
-	flex-direction: row;
-	align-items: center;
-	color: $ui-text;
-	border-bottom: 1px solid $ui-separator;
-
-	&:nth-child( even )
-	{
-		background-color: $ui-row-alt;
-	}
-}
-
 @import "/UI/Theme/MenuControls.scss";
 @import "/UI/Menu.scss";
-@import "/UI/Hud.scss";

@@ -1,5 +1,6 @@
 using Sandbox.Diagnostics;
 using System;
+using System.IO;
 
 namespace ProjectTests;
 
@@ -61,6 +62,60 @@ public class ProjectTest
 		{
 			Project.Clear();
 			System.IO.Directory.Delete( libraryFolder, true );
+		}
+	}
+
+	/// <summary>
+	/// A locked recommendations file can wait until the next solution refresh.
+	/// </summary>
+	[TestMethod]
+	public async Task GenerateSolutionWithLockedRecommendations()
+	{
+		var root = Directory.CreateTempSubdirectory( "sbox_vscode_" );
+		var previousProject = Project.Current;
+		Project project = null;
+
+		try
+		{
+			var code = root.CreateSubdirectory( "Code" );
+			var config = Path.Combine( root.FullName, ".sbproj" );
+			File.WriteAllText( config, """{ "Title": "Workspace", "Type": "game", "Org": "local", "Ident": "workspace", "Schema": 1 }""" );
+			project = Project.AddFromFile( config );
+			Assert.IsNotNull( project );
+			Project.Current = project;
+
+			var vscode = root.CreateSubdirectory( ".vscode" );
+			var extensions = Path.Combine( vscode.FullName, "extensions.json" );
+			var settings = Path.Combine( vscode.FullName, "settings.json" );
+
+			File.WriteAllText( extensions, "{}" );
+			using ( File.Open( extensions, FileMode.Open, FileAccess.Read, FileShare.None ) )
+			{
+				await Project.GenerateSolution();
+			}
+
+			Assert.AreEqual( "{}", File.ReadAllText( extensions ) );
+			StringAssert.Contains( File.ReadAllText( settings ), "slang.additionalSearchPaths" );
+			Assert.IsTrue( File.Exists( Path.Combine( code.FullName, "workspace.csproj" ) ) );
+			Assert.IsTrue( File.Exists( Path.Combine( root.FullName, "workspace.slnx" ) ) );
+
+			await Project.GenerateSolution();
+			StringAssert.Contains( File.ReadAllText( extensions ), "ms-dotnettools.csdevkit" );
+
+			var timestamp = new DateTime( 2000, 1, 1, 0, 0, 0, DateTimeKind.Utc );
+			File.SetLastWriteTimeUtc( extensions, timestamp );
+			File.SetLastWriteTimeUtc( settings, timestamp );
+			await Project.GenerateSolution();
+			Assert.AreEqual( timestamp, File.GetLastWriteTimeUtc( extensions ) );
+			Assert.AreEqual( timestamp, File.GetLastWriteTimeUtc( settings ) );
+		}
+		finally
+		{
+			Project.Current = previousProject;
+			if ( project is not null )
+				Project.Remove( project );
+
+			root.Delete( true );
 		}
 	}
 

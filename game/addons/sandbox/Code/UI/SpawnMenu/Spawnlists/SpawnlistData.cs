@@ -93,39 +93,19 @@ public class SpawnlistData
 	[JsonPropertyName( "items" )]
 	public List<SpawnlistItem> Items { get; set; } = new();
 
-	public static SpawnlistData Create( string name )
-	{
-		return Create( name, out _ );
-	}
-
-	public static SpawnlistData Create( string name, out Storage.Entry entry )
+	/// <summary>
+	/// Creates a local list and optionally adds its first item before notifying the menus.
+	/// </summary>
+	public static SpawnlistData Create( string name, out Storage.Entry entry, SpawnlistItem initialItem = null )
 	{
 		var data = new SpawnlistData { Name = name };
+		if ( initialItem is not null )
+			data.Items.Add( initialItem );
+
 		entry = Storage.CreateEntry( "spawnlist" );
-		entry.SetMeta( "name", name );
 		Save( entry, data );
 		SpawnlistCreated?.Invoke();
 		return data;
-	}
-
-	/// <summary>
-	/// Asks for a name in a window over the menu, then makes the spawnlist.
-	/// </summary>
-	/// <param name="initialItem">An item the new list starts with.</param>
-	/// <param name="name">What the name box starts with.</param>
-	public static void PromptCreate( Panel source, Action onCreated = null, Action<Storage.Entry> onEntryCreated = null, SpawnlistItem initialItem = null, string name = null )
-	{
-		UIModal.Prompt( source, "#spawnmenu.spawnlist.create_title", name, newName =>
-		{
-			Create( newName, out var entry );
-			if ( initialItem is not null )
-				AddItem( entry, initialItem );
-
-			Notices.AddNotice( "list_alt", Color.Cyan, Game.Language.GetPhrase( "spawnmenu.spawnlist.created_notice", new() { { "name", newName } } ) );
-
-			onCreated?.Invoke();
-			onEntryCreated?.Invoke( entry );
-		}, "#spawnmenu.spawnlist.name_placeholder", "#spawnmenu.spawnlist.create_button", "add" );
 	}
 
 	/// <summary>
@@ -137,19 +117,9 @@ public class SpawnlistData
 	public static void Save( Storage.Entry entry, SpawnlistData data )
 	{
 		Normalize( data, true );
-		var contentItems = data.Items.Where( item => item.IsContent ).ToList();
 
 		entry.Files.WriteJson( "/spawnlist.json", data );
 		entry.SetMeta( "name", data.Name );
-		entry.SetMeta( "item_count", contentItems.Count );
-		entry.SetMeta( "metadata_version", 2 );
-		entry.SetMeta( "preview_items", Json.Serialize( contentItems.Take( 6 ).ToList() ) );
-
-		var contentTypes = contentItems
-			.Select( item => SpawnlistItem.ParseIdent( item.Ident ).Type ?? "other" )
-			.GroupBy( type => type, StringComparer.OrdinalIgnoreCase )
-			.ToDictionary( group => group.Key.ToLowerInvariant(), group => group.Count() );
-		entry.SetMeta( "content_types", Json.Serialize( contentTypes ) );
 	}
 
 	public static SpawnlistData Load( Storage.Entry entry )
@@ -163,26 +133,25 @@ public class SpawnlistData
 		return data;
 	}
 
-	private static bool Normalize( SpawnlistData data, bool assignIds )
+	private static void Normalize( SpawnlistData data, bool assignIds )
 	{
-		var changed = data.Items is null || data.Name is null;
 		data.Name ??= Game.Language.GetPhrase( "spawnmenu.spawnlist.untitled" );
 		data.Items ??= new();
-		if ( !assignIds ) return changed;
+		if ( !assignIds ) return;
 
 		foreach ( var item in data.Items )
 		{
 			if ( item.Id != Guid.Empty ) continue;
 			item.Id = Guid.NewGuid();
-			changed = true;
 		}
-
-		return changed;
 	}
 
+	/// <summary>
+	/// The player's writable local spawnlists, newest first.
+	/// </summary>
 	public static IEnumerable<Storage.Entry> GetAll()
 	{
-		return Storage.GetAll( "spawnlist" ).OrderByDescending( x => x.Created );
+		return Storage.GetAll( "spawnlist" ).Where( x => !x.Files.IsReadOnly ).OrderByDescending( x => x.Created );
 	}
 
 	public static void Rename( Storage.Entry entry, string newName )
@@ -195,20 +164,6 @@ public class SpawnlistData
 	public static void Delete( Storage.Entry entry )
 	{
 		entry.Delete();
-	}
-
-	public static void Publish( Storage.Entry entry )
-	{
-		// Refresh the public metadata manifest before every publish/sync so older
-		// local spawnlists gain content previews without needing to be edited first.
-		Save( entry, Load( entry ) );
-
-		var options = new Modals.WorkshopPublishOptions
-		{
-			Title = entry.GetMeta<string>( "name" ) ?? Game.Language.GetPhrase( "spawnmenu.spawnlist.untitled" ),
-			Description = entry.GetMeta<string>( "description", "" )
-		};
-		entry.Publish( options );
 	}
 
 	public static void AddItem( Storage.Entry entry, SpawnlistItem item )
@@ -323,13 +278,8 @@ public class SpawnlistData
 				var name = (type == "dupe" ? item.Title : LocalizedText.Resolve( item.Title ))
 					?? Game.Language.GetPhrase( "spawnmenu.spawnlist.new_button" );
 
-				// open the list that was made
-				Action<Storage.Entry> opened = null;
-				var spawnMenu = sourcePanel.Ancestors.OfType<SpawnMenu>().FirstOrDefault();
-				if ( spawnMenu is not null )
-					opened = spawnMenu.OpenSpawnlist;
-
-				PromptCreate( sourcePanel, onEntryCreated: opened, initialItem: item, name: name );
+				Create( name, out var entry, item );
+				sourcePanel.Ancestors.OfType<SpawnMenu>().FirstOrDefault()?.OpenSpawnlist( entry );
 			} );
 		}
 

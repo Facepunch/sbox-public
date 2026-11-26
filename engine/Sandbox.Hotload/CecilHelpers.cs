@@ -348,6 +348,13 @@ namespace Sandbox
 				return null;
 			}
 
+			// A method on a closed generic type has substituted parameter types. Its
+			// metadata token still identifies the definition in the exact loaded image.
+			if ( method.DeclaringType.IsConstructedGenericType && method.Module.ModuleVersionId == typeDef.Module.Mvid )
+			{
+				return typeDef.Methods.FirstOrDefault( definition => definition.MetadataToken.ToInt32() == method.MetadataToken );
+			}
+
 			var parameters = method.GetParameters();
 
 			foreach ( var methodDef in typeDef.Methods )

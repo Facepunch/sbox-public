@@ -26,9 +26,9 @@
 						parent_bone = ""
 						surface_prop = "metal.sheet"
 						collision_tags = "solid"
-						radius = 1.645
+						radius = 3.29
 						point0 = [ 0.0, 0.0, 0.0 ]
-						point1 = [ 0.0, 0.0, 4.44803 ]
+						point1 = [ 0.0, 0.0, 8.89606 ]
 					},
 				]
 			},
@@ -42,7 +42,7 @@
 						filename = "models/sbox/kitchen/packaged_food/cans.fbx"
 						import_translation = [ 0.0, 0.0, 0.0 ]
 						import_rotation = [ 0.0, 90.0, 0.0 ]
-						import_scale = 1.0
+						import_scale = 2.0
 						align_origin_x_type = "None"
 						align_origin_y_type = "None"
 						align_origin_z_type = "None"
@@ -63,7 +63,7 @@
 						filename = "models/sbox/kitchen/packaged_food/cans.fbx"
 						import_translation = [ 0.0, 0.0, 0.0 ]
 						import_rotation = [ 0.0, 90.0, 0.0 ]
-						import_scale = 1.0
+						import_scale = 2.0
 						align_origin_x_type = "None"
 						align_origin_y_type = "None"
 						align_origin_z_type = "None"
@@ -84,7 +84,7 @@
 						filename = "models/sbox/kitchen/packaged_food/cans.fbx"
 						import_translation = [ 0.0, 0.0, 0.0 ]
 						import_rotation = [ 0.0, 90.0, 0.0 ]
-						import_scale = 1.0
+						import_scale = 2.0
 						align_origin_x_type = "None"
 						align_origin_y_type = "None"
 						align_origin_z_type = "None"

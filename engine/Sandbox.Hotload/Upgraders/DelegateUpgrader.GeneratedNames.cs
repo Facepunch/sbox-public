@@ -1,6 +1,9 @@
 ﻿
 using Mono.Cecil;
+using Mono.Cecil.Cil;
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
@@ -32,7 +35,12 @@ namespace Sandbox.Upgraders
 			/// Method is declared in a nested "&lt;&gt;__DisplayClass{ContextIndex:int}_{DisplayClassIndex:int}" class.
 			/// Method is named like "&lt;{ContextName:ident}&gt;b__{LambdaIndex:int}".
 			/// </summary>
-			DisplayClass = 3
+			DisplayClass = 3,
+
+			/// <summary>
+			/// A static local function emitted directly on the type containing the scope method.
+			/// </summary>
+			StaticLocalFunction
 		}
 
 		public static bool IsCompilerGenerated( string methodName )
@@ -58,30 +66,10 @@ namespace Sandbox.Upgraders
 		private static Regex NonCapturingDisplayClassName { get; } =
 			new( @"^<>c(?:__(?<smo>[0-9]+)(?:`(?<argCount>[0-9]+)|<(?<args>[^>]+)>))?$" );
 
-		private static LambdaCaptureMode GetLambdaCaptureMode( MethodInfo lambda )
-		{
-			if ( lambda.DeclaringType == null || !IsCompilerGenerated( lambda ) )
-			{
-				return LambdaCaptureMode.Unknown;
-			}
-
-			if ( !IsCompilerGenerated( lambda.DeclaringType ) )
-			{
-				return LambdaCaptureMode.TargetInstance;
-			}
-
-			if ( NonCapturingDisplayClassName.IsMatch( lambda.DeclaringType.Name ) )
-			{
-				return LambdaCaptureMode.None;
-			}
-
-			return LambdaCaptureMode.DisplayClass;
-		}
-
 		internal record struct LambdaMethodName( string ScopeMethodName,
 			int ScopeMethodOrdinal,
 			int LambdaMethodOrdinal,
-			int DisplayClassOrdinal );
+			string LocalFunctionName );
 
 		internal static bool GetLambdaMethodInfo( MethodInfo lambda, out Type declaringType,
 			out LambdaCaptureMode captureMode, out LambdaMethodName nameInfo )
@@ -90,7 +78,7 @@ namespace Sandbox.Upgraders
 			captureMode = LambdaCaptureMode.Unknown;
 			nameInfo = default;
 
-			if ( !IsCompilerGenerated( lambda ) )
+			if ( lambda.DeclaringType is null || !IsCompilerGenerated( lambda ) )
 			{
 				return false;
 			}
@@ -114,16 +102,13 @@ namespace Sandbox.Upgraders
 					// If the scope method is in a generic declaring type, the display class
 					// for this lambda is generic with its own copy of the type parameters.
 
-					if ( lambda.DeclaringType.GenericTypeArguments.Length != declaringType.GetGenericArguments().Length )
-					{
-						break;
-					}
-
-					declaringType = declaringType.MakeGenericType( lambda.DeclaringType.GenericTypeArguments );
+					var ownerArity = declaringType.GetGenericArguments().Length;
+					declaringType = declaringType.MakeGenericType( lambda.DeclaringType.GenericTypeArguments[..ownerArity] );
 
 					break;
 
 				case LambdaCaptureMode.TargetInstance:
+				case LambdaCaptureMode.StaticLocalFunction:
 					declaringType = lambda.DeclaringType;
 					break;
 
@@ -159,6 +144,7 @@ namespace Sandbox.Upgraders
 					break;
 
 				case LambdaCaptureMode.TargetInstance:
+				case LambdaCaptureMode.StaticLocalFunction:
 					declaringTypeRef = lambdaRef.DeclaringType;
 					break;
 
@@ -213,7 +199,7 @@ namespace Sandbox.Upgraders
 				nameInfo = new LambdaMethodName( methodName.ScopeName,
 					displayClassName.Ordinal1,
 					methodName.Ordinal1,
-					displayClassName.Ordinal2 );
+					methodName.Suffix );
 
 				return true;
 			}
@@ -238,9 +224,9 @@ namespace Sandbox.Upgraders
 					return false;
 			}
 
-			captureMode = nonCapturingDisplayClass || isStatic
+			captureMode = nonCapturingDisplayClass
 				? LambdaCaptureMode.None
-				: LambdaCaptureMode.TargetInstance;
+				: isStatic ? LambdaCaptureMode.StaticLocalFunction : LambdaCaptureMode.TargetInstance;
 
 			Assert.True( methodName.Ordinal1 >= 0 );
 			Assert.True( methodName.Ordinal2 >= 0 );
@@ -248,12 +234,12 @@ namespace Sandbox.Upgraders
 			nameInfo = new LambdaMethodName( methodName.ScopeName,
 				methodName.Ordinal1,
 				methodName.Ordinal2,
-				-1 );
+				methodName.Suffix );
 
 			return true;
 		}
 
-		private object GetCachedTarget( MethodInfo lambda )
+		private static object GetCachedTarget( MethodInfo lambda )
 		{
 			Assert.True( NonCapturingDisplayClassName.IsMatch( lambda.DeclaringType!.Name ) );
 
@@ -261,14 +247,9 @@ namespace Sandbox.Upgraders
 			{
 				if ( field.FieldType != lambda.DeclaringType ) continue;
 
-				var target = field.GetValue( null );
-
-				Assert.NotNull( target );
-
-				return target;
+				return field.GetValue( null );
 			}
 
-			Log( HotloadEntryType.Error, $"Unable to get cached instance of lambda target.", lambda.DeclaringType );
 			return null;
 		}
 
@@ -294,6 +275,81 @@ namespace Sandbox.Upgraders
 			return null;
 		}
 
+		private IEnumerable<string[]> GetUnavailableCaptures( object oldClosure, Type newClosure )
+		{
+			var fields = DefaultUpgrader.GetFieldsToProcess( oldClosure.GetType(), newClosure, canSkip: false );
+			foreach ( var (source, destination) in fields )
+			{
+				if ( source is null )
+				{
+					yield return [destination.Name];
+					continue;
+				}
+
+				// A base-typed capture can hold a removed instance. A null that was actually
+				// captured is still available to the incoming callback.
+				if ( source.FieldType.IsValueType || source.GetValue( oldClosure ) is not { } value ) continue;
+
+				if ( GetNewType( value.GetType() ) is null )
+				{
+					yield return [destination.Name];
+				}
+				else if ( destination.FieldType.Name.StartsWith( "<>c__DisplayClass", StringComparison.Ordinal ) )
+				{
+					foreach ( var path in GetUnavailableCaptures( value, destination.FieldType ) )
+					{
+						yield return [destination.Name, .. path];
+					}
+				}
+			}
+		}
+
+		/// <summary>
+		/// A direct field load can select an available sibling. If the incomplete closure is
+		/// used as a whole, the callback may still depend on any field below it.
+		/// </summary>
+		private static bool UsesUnavailableCapture( Instruction instruction, string[] path )
+		{
+			foreach ( var name in path )
+			{
+				var field = (FieldReference)instruction.Operand;
+				if ( field.Name != name )
+					return false;
+
+				if ( instruction.OpCode.Code != Code.Ldfld
+					|| instruction.Next?.OpCode.Code is not (Code.Ldfld or Code.Ldflda) )
+					return true;
+
+				instruction = instruction.Next;
+			}
+
+			return true;
+		}
+
+		private bool HasRequiredCaptures( object oldClosure, MethodInfo newMethod )
+		{
+			var missing = GetUnavailableCaptures( oldClosure, newMethod.DeclaringType ).ToArray();
+			if ( missing.Length == 0 ) return true;
+
+			// Several subscribers can share a display class. A new field only matters to a
+			// callback that uses it or passes the incomplete closure to another method.
+			var method = GetMethodDefinition( newMethod );
+			if ( method?.HasBody != true ) return false;
+
+			bool IsClosure( TypeReference type ) => type.GetElementType().FullName == method.DeclaringType.FullName;
+			foreach ( var instruction in method.Body.Instructions )
+			{
+				if ( instruction.Operand is FieldReference field && IsClosure( field.DeclaringType )
+					&& missing.Any( path => UsesUnavailableCapture( instruction, path ) ) )
+					return false;
+
+				if ( instruction.Operand is MethodReference call && (IsClosure( call.DeclaringType ) || call.Parameters.Any( p => IsClosure( p.ParameterType ) )) )
+					return false;
+			}
+
+			return true;
+		}
+
 		private bool IsMatchingLambdaMethod( MethodBase newScopeMethod, LambdaMethodName oldName, MethodInfo newMethod )
 		{
 			if ( !GetLambdaMethodInfo( newMethod, out var newDeclaringType, out _, out var newName ) )
@@ -302,6 +358,7 @@ namespace Sandbox.Upgraders
 			}
 
 			if ( newName.ScopeMethodName != oldName.ScopeMethodName ||
+				newName.LocalFunctionName != oldName.LocalFunctionName ||
 				newName.LambdaMethodOrdinal != oldName.LambdaMethodOrdinal )
 			{
 				return false;

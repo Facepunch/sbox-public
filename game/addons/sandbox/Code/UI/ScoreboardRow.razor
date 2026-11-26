@@ -31,8 +31,12 @@
 
 @code
 {
+    /// <summary>
+    /// The player represented by this scoreboard row.
+    /// </summary>
     public Connection Connection { get; set; }
 
+    /// <inheritdoc/>
     public override void Tick()
     {
         if ( Connection is null ) return;
@@ -55,6 +59,11 @@
         var steamId = Connection.SteamId;
         var menu = new Sandbox.UI.Menu();
 
+        if ( steamId.AccountType == SteamId.AccountTypes.Individual )
+        {
+            menu.AddOption( "#ui.scoreboard.view_profile", "person", Connection.FriendInfo.OpenInOverlay );
+        }
+
         menu.AddOption( "#spawnmenu.utility.copy_steam_id", "content_copy", () =>
         {
             Clipboard.SetText( steamId.ToString() );
@@ -69,8 +78,8 @@
 			if ( Permissions.Has( Connection.Local, Permissions.Admin ) )
 			{
 				menu.AddSeparator();
-				menu.AddOption( "#ui.scoreboard.kick", "person_remove", () => OpenKickConfirm( Connection ) );
-				menu.AddOption( "#ui.scoreboard.ban", "gavel", () => OpenBanConfirm( Connection ) );
+				menu.AddOption( "#ui.scoreboard.kick", "person_remove", () => GameManager.RpcKickPlayer( Connection ) );
+				menu.AddOption( "#ui.scoreboard.ban", "gavel", () => BanSystem.RpcBanPlayer( Connection ) );
 			}
 		}
 
@@ -78,19 +87,4 @@
 
 		menu.Open( this, Popup.PositionMode.UnderMouse );
 	}
-
-	void OpenKickConfirm( Connection connection )
-	{
-		UIModal.Prompt( this, "#ui.scoreboard.kick_player", "", reason => GameManager.RpcKickPlayer( connection, reason ),
-			"#ui.query.placeholder", "#ui.scoreboard.kick", "check", ReasonPrompt( "ui.scoreboard.kick_prompt", connection ) );
-	}
-
-	void OpenBanConfirm( Connection connection )
-	{
-		UIModal.Prompt( this, "#ui.scoreboard.ban_player", "", reason => BanSystem.RpcBanPlayer( connection, reason ),
-			"#ui.query.placeholder", "#ui.scoreboard.ban", "check", ReasonPrompt( "ui.scoreboard.ban_prompt", connection ) );
-	}
-
-	static string ReasonPrompt( string phrase, Connection connection ) =>
-		Game.Language.GetPhrase( phrase, new() { { "name", UIModal.Escape( connection.DisplayName ) } } );
 }

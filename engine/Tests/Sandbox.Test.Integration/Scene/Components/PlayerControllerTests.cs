@@ -187,6 +187,43 @@ public partial class PlayerControllerTest
 	}
 
 	/// <summary>
+	/// Grounding clears while all movement modes are disabled and resumes when walking is enabled again.
+	/// </summary>
+	[TestMethod]
+	public void GroundingRecoversAfterDisablingAllMoveModes()
+	{
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+
+		var floor = CreateFloor( scene );
+		var player = CreatePlayer( scene, Vector3.Zero );
+		var physics = (IScenePhysicsEvents)player;
+		var walk = player.Mode;
+
+		physics.PostPhysicsStep();
+		Assert.AreEqual( floor, player.GroundObject );
+
+		walk.Enabled = false;
+		physics.PostPhysicsStep();
+		Assert.IsNull( player.Mode );
+
+		physics.PostPhysicsStep();
+		Assert.IsFalse( player.IsOnGround );
+		physics.PrePhysicsStep();
+
+		player.UseInputControls = true;
+		player.WishVelocity = Vector3.Forward * 100;
+		scene.GameTick();
+		Assert.AreEqual( Vector3.Zero, player.WishVelocity );
+
+		walk.Enabled = true;
+		physics.PostPhysicsStep();
+		Assert.AreSame( walk, player.Mode );
+		TickUntilGrounded( scene, player );
+		Assert.AreEqual( floor, player.GroundObject );
+	}
+
+	/// <summary>
 	/// Pins the documented property defaults on a freshly created controller.
 	/// </summary>
 	[TestMethod]

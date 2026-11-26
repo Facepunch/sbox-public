@@ -25,34 +25,11 @@ public partial class Package
 	}
 
 	/// <summary>
-	/// Don't blindly download every file in the manifest. We can filter them here.
+	/// Returns the manifest files the download cache permits.
 	/// </summary>
-	static bool FilterFileDownloads( ManifestSchema.File f )
+	static ManifestSchema.File[] DownloadableFiles( IRevision revision )
 	{
-		if ( !AssetDownloadCache.IsLegalDownload( f.Path ) )
-			return false;
-
-		return true;
-	}
-
-	/// <summary>
-	/// The files in a revision's manifest a download fetches - the legal ones, and with
-	/// <paramref name="skipAssets"/> only the compiled code.
-	/// </summary>
-	static ManifestSchema.File[] DownloadableFiles( IRevision rev, bool skipAssets )
-	{
-		return DownloadableFiles( rev.Manifest?.Files ?? Array.Empty<ManifestSchema.File>(), skipAssets ).ToArray();
-	}
-
-	/// <inheritdoc cref="DownloadableFiles(IRevision, bool)"/>
-	static IEnumerable<ManifestSchema.File> DownloadableFiles( ManifestSchema.File[] files, bool skipAssets )
-	{
-		var entries = files.Where( FilterFileDownloads );
-
-		if ( skipAssets )
-			entries = entries.Where( x => x.Path.StartsWith( ".bin" ) );
-
-		return entries;
+		return revision.Manifest?.Files?.Where( file => AssetDownloadCache.IsLegalDownload( file.Path ) ).ToArray() ?? [];
 	}
 
 	/// <summary>
@@ -60,7 +37,7 @@ public partial class Package
 	/// cache already. Fetches the manifest if it hasn't been. 0 when it's all cached, -1 when it can't be
 	/// told (no revision, no manifest).
 	/// </summary>
-	internal async Task<long> GetDownloadSizeAsync( bool skipAssets = false, CancellationToken token = default )
+	internal async Task<long> GetDownloadSizeAsync( CancellationToken token = default )
 	{
 		if ( Revision is not { } rev )
 			return -1;
@@ -75,7 +52,7 @@ public partial class Package
 		await rev.DownloadManifestAsync( token );
 		if ( rev.Manifest == null ) return -1;
 
-		var entries = DownloadableFiles( rev, skipAssets );
+		var entries = DownloadableFiles( rev );
 
 		// A few file stats each - all at once, off the main thread, like the download's own check
 		return await Task.Run( () => entries
@@ -126,7 +103,7 @@ public partial class Package
 		if ( rev.Manifest == null ) return false;
 
 		// filter out files we're never going to download
-		var entries = DownloadableFiles( rev, options.SkipAssetDownload );
+		var entries = DownloadableFiles( rev );
 
 		var downloadQueue = new ConcurrentBag<FileDownloadEntry>();
 
@@ -184,6 +161,7 @@ public partial class Package
 		}
 
 		var progress = LoadingProgress.Create( $"Downloading '{Title}'" );
+		var mount = fs is null ? null : ServerPackages.Get( GetVersionedIdent() );
 
 		var workers = MaxParallelDownloads;
 		var sw = Stopwatch.StartNew();
@@ -194,6 +172,7 @@ public partial class Package
 
 		progress.Title = $"Downloading '{Title}'";
 		progress.TotalSize = totalSize;
+		if ( mount is not null ) mount.DownloadFraction = 0;
 
 		options.Loading?.LoadingProgress( progress );
 
@@ -296,6 +275,7 @@ public partial class Package
 				progress.TotalSize = currentTotalSize;
 				progress.Mbps = mbps;
 				progress.Fraction = frac;
+				if ( mount is not null ) mount.DownloadFraction = (float)frac;
 
 				options.Loading?.LoadingProgress( progress );
 
@@ -346,6 +326,7 @@ public partial class Package
 		progress.Title = $"Download '{Title}' Complete";
 		progress.TotalSize = totalSize;
 		progress.Fraction = 1;
+		if ( mount is not null ) mount.DownloadFraction = 1;
 		options.Loading?.LoadingProgress( progress );
 		// Clear subtitle so download stats don't bleed into the next phase (e.g. Compiling).
 		if ( fs is not null ) global::Sandbox.LoadingScreen.Subtitle = "";

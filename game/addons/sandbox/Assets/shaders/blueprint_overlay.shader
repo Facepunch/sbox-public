@@ -136,6 +136,6 @@ PS
 		float tinted = step( min( tint.r, min( tint.g, tint.b ) ), 0.999 );
 		color = lerp( color, dot( color, float3( 0.2126, 0.7152, 0.0722 ) ) * tint * 2.0, tinted );
 
-		return float4( color * g_flBrightness, opacity );
+		return float4( color * g_flBrightness, opacity * i.vVertexColor.a );
 	}
 }

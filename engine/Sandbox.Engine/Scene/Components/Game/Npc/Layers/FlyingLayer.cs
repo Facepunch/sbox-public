@@ -132,7 +132,8 @@ public class FlyingLayer : MovementLayer
 
 	protected override void OnUpdate()
 	{
-		if ( !Networking.IsHost ) return;
+		if ( !Networking.IsHost || !Npc.IsValid() )
+			return;
 
 		var from = WorldPosition;
 		var flying = !_physics && !Npc.PhysicsCarrier.IsValid();

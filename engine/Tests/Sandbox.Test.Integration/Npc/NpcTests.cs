@@ -977,6 +977,59 @@ public class CombatNpcTests
 [TestClass]
 public class NpcLayerTests
 {
+	/// <summary>
+	/// A prefab can load its engine layers even when its addon NPC component is missing.
+	/// </summary>
+	[TestMethod]
+	public void LayersCanTickWithoutAnNpcAndPickUpAReplacement()
+	{
+		var scene = new Scene();
+		using var scope = scene.Push();
+		var go = scene.CreateObject();
+		var animation = go.Components.Create<AnimationLayer>();
+		go.Components.Create<NavigationLayer>();
+		go.Components.Create<FlyingLayer>();
+
+		var target = scene.CreateObject();
+		animation.SetLookTarget( target );
+
+		var errors = new List<string>();
+		void OnMessage( LogEvent entry )
+		{
+			if ( entry.Level == LogLevel.Error )
+				errors.Add( entry.Message );
+		}
+
+		Sandbox.Diagnostics.Logging.OnMessage += OnMessage;
+		try
+		{
+			scene.GameTick();
+			Assert.IsNull( animation.LookObject );
+
+			var npc = go.Components.Create<ProbeNpc>();
+			npc.Animation = animation;
+			scene.GameTick();
+			Assert.AreSame( target, animation.LookObject );
+
+			npc.Destroy();
+			animation.ClearLookTarget();
+			animation.SetLookTarget( target );
+			scene.GameTick();
+			Assert.IsNull( animation.LookObject );
+
+			var replacement = go.Components.Create<ProbeNpc>();
+			replacement.Animation = animation;
+			scene.GameTick();
+			Assert.AreSame( target, animation.LookObject );
+		}
+		finally
+		{
+			Sandbox.Diagnostics.Logging.OnMessage -= OnMessage;
+		}
+
+		Assert.AreEqual( 0, errors.Count, string.Join( Environment.NewLine, errors ) );
+	}
+
 	public sealed class Hurtable : Component, Component.IDamageable
 	{
 		public void OnDamage( in DamageInfo damage ) { }

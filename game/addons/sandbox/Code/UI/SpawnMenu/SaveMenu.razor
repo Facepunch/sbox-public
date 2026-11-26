@@ -2,10 +2,6 @@
 @using Sandbox.UI;
 @namespace Sandbox
 @inherits Panel
-@implements IUtilityTab
-@attribute [Icon( "save" )]
-@attribute [Title( "#spawnmenu.tab.saves" )]
-@attribute [Order( -25 )]
 
 <root>
     <SpawnMenuContent>
@@ -26,7 +22,7 @@
                 {
                     var s = save;
                     <div class="save-card @(!s.IsCompatible ? "outdated" : "")"
-                         @onclick="@(() => ConfirmLoad( s ))"
+                         @onclick="@(() => LoadSave( s ))"
                          @onmousedown="@((PanelEvent e) => OnCardMouseDown( s, e ))">
                         <div class="save-preview save-detail">
                             @if ( s.Thumbnail != null )
@@ -51,7 +47,6 @@
                                 }
                             </div>
                         </div>
-                        <UIButton class="save-delete" Icon="delete" @onclick="@((PanelEvent e) => OnDeletePressed( s, e ))"></UIButton>
                     </div>
                 }
             </div>
@@ -107,7 +102,11 @@
             {
                 // An overwrite can change the image at the same path.
                 using var bitmap = Bitmap.CreateFromBytes( FileSystem.Data.ReadAllBytes( thumbPath ).ToArray() );
-                thumbnail = bitmap?.ToTexture( false );
+                // The list keeps a texture for every save. Keep the full-resolution screenshot on disk for publishing.
+                using var small = bitmap is { Width: > 320 }
+                    ? bitmap.Resize( 320, Math.Max( 1, 320 * bitmap.Height / bitmap.Width ) )
+                    : null;
+                thumbnail = (small ?? bitmap)?.ToTexture( false );
             }
 
             SaveFiles.Add( new SaveFileEntry( file, displayName, timestamp, thumbnail, isCompatible ) );
@@ -118,47 +117,36 @@
 
     void OnCardMouseDown( SaveFileEntry save, PanelEvent e )
     {
+        if ( !Networking.IsHost ) return;
+
         if ( e is MousePanelEvent { MouseButton: MouseButtons.Right } me )
         {
             me.StopPropagation();
 
             var menu = new Sandbox.UI.Menu();
-            menu.AddOption( "#spawnmenu.saves.load_context", "download", () => ConfirmLoad( save ) );
-            if ( Networking.IsHost )
+            menu.AddOption( "#spawnmenu.saves.load_context", "download", () => LoadSave( save ) );
+            menu.AddOption( "#spawnmenu.saves.overwrite", "save", () => WriteSave( save ) );
+            if ( save.IsCompatible )
             {
-                menu.AddOption( "#spawnmenu.saves.overwrite", "save", () => ConfirmOverwrite( save ) );
+                menu.AddOption( "#spawnmenu.dupes.publish_to_workshop", "publish", () => _ = PublishSave( save ) );
             }
+
             menu.AddOption( "#spawnmenu.saves.delete_context", "delete", () => DeleteSave( save.FileName ) );
 
             menu.Open( this, Popup.PositionMode.UnderMouse );
         }
     }
 
-    // the trash button sits on the card, pressing it shouldn't count as a click on the card
-    void OnDeletePressed( SaveFileEntry save, PanelEvent e )
-    {
-        e.StopPropagation();
-        DeleteSave( save.FileName );
-    }
-
-    static string Phrase( string token, SaveFileEntry save ) => Game.Language.GetPhrase( token, new() { { "name", UIModal.Escape( save.DisplayName ) } } );
-
-    void ConfirmLoad( SaveFileEntry save )
+    void LoadSave( SaveFileEntry save )
     {
         if ( !save.IsCompatible )
         {
-            UIModal.Confirm( this, "#spawnmenu.saves.incompatible_title", Phrase( "spawnmenu.saves.incompatible_message", save ), null, "#spawnmenu.common.ok", null );
+            var message = Game.Language.GetPhrase( "spawnmenu.saves.incompatible_message", new() { { "name", save.DisplayName.HtmlEncode() } } );
+            Notices.AddNotice( "error", message );
             return;
         }
 
-        UIModal.Confirm( this, "#spawnmenu.saves.load_title", Phrase( "spawnmenu.saves.load_confirm", save ),
-            () => LoadSave( save.FileName ), "#spawnmenu.saves.load_button", "#spawnmenu.saves.cancel_button" );
-    }
-
-    void ConfirmOverwrite( SaveFileEntry save )
-    {
-        UIModal.Confirm( this, "#spawnmenu.saves.overwrite", Phrase( "spawnmenu.saves.overwrite_confirm", save ),
-            () => WriteSave( save ), "#spawnmenu.saves.overwrite", "#spawnmenu.saves.cancel_button" );
+        _ = SavesPage.Load( this, system => system.Load( $"{SavesPath}/{save.FileName}" ) );
     }
 
     void WriteSave( SaveFileEntry existing = null )
@@ -178,7 +166,7 @@
         var camera = Game.ActiveScene?.Camera;
         if ( camera.IsValid() )
         {
-            using var bitmap = new Bitmap( 256, 144 );
+            using var bitmap = SandboxWorkshop.CreatePreview();
             camera.RenderToBitmap( bitmap, renderUI: false );
             FileSystem.Data.WriteAllBytes( thumbPath, bitmap.ToPng() );
         }
@@ -190,17 +178,91 @@
         RefreshSaveList();
     }
 
-    void LoadSave( string fileName )
+    static Storage.Entry FindPublication( string fileName )
     {
-        if ( !Networking.IsHost ) return;
+        return Storage.GetAll( "save" ).FirstOrDefault( x => x.GetMeta<string>( "filename" ) == fileName );
+    }
 
-        _ = SaveSystem.Current.Load( $"{SavesPath}/{fileName}" );
+    bool preparingPublication;
+
+    async Task PublishSave( SaveFileEntry save )
+    {
+        if ( !Networking.IsHost || preparingPublication ) return;
+
+        preparingPublication = true;
+        try
+        {
+            var entry = FindPublication( save.FileName );
+            Storage.QueryItem published = null;
+            var id = entry?.GetMeta<ulong>( "_workshopId" ) ?? 0;
+            if ( id != 0 )
+            {
+                var result = await new Storage.Query { FileIds = [id] }.Run();
+                if ( !this.IsValid() || !Networking.IsHost ) return;
+
+                published = result?.Items?.FirstOrDefault( x => x.Id == id );
+                if ( published is null )
+                {
+                    ShowPublishError();
+                    return;
+                }
+            }
+
+            var json = FileSystem.Data.ReadAllText( $"{SavesPath}/{save.FileName}" );
+            var map = SaveSystem.GetSavedMap( json );
+            if ( string.IsNullOrWhiteSpace( map ) )
+            {
+                ShowPublishError();
+                return;
+            }
+
+            if ( entry is null )
+            {
+                Storage.CreateEntry( "save" ).SetMeta( "filename", save.FileName );
+                // Publish the cached entry so subsequent edits see the ID that Steam assigns.
+                entry = FindPublication( save.FileName );
+            }
+
+            entry.Files.WriteAllText( SaveSystem.WorkshopFileName, json );
+
+            var thumb = ThumbnailPath( save.FileName );
+            if ( FileSystem.Data.FileExists( thumb ) )
+            {
+                entry.Files.WriteAllBytes( "_thumb.png", FileSystem.Data.ReadAllBytes( thumb ).ToArray() );
+            }
+            else if ( entry.Files.FileExists( "_thumb.png" ) )
+            {
+                entry.Files.DeleteFile( "_thumb.png" );
+            }
+
+            var category = published?.KeyValues?.GetValueOrDefault( "Category" ) ?? nameof( SaveCategory.Build );
+            var options = SandboxWorkshop.PublishOptions<SaveCategory>(
+                published?.Title ?? save.DisplayName, SandboxWorkshop.SaveFilters( map, category ) );
+            options.Description = published?.Description;
+            options.Visibility = published is null ? Storage.Visibility.Public : (Storage.Visibility)published.Visibility;
+            entry.Publish( options );
+        }
+        catch ( Exception e )
+        {
+            Log.Warning( $"Couldn't publish save '{save.FileName}': {e.Message}" );
+            ShowPublishError();
+        }
+        finally
+        {
+            preparingPublication = false;
+        }
+    }
+
+    void ShowPublishError()
+    {
+        Notices.AddNotice( "error", Game.Language.GetPhrase( "spawnmenu.saves.publish_failed" ) );
     }
 
     void DeleteSave( string fileName )
     {
         if ( !Networking.IsHost ) return;
 
+        FindPublication( fileName )?.Delete();
         FileSystem.Data.DeleteFile( $"{SavesPath}/{fileName}" );
         var thumbPath = ThumbnailPath( fileName );
         if ( FileSystem.Data.FileExists( thumbPath ) )

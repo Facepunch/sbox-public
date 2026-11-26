@@ -79,18 +79,21 @@ namespace Steamworks
 		/// "friendrequestaccept" - Opens the overlay in minimal mode prompting the user to accept an incoming friend invite.
 		/// "friendrequestignore" - Opens the overlay in minimal mode prompting the user to ignore an incoming friend invite.
 		/// </summary>
-		internal static void OpenUserOverlay( SteamId id, string type )
+		/// <returns>True when the dialog was requested, false when the overlay is unavailable.</returns>
+		internal static bool OpenUserOverlay( SteamId id, string type )
 		{
-			if ( !IsInstalled ) return;
+			if ( !SteamUtils.IsOverlayAvailable ) return false;
+
 			Internal.ActivateGameOverlayToUser( type, id );
+			return true;
 		}
 
 		/// <summary>
-		/// Activates the Steam Overlay's web browser at this url. False if there's no Steam to do it.
+		/// Activates the Steam overlay's web browser at this URL. Returns false when the overlay is unavailable.
 		/// </summary>
 		internal static bool OpenWebOverlay( string url )
 		{
-			if ( !IsInstalled ) return false;
+			if ( !SteamUtils.IsOverlayAvailable ) return false;
 			Internal.ActivateGameOverlayToWebPage( url, ActivateGameOverlayToWebPageMode.Default );
 			return true;
 		}
@@ -100,7 +103,7 @@ namespace Steamworks
 		/// </summary>
 		internal static void OpenGameInviteOverlay( SteamId lobby )
 		{
-			if ( !IsInstalled ) return;
+			if ( !SteamUtils.IsOverlayAvailable ) return;
 			Internal.ActivateGameOverlayInviteDialog( lobby );
 		}
 
@@ -114,58 +117,70 @@ namespace Steamworks
 			return IsInstalled && Internal.RequestUserInformation( steamid, nameonly );
 		}
 
+		/// <summary>
+		/// Steam can shut down or install a new friends interface while a request is waiting.
+		/// </summary>
+		static bool IsCurrentInterface( ISteamFriends friends ) => friends is { IsValid: true } && friends == Interface;
 
-		internal static async Task CacheUserInformationAsync( SteamId steamid, bool nameonly )
+		internal static async Task CacheUserInformationAsync( ISteamFriends friends, SteamId steamid, bool nameonly )
 		{
-			// Got it straight away, skip any waiting.
-			if ( !RequestUserInformation( steamid, nameonly ) )
+			// Steam returns false if the user information is already cached.
+			if ( !IsCurrentInterface( friends ) || !friends.RequestUserInformation( steamid, nameonly ) )
 				return;
 
 			await Task.Delay( 100 );
 
-			while ( RequestUserInformation( steamid, nameonly ) )
+			while ( IsCurrentInterface( friends ) )
 			{
+				if ( !friends.RequestUserInformation( steamid, nameonly ) )
+				{
+					// Give Steam time to replace the placeholder avatar after the download.
+					await Task.Delay( 500 );
+					return;
+				}
+
 				await Task.Delay( 50 );
 			}
-
-			//
-			// And extra wait here seems to solve avatars loading as [?]
-			//
-			await Task.Delay( 500 );
 		}
 
 		internal static async Task<Data.Image?> GetSmallAvatarAsync( SteamId steamid )
 		{
-			if ( !IsInstalled ) return null;
+			var friends = Internal;
+			await CacheUserInformationAsync( friends, steamid, false );
 
-			await CacheUserInformationAsync( steamid, false );
-			return SteamUtils.GetImage( Internal.GetSmallFriendAvatar( steamid ) );
+			if ( !IsCurrentInterface( friends ) )
+				return null;
+
+			return SteamUtils.GetImage( friends.GetSmallFriendAvatar( steamid ) );
 		}
 
 		internal static async Task<Data.Image?> GetMediumAvatarAsync( SteamId steamid )
 		{
-			if ( !IsInstalled ) return null;
+			var friends = Internal;
+			await CacheUserInformationAsync( friends, steamid, false );
 
-			await CacheUserInformationAsync( steamid, false );
-			return SteamUtils.GetImage( Internal.GetMediumFriendAvatar( steamid ) );
+			if ( !IsCurrentInterface( friends ) )
+				return null;
+
+			return SteamUtils.GetImage( friends.GetMediumFriendAvatar( steamid ) );
 		}
 
 		internal static async Task<Data.Image?> GetLargeAvatarAsync( SteamId steamid )
 		{
-			if ( !IsInstalled ) return null;
-
-			await CacheUserInformationAsync( steamid, false );
-
-			var imageid = Internal.GetLargeFriendAvatar( steamid );
+			var friends = Internal;
+			await CacheUserInformationAsync( friends, steamid, false );
 
 			// Wait for the image to download
-			while ( imageid == -1 )
+			while ( IsCurrentInterface( friends ) )
 			{
+				var imageid = friends.GetLargeFriendAvatar( steamid );
+				if ( imageid != -1 )
+					return SteamUtils.GetImage( imageid );
+
 				await Task.Delay( 50 );
-				imageid = Internal.GetLargeFriendAvatar( steamid );
 			}
 
-			return SteamUtils.GetImage( imageid );
+			return null;
 		}
 	}
 }

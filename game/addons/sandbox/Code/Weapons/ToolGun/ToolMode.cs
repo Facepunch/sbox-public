@@ -1,7 +1,11 @@
 ﻿public abstract partial class ToolMode : Component, IToolInfo
 {
 	public Toolgun Toolgun => GetComponent<Toolgun>();
-	public Player Player => GetComponentInParent<Player>();
+
+	/// <summary>
+	/// The player carrying this toolgun, including while the gun is holstered.
+	/// </summary>
+	public Player Player => GetComponentInParent<Player>( true );
 
 	/// <summary>
 	/// The mode should set this true or false in OnControl to indicate if the current state is valid for performing actions.

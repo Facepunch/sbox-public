@@ -24,6 +24,36 @@ public class FileSystemDisposeTests
 	}
 
 	/// <summary>
+	/// A mounted filesystem may be disposed before or after its other mount targets.
+	/// </summary>
+	[TestMethod]
+	[DataRow( false )]
+	[DataRow( true )]
+	public void DisposedMountIsRemovedFromEveryParent( bool disposeNetworkFirst )
+	{
+		var menu = new AggregateFileSystem();
+		var network = new AggregateFileSystem();
+		var package = new MemoryFileSystem();
+		package.WriteAllText( "hat.txt", "preview" );
+
+		menu.Mount( package );
+		network.Mount( package );
+		Assert.IsTrue( menu.FileExists( "hat.txt" ) && network.FileExists( "hat.txt" ) );
+
+		if ( disposeNetworkFirst ) network.Dispose();
+		package.Dispose();
+
+		Assert.AreEqual( 0, menu.FileCount );
+		if ( !disposeNetworkFirst )
+		{
+			Assert.AreEqual( 0, network.FileCount );
+			network.Dispose();
+		}
+
+		menu.Dispose();
+	}
+
+	/// <summary>
 	/// Models a filesystem joining its event worker while a final change callback is in flight.
 	/// The callback must finish during disposal and must not requeue the disposed filesystem.
 	/// </summary>

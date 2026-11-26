@@ -6,9 +6,12 @@
 <root>
     <div class="preset-controls">
         <UIDropdown Items=@Items Value=@SelectedId ValueChanged=@PickPreset Tokenize=@false Tooltip="#ui.tool_presets.choose" />
-        <UIButton Icon="add" Tooltip="#ui.tool_presets.add" @onclick=@AddPreset />
         <UIButton Icon="edit" Tooltip="#ui.tool_presets.edit" @onclick=@EditPresets />
         <UIButton Icon="restart_alt" Tooltip="#ui.tool_presets.reset" @onclick=@ResetToDefaults />
+    </div>
+    <div class="preset-controls new-preset">
+        <TextEntry @key=@Key Value:bind=@NewName Placeholder="#ui.tool_presets.name_placeholder" MaxLength=@(64) onsubmit=@AddPreset />
+        <UIButton Icon="add" Tooltip="#ui.tool_presets.add" Disabled=@(string.IsNullOrWhiteSpace( NewName )) @onclick=@AddPreset />
     </div>
     @if ( !string.IsNullOrEmpty( Error ) )
     {
@@ -25,6 +28,7 @@
     Guid SelectedId;
     bool Modified;
     string Error;
+    string NewName { get; set; }
     int Revision;
     RealTimeSince LastCheck;
 
@@ -35,6 +39,7 @@
     {
         if ( BoundMode == Mode ) return;
         BoundMode = Mode;
+        NewName = "";
         SelectedId = Guid.Empty;
         Modified = false;
         Key = Mode.IsValid() ? ToolPresetStore.Key( Mode ) : null;
@@ -84,38 +89,21 @@
 
     void AddPreset()
     {
-        if ( !Mode.IsValid() ) return;
-        var key = Key;
-        var mode = Mode;
-        JsonObject values;
-        try { values = ToolPresetSettings.Capture( mode ); }
-        catch ( Exception e ) { Error = ToolPresetStore.ErrorText( e ); StateHasChanged(); return; }
+        if ( !Mode.IsValid() || string.IsNullOrWhiteSpace( NewName ) ) return;
 
-        string name = "";
-        UIModal modal = null;
-        Label error = null;
-        void Save()
+        try
         {
-            try
-            {
-                var preset = ToolPresetStore.Save( key, Guid.Empty, name, values );
-                if ( IsValid && Mode == mode ) { SelectedId = preset.Id; Modified = false; Reload(); }
-                modal.Close();
-            }
-            catch ( Exception e ) { if ( error.IsValid() ) error.Text = ToolPresetStore.ErrorText( e ); }
+            var preset = ToolPresetStore.Save( Key, Guid.Empty, NewName, ToolPresetSettings.Capture( Mode ) );
+            SelectedId = preset.Id;
+            NewName = "";
+            Modified = false;
+            Reload();
         }
-        var properties = new List<SerializedProperty>
+        catch ( Exception e )
         {
-            Game.TypeLibrary.CreateProperty( "Name", () => name, v => name = v,
-                new Attribute[] { new PropertyAttribute(), new HideLabelAttribute(), new PlaceholderAttribute( "#ui.tool_presets.name_placeholder" ) } ),
-            new UIActionProperty( "#ui.tool_presets.save", "save", Save, 1, separator: true ) { Enabled = () => !string.IsNullOrWhiteSpace( name ) },
-            new UIActionProperty( "#spawnmenu.common.cancel", null, () => modal.Close(), 2, sameLine: true )
-        };
-        modal = UIModal.Show( this, "#ui.tool_presets.add", properties );
-        if ( modal is null ) return;
-        modal.AddClass( "prompt" );
-        error = modal.Body.AddChild<Label>( "preset-error" );
-        modal.OnSubmit = Save;
+            Error = ToolPresetStore.ErrorText( e );
+            StateHasChanged();
+        }
     }
 
     /// <summary>

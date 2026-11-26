@@ -255,9 +255,13 @@ public static partial class AssetSystem
 			.Where( p => p != null ).ToList();
 	}
 
+	/// <summary>
+	/// Lists cloud files for a published package revision. If the package has no revision
+	/// metadata, lists its installed revision. Local projects have no cloud file listing.
+	/// </summary>
 	public static IReadOnlyCollection<string> GetPackageFiles( Package package )
 	{
-		return CloudDirectory.GetPackageFiles( package ).ToList();
+		return CloudDirectory.GetPackageFiles( package );
 	}
 
 	/// <summary>

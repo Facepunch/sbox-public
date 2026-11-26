@@ -104,13 +104,17 @@ public class OverlayContextTests
 	{
 		var options = new WorkshopPublishOptions();
 		options.AddCategory<Storage.Visibility>( "kind" );
+		options.AddCategory<Storage.Visibility>( "Movement", "Mouvement" );
 		options.Categories["planted"] = GlobalContext.Current.TypeLibrary.CreateProperty<Storage.Visibility>( "planted",
 			() => { Observed.Add( GlobalContext.Current ); return default; },
 			_ => Observed.Add( GlobalContext.Current ) );
 
 		Game.Overlay.WorkshopPublish( options );
 
-		CollectionAssert.AreEquivalent( new[] { "kind" }, modals.CategoryNames );
+		CollectionAssert.AreEquivalent( new[] { "kind", "Mouvement" }, modals.CategoryNames );
+		modals.PublishOptions.Categories["Mouvement"].SetValue( Storage.Visibility.Private );
+		Assert.AreEqual( "Private", modals.PublishOptions.KeyValues["Movement"] );
+		Assert.IsFalse( modals.PublishOptions.KeyValues.ContainsKey( "Mouvement" ) );
 		AssertNeverRanInMenu();
 	}
 
@@ -128,7 +132,7 @@ public class OverlayContextTests
 		try
 		{
 			object options = new WorkshopPublishOptions();
-			typeof( WorkshopPublishOptions ).GetMethod( nameof( WorkshopPublishOptions.AddCategory ) )
+			typeof( WorkshopPublishOptions ).GetMethod( nameof( WorkshopPublishOptions.AddCategory ), [typeof( string )] )
 				.MakeGenericMethod( probe.GetType( "GameKind" ) )
 				.Invoke( options, ["gamekind"] );
 
@@ -231,6 +235,11 @@ sealed class RecordingModalSystem : IModalSystem
 	public int CompletedGames { get; private set; }
 	public List<string> CategoryNames { get; } = new();
 
+	/// <summary>
+	/// The options received by the menu after the overlay rebuilds the category controls.
+	/// </summary>
+	public WorkshopPublishOptions PublishOptions { get; private set; }
+
 	void Use( Package package )
 	{
 		if ( package is null ) return;
@@ -262,6 +271,8 @@ sealed class RecordingModalSystem : IModalSystem
 
 	public void WorkshopPublish( in WorkshopPublishOptions options )
 	{
+		PublishOptions = options;
+
 		foreach ( var (name, property) in options.Categories )
 		{
 			CategoryNames.Add( name );

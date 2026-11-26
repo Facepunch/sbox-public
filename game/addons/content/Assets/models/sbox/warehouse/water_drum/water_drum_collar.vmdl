@@ -1,0 +1,232 @@
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:modeldoc30:version{8c2d7a91-9c42-4bf0-883a-5a3b1762d4f1} -->
+{
+	rootNode =
+	{
+		_class = "RootNode"
+		children =
+		[
+			{
+				_class = "LODGroupList"
+				children =
+				[
+					{
+						_class = "LODGroup"
+						switch_threshold = 0.0
+						auto_simplify_mode = 0
+						auto_reduction = 0.5
+						auto_max_error = 0.0
+						auto_lock_border_vertices = true
+						auto_permissive_simplification = false
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						auto_strip_vertex_color = false
+						auto_material_culling_enabled = false
+						meshes =
+						[
+							"LOD0",
+						]
+						material_culls = [  ]
+					},
+				]
+			},
+			{
+				_class = "PhysicsShapeList"
+				children =
+				[
+					{
+						_class = "PhysicsShapeBox"
+						name = "collar_1"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						origin = [ 12.725, 0.0, 0.0 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 1.57, 7.0193, 2.12 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						name = "collar_2"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						origin = [ 11.0202, 6.3625, 0.0 ]
+						angles = [ 0.0, 30.0, 0.0 ]
+						dimensions = [ 1.57, 7.0193, 2.12 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						name = "collar_3"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						origin = [ 6.3625, 11.0202, 0.0 ]
+						angles = [ 0.0, 60.0, 0.0 ]
+						dimensions = [ 1.57, 7.0193, 2.12 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						name = "collar_4"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						origin = [ 0.0, 12.725, 0.0 ]
+						angles = [ 0.0, 90.0, 0.0 ]
+						dimensions = [ 1.57, 7.0193, 2.12 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						name = "collar_5"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						origin = [ -6.3625, 11.0202, 0.0 ]
+						angles = [ 0.0, 120.0, 0.0 ]
+						dimensions = [ 1.57, 7.0193, 2.12 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						name = "collar_6"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						origin = [ -11.0202, 6.3625, 0.0 ]
+						angles = [ 0.0, 150.0, 0.0 ]
+						dimensions = [ 1.57, 7.0193, 2.12 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						name = "collar_7"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						origin = [ -12.725, 0.0, 0.0 ]
+						angles = [ 0.0, 180.0, 0.0 ]
+						dimensions = [ 1.57, 7.0193, 2.12 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						name = "collar_8"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						origin = [ -11.0202, -6.3625, 0.0 ]
+						angles = [ 0.0, 210.0, 0.0 ]
+						dimensions = [ 1.57, 7.0193, 2.12 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						name = "collar_9"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						origin = [ -6.3625, -11.0202, 0.0 ]
+						angles = [ 0.0, 240.0, 0.0 ]
+						dimensions = [ 1.57, 7.0193, 2.12 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						name = "collar_10"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						origin = [ -0.0, -12.725, 0.0 ]
+						angles = [ 0.0, 270.0, 0.0 ]
+						dimensions = [ 1.57, 7.0193, 2.12 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						name = "collar_11"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						origin = [ 6.3625, -11.0202, 0.0 ]
+						angles = [ 0.0, 300.0, 0.0 ]
+						dimensions = [ 1.57, 7.0193, 2.12 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						name = "collar_12"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						origin = [ 11.0202, -6.3625, 0.0 ]
+						angles = [ 0.0, 330.0, 0.0 ]
+						dimensions = [ 1.57, 7.0193, 2.12 ]
+					},
+				]
+			},
+			{
+				_class = "RenderMeshList"
+				children =
+				[
+					{
+						_class = "RenderMeshFile"
+						name = "LOD0"
+						filename = "models/sbox/warehouse/water_drum/water_drum.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"locking_collar_LOD0",
+							]
+						}
+					},
+				]
+			},
+			{
+				_class = "MaterialGroupList"
+				children =
+				[
+					{
+						_class = "DefaultMaterialGroup"
+						remaps =
+						[
+							{
+								from = "water_barrel.vmat"
+								to = "models/sbox/warehouse/water_drum/materials/water_drum.vmat"
+							},
+							{
+								from = "models/sbox/warehouse/water_drum/materials/water_drum.vmat"
+								to = "models/sbox/warehouse/water_drum/materials/water_drum.vmat"
+							},
+						]
+						use_global_default = true
+						global_default_material = "models/sbox/warehouse/water_drum/materials/water_drum.vmat"
+					},
+				]
+			},
+			{
+				_class = "PhysicsBodyMarkupList"
+				children =
+				[
+					{
+						_class = "PhysicsBodyMarkup"
+						target_body = ""
+						mass_override = 1.0
+						inertia_scale = 1.0
+						linear_damping = 0.04
+						angular_damping = 0.15
+						use_mass_center_override = false
+						mass_center_override = [ 0.0, 0.0, 0.0 ]
+						gravity_scale = 1.0
+					},
+				]
+			},
+		]
+		model_archetype = ""
+		primary_associated_entity = ""
+		anim_graph_name = ""
+		animation_graph_name = resource:""
+		skeleton_name = resource:""
+		base_model_name = ""
+	}
+}

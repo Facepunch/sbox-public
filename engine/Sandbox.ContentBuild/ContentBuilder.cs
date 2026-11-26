@@ -117,7 +117,7 @@ public sealed class BuildRequest
 public sealed class BuildReport
 {
 	/// <summary>
-	/// Every compile started, in order. An asset appears twice only after a describe miss.
+	/// Every compile started, in order. An asset can compile again after a describe miss or if cleanup removes an output read during ownership recovery.
 	/// </summary>
 	public List<string> Jobs { get; } = [];
 	public List<string> Described { get; } = [];
@@ -170,6 +170,12 @@ public sealed class BuildReport
 	/// of the build's roots lists after the build. Whoever removes unused files there has to leave these.
 	/// </summary>
 	public HashSet<string> SharedOutputs { get; } = new( StringComparer.OrdinalIgnoreCase );
+
+	/// <summary>
+	/// Every mounted root has accounted for its live sources with damaged records, so transient cleanup can run.
+	/// </summary>
+	public bool CanCleanSharedOutputs { get; internal set; }
+
 	public StringBuilder Log { get; } = new();
 
 	public bool Success => Error is null && !Cancelled && Failed.Count == 0 && Blocked.Count == 0 && Unsupported.Count == 0;
@@ -378,11 +384,6 @@ public static class ContentBuilder
 				if ( asynchronous ) await Task.Run( Load );
 				else Load();
 
-				if ( request.Select is null )
-				{
-					foreach ( var root in roots ) RemoveDeletedSources( root, deleted[root] );
-				}
-
 				// A source whose output a later root also builds is hidden (sounds/x.wav under sounds/x.mp3 too):
 				// the compiler and the runtime only ever find the later one. It isn't built, and what it built
 				// before is left alone.
@@ -399,6 +400,11 @@ public static class ContentBuilder
 					}
 				}
 
+				if ( token.IsCancellationRequested ) { report.Cancelled = true; return report; }
+				foreach ( var (root, records) in deleted ) RemoveDeletedSources( root, records );
+				RemoveDeferredOutputs();
+				if ( report.Error is not null ) return report;
+
 				foreach ( var selected in request.Select ?? roots.Select( x => x.Def.Path ).ToList() ) Select( selected );
 				Phase( "inventory" );
 
@@ -406,7 +412,26 @@ public static class ContentBuilder
 				Phase( "describe and adopt" );
 				if ( token.IsCancellationRequested ) { report.Cancelled = true; return report; }
 
-				await Schedule();
+				while ( true )
+				{
+					await Schedule();
+					if ( token.IsCancellationRequested ) { report.Cancelled = true; return report; }
+					if ( !RemoveDeferredOutputs() ) break;
+
+					// Readers may have settled against an output while its last owner was still unknown.
+					foreach ( var node in nodes.Values )
+					{
+						if ( node.State == State.Failed ) report.Failed.Remove( node.Name );
+						if ( node.State == State.Blocked ) report.Blocked.Remove( node.Name );
+						node.State = State.Waiting;
+						node.Planned = false;
+						node.Own = null;
+						node.Prerequisites.Clear();
+						node.Misses = 0;
+					}
+				}
+
+				if ( report.Error is not null ) return report;
 				Settle();
 				Phase( "compile and publish" );
 				return report;
@@ -423,19 +448,42 @@ public static class ContentBuilder
 		/// </summary>
 		void Settle()
 		{
-			foreach ( var node in nodes.Values.Where( x => x.State is State.Clean or State.Committed ) )
-				report.Current.Add( Absolute( node.Root, node.Source ) );
-
-			foreach ( var (source, visible) in hidden.Where( x => report.Current.Contains( x.Visible ) ) )
-				report.Current.Add( source );
-
+			report.CanCleanSharedOutputs = roots.All( root => !root.Store.HasUnknownOwners );
+			bool cleanupBlocked = false;
 			foreach ( var root in roots )
 			{
 				foreach ( var key in root.Store.All.Values.SelectMany( x => x.Outputs.Keys ).Where( Shared ) )
 				{
 					if ( root.Resolve( key ) is { } path ) report.SharedOutputs.Add( path );
 				}
+
+				if ( request.Select is not null ) continue;
+
+				try
+				{
+					foreach ( var (source, damagedRecord) in root.Store.OwnersBlockingCleanup() )
+					{
+						var name = Name( root, source );
+						if ( !report.Failed.Contains( name ) ) report.Failed.Add( name );
+						report.Log.AppendLine( $"{name}: cleanup is blocked by damaged record {damagedRecord}. Rebuild the source with its compiler and root visible, or restore its last known-good record." );
+						cleanupBlocked = true;
+					}
+				}
+				catch ( Exception e ) when ( e is IOException or UnauthorizedAccessException )
+				{
+					report.Error = $"Could not check deferred cleanup in {root.Def.Path}: {e.Message}";
+					return;
+				}
 			}
+
+			// Readers in any mounted root may have settled against the retained outputs.
+			if ( cleanupBlocked ) return;
+
+			foreach ( var node in nodes.Values.Where( x => x.State is State.Clean or State.Committed ) )
+				report.Current.Add( Absolute( node.Root, node.Source ) );
+
+			foreach ( var (source, visible) in hidden.Where( x => report.Current.Contains( x.Visible ) ) )
+				report.Current.Add( source );
 		}
 
 		static string Absolute( RootState root, string source ) => Path.GetFullPath( Path.Combine( root.Def.Path, source ) );
@@ -467,10 +515,12 @@ public static class ContentBuilder
 				if ( source.EndsWith( "_c", StringComparison.OrdinalIgnoreCase ) ) continue;
 
 				var kind = compiler.Classify( Path.GetExtension( source ), out var outputExtension );
+				var output = kind is AssetKind.None or AssetKind.Unsupported ? null : Path.ChangeExtension( source, outputExtension );
+				root.Store.CheckSource( source, output );
+
 				if ( kind == AssetKind.None ) continue;
 				if ( kind == AssetKind.Unsupported ) { report.Unsupported.Add( Name( root, source ) ); continue; }
 
-				var output = Path.ChangeExtension( source, outputExtension );
 				if ( root.SourceOf.TryGetValue( output, out var other ) )
 				{
 					report.Failed.AddRange( [Name( root, source ), Name( root, other )] );
@@ -547,8 +597,11 @@ public static class ContentBuilder
 		/// </summary>
 		async Task Plan()
 		{
-			for ( var pending = nodes.Values.ToList(); pending.Count > 0; pending = nodes.Values.Where( x => !x.Planned ).ToList() )
+			while ( true )
 			{
+				var pending = nodes.Values.Where( x => !x.Planned ).ToList();
+				if ( pending.Count == 0 ) return;
+
 				LoadFingerprints( pending );
 
 				var describable = pending.Where( x => x.Kind == AssetKind.Described ).ToList();
@@ -718,6 +771,28 @@ public static class ContentBuilder
 			Arguments = result.Arguments.Distinct().ToDictionary( x => x, x => arguments.GetValueOrDefault( x ) ),
 			Prerequisites = prerequisites,
 		};
+
+		/// <summary>
+		/// Report each deletion as it happens, including those completed before a locked file stopped cleanup.
+		/// </summary>
+		bool RemoveDeferredOutputs()
+		{
+			var before = report.Changed.Count;
+			foreach ( var root in roots )
+			{
+				try
+				{
+					foreach ( var file in root.Store.RemoveDeferredOutputs() ) Changed( [file] );
+				}
+				catch ( Exception e ) when ( e is IOException or UnauthorizedAccessException )
+				{
+					report.Error = $"Could not finish deferred cleanup in {root.Def.Path}: {e.Message}";
+					return false;
+				}
+			}
+
+			return report.Changed.Count != before;
+		}
 
 		/// <summary>
 		/// Removes what was built from sources that no longer exist. A source this build doesn't compile (a
@@ -1171,9 +1246,11 @@ public static class ContentBuilder
 		/// </summary>
 		async Task<Dictionary<Node, (string Reason, List<(string Key, FileStamp Stamp)> Restamp)>> Dirty( List<Node> nodes )
 		{
-			if ( request.Force ) return nodes.ToDictionary( x => x, _ => ("forced", (List<(string Key, FileStamp Stamp)>)null) );
-
-			var own = await CheckAll( nodes, x => OwnDirty( x ) is { } reason ? (reason, null) : ChangedOutput( x ) );
+			var own = await CheckAll( nodes, node =>
+			{
+				if ( request.Force && node.Committed == 0 ) return ("forced", null);
+				return OwnDirty( node ) is { } reason ? (reason, null) : ChangedOutput( node );
+			} );
 			var current = nodes.Where( x => own[x].Reason is null ).ToList();
 			var producers = current.ToDictionary( x => x, Producers );
 			var reads = await CheckAll( current, x => ReadChanged( x, producers[x] ) );

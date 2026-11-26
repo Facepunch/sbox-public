@@ -35,8 +35,8 @@ public partial class MenuSystem : IMenuSystem
 
 		Dev = new DevLayer();
 
-		MenuUtility.SetModalSystem( new ModalSystem() );
 		MenuOverlay.Init();
+		MenuUtility.SetModalSystem( new ModalSystem() );
 
 		// Made after the overlay, so its modals, toasts and the loading screen draw over it. Straight onto a game's
 		// menu - the one given on the command line, or the one picked last time. Not in the editor, where it's only
@@ -76,6 +76,10 @@ public partial class MenuSystem : IMenuSystem
 
 	public void Shutdown()
 	{
+		// Deleting panels can resume a pending prompt or load while the overlay is coming down.
+		MenuUtility.SetModalSystem( null );
+		ModalSystem.Instance = null;
+
 		MenuProject.Multiplayer.GlobalChatService.Close();
 		gameClosingPanel?.Delete();
 		gameClosingPanel = null;

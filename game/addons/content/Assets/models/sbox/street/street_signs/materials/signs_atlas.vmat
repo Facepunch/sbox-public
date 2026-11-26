@@ -1,0 +1,13 @@
+
+Layer0
+{
+	shader "shaders/complex.shader_c"
+
+	TextureColor "models/sbox/street/street_signs/materials/signs_atlas_color.png"
+	TextureAmbientOcclusion "models/sbox/street/street_signs/materials/signs_atlas_ao.png"
+	TextureNormal "models/sbox/street/street_signs/materials/signs_atlas_normal.png"
+	TextureRoughness "models/sbox/street/street_signs/materials/signs_atlas_rough.png"
+	F_METALNESS_TEXTURE 1
+	TextureMetalness "models/sbox/street/street_signs/materials/signs_atlas_metal.png"
+
+}

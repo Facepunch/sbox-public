@@ -5,9 +5,15 @@ using System.Reflection.Emit;
 
 namespace Sandbox.Upgraders
 {
+	/// <summary>
+	/// Rebinds live callbacks to the incoming methods and receivers during hotload.
+	/// </summary>
 	[UpgraderGroup( typeof( ReferenceTypeUpgraderGroup ) )]
 	public partial class DelegateUpgrader : Hotload.InstanceUpgrader
 	{
+		/// <summary>
+		/// Selects delegate types for callback migration.
+		/// </summary>
 		public override bool ShouldProcessType( Type type )
 		{
 			return typeof( Delegate ).IsAssignableFrom( type );
@@ -23,33 +29,19 @@ namespace Sandbox.Upgraders
 				return null;
 			}
 
+			const BindingFlags methods = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly;
+			foreach ( var method in newDeclaringType.GetMethods( methods | BindingFlags.Static ) )
+			{
+				if ( IsMatchingLambdaMethod( newScopeMethod, oldName, method ) )
+					return method;
+			}
+
 			Type[] typeArgs = null;
-
-			var captureMode = GetLambdaCaptureMode( oldLambda );
-
-			if ( captureMode != LambdaCaptureMode.TargetInstance && oldLambda.DeclaringType!.IsConstructedGenericType )
+			if ( oldLambda.DeclaringType != oldDeclaringType && oldLambda.DeclaringType!.IsConstructedGenericType )
 			{
-				typeArgs = oldLambda.DeclaringType.GetGenericArguments();
-
-				for ( var i = 0; i < typeArgs.Length; ++i )
-				{
-					typeArgs[i] = GetNewType( typeArgs[i] );
-				}
+				typeArgs = oldLambda.DeclaringType.GetGenericArguments().Select( GetNewType ).ToArray();
+				if ( typeArgs.Any( x => x is null ) ) return null;
 			}
-			else
-			{
-				// Case 2
-
-				foreach ( var method in newDeclaringType.GetMethods( BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly ) )
-				{
-					if ( IsMatchingLambdaMethod( newScopeMethod, oldName, method ) )
-					{
-						return method;
-					}
-				}
-			}
-
-			// Case 1 and 3
 
 			foreach ( var nestedType in newDeclaringType.GetNestedTypes( BindingFlags.NonPublic | BindingFlags.DeclaredOnly ) )
 			{
@@ -66,13 +58,13 @@ namespace Sandbox.Upgraders
 					{
 						displayClassType = displayClassType.MakeGenericType( typeArgs );
 					}
-					catch
+					catch ( ArgumentException )
 					{
 						continue;
 					}
 				}
 
-				foreach ( var method in displayClassType.GetMethods( BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly ) )
+				foreach ( var method in displayClassType.GetMethods( methods ) )
 				{
 					if ( IsMatchingLambdaMethod( newScopeMethod, oldName, method ) )
 					{
@@ -84,6 +76,9 @@ namespace Sandbox.Upgraders
 			return null;
 		}
 
+		/// <summary>
+		/// Finds the incoming compiler-generated method for a lambda or local function.
+		/// </summary>
 		public MethodInfo GetMatchingLambdaMethod( MethodInfo oldMethod )
 		{
 			if ( CachedUpgrader.TryGetCachedInstance( oldMethod, out var cached ) ) return (MethodInfo)cached;
@@ -92,47 +87,53 @@ namespace Sandbox.Upgraders
 					out var oldDeclaringType, out _,
 					out var oldName ) ) return null;
 
-			var newDelaringType = GetNewType( oldDeclaringType );
+			var newDeclaringType = GetNewType( oldDeclaringType );
+			if ( newDeclaringType is null ) return null;
 
-			if ( newDelaringType == oldDeclaringType && !oldMethod.IsGenericMethod && !oldMethod.DeclaringType!.IsGenericType )
+			if ( newDeclaringType == oldDeclaringType && !oldMethod.IsGenericMethod && !oldMethod.DeclaringType!.IsGenericType )
 			{
 				return oldMethod;
 			}
 
-			var newMethod = GetMatchingLambdaMethod( oldMethod, oldDeclaringType, oldName, newDelaringType );
+			var newMethod = GetMatchingLambdaMethod( oldMethod, oldDeclaringType, oldName, newDeclaringType );
+			if ( newMethod is { IsGenericMethodDefinition: true } && !oldMethod.ContainsGenericParameters )
+			{
+				// When a local stops capturing, Roslyn moves the enclosing method's type
+				// arguments from its display class onto the static local function.
+				var arguments = oldMethod.DeclaringType.GetGenericArguments().Concat( oldMethod.GetGenericArguments() )
+					.Skip( newMethod.DeclaringType.GetGenericArguments().Length );
+				newMethod = GetUpgrader<MemberInfoUpgrader>().BindGenericArguments( newMethod, arguments );
+			}
 
 			CachedUpgrader.AddCachedInstance( oldMethod, newMethod );
 			return newMethod;
 		}
 
 		private bool TryUpgradeTarget( LambdaCaptureMode oldCaptureMode, LambdaCaptureMode newCaptureMode,
-			MethodInfo oldMethod, MethodInfo newMethod,
-			object oldTarget, out object newTarget )
+			Delegate oldDelegate, MethodInfo newMethod, out object newTarget )
 		{
-			if ( oldMethod == newMethod && (oldTarget == null || !IsSwappedType( oldTarget.GetType() )) )
-			{
-				newTarget = GetNewInstance( oldTarget );
-				return true;
-			}
-
+			var oldTarget = oldDelegate.Target;
 			newTarget = null;
+			if ( oldTarget is null )
+			{
+				// A delegate closed over null cannot provide newly captured state.
+				return oldCaptureMode == newCaptureMode || newCaptureMode == LambdaCaptureMode.None;
+			}
 
 			switch (oldCaptureMode, newCaptureMode)
 			{
-				case (LambdaCaptureMode.Unknown, _ ):
-				case (_, LambdaCaptureMode.Unknown ):
-					return false;
-
 				case (_, LambdaCaptureMode.None ):
 					newTarget = GetCachedTarget( newMethod );
 					return true;
 
-				case (LambdaCaptureMode.None, LambdaCaptureMode.DisplayClass ):
-				case (LambdaCaptureMode.None, LambdaCaptureMode.TargetInstance ):
-					return false;
-
 				case (LambdaCaptureMode.TargetInstance, LambdaCaptureMode.TargetInstance ):
+				case (LambdaCaptureMode.StaticLocalFunction, LambdaCaptureMode.StaticLocalFunction ):
+					newTarget = GetNewInstance( oldTarget );
+					return true;
+
 				case (LambdaCaptureMode.DisplayClass, LambdaCaptureMode.DisplayClass ):
+					if ( !HasRequiredCaptures( oldTarget, newMethod ) ) return false;
+
 					newTarget = GetNewInstance( oldTarget );
 					return true;
 
@@ -144,10 +145,14 @@ namespace Sandbox.Upgraders
 					return true;
 
 				default:
-					throw new NotImplementedException();
+					// A new capture has no value in the old closure.
+					return false;
 			}
 		}
 
+		/// <summary>
+		/// Identifies why a delegate could not be retained across a hotload.
+		/// </summary>
 		public enum ErrorDelegateMessage
 		{
 			NoDeclaringType,
@@ -155,60 +160,48 @@ namespace Sandbox.Upgraders
 			NoMatchLambda,
 			NoRetroactiveCapture,
 			LambdaSignatureChanged,
-			TargetTypeRemoved
+			TargetTypeRemoved,
+
+			/// <summary>
+			/// An upgrader failed while resolving the callback or migrating its target.
+			/// </summary>
+			UpgradeFailed
 		}
 
 		private static string GetErrorDelegateMessage( ErrorDelegateMessage message )
 		{
 			return message switch
 			{
-				ErrorDelegateMessage.NoDeclaringType => "Unable to upgrade delegate methods without declaring types.",
-				ErrorDelegateMessage.NoMatchStatic => "Unable to find matching substitution for a static method.",
+				ErrorDelegateMessage.NoDeclaringType => "Cannot retain the generated callback across this hotload.",
+				ErrorDelegateMessage.NoMatchStatic => "Unable to find a replacement for the callback method.",
 				ErrorDelegateMessage.NoMatchLambda => "Unable to find matching substitution for a lambda method.",
 				ErrorDelegateMessage.NoRetroactiveCapture => "Unable to retrospectively capture values for a lambda method.",
 				ErrorDelegateMessage.LambdaSignatureChanged => "Lambda signature has changed.",
-				ErrorDelegateMessage.TargetTypeRemoved => "Delegate target instance type removed.",
+				ErrorDelegateMessage.TargetTypeRemoved => "The delegate target is unavailable after hotload.",
+				ErrorDelegateMessage.UpgradeFailed => "The callback could not be migrated. See the hotload log for the cause.",
 				_ => throw new NotImplementedException()
 			};
 		}
 
 		private const string DroppedCallbackName = "__dropped_runtime_callback";
 
-		/// <summary>
-		/// A delegate the runtime runs on its own threads, where nothing catches an exception: the continuation of an
-		/// async method suspended at an await (its state machine box's MoveNext), or a timer or thread pool callback.
-		/// </summary>
-		private static bool IsRuntimeCallback( Delegate oldDelegate )
+		private Delegate CreateErrorDelegate( Delegate oldDelegate, ErrorDelegateMessage message )
 		{
-			if ( oldDelegate.Method.Name == DroppedCallbackName && oldDelegate.Method.DeclaringType == null )
-				return true;
-
-			if ( oldDelegate is System.Threading.TimerCallback or System.Threading.WaitCallback or System.Threading.WaitOrTimerCallback )
-				return true;
-
-			return oldDelegate.Method.Name == nameof( System.Runtime.CompilerServices.IAsyncStateMachine.MoveNext )
-				&& oldDelegate.Method.ReturnType == typeof( void )
-				&& oldDelegate.Target?.GetType().GetInterface( "System.Runtime.CompilerServices.IAsyncStateMachineBox" ) != null;
-		}
-
-		private object CreateErrorDelegate( Delegate oldDelegate, ErrorDelegateMessage message )
-		{
-			const string errorDelegateNamePrefix = "__error_delegate";
+			const string errorDelegateNamePrefix = "__error_delegate<";
 
 			var wasErrorDelegate = false;
 
-			if ( oldDelegate.Method.DeclaringType == null && oldDelegate.Method.Name.StartsWith( errorDelegateNamePrefix ) )
+			var oldMethod = oldDelegate.GetMethodInfo();
+			var oldName = oldMethod.Name;
+			if ( oldMethod is DynamicMethod && oldName.StartsWith( errorDelegateNamePrefix, StringComparison.Ordinal )
+				&& oldName.EndsWith( '>' )
+				&& Enum.TryParse<ErrorDelegateMessage>( oldName.AsSpan( errorDelegateNamePrefix.Length..^1 ), out var previous )
+				&& Enum.IsDefined( previous ) )
 			{
-				var startIndex = oldDelegate.Method.Name.IndexOf( '<' );
-				var endIndex = oldDelegate.Method.Name.IndexOf( '>' );
-				var oldMessageName = oldDelegate.Method.Name.Substring( startIndex + 1, endIndex - startIndex - 1 );
-
-				message = Enum.Parse<ErrorDelegateMessage>( oldMessageName );
-
+				message = previous;
 				wasErrorDelegate = true;
 			}
 
-			var oldMethod = oldDelegate.GetMethodInfo();
 			var messageText = GetErrorDelegateMessage( message );
 
 			var newDelegType = GetNewType( oldDelegate.GetType() );
@@ -219,10 +212,9 @@ namespace Sandbox.Upgraders
 			var newParamTypes = invoke.GetParameters().Select( parameter => parameter.ParameterType ).ToArray();
 			var newReturnType = invoke.ReturnType;
 
-			// A runtime callback can throw on a worker thread. A missing event handler can block the remaining handlers.
-			var removedAction = message == ErrorDelegateMessage.NoMatchLambda && newReturnType == typeof( void )
-				&& newParamTypes.All( type => !type.IsByRef );
-			if ( IsRuntimeCallback( oldDelegate ) || removedAction )
+			// Skip an unavailable action so the other handlers still run. A caller that needs a
+			// result or a by-reference argument needs to see the binding failure.
+			if ( newReturnType == typeof( void ) && newParamTypes.All( type => !type.IsByRef ) )
 			{
 				if ( oldMethod.Name != DroppedCallbackName )
 				{
@@ -239,7 +231,7 @@ namespace Sandbox.Upgraders
 				Log( HotloadEntryType.Warning, $"{messageText}", oldMethod );
 			}
 
-			var errorMethod = new DynamicMethod( $"{errorDelegateNamePrefix}<{message}>", newReturnType, newParamTypes );
+			var errorMethod = new DynamicMethod( $"{errorDelegateNamePrefix}{message}>", newReturnType, newParamTypes );
 			var il = errorMethod.GetILGenerator();
 
 			il.Emit( OpCodes.Ldstr, messageText );
@@ -270,104 +262,94 @@ namespace Sandbox.Upgraders
 				return true;
 			}
 
-			var oldMethod = oldDelegate.GetMethodInfo();
-
-			if ( oldMethod.DeclaringType == null )
+#if HOTLOAD_NOCATCH
+			newInstance = UpgradeCallback( oldDelegate );
+#else
+			try
 			{
-				newInstance = CreateErrorDelegate( oldDelegate, ErrorDelegateMessage.NoDeclaringType );
-				return true;
+				newInstance = UpgradeCallback( oldDelegate );
 			}
+			catch ( Exception ex ) when ( ex is not OutOfMemoryException )
+			{
+				// Contain migration failures at the individual subscriber, before a field
+				// upgrader would have to discard the entire multicast delegate.
+				Log( ex, member: oldDelegate.Method );
+				newInstance = CreateErrorDelegate( oldDelegate, ErrorDelegateMessage.UpgradeFailed );
+			}
+#endif
+			return true;
+		}
 
+		private Delegate UpgradeCallback( Delegate oldDelegate )
+		{
+			var oldMethod = oldDelegate.Method;
 			var oldTarget = oldDelegate.Target;
 
-			MethodInfo newMethod;
-			object newTarget;
-
-			if ( !GetLambdaMethodInfo( oldMethod, out _, out _, out _ ) || !IsSwappedType( oldMethod.DeclaringType ) )
+			if ( oldMethod.DeclaringType is null && (oldMethod is not DynamicMethod generated || !CanKeepGeneratedMethod( generated )) )
 			{
-				newMethod = GetNewInstance( oldMethod );
-				newTarget = GetNewInstance( oldTarget );
-
-				if ( newMethod == null )
-				{
-					newInstance = CreateErrorDelegate( oldDelegate, ErrorDelegateMessage.NoMatchStatic );
-					return true;
-				}
-			}
-			else
-			{
-				newMethod = GetMatchingLambdaMethod( oldMethod );
-
-				if ( newMethod == null )
-				{
-					newInstance = CreateErrorDelegate( oldDelegate, ErrorDelegateMessage.NoMatchLambda );
-					return true;
-				}
-
-				var oldCaptureMode = GetLambdaCaptureMode( oldMethod );
-				var newCaptureMode = GetLambdaCaptureMode( newMethod );
-
-				oldTarget = oldDelegate.Target;
-
-				if ( !TryUpgradeTarget( oldCaptureMode, newCaptureMode,
-						oldMethod, newMethod,
-						oldTarget, out newTarget ) )
-				{
-					// TODO: maybe one day we can emit a new version of the old lambda
-
-					newInstance = CreateErrorDelegate( oldDelegate, ErrorDelegateMessage.NoRetroactiveCapture );
-					return true;
-				}
+				return CreateErrorDelegate( oldDelegate, ErrorDelegateMessage.NoDeclaringType );
 			}
 
-			if ( ReferenceEquals( newMethod, oldMethod ) && ReferenceEquals( newTarget, oldTarget ) )
+			var matchLambda = GetLambdaMethodInfo( oldMethod, out _, out var oldCaptureMode, out _ ) && IsSwappedType( oldMethod.DeclaringType );
+			var newMethod = matchLambda ? GetMatchingLambdaMethod( oldMethod ) : GetNewInstance( oldMethod );
+			var newCaptureMode = LambdaCaptureMode.Unknown;
+			if ( newMethod is null || (matchLambda && !GetLambdaMethodInfo( newMethod, out _, out newCaptureMode, out _ )) )
 			{
-				newInstance = oldInstance;
-				return true;
+				return CreateErrorDelegate( oldDelegate, matchLambda ? ErrorDelegateMessage.NoMatchLambda : ErrorDelegateMessage.NoMatchStatic );
 			}
 
 			var oldDelegType = oldDelegate.GetType();
 			var newDelegType = GetNewType( oldDelegType );
+			if ( newDelegType is null ) return null;
 
-			if ( !newMethod.IsStatic )
+			// A method that became static no longer needs the old receiver. Bind it using
+			// only the caller's arguments, just as we do for a delegate that was already open.
+			var bindOpen = (!oldMethod.IsStatic && newMethod.IsStatic) || (oldTarget is null && IsOpenBinding( oldDelegType, oldMethod ));
+			object newTarget = null;
+			if ( !bindOpen )
 			{
-				// newTarget can be null despite newMethod's declaring type not being null.
-				// This will happen if newTarget's type derived from the method's declaring type,
-				// but that derived type got removed in this hotload.
-
-				if ( newTarget is null )
+				if ( !matchLambda )
 				{
-					newInstance = CreateErrorDelegate( oldDelegate, ErrorDelegateMessage.TargetTypeRemoved );
-					return true;
+					newTarget = GetNewInstance( oldTarget );
+				}
+				else if ( !TryUpgradeTarget( oldCaptureMode, newCaptureMode, oldDelegate, newMethod, out newTarget ) )
+				{
+					return CreateErrorDelegate( oldDelegate, ErrorDelegateMessage.NoRetroactiveCapture );
 				}
 
-				var newTargetType = newTarget.GetType();
-
-				if ( !newMethod.DeclaringType.IsAssignableFrom( newTargetType ) )
+				if ( oldTarget != null && newTarget == null )
 				{
-					newInstance = CreateErrorDelegate( oldDelegate, ErrorDelegateMessage.NoMatchLambda );
-					return true;
+					return CreateErrorDelegate( oldDelegate, ErrorDelegateMessage.TargetTypeRemoved );
 				}
 			}
-			else if ( newTarget != null )
+
+			if ( ReferenceEquals( newMethod, oldMethod ) && ReferenceEquals( newTarget, oldTarget ) && newDelegType == oldDelegType )
 			{
-				newInstance = CreateErrorDelegate( oldDelegate, ErrorDelegateMessage.NoMatchStatic );
-				return true;
+				return oldDelegate;
+			}
+
+			// A null target can mean an open delegate or one closed over null. The CLR
+			// accepts both, so check that the caller still supplies the same arguments.
+			if ( !bindOpen && newTarget is null && IsOpenBinding( newDelegType, newMethod ) )
+			{
+				return CreateErrorDelegate( oldDelegate, ErrorDelegateMessage.LambdaSignatureChanged );
 			}
 
 			try
 			{
-				newInstance = newTarget == null
-					? newMethod.CreateDelegate( newDelegType )
-					: newMethod.CreateDelegate( newDelegType, newTarget );
+				// The CLR checks the receiver and signature for both open and closed delegates.
+				return bindOpen ? newMethod.CreateDelegate( newDelegType ) : newMethod.CreateDelegate( newDelegType, newTarget );
 			}
 			catch ( ArgumentException )
 			{
-				newInstance = CreateErrorDelegate( oldDelegate, ErrorDelegateMessage.LambdaSignatureChanged );
-				return true;
+				return CreateErrorDelegate( oldDelegate, ErrorDelegateMessage.LambdaSignatureChanged );
 			}
+		}
 
-			return true;
+		private static bool IsOpenBinding( Type delegateType, MethodInfo method )
+		{
+			var argumentCount = method.GetParameters().Length + (method.IsStatic ? 0 : 1);
+			return delegateType.GetMethod( "Invoke" ).GetParameters().Length == argumentCount;
 		}
 
 		protected override bool OnTryUpgradeInstance( object oldInstance, object newInstance, bool createdElsewhere )

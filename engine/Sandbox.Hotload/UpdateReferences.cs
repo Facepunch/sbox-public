@@ -786,7 +786,18 @@ namespace Sandbox
 				args[i] = argSubType;
 			}
 
-			return madeSubstitution ? newDefType.MakeGenericType( args ) : oldType;
+			if ( !madeSubstitution )
+				return oldType;
+
+			try
+			{
+				return newDefType.MakeGenericType( args );
+			}
+			catch ( ArgumentException )
+			{
+				// A tighter constraint can remove this constructed type while its definition survives.
+				return null;
+			}
 		}
 
 		private bool IsSwappedType( Type type )

@@ -52,7 +52,7 @@ internal struct Friend
 	/// </summary>
 	public async Task RequestInfoAsync()
 	{
-		await SteamFriends.CacheUserInformationAsync( Id, true );
+		await SteamFriends.CacheUserInformationAsync( SteamFriends.Internal, Id, true );
 	}
 
 	/// <summary>
@@ -224,25 +224,6 @@ internal struct Friend
 	{
 		if ( !SteamFriends.IsInstalled ) return false;
 		return SteamFriends.Internal.InviteUserToGame( Id, Text );
-	}
-
-	/// <summary>
-	/// Activates the Steam Overlay to a specific dialog
-	/// </summary>
-	/// <param name="type">
-	/// "steamid" - Opens the overlay web browser to the specified user or groups profile.
-	/// "chat" - Opens a chat window to the specified user, or joins the group chat.
-	/// "jointrade" - Opens a window to a Steam Trading session that was started with the ISteamEconomy/StartTrade Web API.
-	/// "stats" - Opens the overlay web browser to the specified user's stats.
-	/// "achievements" - Opens the overlay web browser to the specified user's achievements.
-	/// "friendadd" - Opens the overlay in minimal mode prompting the user to add the target user as a friend.
-	/// "friendremove" - Opens the overlay in minimal mode prompting the user to remove the target friend.
-	/// "friendrequestaccept" - Opens the overlay in minimal mode prompting the user to accept an incoming friend invite.
-	/// "friendrequestignore" - Opens the overlay in minimal mode prompting the user to ignore an incoming friend invite.
-	/// </param>
-	internal void OpenInOverlay( string type = "steamid" )
-	{
-		SteamFriends.OpenUserOverlay( Id, type );
 	}
 
 	/// <summary>

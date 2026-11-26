@@ -55,25 +55,14 @@
         base.OnMouseDown( e );
     }
 
-    /// <summary>
-    /// Localize the modal label while keeping the workshop metadata key stable.
-    /// </summary>
-    static void AddLocalizedCategory<T>( Modals.WorkshopPublishOptions options, string name, string phrase ) where T : struct, Enum
-    {
-        options.AddCategory<T>( name );
-        var property = options.Categories[name];
-        options.Categories.Remove( name );
-        options.Categories[Game.Language.GetPhrase( phrase )] = property;
-    }
-
     void Publish()
     {
-        var options = new Modals.WorkshopPublishOptions();
-        options.KeyValues = new() { ["protocol"] = DupesWorkshop.ProtocolVersion };
-        options.Title = Game.Language.GetPhrase( "spawnmenu.dupes.publish_title" );
-        AddLocalizedCategory<DupeCategory>( options, "Category", "spawnmenu.dupes.publish_category" );
-        AddLocalizedCategory<DupeMovement>( options, "Movement", "spawnmenu.dupes.publish_movement" );
+        var options = SandboxWorkshop.PublishOptions<DupeCategory>(
+            Game.Language.GetPhrase( "spawnmenu.dupes.publish_title" ),
+            SandboxWorkshop.DupeFilters(),
+            Game.Language.GetPhrase( "spawnmenu.dupes.publish_category" ) );
 
-        Content.Publish(options);
+        options.AddCategory<DupeMovement>( "Movement", Game.Language.GetPhrase( "spawnmenu.dupes.publish_movement" ) );
+        Content.Publish( options );
     }
 }

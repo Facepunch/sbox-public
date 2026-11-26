@@ -140,11 +140,10 @@ public sealed partial class DuplicatorTool : ToolMode
 		storage.SetMeta( "packages", packages.Select( x => x.FullIdent ) );
 		storage.Files.WriteAllText( "/dupe.json", data );
 
-		var bitmap = new Bitmap( 1024, 1024 );
+		using var bitmap = SandboxWorkshop.CreatePreview();
 		RenderIconToBitmap( data, bitmap );
 
-		var downscaled = bitmap.Resize( 512, 512 );
-		storage.SetThumbnail( downscaled );
+		storage.SetThumbnail( bitmap );
 		PreferredDupeId = storage.Id;
 	}
 

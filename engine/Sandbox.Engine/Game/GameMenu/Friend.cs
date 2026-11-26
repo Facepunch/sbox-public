@@ -95,20 +95,31 @@ public partial struct Friend : IEquatable<Friend>
 	/// </summary>
 	public readonly bool IsPlayingAGame => (Internal.GameInfo?.GameId ?? 0) != 0;
 
+	private readonly string ProfileUrl => $"https://steamcommunity.com/profiles/{Id}";
+
 	/// <summary>
-	/// Opens the Steam overlay web browser to their user profile.
+	/// Opens their Steam profile in the Steam overlay, or in the default browser when the overlay is unavailable.
 	/// </summary>
 	public void OpenInOverlay()
 	{
-		Internal.OpenInOverlay( "steamid" );
+		if ( Id == 0 )
+			return;
+
+		Game.Overlay.OpenSteamPage( ProfileUrl, steamOverlay: true );
 	}
 
 	/// <summary>
-	/// Opens the Steam overlay with a popup that allows the local Steam user to confirm whether to add this user to their Steam friends list.
+	/// Opens Steam's Add Friend confirmation, or opens their Steam profile in the default browser when the overlay is unavailable.
 	/// </summary>
 	public void OpenAddFriendOverlay()
 	{
-		SteamFriends.OpenUserOverlay( Internal.Id, "friendadd" );
+		if ( Id == 0 )
+			return;
+
+		if ( !SteamFriends.OpenUserOverlay( Internal.Id, "friendadd" ) )
+		{
+			Game.Overlay.OpenSteamPage( ProfileUrl, steamOverlay: false );
+		}
 	}
 
 	public override bool Equals( object obj ) => obj is Friend friend && Equals( friend );

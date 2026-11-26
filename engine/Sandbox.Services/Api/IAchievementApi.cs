@@ -9,10 +9,29 @@ public partial class ServiceApi
 		[Post( "/achievement/unlock" )]
 		Task Unlock( [Query] string package, [Query] string achievement );
 
+		/// <summary>
+		/// Requests an unlock and returns whether this request awarded it.
+		/// </summary>
+		[Post( "/achievement/unlock" )]
+		Task<AchievementUnlockResponse> UnlockWithResult( [Query] string package, [Query] string achievement );
+
 		[Get( "/achievement/list" )]
 		Task<AchievementDto[]> GetList( string package );
 	}
 }
+
+/// <summary>
+/// The validation envelope returned by the achievement unlock endpoint.
+/// </summary>
+/// <param name="Valid">Whether the service accepted the request.</param>
+/// <param name="Result">The outcome of this award attempt.</param>
+public readonly record struct AchievementUnlockResponse( bool Valid, AchievementUnlockResult Result );
+
+/// <summary>
+/// The outcome of a single achievement write.
+/// </summary>
+/// <param name="Actioned">True when this request awarded the achievement.</param>
+public readonly record struct AchievementUnlockResult( bool Actioned );
 
 public struct AchievementDto
 {

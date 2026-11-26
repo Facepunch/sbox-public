@@ -13,16 +13,6 @@ internal sealed class LocalPackage : Package
 	public string ContentPath => Project.GetAssetsPath();
 
 	/// <summary>
-	/// The path to this project's code
-	/// </summary>
-	public string CodePath => Project.GetCodePath();
-
-	/// <summary>
-	/// The path to this project's localization files
-	/// </summary>
-	public string LocalizationPath => Project.GetLocalizationPath();
-
-	/// <summary>
 	/// True if this package is shipped with the game - so everyone should have it
 	/// </summary>
 	public bool IsBuiltIn => Project.IsBuiltIn;

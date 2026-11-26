@@ -154,6 +154,10 @@ public abstract partial class Component : IJsonConvert, IComponentLister, IValid
 
 	private void InternalOnAwake()
 	{
+		// A nested batch may have finished destroying this component after Awake was queued.
+		if ( GameObject is null )
+			return;
+
 		//
 		// If these trigger, it means they probably did new GameObject or something without an active scene
 		// which means the gameobject got created either on no scene, or on the wrong scene. This is remedied

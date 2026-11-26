@@ -19,7 +19,7 @@ public static class Hud
 	public static Length? MarginLength => Length.ViewWidth( MarginPercent );
 
 	/// <summary>
-	/// Space kept between the vitals and the HUD stacked above them (chat, notices, the voice list)
+	/// Space kept between the vitals and the HUD stacked above them (notices, the voice list)
 	/// </summary>
 	const float StackGap = 10;
 

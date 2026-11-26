@@ -45,6 +45,11 @@ $edit-bar-spacing: 4px;
 				flex-shrink: 0;
 			}
 
+			.textentry
+			{
+				@include ui-text-entry;
+			}
+
 			.spawnlist-name
 			{
 				font-size: 20px;

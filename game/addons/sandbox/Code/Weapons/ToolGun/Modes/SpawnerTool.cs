@@ -100,8 +100,8 @@ public sealed class SpawnerTool : ToolMode
 	{
 		Spawner = DeserializeSpawner( SpawnerData );
 
-		// Only the player holding it sees the loading ring - never the host on someone else's behalf
-		if ( Player?.IsLocalPlayer == true ) CloudLoadTracker.Track( Spawner?.Loading );
+		if ( Player?.IsLocalPlayer == true && Spawner is not PropSpawner { FullIdent: not null } )
+			CloudLoadTracker.Track( Spawner?.Loading );
 	}
 
 	record SpawnerPayload( string Type, string Data, string Metadata );
@@ -287,6 +287,8 @@ public sealed class SpawnerTool : ToolMode
 		if ( player is null ) return;
 
 		var spawner = Spawner;
+		if ( spawner is PropSpawner && (!await spawner.Loading || !player.IsValid() || !this.IsValid() || spawner != Spawner) )
+			return;
 
 		var spawnData = new Global.ISpawnEvents.SpawnData
 		{
@@ -300,7 +302,9 @@ public sealed class SpawnerTool : ToolMode
 		if ( spawnData.Cancelled )
 			return;
 
-		var objects = await spawner.Spawn( transform, player );
+		var objects = spawner is PropSpawner prop
+			? await prop.SpawnAt( transform, player )
+			: await spawner.Spawn( transform, player );
 
 		if ( objects is { Count: > 0 } )
 		{

@@ -2,7 +2,7 @@
 
 @mixin component-theme
 {
-	// the titles and dividers between the items of a spawnlist, on the gray block of the menu
+	// the titles and dividers between the items of a spawnlist, in the spawn menu
 	SpawnlistLayoutItem
 	{
 		width: 100%;
@@ -18,6 +18,12 @@
 			padding-bottom: 8px;
 		}
 
+		.textentry
+		{
+			@include ui-text-entry;
+			flex-grow: 1;
+		}
+
 		.section-title
 		{
 			flex-grow: 1;
@@ -29,7 +35,7 @@
 		{
 			height: 2px;
 			flex-grow: 1;
-			background-color: $ui-line-on-gray;
+			background-color: $ui-separator;
 		}
 
 		SpawnlistDragHandle

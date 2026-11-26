@@ -8,13 +8,15 @@ public abstract class BaseNpcLayer : Component
 	private BaseNpc _npc;
 
 	/// <summary>
-	/// The owning NPC
+	/// The owning NPC on this GameObject, or null if none is available.
 	/// </summary>
 	protected BaseNpc Npc
 	{
 		get
 		{
-			_npc ??= GetComponent<BaseNpc>();
+			if ( !_npc.IsValid() )
+				_npc = GetComponent<BaseNpc>();
+
 			return _npc;
 		}
 	}

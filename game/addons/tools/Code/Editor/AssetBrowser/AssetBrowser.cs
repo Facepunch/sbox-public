@@ -245,6 +245,7 @@ public partial class AssetBrowser : Widget, IBrowser, AssetSystem.IEventListener
 
 	public override void OnDestroyed()
 	{
+		refreshToken?.Cancel();
 		base.OnDestroyed();
 		watcher?.Dispose();
 	}
@@ -398,7 +399,7 @@ public partial class AssetBrowser : Widget, IBrowser, AssetSystem.IEventListener
 	/// </summary>
 	public virtual void UpdateAssetList()
 	{
-		if ( CurrentLocation is null )
+		if ( !IsValid || CurrentLocation is null )
 			return;
 
 		refreshToken?.Cancel();
@@ -427,16 +428,27 @@ public partial class AssetBrowser : Widget, IBrowser, AssetSystem.IEventListener
 		List<object> items = new List<object>();
 		var tagCounts = new Dictionary<string, int>();
 
+		// Read the controls here. Only file enumeration and filtering run on the worker.
+		var location = CurrentLocation;
+		var files = Search.Filter( location, token, recursive );
+		var activeTags = Chips.GetActiveTagNames();
+		var hasSearchFilters = Search.AssetTypes.ActiveTags.Count > 0;
+		var showJunkFiles = ShowJunkFiles;
+		var hideNonAssets = HideNonAssets;
 
+		// Even a refresh cancelled before the scan starts must return false to FocusOnAsset.
 		await Task.Run( () =>
 		{
+			if ( token.IsCancellationRequested )
+				return;
+
 			//
 			// Collect directories
 			//
 			if ( !recursive )
 			{
-				string path = CurrentLocation.Path;
-				foreach ( var directory in CurrentLocation.GetDirectories() )
+				string path = location.Path;
+				foreach ( var directory in location.GetDirectories() )
 				{
 					if ( token.IsCancellationRequested )
 						return;
@@ -459,18 +471,15 @@ public partial class AssetBrowser : Widget, IBrowser, AssetSystem.IEventListener
 			// Collect files
 			//
 
-			var files = Search.Filter( CurrentLocation, token, recursive );
-			if ( files is null ) return;
-
 			foreach ( var file in files )
 			{
 				if ( token.IsCancellationRequested )
 					return;
 
-				if ( Chips.ShouldFilter( file ) )
+				if ( ChipsWidget.ShouldFilter( file, activeTags ) )
 					continue;
 
-				if ( !ShowJunkFiles )
+				if ( !showJunkFiles )
 				{
 					//
 					// Filter out unwanted crap
@@ -499,7 +508,7 @@ public partial class AssetBrowser : Widget, IBrowser, AssetSystem.IEventListener
 				if ( (file.Name.EndsWith( "_c" ) || blob) && !string.IsNullOrEmpty( sourcePath ) )
 				{
 					// ( but only if the extensions are similar and would both be shown in this filter, eg so we don't hide .sounds because we have a .wav etc )
-					if ( Search.AssetTypes.ActiveTags.Count == 0 || file.Extension.Contains( System.IO.Path.GetExtension( sourcePath ) ) )
+					if ( !hasSearchFilters || file.Extension.Contains( System.IO.Path.GetExtension( sourcePath ) ) )
 						continue;
 				}
 
@@ -507,7 +516,7 @@ public partial class AssetBrowser : Widget, IBrowser, AssetSystem.IEventListener
 				if ( blob )
 					asset = null;
 
-				if ( asset == null && HideNonAssets )
+				if ( asset == null && hideNonAssets )
 					continue;
 
 				items.Add( new AssetEntry( file, asset ) );
@@ -520,9 +529,9 @@ public partial class AssetBrowser : Widget, IBrowser, AssetSystem.IEventListener
 					}
 				}
 			}
-		}, token );
+		} );
 
-		if ( token.IsCancellationRequested )
+		if ( token.IsCancellationRequested || !IsValid )
 			return false;
 
 		AssetList.SetItems( items );

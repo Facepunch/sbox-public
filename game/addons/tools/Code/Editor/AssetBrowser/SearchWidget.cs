@@ -132,7 +132,29 @@ public class SearchWidget : Widget
 		ValueChanged?.Invoke();
 	}
 
+	/// <summary>
+	/// Captures the current search on the editor thread. The returned files can be enumerated on a worker.
+	/// </summary>
 	public IEnumerable<FileInfo> Filter( LocalAssetBrowser.Location location, CancellationToken token, bool showRecursiveFiles = false )
+	{
+		if ( token.IsCancellationRequested )
+			return [];
+
+		var query = Query;
+		var terms = string.IsNullOrEmpty( query ) ? Array.Empty<string>() : query.Split( ' ' );
+		var hasExtension = query.Contains( '.' );
+		var includePathNames = AssetLocations.IncludePathNames;
+		var active = AssetTypes?.ActiveTags;
+		var types = active?.Where( x => !x.StartsWith( "tag:" ) ).ToArray() ?? [];
+		var tag = active?.FirstOrDefault( x => x.StartsWith( "tag:" ) )?[4..];
+
+		return EnumerateFiles( location, token, showRecursiveFiles ).Where( file =>
+			!FilterName( file, terms, hasExtension, includePathNames )
+			&& !FilterAssetTags( file, tag )
+			&& !FilterAssetType( file, types ) );
+	}
+
+	private static IEnumerable<FileInfo> EnumerateFiles( LocalAssetBrowser.Location location, CancellationToken token, bool showRecursiveFiles )
 	{
 		if ( token.IsCancellationRequested )
 			yield break;
@@ -141,15 +163,6 @@ public class SearchWidget : Widget
 		{
 			if ( token.IsCancellationRequested )
 				yield break;
-
-			if ( FilterName( file ) )
-				continue;
-
-			if ( FilterAssetTags( file ) )
-				continue;
-
-			if ( FilterAssetType( file ) )
-				continue;
 
 			yield return file;
 		}
@@ -161,7 +174,7 @@ public class SearchWidget : Widget
 				if ( token.IsCancellationRequested )
 					yield break;
 
-				foreach ( var subFile in Filter( subDir, token, showRecursiveFiles ) )
+				foreach ( var subFile in EnumerateFiles( subDir, token, showRecursiveFiles ) )
 				{
 					if ( token.IsCancellationRequested )
 						yield break;
@@ -172,17 +185,13 @@ public class SearchWidget : Widget
 		}
 	}
 
-	private bool FilterName( FileInfo file )
+	private static bool FilterName( FileInfo file, string[] terms, bool hasExtension, bool includePathNames )
 	{
-		if ( IsEmpty )
+		if ( terms.Length == 0 )
 			return false;
 
 		var asset = AssetSystem.FindByPath( file.FullName );
-		var query = Query;
-
-		var splitValues = query.Split( " " );
-		bool hasExtension = query.Contains( '.' );
-		foreach ( var splitValue in splitValues )
+		foreach ( var splitValue in terms )
 		{
 			var negated = splitValue.StartsWith( "-" );
 			var search = negated ? splitValue[1..] : splitValue;
@@ -198,7 +207,7 @@ public class SearchWidget : Widget
 			}
 			else if ( asset != null && !hasExtension )
 			{
-				var assetName = AssetLocations.IncludePathNames ? asset.RelativePath : asset.Name;
+				var assetName = includePathNames ? asset.RelativePath : asset.Name;
 				matches = assetName.Contains( search, StringComparison.OrdinalIgnoreCase )
 					|| asset.AssetType.FriendlyName.Contains( search, StringComparison.OrdinalIgnoreCase )
 					|| asset.Tags.Any( x => x.Contains( search, StringComparison.OrdinalIgnoreCase ) );
@@ -215,10 +224,9 @@ public class SearchWidget : Widget
 		return false;
 	}
 
-	private bool FilterAssetType( FileInfo file )
+	private static bool FilterAssetType( FileInfo file, string[] types )
 	{
-		var types = AssetTypes.ActiveTags.Where( x => !x.StartsWith( "tag:" ) );
-		if ( types.Count() == 0 )
+		if ( types.Length == 0 )
 			return false;
 		if ( string.IsNullOrWhiteSpace( file.Extension ) )
 			return false;
@@ -236,23 +244,13 @@ public class SearchWidget : Widget
 		return true; // remove
 	}
 
-	private bool FilterAssetTags( FileInfo file )
+	private static bool FilterAssetTags( FileInfo file, string tag )
 	{
-		var tags = AssetTypes.ActiveTags.Where( x => x.StartsWith( "tag:" ) );
-		if ( tags.Count() == 0 )
+		if ( tag is null )
 			return false;
 
 		var asset = AssetSystem.FindByPath( file.FullName );
-		if ( asset is null )
-			return true;
-
-		foreach ( var e in tags )
-		{
-			string tag = e[4..];
-			return !asset?.Tags.Any( x => x == tag ) ?? true;
-		}
-
-		return true; // remove
+		return asset is null || !asset.Tags.Any( x => x == tag );
 	}
 
 	protected override void OnPaint()

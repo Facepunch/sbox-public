@@ -756,11 +756,6 @@ public partial class ProjectPublisher
 	Package BackendPackage;
 
 	/// <summary>
-	/// Steam won't take a preview image bigger than this
-	/// </summary>
-	const int MaxPreviewBytes = 1024 * 1024;
-
-	/// <summary>
 	/// Download the package's screenshots on sbox.game, for the workshop item's previews. Videos are left out -
 	/// Steam only takes them from YouTube.
 	/// </summary>
@@ -828,24 +823,7 @@ public partial class ProjectPublisher
 		if ( loaded is null ) return null;
 
 		using var cropped = square ? CropToSquare( loaded ) : null;
-		var bitmap = cropped ?? loaded;
-
-		var fitted = bitmap.Width > 1920 ? bitmap.Resize( 1920, (int)(bitmap.Height * (1920f / bitmap.Width)) ) : bitmap;
-
-		try
-		{
-			for ( var quality = 90; quality >= 40; quality -= 10 )
-			{
-				var jpg = fitted.ToJpg( quality );
-				if ( jpg.Length <= MaxPreviewBytes ) return jpg;
-			}
-
-			return null;
-		}
-		finally
-		{
-			if ( fitted != bitmap ) fitted.Dispose();
-		}
+		return Workshop.EncodePreviewJpeg( cropped ?? loaded );
 	}
 
 	/// <summary>

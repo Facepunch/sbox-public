@@ -26,6 +26,9 @@ class PreviewSoundFile : AssetPreview
 
 	public override Widget CreateWidget( Widget parent )
 	{
+		if ( soundFile?.IsLoaded != true )
+			return new Label( "Sound preview unavailable", parent ) { Alignment = TextFlag.Center };
+
 		previewWidget = new SoundPlayer( parent );
 		previewWidget.SetSamples( samples, soundFile.Duration, soundFile.ResourcePath, channels );
 
@@ -48,12 +51,15 @@ class PreviewSoundFile : AssetPreview
 
 	public override async Task InitializeAsset()
 	{
-		await soundFile.LoadAsync();
+		if ( soundFile is null || !await soundFile.LoadAsync() || !soundFile.IsLoaded )
+			return;
 
 		// interleaved so stereo sounds can draw both channels. The interleaved fetch only
 		// preserves stereo - any other channel count comes back as a single downmixed channel
 		samples = await soundFile.GetSamplesInterleavedAsync();
-		channels = soundFile.Channels == 2 ? 2 : 1;
+
+		if ( samples is not null && soundFile.IsLoaded )
+			channels = soundFile.Channels == 2 ? 2 : 1;
 	}
 
 	public override Task RenderToBitmap( Bitmap bitmap )

@@ -1,0 +1,31 @@
+{
+  "guid": "aa5e66af-9abb-4218-92fe-e52cf347c038",
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "WheelieBin",
+      "Type": "model",
+      "Org": "facepunch",
+      "OrgTitle": null,
+      "Ident": "wheelie_bin",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/street/wheelie_bin/wheelie_bin.vmdl",
+        "Summary": "",
+        "Description": "",
+        "Public": true
+      }
+    },
+    "HammerAutoPackageReferences": null
+  }
+}

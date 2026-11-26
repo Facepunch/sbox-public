@@ -2,5 +2,31 @@
   "tags": [
     "ModelMaterial"
   ],
-  "guid": "1076ee68-00fc-0000-ec00-000000000000"
+  "guid": "1076ee68-00fc-0000-ec00-000000000000",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "Park Bin",
+      "Type": "material",
+      "Org": "local",
+      "OrgTitle": null,
+      "Ident": "park_bin",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/park/park_bin/park_bin.vmat",
+        "ParentPackage": "facepunch.sandbox"
+      }
+    },
+    "HammerAutoPackageReferences": null
+  }
 }

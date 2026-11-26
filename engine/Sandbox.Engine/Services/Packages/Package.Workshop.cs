@@ -77,7 +77,7 @@ public partial class Package
 	async Task<BaseFileSystem> DownloadWorkshopFiles( CancellationToken token, PackageLoadOptions options )
 	{
 		var manifest = string.Equals( TypeName, "game", StringComparison.OrdinalIgnoreCase ) ? Revision.DownloadManifestAsync( token ) : Task.CompletedTask;
-		var files = await WorkshopFileSystem.OpenAsync( WorkshopId, Title, token, options.Loading, options.SkipAssetDownload, FullIdent );
+		var files = await WorkshopFileSystem.OpenAsync( WorkshopId, Title, token, options.Loading, FullIdent );
 		try
 		{
 			await manifest;

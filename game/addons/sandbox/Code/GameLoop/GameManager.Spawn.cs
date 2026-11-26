@@ -51,22 +51,39 @@ public sealed partial class GameManager
 		var (type, path, source) = SpawnlistItem.ParseIdent( ident );
 
 		var spawner = ISpawner.Create( type, path, source, metadata );
-		CloudLoadTracker.Track( spawner?.Loading, Rpc.Caller );
-
-		if ( spawner is not null && await spawner.Loading )
+		var owner = Rpc.Caller;
+		var preview = Guid.Empty;
+		if ( spawner is PropSpawner { FullIdent: not null } prop )
 		{
-			await SpawnAndUndo( spawner, spawnTransform, player, forceWorld );
-			return;
+			preview = SpawningProgress.Begin( player, owner, prop, spawnTransform );
+		}
+		else
+		{
+			CloudLoadTracker.Track( spawner?.Loading, owner );
 		}
 
-		Log.Warning( $"Couldn't resolve '{ident}'" );
+		var spawned = false;
+		try
+		{
+			if ( spawner is null || !await spawner.Loading )
+			{
+				Log.Warning( $"Couldn't resolve '{ident}'" );
+				return;
+			}
+
+			spawned = await SpawnAndUndo( spawner, spawnTransform, player, forceWorld );
+		}
+		finally
+		{
+			SpawningProgress.End( owner, preview, spawned );
+		}
 	}
 
-	private static async Task SpawnAndUndo( ISpawner spawner, Transform transform, Player player, bool forceWorld = false )
+	private static async Task<bool> SpawnAndUndo( ISpawner spawner, Transform transform, Player player, bool forceWorld = false )
 	{
 		var scene = Game.ActiveScene;
 		if ( !scene.IsValid() )
-			return;
+			return false;
 
 		var spawnData = new Global.ISpawnEvents.SpawnData
 		{
@@ -78,11 +95,8 @@ public sealed partial class GameManager
 
 		scene.RunEvent<Global.ISpawnEvents>( x => x.OnSpawn( spawnData ) );
 
-		if ( spawnData.Cancelled )
-			return;
-
-		if ( !player.IsValid() )
-			return;
+		if ( spawnData.Cancelled || !player.IsValid() )
+			return false;
 
 		// If the prefab is a weapon, pick it up directly instead of spawning into the world
 		if ( !forceWorld )
@@ -92,14 +106,14 @@ public sealed partial class GameManager
 			{
 				var inventory = player.GetComponent<PlayerInventory>();
 				inventory.Pickup( prefab, true );
-				return;
+				return true;
 			}
 		}
 
 		var objects = await spawner.Spawn( transform, player );
 
 		if ( !scene.IsValid() || !player.IsValid() )
-			return;
+			return false;
 
 		if ( objects is { Count: > 0 } )
 		{
@@ -115,6 +129,9 @@ public sealed partial class GameManager
 				Player = player?.Network.Owner,
 				Objects = objects
 			} ) );
+			return true;
 		}
+
+		return false;
 	}
 }

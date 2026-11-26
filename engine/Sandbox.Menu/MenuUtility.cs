@@ -571,6 +571,14 @@ public class StoragePublish
 
 	public async Task Submit()
 	{
+		var preview = Thumbnail?.ToPng();
+		var extension = "png";
+		if ( preview?.Length >= Workshop.MaxPreviewBytes )
+		{
+			preview = Workshop.EncodePreviewJpeg( Thumbnail ) ?? throw new InvalidOperationException( "Workshop preview exceeds Steam's 1 MiB limit." );
+			extension = "jpg";
+		}
+
 		if ( PublishedFileId != 0 )
 		{
 			item = Sandbox.Services.Ugc.OpenItem( PublishedFileId );
@@ -605,10 +613,10 @@ public class StoragePublish
 		}
 
 		// Save thumbnail to a temp file
-		if ( Thumbnail != null )
+		if ( preview != null )
 		{
-			_imagePath = System.IO.Path.GetTempFileName() + ".png";
-			System.IO.File.WriteAllBytes( _imagePath, Thumbnail.ToPng() );
+			_imagePath = System.IO.Path.Combine( System.IO.Path.GetTempPath(), $"{Guid.NewGuid()}.{extension}" );
+			System.IO.File.WriteAllBytes( _imagePath, preview );
 			item.SetPreviewImage( _imagePath );
 		}
 

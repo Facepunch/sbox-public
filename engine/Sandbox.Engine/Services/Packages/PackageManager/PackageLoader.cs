@@ -293,7 +293,7 @@ internal sealed partial class PackageLoader : IDisposable
 
 	private List<FileWatch> dllWatchers = new();
 
-	private bool LoadPackage( string ident, bool exactName = false )
+	private void LoadPackage( string ident, bool exactName = false )
 	{
 		log.Trace( $"LoadPackage( {ident} )" );
 		var sw = Stopwatch.StartNew();
@@ -307,10 +307,8 @@ internal sealed partial class PackageLoader : IDisposable
 		}
 
 		loadedPackages.RemoveWhere( x => x.FileSystem is null );
-		if ( loadedPackages.Contains( ap ) )
-			return true;
-
-		loadedPackages.Add( ap );
+		if ( !loadedPackages.Add( ap ) )
+			return;
 
 		// if this is a local package, we can watch for dll changes
 		if ( ap.Package is LocalPackage packageLocal )
@@ -366,7 +364,6 @@ internal sealed partial class PackageLoader : IDisposable
 		}
 
 		log.Trace( $"LoadPackage {ident} took {sw.Elapsed.TotalSeconds:0.00}s" );
-		return true;
 	}
 
 	private void LoadAllAssembliesFromPackage( PackageManager.ActivePackage package )
@@ -649,10 +646,9 @@ internal sealed partial class PackageLoader : IDisposable
 	}
 
 	/// <summary>
-	/// Called by Enroller to get the assemblies associated with a package. If deep is true then
-	/// this should return all assemblies needed by this package and its dependencies.
+	/// Returns the loaded assemblies for a package and its dependencies.
 	/// </summary>
-	public LoadedAssembly[] GetLoadedAssemblies( string packageIdent, bool deep, bool allowEditor )
+	private LoadedAssembly[] GetLoadedAssemblies( string packageIdent )
 	{
 		var package = PackageManager.Find( packageIdent );
 		if ( package is null ) return Array.Empty<LoadedAssembly>();
@@ -661,24 +657,13 @@ internal sealed partial class PackageLoader : IDisposable
 
 		HashSet<LoadedAssembly> foundList = new();
 
-		if ( deep )
+		foreach ( var child in package.Package.EnumeratePackageReferences() )
 		{
-			foreach ( var child in package.Package.EnumeratePackageReferences() )
-			{
-				var children = GetLoadedAssemblies( child, deep, allowEditor );
-				if ( children.Length == 0 ) continue;
-
-				foreach ( var c in children )
-					foundList.Add( c );
-			}
+			foundList.UnionWith( GetLoadedAssemblies( child ) );
 		}
 
 		foreach ( var assemblyName in assemblyList.OrderBy( x => x.Length ) )
 		{
-			// don't load editor dlls here unless we're in tools mode
-			if ( assemblyName.EndsWith( ".editor.dll", StringComparison.OrdinalIgnoreCase ) && !allowEditor )
-				continue;
-
 			var withoutExtension = System.IO.Path.GetFileNameWithoutExtension( assemblyName );
 			var found = Loaded.FirstOrDefault( x => x.Name == withoutExtension );
 			if ( found is not null )

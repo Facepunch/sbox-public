@@ -486,6 +486,34 @@ public class LabelTextTest
 	}
 
 	/// <summary>
+	/// A drag starting at the end of one label copies only the selected text from the next label.
+	/// </summary>
+	[TestMethod]
+	[DataRow( "12:34:56", "hello", 1, int.MaxValue, "ello" )]
+	[DataRow( "e\u0301😀", "a😀e\u0301", int.MaxValue, 1, "😀e\u0301" )]
+	public void ClipboardSkipsSelectionCollapsedAtLabelEnd( string firstText, string nextText, int start, int end, string expected )
+	{
+		var root = CreateRoot();
+		root.AllowChildSelection = true;
+		var first = root.AddChild<Label>();
+		first.Text = firstText;
+		var next = root.AddChild<Label>();
+		next.Text = nextText;
+		root.Layout();
+
+		first.ShouldDrawSelection = true;
+		first.SelectionStart = first.TextLength;
+		first.SelectionEnd = int.MaxValue;
+
+		next.ShouldDrawSelection = true;
+		next.SelectionStart = start;
+		next.SelectionEnd = end;
+
+		Assert.AreEqual( expected, root.GetClipboardValue( false ) );
+		Assert.IsFalse( first.HasSelection() );
+	}
+
+	/// <summary>
 	/// SetSelection clamps its arguments to the text length, so selecting past the end of the
 	/// text selects up to the last character.
 	/// </summary>

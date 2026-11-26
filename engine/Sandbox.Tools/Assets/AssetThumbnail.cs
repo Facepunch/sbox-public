@@ -26,32 +26,7 @@ static class AssetThumbnail
 		return GetAssetThumb( asset )?.ptr ?? default;
 	}
 
-	/// <summary>
-	/// Return the editor thumbnail as a bitmap, rendering it only after the caches miss.
-	/// </summary>
-	internal static async Task<Bitmap> GetThumbnailBitmapAsync( Asset asset, string filename )
-	{
-		var thumb = FindCachedThumbnail( asset );
-		if ( thumb is null )
-		{
-			// An authored preview override has priority over the generic model icon.
-			if ( asset.AssetType?.FileExtension == "vmdl" && asset.thumbnailOverride is null
-				&& new ThumbnailCache( filename ).LoadBitmap() is { } cached )
-				return cached;
-
-			QueueThumbBuild( asset );
-			while ( RenderQueue.Contains( asset ) || RenderingList.Contains( asset ) )
-			{
-				await Task.Delay( 100 );
-			}
-
-			thumb = asset.CachedThumbnail ??= asset.AssetType?.Icon256;
-		}
-
-		return thumb is null ? null : Bitmap.CreateFromBytes( thumb.GetPng() );
-	}
-
-	static Pixmap FindCachedThumbnail( Asset asset )
+	internal static Pixmap GetAssetThumb( Asset asset, bool generateIfNotInCache = true )
 	{
 		ArgumentNullException.ThrowIfNull( asset, nameof( asset ) );
 
@@ -61,14 +36,11 @@ static class AssetThumbnail
 		}
 
 		var fullPath = GetThumbnailFile( asset, false );
-		if ( !System.IO.File.Exists( fullPath ) ) return null;
-
-		return asset.CachedThumbnail = Pixmap.FromFile( fullPath );
-	}
-
-	internal static Pixmap GetAssetThumb( Asset asset, bool generateIfNotInCache = true )
-	{
-		if ( FindCachedThumbnail( asset ) is { } cached ) return cached;
+		if ( System.IO.File.Exists( fullPath ) )
+		{
+			asset.CachedThumbnail = Pixmap.FromFile( fullPath );
+			if ( asset.CachedThumbnail is not null ) return asset.CachedThumbnail;
+		}
 
 		if ( asset.AssetType != null )
 		{
@@ -189,7 +161,6 @@ static class AssetThumbnail
 			return asset.thumbnailOverride;
 		}
 
-		var extension = asset.AssetType.FileExtension;
 		var methods = EditorTypeLibrary.GetMethodsWithAttribute<Asset.ThumbnailRendererAttribute>();
 
 		foreach ( var t in methods.OrderByDescending( x => x.Attribute.Priority ) )

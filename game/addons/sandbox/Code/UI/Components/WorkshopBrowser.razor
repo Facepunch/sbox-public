@@ -1,0 +1,53 @@
+@using Sandbox.UI
+@inherits Panel
+@namespace Sandbox
+
+@{ var map = CurrentMap; }
+@if ( IsDupe || !string.IsNullOrEmpty( map ) )
+{
+    var filters = IsDupe ? SandboxWorkshop.DupeFilters( Category ) : SandboxWorkshop.SaveFilters( map, Category );
+    <WorkshopGrid @key=@map KeyValues=@filters Author=@(MyUploads ? Connection.Local.SteamId : default) EmptySubtitle=@EmptySubtitle>
+        <Card Context="item">
+            <WorkshopIcon Item=@item IsDupe=@IsDupe OnActivate=@(() => Activate( item )) />
+        </Card>
+    </WorkshopGrid>
+}
+else
+{
+    <SpawnMenuEmptyState Icon="save" Title="#spawnmenu.saves.empty_workshop" />
+}
+
+@code
+{
+    /// <summary>
+    /// Browse dupes across maps. Saves are scoped to the host's current map.
+    /// </summary>
+    public bool IsDupe { get; set; }
+
+    /// <summary>
+    /// Show the local player's uploads, including their unlisted saves.
+    /// </summary>
+    public bool MyUploads { get; set; }
+
+    /// <summary>
+    /// Limits results to the selected Workshop category.
+    /// </summary>
+    public string Category { get; set; }
+
+    string CurrentMap => !IsDupe && Networking.IsHost && !HasClass( "hidden" ) ? SaveSystem.Current?.CurrentMap : null;
+    string EmptySubtitle => IsDupe ? "#spawnmenu.empty.try_another_category" : "#spawnmenu.saves.empty_workshop";
+
+    void Activate( Storage.QueryItem item )
+    {
+        if ( IsDupe )
+        {
+            _ = DuplicatorTool.FromWorkshop( item );
+        }
+        else
+        {
+            _ = SavesPage.Load( this, system => system.LoadWorkshop( item ) );
+        }
+    }
+
+    protected override int BuildHash() => HashCode.Combine( IsDupe, Category, MyUploads, CurrentMap );
+}

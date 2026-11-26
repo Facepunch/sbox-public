@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using System.Threading;
 using Sandbox.ContentBuild;
@@ -426,6 +427,7 @@ public class ContentBuilderTests
 		fx.Compiler.During = _ => cancel.Cancel();
 		var report = await ContentBuilder.BuildAsync( new BuildRequest { Roots = [new ContentRoot( "unit", fx.Root, fx.State )] }, fx.Compiler, cancel.Token );
 		Assert.IsTrue( report.Cancelled );
+		Assert.IsFalse( report.CanCleanSharedOutputs );
 		Assert.AreEqual( original, fx.Read( "a.vtex_c" ) );
 		fx.Compiler.During = null;
 		AssertJobs( fx.Build( lockTimeout: TimeSpan.Zero ), "a.vtex" );
@@ -1288,6 +1290,374 @@ public class ContentBuilderTests
 		CollectionAssert.AreEqual( new[] { "a.vtex" }, report.Removed.ToArray() );
 		Assert.IsFalse( fx.Exists( "a.vtex_c" ) );
 		Assert.IsTrue( fx.Exists( "shipped.sound_c" ) );
+	}
+
+	/// <summary>
+	/// A damaged cache entry can be adopted again while intact entries still identify obsolete outputs.
+	/// </summary>
+	[DataTestMethod]
+	[DataRow( "S" )]
+	[DataRow( "null" )]
+	[DataRow( "{}" )]
+	public void MalformedRecordOnlyInvalidatesItsSource( string contents )
+	{
+		using var fx = new Fixture();
+		fx.Write( "a.vtex", "red" );
+		Assert.IsTrue( fx.Build().Success );
+		var record = Directory.GetFiles( Path.Combine( fx.State, "records" ), "*.json" ).Single();
+
+		fx.Write( "b.vtex", "blue", "child old.vtex_c old" );
+		fx.Write( "c.vtex", "green" );
+		Assert.IsTrue( fx.Build().Success );
+		File.WriteAllText( record, contents );
+		fx.Write( "b.vtex", "blue" );
+
+		var report = fx.Build();
+
+		Assert.IsTrue( report.Success, report.Log.ToString() );
+		AssertJobs( report, "b.vtex" );
+		CollectionAssert.AreEqual( new[] { "a.vtex" }, report.Adopted.ToArray() );
+		Assert.IsFalse( fx.Exists( "old.vtex_c" ) );
+		Assert.AreEqual( contents, File.ReadAllText( record + ".invalid" ) );
+
+		var next = fx.Build();
+		Assert.IsTrue( next.Success, next.Log.ToString() );
+		AssertJobs( next );
+		Assert.AreEqual( 0, next.Adopted.Count );
+	}
+
+	/// <summary>
+	/// A readable but incomplete record must never certify an absent primary output as current.
+	/// </summary>
+	[DataTestMethod]
+	[DataRow( "primary" )]
+	[DataRow( "Inputs" )]
+	[DataRow( "Outputs" )]
+	public void IncompleteRecordRebuildsMissingOutput( string missing )
+	{
+		using var fx = new Fixture();
+		fx.Write( "a.vtex", "red" );
+		Assert.IsTrue( fx.Build().Success );
+		var file = Directory.GetFiles( Path.Combine( fx.State, "records" ) ).Single();
+		var record = JsonNode.Parse( File.ReadAllText( file ) ).AsObject();
+
+		if ( missing == "primary" ) record["Outputs"].AsObject().Remove( "a.vtex_c" );
+		else if ( missing == "Inputs" ) record.Remove( missing );
+		else record[missing] = null;
+
+		File.WriteAllText( file, record.ToJsonString() );
+		File.Delete( Path.Combine( fx.Root, "a.vtex_c" ) );
+
+		var report = fx.Build();
+
+		Assert.IsTrue( report.Success, report.Log.ToString() );
+		AssertJobs( report, "a.vtex" );
+		Assert.IsTrue( fx.Exists( "a.vtex_c" ) );
+		Assert.IsTrue( File.Exists( file + ".invalid" ) );
+	}
+
+	/// <summary>
+	/// Selected builds preserve a shared child until its other owner has a record again.
+	/// </summary>
+	[TestMethod]
+	public void QuarantinedOwnerKeepsSharedChildAcrossBuilds()
+	{
+		using var fx = new Fixture();
+		fx.Write( "a.vtex", "child shared.vtex_c same" );
+		Assert.IsTrue( fx.Build().Success );
+		var file = Directory.GetFiles( Path.Combine( fx.State, "records" ) ).Single();
+		fx.Write( "b.vtex", "child shared.vtex_c same", "child obsolete.vtex_c old", "child replaced.vtex_c old" );
+		Assert.IsTrue( fx.Build().Success );
+		File.WriteAllText( file, "S" );
+
+		Assert.IsFalse( fx.Build( select: [] ).CanCleanSharedOutputs );
+		fx.Write( "b.vtex", "blue" );
+		var selected = fx.Build( select: ["b.vtex"] );
+
+		Assert.IsTrue( selected.Success, selected.Log.ToString() );
+		AssertJobs( selected, "b.vtex" );
+		StringAssert.Contains( fx.Read( "b.vtex_c" ), "blue" );
+		Assert.IsFalse( selected.CanCleanSharedOutputs );
+		Assert.AreEqual( "same", fx.Read( "shared.vtex_c" ) );
+
+		Assert.IsTrue( fx.Exists( "obsolete.vtex_c" ) );
+		File.WriteAllText( Path.Combine( fx.Root, "replaced.vtex_c" ), "replacement" );
+		var recovered = fx.Build();
+		Assert.IsTrue( recovered.Success, recovered.Log.ToString() );
+		Assert.IsTrue( recovered.CanCleanSharedOutputs );
+		Assert.AreEqual( "same", fx.Read( "shared.vtex_c" ) );
+		Assert.IsFalse( fx.Exists( "obsolete.vtex_c" ) );
+		Assert.AreEqual( "replacement", fx.Read( "replaced.vtex_c" ) );
+		File.Delete( Path.Combine( fx.Root, "a.vtex" ) );
+		Assert.IsTrue( fx.Build().Success );
+		Assert.IsFalse( fx.Exists( "shared.vtex_c" ) );
+	}
+
+	/// <summary>
+	/// A producer can publish while an unknown owner still needs its new output to recover.
+	/// </summary>
+	[TestMethod]
+	public void ProducerPublishesBeforeItsDependentRecoversOwnership()
+	{
+		using var fx = new Fixture();
+		fx.Write( "material.vmat", "reads texture.vtex", "child shared.vtex_c same" );
+		Assert.IsTrue( fx.Build().Success );
+		var record = Directory.GetFiles( Path.Combine( fx.State, "records" ) ).Single();
+
+		fx.Write( "texture.vtex", "red", "child shared.vtex_c same", "child obsolete.vtex_c old" );
+		Assert.IsTrue( fx.Build().Success );
+		fx.Write( "reader.vmat", "reads obsolete.vtex" );
+		Assert.IsTrue( fx.Build().Success );
+		StringAssert.Contains( fx.Read( "reader.vmat_c" ), "old" );
+
+		File.WriteAllText( record, "S" );
+		File.Delete( Path.Combine( fx.Root, "material.vmat_c" ) );
+		fx.Write( "texture.vtex", "blue" );
+
+		var report = fx.Build();
+
+		Assert.IsTrue( report.Success, report.Log.ToString() );
+		StringAssert.Contains( fx.Read( "material.vmat_c" ), "blue" );
+		Assert.AreEqual( "same", fx.Read( "shared.vtex_c" ) );
+		Assert.IsFalse( fx.Exists( "obsolete.vtex_c" ) );
+		StringAssert.Contains( fx.Read( "reader.vmat_c" ), "missing" );
+		AssertJobs( fx.Build() );
+	}
+
+	/// <summary>
+	/// Damaged cleanup metadata leaves files in place and does not prevent the next build.
+	/// </summary>
+	[TestMethod]
+	public void MalformedDeferredDeletesPreserveFiles()
+	{
+		using var fx = new Fixture();
+		fx.Write( "a.vtex", "red" );
+		Assert.IsTrue( fx.Build().Success );
+		fx.Write( "unclaimed.vtex_c", "keep" );
+		var list = Path.Combine( fx.State, "deferred-deletes.json" );
+		File.WriteAllText( list, "S" );
+
+		Assert.IsTrue( fx.Build().Success );
+		Assert.IsTrue( fx.Exists( "unclaimed.vtex_c" ) );
+		Assert.AreEqual( "S", File.ReadAllText( list + ".invalid" ) );
+	}
+
+	/// <summary>
+	/// A deferred delete written before a failed commit cannot remove an output the restored record still owns.
+	/// </summary>
+	[TestMethod]
+	public void RolledBackProducerStillOwnsItsDeferredOutput()
+	{
+		using var fx = new Fixture();
+		fx.Write( "a.vtex", "red" );
+		Assert.IsTrue( fx.Build().Success );
+		var record = Directory.GetFiles( Path.Combine( fx.State, "records" ) ).Single();
+		fx.Write( "b.vtex", "blue", "child old.vtex_c original" );
+		Assert.IsTrue( fx.Build().Success );
+
+		File.WriteAllText( record, "S" );
+		fx.Write( "b.vtex", "green" );
+		Assert.ThrowsException<IOException>( () => fx.Build( select: ["b.vtex"], beforeCommit: _ => throw new IOException( "crash" ) ) );
+		File.Delete( Path.Combine( fx.Root, "a.vtex" ) );
+
+		Assert.IsTrue( fx.Build( select: [] ).Success );
+		StringAssert.Contains( fx.Read( "b.vtex_c" ), "blue" );
+		Assert.AreEqual( "original", fx.Read( "old.vtex_c" ) );
+
+		Assert.IsTrue( fx.Build().Success );
+		Assert.IsFalse( fx.Exists( "old.vtex_c" ) );
+	}
+
+	/// <summary>
+	/// Full builds recover ownership, remove only obsolete files, and rebuild readers against the cleaned root.
+	/// </summary>
+	[DataTestMethod]
+	[DataRow( false )]
+	[DataRow( true )]
+	public void DeletedSourceIsCleanedInTheBuildThatRecoversItsCoOwner( bool needsCompile )
+	{
+		using var fx = new Fixture();
+		fx.Write( "live.vmat", "child shared.vtex_c same", "reads deleted.vtex" );
+		Assert.IsTrue( fx.Build().Success );
+		var records = Path.Combine( fx.State, "records" );
+		var live = Directory.GetFiles( records ).Single();
+
+		fx.Write( "deleted.vtex", "old", "child shared.vtex_c same" );
+		fx.Write( "reader.vmat", "reads deleted.vtex" );
+		Assert.IsTrue( fx.Build().Success );
+		StringAssert.Contains( fx.Read( "live.vmat_c" ), "old" );
+		File.Delete( Path.Combine( fx.Root, "deleted.vtex" ) );
+		File.WriteAllText( live, "S" );
+		if ( needsCompile ) File.Delete( Path.Combine( fx.Root, "live.vmat_c" ) );
+
+		var report = fx.Build();
+
+		Assert.IsTrue( report.Success, report.Log.ToString() );
+		CollectionAssert.AreEqual( new[] { "deleted.vtex" }, report.Removed.ToArray() );
+		Assert.AreEqual( "same", fx.Read( "shared.vtex_c" ) );
+		Assert.IsFalse( fx.Exists( "deleted.vtex_c" ) );
+		StringAssert.Contains( fx.Read( "live.vmat_c" ), "missing" );
+		StringAssert.Contains( fx.Read( "reader.vmat_c" ), "missing" );
+		AssertJobs( fx.Build() );
+	}
+
+	/// <summary>
+	/// A hidden owner prevents a full build from certifying readers of retained outputs until it is visible again.
+	/// </summary>
+	[TestMethod]
+	public void HiddenQuarantinedOwnerWithholdsCurrentUntilCleanupRecovers()
+	{
+		using var fx = new Fixture();
+		string[] roots = ["unit", "overlay"];
+		fx.Write( "covered.vtex", "child shared.vtex_c keep" );
+		Assert.IsTrue( BuildRoots( fx, ["unit"] ).Success );
+		var record = Directory.GetFiles( Path.Combine( fx.Dir, "state-unit", "records" ) ).Single();
+
+		fx.Write( "deleted.vtex", "old", "child shared.vtex_c keep" );
+		fx.Write( "reader.vmat", "reads deleted.vtex" );
+		WriteIn( fx, "overlay/downstream.vmat", "reads unit:reader.vmat" );
+		Assert.IsTrue( BuildRoots( fx, roots ).Success );
+		var downstream = Path.Combine( fx.Dir, "overlay", "downstream.vmat" );
+		StringAssert.Contains( File.ReadAllText( downstream + "_c" ), "old" );
+
+		File.WriteAllText( record, "S" );
+		WriteIn( fx, "overlay/covered.vtex", "visible" );
+		var hidden = BuildRoots( fx, roots );
+		Assert.IsTrue( hidden.Success, hidden.Log.ToString() );
+		Assert.IsFalse( hidden.CanCleanSharedOutputs );
+		Assert.IsTrue( hidden.Current.Contains( downstream ) );
+
+		File.Delete( Path.Combine( fx.Root, "deleted.vtex" ) );
+		for ( var pass = 0; pass < 2; pass++ )
+		{
+			var blocked = BuildRoots( fx, roots );
+			Assert.IsFalse( blocked.Success );
+			Assert.IsNull( blocked.Error );
+			CollectionAssert.AreEqual( new[] { "unit:covered.vtex" }, blocked.Failed.ToArray() );
+			StringAssert.Contains( blocked.Log.ToString(), record + ".invalid" );
+			Assert.AreEqual( 0, blocked.Current.Count );
+			Assert.IsFalse( blocked.CanCleanSharedOutputs );
+			Assert.IsTrue( fx.Exists( "deleted.vtex_c" ) );
+			Assert.AreEqual( "keep", fx.Read( "shared.vtex_c" ) );
+			AssertJobs( blocked );
+		}
+
+		File.Delete( Path.Combine( fx.Dir, "overlay", "covered.vtex" ) );
+		var recovered = BuildRoots( fx, roots );
+		Assert.IsTrue( recovered.Success, recovered.Log.ToString() );
+		Assert.IsTrue( recovered.CanCleanSharedOutputs );
+		Assert.IsTrue( recovered.Current.Contains( downstream ) );
+		Assert.IsFalse( fx.Exists( "deleted.vtex_c" ) );
+		Assert.AreEqual( "keep", fx.Read( "shared.vtex_c" ) );
+		StringAssert.Contains( fx.Read( "reader.vmat_c" ), "missing" );
+		StringAssert.Contains( File.ReadAllText( downstream + "_c" ), "missing" );
+		AssertJobs( BuildRoots( fx, roots ) );
+	}
+
+	/// <summary>
+	/// A locked candidate can be checked on a later build. A replacement no longer blocks current stamps.
+	/// </summary>
+	[TestMethod]
+	public void HiddenOwnerWithLockedCleanupCandidateCanRetry()
+	{
+		using var fx = new Fixture();
+		fx.Write( "covered.vtex", "original" );
+		Assert.IsTrue( BuildRoots( fx, ["unit"] ).Success );
+		var record = Directory.GetFiles( Path.Combine( fx.Dir, "state-unit", "records" ) ).Single();
+
+		fx.Write( "producer.vtex", "child obsolete.vtex_c old" );
+		Assert.IsTrue( BuildRoots( fx, ["unit"] ).Success );
+		File.WriteAllText( record, "S" );
+		WriteIn( fx, "overlay/covered.vtex", "visible" );
+		fx.Write( "producer.vtex", "new" );
+		string[] roots = ["unit", "overlay"];
+		var selected = BuildRoots( fx, roots, ["unit/producer.vtex"] );
+		Assert.IsTrue( selected.Success, selected.Log.ToString() );
+		Assert.IsFalse( selected.CanCleanSharedOutputs );
+
+		var candidate = Path.Combine( fx.Root, "obsolete.vtex_c" );
+		using ( File.Open( candidate, FileMode.Open, FileAccess.ReadWrite, FileShare.None ) )
+		{
+			var locked = BuildRoots( fx, roots );
+			StringAssert.Contains( locked.Error, "Could not check deferred cleanup" );
+			Assert.AreEqual( 0, locked.Current.Count );
+		}
+
+		File.WriteAllText( candidate, "replacement" );
+		var retried = BuildRoots( fx, roots );
+		Assert.IsTrue( retried.Success, retried.Log.ToString() );
+		Assert.IsTrue( retried.Current.Contains( Path.Combine( fx.Root, "producer.vtex" ) ) );
+		Assert.IsFalse( retried.CanCleanSharedOutputs );
+		Assert.AreEqual( "replacement", fx.Read( "obsolete.vtex_c" ) );
+	}
+
+	/// <summary>
+	/// The source and job identify a commit even when its cached build details need replacing.
+	/// </summary>
+	[DataTestMethod]
+	[DataRow( false )]
+	[DataRow( true )]
+	public void JournalRecoveryOnlyNeedsTheCommitIdentity( bool committed )
+	{
+		using var fx = new Fixture();
+		fx.Write( "a.vtex", "red" );
+		Assert.IsTrue( fx.Build().Success );
+		var file = Directory.GetFiles( Path.Combine( fx.State, "records" ) ).Single();
+		var marker = JsonNode.Parse( File.ReadAllText( file ) ).AsObject();
+		var original = fx.Read( "a.vtex_c" );
+
+		fx.Write( "a.vtex", "blue" );
+		Assert.ThrowsException<IOException>( () => fx.Build( beforeCommit: _ => throw new IOException( "crash" ) ) );
+		var journal = Directory.GetFiles( Path.Combine( fx.State, "journal" ) ).Single();
+		var published = fx.Read( "a.vtex_c" );
+		if ( committed ) marker["Job"] = Path.GetFileNameWithoutExtension( journal );
+		marker["Inputs"] = null;
+		File.WriteAllText( file, marker.ToJsonString() );
+
+		Assert.IsTrue( fx.Build( select: [] ).Success );
+		Assert.AreEqual( committed ? published : original, fx.Read( "a.vtex_c" ) );
+		Assert.IsFalse( File.Exists( journal ) );
+		Assert.IsTrue( File.Exists( file + ".invalid" ) );
+	}
+
+	/// <summary>
+	/// A pending publication needs its commit marker before recovery can change any files.
+	/// </summary>
+	[DataTestMethod]
+	[DataRow( "S" )]
+	[DataRow( "{}" )]
+	[DataRow( "null" )]
+	[DataRow( "missing job" )]
+	[DataRow( "wrong source" )]
+	public void MalformedCommitMarkerPreservesPendingPublication( string contents )
+	{
+		using var fx = new Fixture();
+		fx.Write( "a.vtex", "red" );
+		Assert.IsTrue( fx.Build().Success );
+		var record = Directory.GetFiles( Path.Combine( fx.State, "records" ), "*.json" ).Single();
+		var marker = File.ReadAllText( record );
+		var original = fx.Read( "a.vtex_c" );
+
+		fx.Write( "a.vtex", "blue" );
+		Assert.ThrowsException<IOException>( () => fx.Build( beforeCommit: _ => throw new IOException( "crash" ) ) );
+		var published = fx.Read( "a.vtex_c" );
+		if ( contents is "missing job" or "wrong source" )
+		{
+			var incomplete = JsonNode.Parse( marker ).AsObject();
+			if ( contents == "missing job" ) incomplete.Remove( "Job" );
+			else incomplete["Source"] = "other.vtex";
+			contents = incomplete.ToJsonString();
+		}
+		File.WriteAllText( record, contents );
+
+		Assert.ThrowsException<JsonException>( () => fx.Build( select: [] ) );
+		Assert.AreEqual( published, fx.Read( "a.vtex_c" ) );
+		Assert.AreEqual( contents, File.ReadAllText( record ) );
+		Assert.AreEqual( 1, Directory.GetFiles( Path.Combine( fx.State, "journal" ) ).Length );
+
+		File.WriteAllText( record, marker );
+		Assert.IsTrue( fx.Build( select: [] ).Success );
+		Assert.AreEqual( original, fx.Read( "a.vtex_c" ) );
 	}
 
 	[TestMethod]

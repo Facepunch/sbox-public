@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 
@@ -74,7 +75,7 @@ namespace Sandbox.Upgraders
 
 			if ( oldMethod.IsGenericMethodDefinition || oldMethod.IsConstructedGenericMethod )
 			{
-				return newMethod.IsGenericMethodDefinition;
+				return newMethod.IsGenericMethodDefinition && oldMethod.GetGenericArguments().Length == newMethod.GetGenericArguments().Length;
 			}
 
 			return !newMethod.IsGenericMethodDefinition;
@@ -93,23 +94,26 @@ namespace Sandbox.Upgraders
 			var match = newType.GetMembers( bFlags )
 				.FirstOrDefault( x => IsMatchingMember( orig, x ) );
 
-			if ( orig is MethodInfo { IsConstructedGenericMethod: true } oldMethod
-				&& match is MethodInfo { IsGenericMethodDefinition: true } newMethod )
+			return orig is MethodInfo { IsConstructedGenericMethod: true } oldMethod && match is MethodInfo newMethod
+				? BindGenericArguments( newMethod, oldMethod.GetGenericArguments() )
+				: match;
+		}
+
+		internal MethodInfo BindGenericArguments( MethodInfo replacement, IEnumerable<Type> oldArguments )
+		{
+			var arguments = oldArguments.Select( GetNewType ).ToArray();
+			if ( arguments.Any( type => type is null ) )
+				return null;
+
+			try
 			{
-				var newTypeArgs = oldMethod
-					.GetGenericArguments()
-					.Select( GetNewType )
-					.ToArray();
-
-				if ( newTypeArgs.Any( x => x == null ) )
-				{
-					return null;
-				}
-
-				match = newMethod.MakeGenericMethod( newTypeArgs );
+				return replacement.MakeGenericMethod( arguments );
 			}
-
-			return match;
+			catch ( ArgumentException )
+			{
+				// The incoming definition can tighten its constraints.
+				return null;
+			}
 		}
 
 		protected override bool OnTryCreateNewInstance( object oldInstance, out object newInstance )

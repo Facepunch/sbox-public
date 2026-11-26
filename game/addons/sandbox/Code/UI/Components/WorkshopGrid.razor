@@ -1,0 +1,144 @@
+@using Sandbox;
+@using Sandbox.UI;
+@inherits Panel
+@namespace Sandbox
+
+<SpawnMenuContent>
+
+    <Header>
+        @if ( Author == 0 )
+        {
+            <WorkshopToolbar Filter:bind=@Filter SortOrder:bind=@SortOrder />
+        }
+        else
+        {
+            <SpawnMenuToolbar>
+                <Left>
+                    <SpawnMenuSearchEntry Value:bind=@Filter />
+                </Left>
+            </SpawnMenuToolbar>
+        }
+    </Header>
+
+    <Body>
+        @if ( Items.Count == 0 && Loading )
+        {
+            <UILoadingState />
+        }
+        else if ( Items.Count == 0 )
+        {
+            <SpawnMenuEmptyState Icon="search_off" Subtitle=@EmptySubtitle />
+        }
+        else
+        {
+            <VirtualGrid Items=@Items ItemSize=@(new Vector2( 240, 240 )) OnLastCell="@LoadMore">
+                <Item Context="context">
+
+                    @if (context is Storage.QueryItem item)
+                    {
+                        @Card( item )
+                    }
+
+                </Item>
+            </VirtualGrid>
+        }
+    </Body>
+
+</SpawnMenuContent>
+
+@code
+{
+    /// <summary>
+    /// The workshop metadata required on every result.
+    /// </summary>
+    [Parameter] public Dictionary<string, string> KeyValues { get; set; }
+
+    /// <summary>
+    /// Restricts results to this Steam user's uploads. Steam returns these newest first.
+    /// </summary>
+    [Parameter] public SteamId Author { get; set; }
+
+    /// <summary>
+    /// Displays each result with the actions supported by this type of item.
+    /// </summary>
+    [Parameter] public RenderFragment<Storage.QueryItem> Card { get; set; }
+
+    /// <summary>
+    /// Describes an empty search result.
+    /// </summary>
+    [Parameter] public string EmptySubtitle { get; set; } = "#spawnmenu.empty.try_another_category";
+
+    string _filter;
+    string Filter
+    {
+        get => _filter;
+        set
+        {
+            if ( _filter == value ) return;
+            _filter = value;
+
+            if ( Author == 0 )
+            {
+                Rebuild();
+            }
+            else
+            {
+                StateHasChanged();
+            }
+        }
+    }
+
+    WorkshopSortMode _sortOrder = WorkshopSortMode.Newest;
+    WorkshopSortMode SortOrder
+    {
+        get => _sortOrder;
+        set
+        {
+            if ( _sortOrder == value ) return;
+            _sortOrder = value;
+            Rebuild();
+        }
+    }
+
+    Dictionary<string, string> previousFilters;
+    SteamId previousAuthor;
+
+    protected override Task OnParametersSetAsync()
+    {
+        // Rendering the result cards also reapplies parameters. Keep the current page until the query changes.
+        if ( previousAuthor == Author && previousFilters?.Count == KeyValues.Count
+            && KeyValues.All( x => previousFilters.TryGetValue( x.Key, out var value ) && value == x.Value ) )
+            return Task.CompletedTask;
+
+        previousAuthor = Author;
+        previousFilters = new( KeyValues );
+        return Pager.Restart();
+    }
+
+    WorkshopPager<Storage.QueryItem> _pager;
+    WorkshopPager<Storage.QueryItem> Pager => _pager ??= new( CreateQuery, item => item, StateHasChanged );
+
+    List<Storage.QueryItem> Items => Author != 0 && !string.IsNullOrWhiteSpace( Filter )
+        ? Pager.Items.Where( x => x.Title?.Contains( Filter, StringComparison.CurrentCultureIgnoreCase ) == true ).ToList()
+        : Pager.Items;
+    bool Loading => Pager.Loading;
+
+    // the first load comes from OnParametersSetAsync, initializers shouldn't start one too
+    void Rebuild()
+    {
+        if ( Pager.Started ) _ = Pager.Restart();
+    }
+
+    void LoadMore() => Pager.LoadMore();
+
+    Storage.Query CreateQuery()
+    {
+        var query = new Storage.Query { KeyValues = new( KeyValues ), Author = Author };
+        query.KeyValues["package"] = "facepunch.sandbox";
+        query.SortOrder = SortOrder.ToSortOrder();
+
+        if ( Author == 0 && !string.IsNullOrWhiteSpace( Filter ) ) query.SearchText = Filter;
+
+        return query;
+    }
+}

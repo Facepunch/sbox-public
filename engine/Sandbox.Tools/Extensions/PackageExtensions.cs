@@ -9,6 +9,11 @@ namespace Sandbox;
 public static partial class SandboxToolExtensions
 {
 	/// <summary>
+	/// Gets the project backing a local package. Published packages have no local project.
+	/// </summary>
+	public static Project GetLocalProject( this Package package ) => (package as LocalPackage)?.Project;
+
+	/// <summary>
 	/// Mark this package as a favourite
 	/// </summary>
 	public static async Task SetFavouriteAsync( this Package package, bool state )

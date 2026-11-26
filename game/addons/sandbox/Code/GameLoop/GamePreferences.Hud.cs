@@ -51,10 +51,6 @@ internal static partial class GamePreferences
 	[Group( "Interface" )]
 	public static bool DrawInteractionHints { get; set; } = true;
 
-	[ConVar( "sandbox.hud_chat", ConVarFlags.Saved )]
-	[Group( "Interface" )]
-	public static bool DrawChatMessages { get; set; } = true;
-
 	/// <summary>
 	/// Draws the list of who is talking
 	/// </summary>

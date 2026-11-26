@@ -7,160 +7,159 @@
 		position: absolute;
 		left: 0;
 		right: 0;
-		top: 100px;
+		top: 10vh;
 		flex-direction: column;
 		align-items: center;
 		font-family: $body-font;
+		color: $ui-text;
 		opacity: 0;
-		transition: opacity 0.1s ease-in;
+		pointer-events: none;
+		transition: opacity 0.1s ease-out;
 		z-index: 9199;
 
 		&.visible
 		{
 			opacity: 1;
-			transition: opacity 0.1s ease-out;
 			pointer-events: all;
 		}
-	}
 
-	Scoreboard .board
-	{
-		@include ui-block;
-		width: 700px;
-		flex-direction: column;
-		gap: 8px;
-	}
-
-	Scoreboard .heading
-	{
-		flex-direction: column;
-		align-items: center;
-		padding: 0 4px;
-
-		.hostname
+		.board
 		{
-			@include ui-display-heading;
+			width: 700px;
+			max-width: 94%;
+			flex-direction: column;
+			border-radius: 8px;
+			overflow: hidden;
+			backdrop-filter: blur( $ui-menu-blur );
 		}
 
-		.map
+		.heading
 		{
-			font-size: 13px;
+			flex-direction: column;
+			justify-content: center;
+			min-height: $ui-menu-title-height;
+			padding: 10px $spawn-menu-content-inset;
+			gap: 2px;
+			background-color: $ui-catalog-surface;
+			border-bottom: 1px solid $ui-separator;
+
+			.hostname
+			{
+				@include ui-ellipsis;
+				font-size: 20px;
+				font-weight: 600;
+				color: $ui-text-strong;
+			}
+
+			.map
+			{
+				@include ui-ellipsis;
+				font-size: 12px;
+				font-weight: 500;
+				color: $ui-text-label;
+			}
+		}
+
+		.section
+		{
+			flex-direction: column;
+			padding: 8px;
+			background-color: $ui-menu-body;
+		}
+
+		.title-bar, .row
+		{
+			align-items: center;
+			padding: 0 8px;
+			gap: 8px;
+			flex-shrink: 0;
+		}
+
+		.title-bar
+		{
+			height: $ui-menu-control-height;
+			color: $ui-text-muted;
+			font-size: 12px;
 			font-weight: 600;
-			color: $ui-subtext-on-gray;
-		}
-	}
-
-	Scoreboard .section
-	{
-		@include ui-table;
-		border-radius: 0px;
-	}
-
-	Scoreboard .title-bar
-	{
-		@include ui-table-header;
-		border-radius: 0px;
-		padding: 0 6px;
-	}
-
-	Scoreboard .rows
-	{
-		flex-direction: column;
-		max-height: 700px;
-		overflow-y: scroll;
-		@include ui-scroll;
-	}
-
-	Scoreboard .avatar-column
-	{
-		width: 32px;
-		flex-shrink: 0;
-	}
-
-	Scoreboard .name
-	{
-		flex-grow: 1;
-		min-width: 0px;
-		padding-left: 4px;
-		@include ui-ellipsis;
-	}
-
-	Scoreboard .stat
-	{
-		width: 64px;
-		flex-shrink: 0;
-		justify-content: center;
-		text-align: center;
-	}
-
-	Scoreboard .mute-column
-	{
-		width: 28px;
-		flex-shrink: 0;
-	}
-
-	Scoreboard .row
-	{
-		@include ui-table-row;
-		height: 40px;
-		padding: 0 6px;
-		gap: 8px;
-		font-size: 15px;
-		font-weight: 600;
-		@include ui-selectable;
-		border-radius: 0px;
-
-		&:hover
-		{
-			background-color: $ui-blue-soft;
 		}
 
-		.avatar-column
+		.rows
 		{
-			height: 32px;
-			border-radius: 2px;
-			border: 1px solid $ui-control-border;
+			@include ui-scroll;
+			flex-direction: column;
+			max-height: 64vh;
+			overflow-y: scroll;
+			gap: 2px;
+		}
+
+		.name
+		{
+			@include ui-ellipsis;
+			flex-grow: 1;
+			min-width: 0;
 		}
 
 		.stat
 		{
-			color: $ui-text-muted;
+			width: 60px;
+			flex-shrink: 0;
+			text-align: center;
 		}
 
-		&.me
+		.mute-column
 		{
-			background-color: $ui-blue-soft;
-			border-left: 3px solid $ui-blue;
-			padding-left: 3px;
+			width: $ui-menu-control-height;
+			flex-shrink: 0;
+		}
+
+		.row
+		{
+			@include ui-sidebar-row;
+			height: 40px;
+
+			.avatar-column
+			{
+				width: 28px;
+				height: 28px;
+				flex-shrink: 0;
+				border-radius: $ui-menu-radius;
+			}
 
 			.name
 			{
-				color: $ui-hover-text;
-			}
-		}
-
-		&.dead .name
-		{
-			opacity: 0.5;
-		}
-
-		.mute-btn
-		{
-			height: 28px;
-			justify-content: center;
-			align-items: center;
-			font-size: 18px;
-			color: $ui-text-muted;
-			cursor: pointer;
-
-			&:hover
-			{
-				color: $ui-blue;
+				font-weight: 600;
 			}
 
-			&.muted
+			.stat
 			{
-				color: $ui-danger;
+				color: $ui-text-label;
+			}
+
+			&.me
+			{
+				@include ui-selected( $ui-catalog-selected-bg );
+
+				.stat
+				{
+					color: $ui-selected-text;
+				}
+			}
+
+			&.dead .name
+			{
+				opacity: 0.5;
+			}
+
+			.mute-btn
+			{
+				@include ui-header-button;
+				height: $ui-menu-control-height;
+				font-size: 18px;
+
+				&.muted
+				{
+					color: $ui-danger;
+				}
 			}
 		}
 	}

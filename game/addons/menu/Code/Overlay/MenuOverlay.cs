@@ -6,9 +6,6 @@ using Sandbox.UI.Construct;
 public partial class MenuOverlay : RootPanel
 {
 	public static MenuOverlay Instance;
-	readonly Panel textureWebStreaming;
-	RealTimeSince sinceJoined = 0;
-	bool hasStreamedTextures;
 
 	/// <summary>
 	/// The workshop download overlay's own root, so it draws over every modal in this one. Roots are drawn last
@@ -72,10 +69,6 @@ public partial class MenuOverlay : RootPanel
 		AddChild<ChatOverlay>();
 		AddChild<VoiceChatOverlay>();
 
-		textureWebStreaming = AddChild<Panel>( "texture-web-streaming" );
-		textureWebStreaming.AddChild<Panel>( "spinner" );
-		textureWebStreaming.Add.Label( "Higher quality textures will download during gameplay", "label" );
-
 		// The party view owns its window and moves between here and the menu page.
 		AddChild<MenuProject.PartyDeck>();
 	}
@@ -83,16 +76,6 @@ public partial class MenuOverlay : RootPanel
 	public override void Tick()
 	{
 		base.Tick();
-
-		var playing = MenuUtility.GamePackage is not null && !LoadingScreen.IsVisible;
-		if ( !playing )
-		{
-			sinceJoined = 0;
-			hasStreamedTextures = false;
-		}
-		else if ( MenuUtility.IsTextureWebStreamingActive ) hasStreamedTextures = true;
-		// Explain streaming once after joining, without resurfacing throughout the game.
-		textureWebStreaming.SetClass( "active", playing && sinceJoined < 30 && hasStreamedTextures );
 
 		// The deck spends most of its time living in the menu page, and goes with it if the page is
 		// torn down (the avatar editor swaps the scene) - bring a new one back

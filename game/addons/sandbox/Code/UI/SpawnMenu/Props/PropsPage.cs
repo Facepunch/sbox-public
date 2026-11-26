@@ -49,18 +49,14 @@ public class PropsPage : SpawnlistsPage
 		AddSpawnlistOptions();
 
 		AddHeader( "#spawnmenu.section.workshop" );
-		AddOption( "apps", "#spawnmenu.props.all", () => new SpawnPageCloud { IncludeLocalProps = true } );
+		AddOption( "apps", "#spawnmenu.props.all", () => new SpawnPageCloud() );
 		AddOption( "person", "#spawnmenu.props.humans", () => new SpawnPageCloud() { Category = "human" } );
 		AddOption( "park", "#spawnmenu.props.nature", () => new SpawnPageCloud() { Category = "nature" } );
 		AddOption( "chair", "#spawnmenu.props.furniture", () => new SpawnPageCloud() { Category = "furniture" } );
 		AddOption( "pets", "#spawnmenu.props.animal", () => new SpawnPageCloud() { Category = "animal" } );
-		AddOption( "category", "#spawnmenu.props.props", () => new SpawnPageCloud { Category = "prop", LocalCategory = "props" } );
+		AddOption( "category", "#spawnmenu.props.props", () => new SpawnPageCloud { Category = "prop" } );
 		AddOption( "toys", "#spawnmenu.props.toy", () => new SpawnPageCloud() { Category = "toy" } );
 		AddOption( "restaurant", "#spawnmenu.props.food", () => new SpawnPageCloud() { Category = "food" } );
 		AddOption( "target", "#spawnmenu.props.guns", () => new SpawnPageCloud() { Category = "weapon" } );
-
-		AddHeader( "#spawnmenu.section.spawnlists_workshop" );
-		AddOption( "trending_up", "#spawnmenu.spawnlist.popular", () => new SpawnlistWorkshop { SortOrder = WorkshopSortMode.Popular } );
-		AddOption( "fiber_new", "#spawnmenu.spawnlist.newest", () => new SpawnlistWorkshop { SortOrder = WorkshopSortMode.Newest } );
 	}
 }

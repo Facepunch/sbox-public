@@ -227,6 +227,7 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 		using var request = new CancellationTokenSource();
 		pendingLoad = request;
 		var token = request.Token;
+		var owner = GameObject;
 		var snapshotContent = Networking.IsClient || (Scene?.IsLoadingSnapshot ?? false);
 		Action release = null;
 		bool acquired = false;
@@ -236,7 +237,7 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 			await mapLoadSemaphore.WaitAsync( token );
 			acquired = true;
 			_loadingSnapshotContent = snapshotContent;
-			GameObject.Flags |= GameObjectFlags.Loading;
+			owner.BeginLoading();
 
 			var map = await MapReference.ResolveAsync( mapName );
 			token.ThrowIfCancellationRequested();
@@ -288,7 +289,7 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 			if ( acquired )
 			{
 				_loadingSnapshotContent = false;
-				if ( GameObject.IsValid() ) GameObject.Flags &= ~GameObjectFlags.Loading;
+				owner?.EndLoading();
 				mapLoadSemaphore.Release();
 			}
 

@@ -1,0 +1,526 @@
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:modeldoc30:version{8c2d7a91-9c42-4bf0-883a-5a3b1762d4f1} -->
+{
+	rootNode =
+	{
+		_class = "RootNode"
+		children =
+		[
+			{
+				_class = "MaterialGroupList"
+				children =
+				[
+					{
+						_class = "DefaultMaterialGroup"
+						remaps =
+						[
+							{
+								from = "grit_box.vmat"
+								to = "models/sbox/street/grit_bin/materials/grit_bin.vmat"
+							},
+							{
+								from = "models/sbox_props/grit_box/grit_box.vmat"
+								to = "models/sbox/street/grit_bin/materials/grit_bin.vmat"
+							},
+						]
+						use_global_default = false
+						global_default_material = ""
+					},
+				]
+			},
+			{
+				_class = "PhysicsShapeList"
+				children =
+				[
+					{
+						_class = "PhysicsHullFile"
+						name = "grit_box"
+						parent_bone = "box"
+						surface_prop = "plastic.sheet"
+						collision_tags = "solid"
+						recenter_on_parent_bone = false
+						offset_origin = [ 0.0, 0.0, 0.0 ]
+						offset_angles = [ 0.0, 0.0, 0.0 ]
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						filename = "models/sbox/street/grit_bin/grit_bin.fbx"
+						import_scale = 1.0
+						faceMergeAngle = 10.0
+						maxHullVertices = 0
+						import_mode = "HullPerElement"
+						optimization_algorithm = "QEM"
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"grit_box_phys",
+							]
+						}
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = "lid"
+						surface_prop = "plastic.sheet"
+						collision_tags = "solid"
+						origin = [ 15.132873, 0.1405, -4.587809 ]
+						angles = [ 20.120001, 0.0, 0.0 ]
+						dimensions = [ 32.273106, 42.351448, 2.178205 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = "box"
+						surface_prop = "plastic.sheet"
+						collision_tags = "solid"
+						origin = [ 0.256458, 8.08325, 3.326701 ]
+						angles = [ 0.0, 90.0, 0.0 ]
+						dimensions = [ 8.785589, 22.892376, 0.571672 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = "box"
+						surface_prop = "plastic.sheet"
+						collision_tags = "solid"
+						origin = [ 0.256458, -8.137707, 3.326701 ]
+						angles = [ 0.0, 90.0, 0.0 ]
+						dimensions = [ 8.785589, 22.892376, 0.571672 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = "box"
+						surface_prop = "plastic.sheet"
+						collision_tags = "solid"
+						origin = [ -0.010273, 0.024555, 0.181056 ]
+						angles = [ 0.0, 90.0, 0.0 ]
+						dimensions = [ 7.894073, 23.425835, 0.307885 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = "box"
+						surface_prop = "plastic.sheet"
+						collision_tags = "solid"
+						origin = [ -0.010273, -15.735596, 0.181056 ]
+						angles = [ 0.0, 90.0, 0.0 ]
+						dimensions = [ 7.894073, 23.425835, 0.307885 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = "box"
+						surface_prop = "plastic.sheet"
+						collision_tags = "solid"
+						origin = [ -0.010273, 15.710264, 0.181056 ]
+						angles = [ 0.0, 90.0, 0.0 ]
+						dimensions = [ 7.894073, 23.425835, 0.307885 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = "box"
+						surface_prop = "plastic.sheet"
+						collision_tags = "solid"
+						origin = [ -0.010273, 12.409419, 1.663514 ]
+						angles = [ 83.79657, 90.0, 0.0 ]
+						dimensions = [ 3.242848, 23.425835, 0.307885 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = "box"
+						surface_prop = "plastic.sheet"
+						collision_tags = "solid"
+						origin = [ -0.010273, -3.619239, 1.663514 ]
+						angles = [ 83.79657, 90.0, 0.0 ]
+						dimensions = [ 3.242848, 23.425835, 0.307885 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = "box"
+						surface_prop = "plastic.sheet"
+						collision_tags = "solid"
+						origin = [ -0.010273, -12.544539, 1.663514 ]
+						angles = [ 83.79657, -90.283173, 0.0 ]
+						dimensions = [ 3.242848, 23.425835, 0.307885 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = "box"
+						surface_prop = "plastic.sheet"
+						collision_tags = "solid"
+						origin = [ -11.651635, 15.710264, 1.705608 ]
+						angles = [ 0.0, 90.0, 90.0 ]
+						dimensions = [ 7.894073, 3.578234, 0.307885 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = "box"
+						surface_prop = "plastic.sheet"
+						collision_tags = "solid"
+						origin = [ -11.703615, 0.127813, 1.705608 ]
+						angles = [ 0.0, 90.0, 90.0 ]
+						dimensions = [ 7.894073, 3.578234, 0.307885 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = "box"
+						surface_prop = "plastic.sheet"
+						collision_tags = "solid"
+						origin = [ -11.645329, -15.627237, 1.705608 ]
+						angles = [ 0.0, 90.0, 90.0 ]
+						dimensions = [ 7.894073, 3.578234, 0.307885 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = "box"
+						surface_prop = "plastic.sheet"
+						collision_tags = "solid"
+						origin = [ 12.079082, 15.710264, 1.705608 ]
+						angles = [ 0.0, 90.0, 100.286247 ]
+						dimensions = [ 7.894073, 3.578234, 0.307885 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = "box"
+						surface_prop = "plastic.sheet"
+						collision_tags = "solid"
+						origin = [ 12.079082, 0.044688, 1.705608 ]
+						angles = [ 0.0, 90.0, 100.286247 ]
+						dimensions = [ 7.894073, 3.578234, 0.307885 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = "box"
+						surface_prop = "plastic.sheet"
+						collision_tags = "solid"
+						origin = [ 12.079082, -15.84104, 1.705608 ]
+						angles = [ 0.0, 90.0, 100.286247 ]
+						dimensions = [ 7.894073, 3.578234, 0.307885 ]
+					},
+				]
+			},
+			{
+				_class = "RenderMeshList"
+				children =
+				[
+					{
+						_class = "RenderMeshFile"
+						name = "grit_box_lod0"
+						filename = "models/sbox/street/grit_bin/grit_bin.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = "box"
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"grit_box_lod0",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "grit_lid_lod0"
+						filename = "models/sbox/street/grit_bin/grit_bin.fbx"
+						import_translation = [ 15.25, 0.0, -28.625 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = "lid"
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"grit_lid_lod0",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "grit_box_lod1"
+						filename = "models/sbox/street/grit_bin/grit_bin.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = "box"
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"grit_box_lod1",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "grit_box_lod2"
+						filename = "models/sbox/street/grit_bin/grit_bin.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = "box"
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"grit_box_lod2",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "grit_box_lod3"
+						filename = "models/sbox/street/grit_bin/grit_bin.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = "box"
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"grit_box_lod3",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "grit_lid_lod1"
+						filename = "models/sbox/street/grit_bin/grit_bin.fbx"
+						import_translation = [ 15.25, 0.0, -28.625 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = "lid"
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"grit_lid_lod1",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "grit_lid_lod2"
+						filename = "models/sbox/street/grit_bin/grit_bin.fbx"
+						import_translation = [ 15.25, 0.0, -28.625 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = "lid"
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"grit_lid_lod2",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "grit_lid_lod3"
+						filename = "models/sbox/street/grit_bin/grit_bin.fbx"
+						import_translation = [ 15.25, 0.0, -28.625 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = "lid"
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"grit_lid_lod3",
+							]
+						}
+					},
+				]
+			},
+			{
+				_class = "Skeleton"
+				children =
+				[
+					{
+						_class = "Bone"
+						name = "lid"
+						origin = [ -15.25, 0.0, 28.625 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						do_not_discard = true
+					},
+					{
+						_class = "Bone"
+						name = "box"
+						origin = [ 0.0, 0.0, 0.0 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						do_not_discard = true
+					},
+				]
+			},
+			{
+				_class = "PhysicsJointList"
+				children =
+				[
+					{
+						_class = "PhysicsJointRevolute"
+						parent_body = "box"
+						child_body = "lid"
+						anchor_origin = [ -15.25, 0.0, 28.625 ]
+						anchor_angles = [ 18.299999, 0.0, -90.0 ]
+						collision_enabled = true
+						linear_strength = 0.0
+						angular_strength = 0.0
+						friction = 0.1
+						enable_limit = true
+						min_angle = -115.0
+						max_angle = 0.0
+					},
+				]
+			},
+			{
+				_class = "LODGroupList"
+				children =
+				[
+					{
+						_class = "LODGroup"
+						switch_threshold = 0.0
+						auto_simplify_mode = 0
+						auto_reduction = 0.5
+						auto_max_error = 0.0
+						auto_lock_border_vertices = true
+						auto_permissive_simplification = false
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						auto_strip_vertex_color = false
+						auto_material_culling_enabled = false
+						meshes =
+						[
+							"grit_box_lod0",
+							"grit_lid_lod0",
+						]
+						material_culls = [  ]
+					},
+					{
+						_class = "LODGroup"
+						switch_threshold = 17.370926
+						auto_simplify_mode = 0
+						auto_reduction = 0.5
+						auto_max_error = 0.0
+						auto_lock_border_vertices = true
+						auto_permissive_simplification = false
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						auto_strip_vertex_color = false
+						auto_material_culling_enabled = false
+						meshes =
+						[
+							"grit_lid_lod1",
+							"grit_box_lod1",
+						]
+						material_culls = [  ]
+					},
+					{
+						_class = "LODGroup"
+						switch_threshold = 62.988678
+						auto_simplify_mode = 0
+						auto_reduction = 0.5
+						auto_max_error = 0.0
+						auto_lock_border_vertices = true
+						auto_permissive_simplification = false
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						auto_strip_vertex_color = false
+						auto_material_culling_enabled = false
+						meshes =
+						[
+							"grit_box_lod2",
+							"grit_lid_lod2",
+						]
+						material_culls = [  ]
+					},
+					{
+						_class = "LODGroup"
+						switch_threshold = 166.894379
+						auto_simplify_mode = 0
+						auto_reduction = 0.5
+						auto_max_error = 0.0
+						auto_lock_border_vertices = true
+						auto_permissive_simplification = false
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						auto_strip_vertex_color = false
+						auto_material_culling_enabled = false
+						meshes =
+						[
+							"grit_box_lod3",
+							"grit_lid_lod3",
+						]
+						material_culls = [  ]
+					},
+				]
+			},
+			{
+				_class = "PhysicsBodyMarkupList"
+				children =
+				[
+					{
+						_class = "PhysicsBodyMarkup"
+						target_body = "box"
+						mass_override = 21.25
+						inertia_scale = 1.0
+						linear_damping = 0.04
+						angular_damping = 0.15
+						use_mass_center_override = true
+						mass_center_override = [ -3.0, 0.0, 8.0 ]
+						gravity_scale = 1.0
+					},
+					{
+						_class = "PhysicsBodyMarkup"
+						target_body = "lid"
+						mass_override = 3.75
+						inertia_scale = 1.0
+						linear_damping = 0.04
+						angular_damping = 0.15
+						use_mass_center_override = false
+						mass_center_override = [ 0.0, 0.0, 0.0 ]
+						gravity_scale = 1.0
+					},
+				]
+			},
+		]
+		model_archetype = "physics_prop_model"
+		primary_associated_entity = ""
+		anim_graph_name = ""
+		animation_graph_name = resource:""
+		skeleton_name = resource:""
+		base_model_name = ""
+	}
+}

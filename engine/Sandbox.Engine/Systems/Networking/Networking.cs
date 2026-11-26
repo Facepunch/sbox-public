@@ -534,6 +534,13 @@ public static partial class Networking
 		if ( IsActive )
 			return;
 
+		// The editor can resume scene play after a canceled join has unloaded the local game.
+		if ( Application.IsEditor && EngineFileSystem.ProjectSettings is null )
+		{
+			Log.Warning( "Unable to host a lobby until the editor has loaded the game's project settings." );
+			return;
+		}
+
 		lobbyCts?.Cancel();
 		lobbyCts = new();
 

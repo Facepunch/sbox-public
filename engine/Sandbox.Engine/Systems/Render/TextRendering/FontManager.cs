@@ -1,5 +1,6 @@
 ﻿using Sandbox.Engine;
 using SkiaSharp;
+using System.IO;
 using Topten.RichTextKit;
 
 namespace Sandbox;
@@ -86,7 +87,18 @@ internal class FontManager : FontMapper, ICharacterMatcher
 
 		foreach ( var file in watch.Changes )
 		{
-			Load( fileSystem.OpenRead( file ) );
+			Stream stream;
+			try
+			{
+				stream = fileSystem.OpenRead( file );
+			}
+			catch ( IOException e ) when ( e is FileNotFoundException or DirectoryNotFoundException )
+			{
+				// A deletion or unmount can leave a queued path with nothing to load.
+				continue;
+			}
+
+			Load( stream );
 		}
 	}
 

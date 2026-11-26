@@ -484,12 +484,14 @@ internal partial class NetworkSystem
 		return Task.CompletedTask;
 	}
 
-	async Task On_Handshake_Snapshot( InitialSnapshotResponse msg, Connection source, Guid msgId )
+	internal async Task On_Handshake_Snapshot( InitialSnapshotResponse msg, Connection source, Guid msgId )
 	{
 		NetworkDebugSystem.Current?.Record( NetworkDebugSystem.MessageType.Snapshot, msg );
 		Sandbox.Diagnostics.DevTools.NetworkLog.Message( Sandbox.Diagnostics.DevTools.NetworkLog.Kind.Snapshot, "SceneSnapshot", msg, false, source );
 
-		if ( !source.IsHost )
+		bool IsCurrentHost() => Networking.System == this && HostConnection == source && !IsDisconnecting && !IsDisconnected;
+
+		if ( !source.IsHost || !IsCurrentHost() )
 			return;
 
 		if ( Connection.Local is null )
@@ -506,6 +508,11 @@ internal partial class NetworkSystem
 		LoadingScreen.Title = "Loading Snapshot";
 		Log.Trace( $"[{this}] Got a snapshot" );
 
+		// Scene loading can outlive a disconnect, a host change or a restarted handshake.
+		bool IsCurrent() => IsCurrentHost()
+			&& Connection.Local is { State: Connection.ChannelState.Snapshot } local
+			&& local.HandshakeId == msg.HandshakeId;
+
 		//
 		// Spawn the scene, which could also lead to calling OnStart, OnEnable on components
 		// which might create new network instances. So from this point we should be considered
@@ -515,15 +522,27 @@ internal partial class NetworkSystem
 		{
 			try
 			{
-				await GameSystem.SetSnapshotAsync( msg.Snapshot );
+				await GameSystem.SetSnapshotAsync( msg.Snapshot, IsCurrent );
+			}
+			catch ( OperationCanceledException ) when ( !IsCurrent() )
+			{
+				return;
 			}
 			catch ( Exception e )
 			{
 				Log.Error( e );
-				IGameInstanceDll.Current.Disconnect( "Error Deserializing Snapshot" );
+
+				if ( IsCurrent() )
+				{
+					IGameInstanceDll.Current.Disconnect( "Error Deserializing Snapshot" );
+				}
+
 				return;
 			}
 		}
+
+		if ( !IsCurrent() )
+			return;
 
 		Log.Trace( $"[{this}] Finished loading snapshot" );
 

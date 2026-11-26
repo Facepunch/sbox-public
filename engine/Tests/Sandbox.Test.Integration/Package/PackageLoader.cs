@@ -60,13 +60,7 @@ public partial class PackageLoaderTest
 
 		Assert.AreEqual( 0, PackageManager.MountedFileSystem.FileCount, "No package files mounted" );
 
-		var downloadOptions = new PackageLoadOptions
-		{
-			PackageIdent = packageName,
-			ContextTag = "client",
-			SkipAssetDownload = true
-		};
-		var p = await PackageManager.InstallAsync( downloadOptions );
+		var p = await PackageManager.InstallAsync( new PackageLoadOptions( packageName, "client" ) );
 		Assert.IsNotNull( p, "Package should not be null" );
 
 		Assert.AreNotEqual( 0, PackageManager.MountedFileSystem.FileCount, "We have package files mounted" );

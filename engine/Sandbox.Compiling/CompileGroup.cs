@@ -320,7 +320,7 @@ public class CompileGroup : IDisposable
 						{
 							if ( diag.Severity <= DiagnosticSeverity.Info ) continue;
 
-							Log.Warning( $"{diag.Severity} | {diag.GetMessage()} - {diag.Location.SourceTree?.FilePath}:{diag.Location.GetLineSpan().StartLinePosition}" );
+							Log.Warning( diag.FormatBuildDiagnostic() );
 						}
 					}
 				}
@@ -437,14 +437,17 @@ public class CompileGroup : IDisposable
 		public List<Microsoft.CodeAnalysis.Diagnostic> Diagnostics { get; set; }
 		public List<CompilerOutput> Output { get; set; }
 
+		/// <summary>
+		/// Formats build diagnostics at or above the requested severity.
+		/// </summary>
 		public string BuildDiagnosticsString( DiagnosticSeverity severity = DiagnosticSeverity.Warning )
 		{
 			if ( Diagnostics == null )
 				return "No build result diagnostics found";
 
 			var lines = Diagnostics
-					.Where( x => x.Severity >= severity )
-							.Select( diag => $"{diag.Severity} | {diag.GetMessage()} - {diag.Location?.SourceTree?.FilePath}:{diag?.Location?.GetLineSpan().StartLinePosition}" );
+				.Where( x => x.Severity >= severity )
+				.Select( x => x.FormatBuildDiagnostic() );
 			return string.Join( "\n", lines );
 		}
 	}

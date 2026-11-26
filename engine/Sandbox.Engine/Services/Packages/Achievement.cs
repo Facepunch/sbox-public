@@ -29,6 +29,35 @@ public sealed class Achievement
 		}
 	}
 
+	bool unlockPending;
+	internal bool CanUnlock => !IsUnlocked && !unlockPending;
+
+	/// <summary>
+	/// Records the award locally once the backend confirms it.
+	/// </summary>
+	internal async Task Unlock( string packageIdent, ServiceApi.IAchievementApi api )
+	{
+		if ( !CanUnlock || api is null ) return;
+
+		unlockPending = true;
+		try
+		{
+			var response = await api.UnlockWithResult( packageIdent, Name );
+			if ( response.Valid && response.Result.Actioned )
+			{
+				UnlockTimestamp = DateTimeOffset.UtcNow;
+			}
+		}
+		catch ( Exception e )
+		{
+			Log.Warning( e, $"Could not unlock achievement {packageIdent}/{Name}" );
+		}
+		finally
+		{
+			unlockPending = false;
+		}
+	}
+
 	internal bool IsUnlockedManually => dto.UnlockMode == AchievementDto.UnlockModes.Manual;
 	internal bool IsUnlockedWithStat => dto.UnlockMode == AchievementDto.UnlockModes.Stat;
 

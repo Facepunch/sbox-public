@@ -273,7 +273,7 @@ public struct WorkshopPublishOptions
 	/// </summary>
 	public Dictionary<string, SerializedProperty> Categories { get; internal set; } = [];
 
-	internal List<(string Name, Type EnumType, Func<Dictionary<string, string>, SerializedProperty> Create)> CategoryFactories { get; } = [];
+	internal List<(string Label, Type EnumType, Func<Dictionary<string, string>, SerializedProperty> Create)> CategoryFactories { get; } = [];
 
 	/// <summary>
 	/// Adds a new category associated with the specified enum type to the collection. 
@@ -282,10 +282,18 @@ public struct WorkshopPublishOptions
 	/// </summary>
 	public void AddCategory<TEnum>( string name ) where TEnum : struct, Enum
 	{
+		AddCategory<TEnum>( name, name );
+	}
+
+	/// <summary>
+	/// Shows an enum picker with the given label and stores the selected value under the metadata key <paramref name="name"/>.
+	/// </summary>
+	public void AddCategory<TEnum>( string name, string label ) where TEnum : struct, Enum
+	{
 		KeyValues ??= [];
 
-		Categories[name] = CreateCategory<TEnum>( name, KeyValues );
-		CategoryFactories.Add( (name, typeof( TEnum ), kv => CreateCategory<TEnum>( name, kv )) );
+		Categories[label] = CreateCategory<TEnum>( name, KeyValues );
+		CategoryFactories.Add( (label, typeof( TEnum ), kv => CreateCategory<TEnum>( name, kv )) );
 	}
 
 	static SerializedProperty CreateCategory<TEnum>( string name, Dictionary<string, string> kv ) where TEnum : struct, Enum

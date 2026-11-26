@@ -14,26 +14,41 @@ public partial class Component
 
 	private void LaunchLoader()
 	{
-		var loadContext = new LoadingContext();
-
-		loadContext.Task = OnLoad( loadContext );
-		if ( loadContext.IsCompleted )
+		// A previous callback in this batch may have destroyed the component.
+		var owner = GameObject;
+		if ( owner is null )
 			return;
 
-		loadContext.Task = WaitForLoad( loadContext.Task );
+		var scene = owner.Scene;
+		var loadContext = new LoadingContext();
+		var task = OnLoad( loadContext );
+		if ( task is null || task.IsCompletedSuccessfully || task.IsCanceled )
+			return;
 
-		GameObject.Flags |= GameObjectFlags.Loading;
-		Scene.AddLoadingTask( loadContext );
+		loadContext.Task = WaitForLoad( task, owner );
+		if ( !loadContext.IsCompleted && scene.IsValid() )
+			scene.AddLoadingTask( loadContext );
 	}
 
-	private async Task WaitForLoad( Task task )
+	private async Task WaitForLoad( Task task, GameObject owner )
 	{
-		await task;
-
-		if ( !this.IsValid() ) return;
-		if ( !GameObject.IsValid() ) return;
-
-		GameObject.Flags &= ~GameObjectFlags.Loading;
+		owner.BeginLoading();
+		try
+		{
+			await task;
+		}
+		catch ( OperationCanceledException ) when ( task.IsCanceled )
+		{
+			// Owner-bound tasks can be cancelled when the object is disabled or destroyed.
+		}
+		catch ( Exception e )
+		{
+			Log.Error( e, $"Exception when calling 'OnLoad' on {GetType().Name}: {e.Message}" );
+		}
+		finally
+		{
+			owner.EndLoading();
+		}
 	}
 
 	internal void OnLoadInternal()

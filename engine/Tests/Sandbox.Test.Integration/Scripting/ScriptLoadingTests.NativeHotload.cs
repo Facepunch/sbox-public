@@ -27,6 +27,12 @@ public partial class ScriptLoadingTests
 				[Property] public int ScriptValue { get; set; } = 7;
 				public NativeScriptBase NativePeer { get; set; }
 				public int ReadGeneration() { return NativeGeneration(); }
+
+				/// <summary>
+				/// Binds a method on the component to read its native generation.
+				/// </summary>
+				public System.Func<int> CaptureGeneration() { return ReadGeneration; }
+
 				static readonly object Described = Game.TypeLibrary.GetType( "NativeDerivedScript" );
 				public bool DescribedSelf() { return Described != null; }
 			}
@@ -58,7 +64,9 @@ public partial class ScriptLoadingTests
 		description.TargetType.GetProperty( "NativePeer" ).SetValue( first, second );
 		description.TargetType.GetProperty( "NativePeer" ).SetValue( second, first );
 		Assert.AreEqual( 1, description.GetMethod( "ReadGeneration" ).InvokeWithReturn<int>( first ) );
-		reloadRoots = [first, second];
+		var readGeneration = description.GetMethod( "CaptureGeneration" ).InvokeWithReturn<Func<int>>( first );
+		Assert.AreEqual( 1, readGeneration() );
+		reloadRoots = [first, second, readGeneration];
 
 		// One new field cannot be initialized on the live objects. The other fields and script types must still migrate.
 		var replacementBase = EmitNativeScriptBase( 2, missingInitializer: true );
@@ -104,6 +112,7 @@ public partial class ScriptLoadingTests
 		Assert.AreEqual( 81, description.GetProperty( "ScriptValue" ).GetValue( first ) );
 		Assert.AreEqual( 82, description.GetProperty( "ScriptValue" ).GetValue( second ) );
 		Assert.AreEqual( 2, description.GetMethod( "ReadGeneration" ).InvokeWithReturn<int>( first ) );
+		Assert.AreEqual( 2, ((Func<int>)reloadRoots[2])() );
 		Assert.IsTrue( description.GetMethod( "DescribedSelf" ).InvokeWithReturn<bool>( first ),
 			"A static initializer must find its own type in the type library after native hotload." );
 		Assert.AreEqual( 103, Game.Scripting.Run<int>( "return NextCaptured();" ),

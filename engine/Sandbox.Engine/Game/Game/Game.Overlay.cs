@@ -247,20 +247,20 @@ public static partial class Game
 			safe.Tags = options.Tags is null ? null : new HashSet<string>( options.Tags );
 			safe.Categories = new();
 
-			if ( options.Categories?.Keys.Except( (options.CategoryFactories ?? []).Select( x => x.Name ) ).Any() == true )
+			if ( options.Categories?.Keys.Except( (options.CategoryFactories ?? []).Select( x => x.Label ) ).Any() == true )
 				Log.Warning( "WorkshopPublish: only categories added with AddCategory are shown" );
 
 			// Only categories from AddCategory, rebuilt by the engine over our copy of the keyvalues
-			foreach ( var (name, enumType, create) in options.CategoryFactories ?? [] )
+			foreach ( var (label, enumType, create) in options.CategoryFactories ?? [] )
 			{
 				if ( UsesGameAttributes( enumType ) )
 				{
-					Log.Warning( $"WorkshopPublish: skipping category {name}, its enum uses attributes from game code" );
+					Log.Warning( $"WorkshopPublish: skipping category {label}, its enum uses attributes from game code" );
 					continue;
 				}
 
 				safe.KeyValues ??= [];
-				safe.Categories[name] = create( safe.KeyValues );
+				safe.Categories[label] = create( safe.KeyValues );
 			}
 
 			using var scope = GlobalContext.MenuScope();
@@ -331,6 +331,33 @@ public static partial class Game
 		/// Returns true if the pause menu overlay is open
 		/// </summary>
 		public bool IsPauseMenuOpen => IModalSystem.Current?.IsPauseMenuOpen ?? false;
+
+		/// <summary>
+		/// Opens a Steam Workshop item's page in the default browser, or in the Steam overlay
+		/// when <paramref name="steamOverlay"/> is true and the overlay is available.
+		/// In the editor, the page always opens in the default browser.
+		/// </summary>
+		public static void ViewWorkshopItem( long itemId, bool steamOverlay )
+		{
+			if ( itemId <= 0 )
+				return;
+
+			OpenSteamPage( Workshop.GetUrl( (ulong)itemId ), steamOverlay );
+		}
+
+		internal static void OpenSteamPage( string url, bool steamOverlay )
+		{
+			if ( Application.IsHeadless || Application.IsDedicatedServer )
+				return;
+
+			if ( steamOverlay && Steamworks.SteamFriends.OpenWebOverlay( url ) )
+				return;
+
+			using var browser = System.Diagnostics.Process.Start( new System.Diagnostics.ProcessStartInfo( url )
+			{
+				UseShellExecute = true
+			} );
+		}
 
 		/// <summary>
 		/// Asks the user whether they want to open this web page in their browser.

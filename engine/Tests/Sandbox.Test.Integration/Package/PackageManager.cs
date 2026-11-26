@@ -91,6 +91,37 @@ public class PackageManagerTest
 	}
 
 	/// <summary>
+	/// Legacy code archives in a published addon are ignored while its assets still mount.
+	/// </summary>
+	[TestMethod]
+	public async Task PublishedAddonIgnoresCodeArchive()
+	{
+		var addon = new RemotePackage
+		{
+			Org = new Package.Organization { Ident = "test" },
+			Ident = "legacyaddon",
+			TypeName = "addon",
+			Version = new PackageRevision()
+		};
+		await addon.Revision.DownloadManifestAsync( default );
+		addon.Revision.Manifest.Files = [
+			new ManifestSchema.File { Path = ".bin/legacy.cll", Crc = "0", Size = 0 },
+			new ManifestSchema.File { Path = "legacy-addon.txt", Crc = "0", Size = 0 }
+		];
+
+		try
+		{
+			var installed = await PackageManager.InstallAsync( new PackageLoadOptions( addon.FullIdent, "game" ) { Package = addon } );
+			Assert.IsTrue( installed.FileSystem.FileExists( "legacy-addon.txt" ) );
+			Assert.AreEqual( 0, installed.AssemblyFileSystem.FileCount );
+		}
+		finally
+		{
+			PackageManager.UnmountTagged( "game" );
+		}
+	}
+
+	/// <summary>
 	/// Installing a project over a published copy transfers its owners and removes published-only files.
 	/// </summary>
 	[TestMethod]

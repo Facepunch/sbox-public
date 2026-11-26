@@ -1,12 +1,19 @@
 @using Sandbox;
 @using Sandbox.UI;
-@using Sandbox.Mounting;
 @inherits Panel
 @namespace Sandbox
 
 <root>
 
-<UIButton Icon="add" Text="#spawnmenu.spawnlist.new_button" Disabled=@( !CanCreate() ) @onclick=@CreateSpawnlist></UIButton>
+<UIButton Icon="add" Text="#spawnmenu.spawnlist.new_button" @onclick=@CreateSpawnlist></UIButton>
 
 </root>
 
+@code
+{
+    void CreateSpawnlist()
+    {
+        SpawnlistData.Create( Game.Language.GetPhrase( "spawnmenu.spawnlist.untitled" ), out var entry );
+        Ancestors.OfType<SpawnlistsPage>().FirstOrDefault()?.EditSpawnlist( entry );
+    }
+}

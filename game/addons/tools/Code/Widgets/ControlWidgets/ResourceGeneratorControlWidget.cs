@@ -80,7 +80,18 @@ public class ResourceGeneratorControlWidget : ControlWidget
 
 		try
 		{
-			var resource = await Generator.FindOrCreateObjectAsync( ResourceGenerator.Options.Default, default );
+			var generator = Generator;
+			Resource resource;
+
+			try
+			{
+				resource = await generator.FindOrCreateObjectAsync( ResourceGenerator.Options.Default, default );
+			}
+			catch ( Exception ex ) when ( ex is not OperationCanceledException )
+			{
+				Log.Warning( ex, $"Couldn't generate resource with {generator.GetType().FullName}" );
+				return;
+			}
 
 			// The owning inspector may have been rebuilt while we were generating
 			if ( !IsValid ) return;

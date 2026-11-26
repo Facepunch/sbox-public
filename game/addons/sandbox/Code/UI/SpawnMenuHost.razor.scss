@@ -39,20 +39,6 @@ SpawnMenuHost.world-tool-input Inspector > .canvas
 	pointer-events: none;
 }
 
-// windows over the menu, they are the only thing in it that takes the mouse
-SpawnMenuHost .modal-layer
-{
-	position: absolute;
-	top: 0;
-	left: 0;
-	right: 0;
-	bottom: 0;
-	justify-content: center;
-	align-items: center;
-	pointer-events: none;
-	z-index: 10;
-}
-
 // nothing darkens the game behind the menu
 SpawnMenuHost .menu-backdrop
 {

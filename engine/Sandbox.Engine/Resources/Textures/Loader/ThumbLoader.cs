@@ -1,11 +1,10 @@
-using Sandbox.Engine;
 using Sandbox.Mounting;
 using System.Threading;
 
 namespace Sandbox.TextureLoader;
 
 /// <summary>
-/// Loads a thumbnail of an entity or something
+/// Loads runtime resource previews for <c>thumb:</c> texture requests.
 /// </summary>
 internal static class ThumbLoader
 {
@@ -119,25 +118,14 @@ internal static class ThumbLoader
 				return;
 			}
 
-			// The editor owns its authored preview overrides and their invalidation.
-			if ( IToolsDll.Current is { } tools )
-			{
-				using var preview = await tools.GetThumbnail( filename );
-				if ( ct.IsCancellationRequested ) return;
-				if ( preview is not null )
-				{
-					using var resized = preview.Width == 256 && preview.Height == 256 ? null : preview.Resize( 256, 256 );
-					using var texture = (resized ?? preview).ToTexture();
-					placeholder.CopyFrom( texture );
-					return;
-				}
-			}
-
 			var cache = new ThumbnailCache( filename );
-			using var cached = cache.Load();
+			using var cached = await Task.Run( cache.LoadBitmap, ct );
+			if ( ct.IsCancellationRequested ) return;
+
 			if ( cached is not null )
 			{
-				placeholder.CopyFrom( cached );
+				using var texture = cached.ToTexture();
+				placeholder.CopyFrom( texture );
 				return;
 			}
 

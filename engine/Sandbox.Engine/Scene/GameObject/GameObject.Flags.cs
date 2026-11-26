@@ -91,7 +91,30 @@ public enum GameObjectFlags
 
 public partial class GameObject
 {
+	/// <summary>
+	/// Flags controlling this object's behavior and describing its current state.
+	/// </summary>
 	public GameObjectFlags Flags { get; set; } = GameObjectFlags.None;
+
+	private int _pendingLoads;
+
+	/// <summary>
+	/// Keep the loading flag set while any component or map on this object is loading.
+	/// </summary>
+	internal void BeginLoading()
+	{
+		_pendingLoads++;
+		Flags |= GameObjectFlags.Loading;
+	}
+
+	/// <summary>
+	/// Release one load, which may outlive its originating component.
+	/// </summary>
+	internal void EndLoading()
+	{
+		if ( --_pendingLoads == 0 )
+			Flags &= ~GameObjectFlags.Loading;
+	}
 
 	/// <summary>
 	/// True if this GameObject is being deserialized right now

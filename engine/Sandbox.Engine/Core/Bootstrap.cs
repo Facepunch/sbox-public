@@ -465,7 +465,7 @@ internal static class Bootstrap
 			Log.Error( ex );
 
 			var diagnostics = string.Join( "\n", Project.GetCompileDiagnostics()?.Where( x => x.Severity > Microsoft.CodeAnalysis.DiagnosticSeverity.Warning )
-				.Select( x => $"{x.Severity} | {x.GetMessage()} - {x.Location?.SourceTree?.FilePath}:{x.Location?.GetLineSpan().StartLinePosition}" ) );
+				.Select( x => x.FormatBuildDiagnostic() ) );
 
 			EngineGlobal.Plat_MessageBox( "Bootstrap::Init Error", $"""
 				Failed to bootstrap engine.

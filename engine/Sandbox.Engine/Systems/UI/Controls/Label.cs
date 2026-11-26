@@ -287,7 +287,7 @@ namespace Sandbox.UI
 		}
 
 		/// <summary>
-		/// Returns the selected text.
+		/// Returns the selected text, or an empty string if the selection contains no text elements.
 		/// </summary>
 		public string GetSelectedText()
 		{
@@ -298,6 +298,9 @@ namespace Sandbox.UI
 
 			var s = Math.Min( SelectionStart, SelectionEnd );
 			var e = Math.Max( SelectionStart, SelectionEnd );
+
+			// Clamping can collapse a drag selection at the end, past the last text element.
+			if ( s == e ) return "";
 
 			return StringInfo.SubstringByTextElements( s, e - s );
 		}

@@ -274,8 +274,8 @@ internal class ConsoleWidget : Widget
 	void AddConsoleMessage( Diagnostic diagnostic )
 	{
 		var msg = diagnostic.GetMessage();
-		var span = diagnostic.Location.GetLineSpan();
-		var mappedSpan = diagnostic.Location.GetMappedLineSpan();
+		var location = diagnostic.GetDisplayLocation();
+		var mappedSpan = location.GetMappedLineSpan();
 
 		AddConsoleMessage( new LogEvent()
 		{
@@ -293,7 +293,7 @@ internal class ConsoleWidget : Widget
 			},
 
 			// Generate a stack since diagnostics don't provide them (and shouldn't)
-			Stack = $"at {msg} in {(mappedSpan.HasMappedPath ? mappedSpan.Path : span.Path)}:line {(mappedSpan.Span.Start.Line + 1)}"
+			Stack = mappedSpan.IsValid ? $"at {msg} in {mappedSpan.Path}:line {mappedSpan.StartLinePosition.Line + 1}" : null
 		} );
 	}
 

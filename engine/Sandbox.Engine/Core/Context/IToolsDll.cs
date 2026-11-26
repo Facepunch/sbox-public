@@ -64,8 +64,4 @@ internal unsafe interface IToolsDll
 	/// </summary>
 	public Task OnInitializeHost();
 
-	/// <summary>
-	/// Get a thumbnail for the specified asset.Can return null if not immediately available. 
-	/// </summary>
-	Task<Bitmap> GetThumbnail( string filename );
 }

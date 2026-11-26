@@ -65,7 +65,9 @@ public class LocalAssetLocations : AssetLocations
 		if ( Project.Current.Config.Type == "addon" && !string.IsNullOrWhiteSpace( parentPackage ) && Package.TryGetCached( parentPackage, out Package package ) )
 		{
 			AddItem( new TreeNode.Spacer( 10 ) );
-			var loc = new PackageLocation( package );
+			AssetBrowser.Location loc = package.GetLocalProject() is { } project
+				? new DiskLocation( project.GetRootPath() )
+				: new PackageLocation( package );
 			var ProjectNode = new ProjectNode( loc );
 
 			AddItem( ProjectNode );

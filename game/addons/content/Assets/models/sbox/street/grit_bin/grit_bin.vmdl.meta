@@ -1,0 +1,28 @@
+{
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "Grit Box",
+      "Type": "model",
+      "Org": "facepunch",
+      "Ident": "grit_box",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/street/grit_bin/grit_bin.vmdl",
+        "Summary": "",
+        "Description": "A grit sand box usually containing sand to put out fire, usually in commercial or residential area (although this one is empty)",
+        "Public": true,
+        "ReplaceTags": "grit sand box physic container",
+        "AssetLicense": "CC0",
+        "ParentPackage": "facepunch.sbox_content"
+      }
+    }
+  },
+  "guid": "d25b846f-9c1e-4585-919f-ed1b5454e7b8"
+}

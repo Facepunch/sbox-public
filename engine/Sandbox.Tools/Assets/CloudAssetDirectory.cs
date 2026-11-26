@@ -29,6 +29,9 @@ internal class CloudAssetDirectory : IDisposable
 	Dictionary<string, List<PackageFile>> linksByPath = new( StringComparer.OrdinalIgnoreCase );
 	Dictionary<(string Package, long Revision), List<PackageFile>> linksByPackage = new();
 
+	// The asset browser reads package listings on a worker while the editor installs or removes files.
+	readonly Lock packageFilesLock = new();
+
 	/// <summary>
 	/// A physical file that exists on disk in the cloud cache. There's exactly one of these
 	/// per path - it records what's actually there, independent of who depends on it.
@@ -342,14 +345,17 @@ internal class CloudAssetDirectory : IDisposable
 			throw;
 		}
 
-		// tidy stale entries from old revisions of this package
-		foreach ( var key in linksByPackage.Keys.Where( k => k.Package == ident && k.Revision != revision ).ToList() )
+		lock ( packageFilesLock )
 		{
-			RemoveLinksFromCache( key.Package, key.Revision );
-		}
-		PruneOrphanedFiles();
+			foreach ( var key in linksByPackage.Keys.Where( k => k.Package == ident && k.Revision != revision ).ToList() )
+			{
+				RemoveLinksFromCache( key.Package, key.Revision );
+			}
 
-		packageCache[ident] = package;
+			packageCache[ident] = package;
+		}
+
+		PruneOrphanedFiles();
 	}
 
 	/// <summary>
@@ -373,10 +379,13 @@ internal class CloudAssetDirectory : IDisposable
 			throw;
 		}
 
-		RemoveLinksFromCache( ident, revision );
-		PruneOrphanedFiles();
+		lock ( packageFilesLock )
+		{
+			RemoveLinksFromCache( ident, revision );
+			packageCache.Remove( ident );
+		}
 
-		packageCache.Remove( ident );
+		PruneOrphanedFiles();
 	}
 
 	/// <summary>
@@ -513,13 +522,16 @@ internal class CloudAssetDirectory : IDisposable
 
 			db.Commit();
 
-			if ( linksByPath.TryGetValue( path, out var byPath ) )
-				byPath.RemoveAll( l => l.Package == package.FullIdent && l.Revision == package.Revision.VersionId );
+			lock ( packageFilesLock )
+			{
+				if ( linksByPath.TryGetValue( path, out var byPath ) )
+					byPath.RemoveAll( l => l.Package == package.FullIdent && l.Revision == package.Revision.VersionId );
 
-			if ( linksByPackage.TryGetValue( (package.FullIdent, package.Revision.VersionId), out var byPackage ) )
-				byPackage.RemoveAll( l => string.Equals( l.Path, path, StringComparison.OrdinalIgnoreCase ) );
+				if ( linksByPackage.TryGetValue( (package.FullIdent, package.Revision.VersionId), out var byPackage ) )
+					byPackage.RemoveAll( l => string.Equals( l.Path, path, StringComparison.OrdinalIgnoreCase ) );
 
-			AddLinkToCache( link );
+				AddLinkToCache( link );
+			}
 		}
 		catch
 		{
@@ -528,12 +540,22 @@ internal class CloudAssetDirectory : IDisposable
 		}
 	}
 
-	public IEnumerable<string> GetPackageFiles( Package package )
+	/// <summary>
+	/// Lists files for the requested revision. A published package without revision metadata
+	/// uses the revision recorded at install time.
+	/// </summary>
+	public IReadOnlyCollection<string> GetPackageFiles( Package package )
 	{
-		if ( !linksByPackage.TryGetValue( (package.FullIdent, package.Revision.VersionId), out var linkList ) )
-			return Enumerable.Empty<string>();
+		lock ( packageFilesLock )
+		{
+			if ( package is { Revision: null, IsRemote: true } )
+				packageCache.TryGetValue( package.FullIdent, out package );
 
-		return linkList.Select( l => l.Path ).ToList();
+			if ( package?.Revision is not { } revision || !linksByPackage.TryGetValue( (package.FullIdent, revision.VersionId), out var linkList ) )
+				return [];
+
+			return linkList.Select( l => l.Path ).ToList();
+		}
 	}
 
 	/// <summary>

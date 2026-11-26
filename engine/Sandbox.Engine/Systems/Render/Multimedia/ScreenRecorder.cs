@@ -137,9 +137,8 @@ internal static class ScreenRecorder
 				}
 			}
 
-#if WIN
 			// Blit cursor directly onto the image data
-			if ( Mouse.Active )
+			if ( OperatingSystem.IsWindows() && Mouse.Active )
 			{
 				unsafe
 				{
@@ -149,7 +148,6 @@ internal static class ScreenRecorder
 					}
 				}
 			}
-#endif
 
 			// Due to thread races:
 			// Writer may be null very briefly during shutdown, instead of adding complex locks just handle the exception.
@@ -187,7 +185,6 @@ internal static class ScreenRecorder
 		}
 	}
 
-#if WIN
 	// Windows-specific cursor blitting implementation
 	[DllImport( "user32.dll" )]
 	private static extern bool GetCursorInfo( ref CURSORINFO pci );
@@ -527,5 +524,4 @@ internal static class ScreenRecorder
 			}
 		}
 	}
-#endif
 }

@@ -1,4 +1,9 @@
 using System;
+using System.Collections.Generic;
+using System.Linq.Expressions;
+using System.Reflection;
+using System.Reflection.Emit;
+using Sandbox.Upgraders;
 
 namespace HotloadTests;
 
@@ -9,6 +14,584 @@ namespace HotloadTests;
 [TestClass]
 public class DelegateTest : HotloadFixtureTestBase
 {
+	[DisableAutoCreation]
+	private sealed class FailingTargetUpgrader( Type targetType ) : SkipUpgrader
+	{
+		/// <summary>
+		/// Injects a migration failure for one subscriber's receiver.
+		/// </summary>
+		public override bool ShouldProcessType( Type type ) => type == targetType;
+
+		protected override bool OnTryCreateNewInstance( object oldInstance, out object newInstance )
+		{
+			throw new InvalidOperationException( "Receiver upgrade failed" );
+		}
+	}
+
+	/// <summary>
+	/// A target upgrader that throws during rebinding cannot clear the other subscribers.
+	/// </summary>
+	[TestMethod]
+	public async Task TargetUpgradeFailureIsContained()
+	{
+		using var fixture = await CreateFixtureAsync(
+			"""
+			using System;
+
+			internal class Target
+			{
+				internal void Handle() { }
+				internal int Read() => 1;
+			}
+
+			internal class Receiver : IHotloadTestFixture
+			{
+				private Action Notify;
+				private Func<int> Read;
+				private int Calls;
+				private void Survive() => Calls++;
+
+				void IHotloadTestFixture.Test()
+				{
+			-		var target = new Target();
+			-		Notify = (Action)target.Handle + Survive;
+			-		Read = target.Read;
+			+		Notify();
+			+		Assert.AreEqual( 1, Calls );
+			+		Assert.ThrowsException<NotImplementedException>( () => Read() );
+				}
+			}
+			""" );
+
+		var targetType = fixture.OldAssembly.GetType( "Target" );
+		var result = await fixture.HotloadAsync( allowErrors: true, configure: hotload => hotload.AddUpgrader( new FailingTargetUpgrader( targetType ) ) );
+		Assert.IsTrue( result.Errors.Any( entry => entry.Exception is InvalidOperationException { Message: "Receiver upgrade failed" } ) );
+	}
+
+	/// <summary>
+	/// Generated callbacks can retain their code while their closed target, expression captures
+	/// and user-defined delegate type move to the incoming assembly.
+	/// </summary>
+	[TestMethod]
+	public async Task GeneratedCallbacksFollowMigratedTargets()
+	{
+		using var fixture = await CreateFixtureAsync(
+			"""
+			using System;
+
+			internal class Receiver : IHotloadTestFixture
+			{
+				internal delegate object ReadTarget();
+				internal ReadTarget Bound;
+				internal Func<object> RequiresOldType;
+				internal Func<object> Captured;
+				internal Func<int> Unbound;
+			}
+			""" );
+
+		var original = fixture.OldInstance;
+
+		static DynamicMethod ReadTarget( Type receiver )
+		{
+			var method = new DynamicMethod( "<ReadTarget>", typeof( object ), [receiver] );
+			var il = method.GetILGenerator();
+			il.Emit( OpCodes.Ldarg_0 );
+			il.Emit( OpCodes.Ret );
+			return method;
+		}
+
+		var readTarget = ReadTarget( typeof( object ) );
+		SetField( original, "Bound", readTarget.CreateDelegate( original.GetType().GetNestedType( "ReadTarget", BindingFlags.NonPublic ), original ) );
+		SetField( original, "RequiresOldType", ReadTarget( original.GetType() ).CreateDelegate<Func<object>>( original ) );
+
+		var captured = Expression.Constant( original, typeof( object ) );
+		SetField( original, "Captured", Expression.Lambda<Func<object>>( captured ).Compile() );
+
+		var readInt = new DynamicMethod( "ReadInt", typeof( int ), Type.EmptyTypes );
+		var il = readInt.GetILGenerator();
+		il.Emit( OpCodes.Ldc_I4_7 );
+		il.Emit( OpCodes.Ret );
+		var unbound = readInt.CreateDelegate<Func<int>>();
+		SetField( original, "Unbound", unbound );
+
+		await fixture.HotloadAsync();
+
+		var bound = (Delegate)GetField( fixture.Instance, "Bound" );
+		Assert.AreSame( fixture.Instance.GetType().GetNestedType( "ReadTarget", BindingFlags.NonPublic ), bound.GetType() );
+		Assert.AreSame( fixture.Instance, bound.DynamicInvoke() );
+		var incompatible = (Func<object>)GetField( fixture.Instance, "RequiresOldType" );
+		Assert.ThrowsException<NotImplementedException>( () => incompatible() );
+		Assert.AreSame( fixture.Instance, ((Func<object>)GetField( fixture.Instance, "Captured" ))() );
+		Assert.AreSame( unbound, GetField( fixture.Instance, "Unbound" ) );
+		Assert.AreEqual( 7, unbound() );
+	}
+
+	/// <summary>
+	/// An emitted call, cast or local can still reference the outgoing assembly even when the delegate signature matches.
+	/// </summary>
+	[TestMethod]
+	public async Task GeneratedCallbacksWithOutgoingMetadata()
+	{
+		using var fixture = await CreateFixtureAsync(
+			"""
+			using System;
+
+			internal class Receiver : IHotloadTestFixture
+			{
+				internal Func<int> ReadStatic;
+				internal Func<int> OldLocal;
+				internal Action Notify;
+				internal int Calls;
+
+			-	internal static int Generation() => 1;
+			+	internal static int Generation() => 2;
+				internal void Increment() => Calls++;
+			}
+			""" );
+
+		var original = fixture.OldInstance;
+		var generation = Expression.Call( original.GetType(), "Generation", null );
+		var readStatic = Expression.Lambda<Func<int>>( generation ).Compile();
+		Assert.AreEqual( 1, readStatic() );
+		SetField( original, "ReadStatic", readStatic );
+
+		var increment = original.GetType().GetMethod( "Increment", BindingFlags.Instance | BindingFlags.NonPublic );
+		var notify = Expression.Lambda<Action>( Expression.Call( Expression.Constant( original ), increment ) ).Compile();
+		SetField( original, "Notify", notify + increment.CreateDelegate<Action>( original ) );
+
+		var oldLocal = new DynamicMethod( "ReadLocal", typeof( int ), Type.EmptyTypes );
+		var il = oldLocal.GetILGenerator();
+		il.DeclareLocal( original.GetType() );
+		il.Emit( OpCodes.Ldc_I4_7 );
+		il.Emit( OpCodes.Ret );
+		SetField( original, "OldLocal", oldLocal.CreateDelegate<Func<int>>() );
+
+		await fixture.HotloadAsync();
+
+		var migratedStatic = (Func<int>)GetField( fixture.Instance, "ReadStatic" );
+		Assert.ThrowsException<NotImplementedException>( () => migratedStatic() );
+		var migratedLocal = (Func<int>)GetField( fixture.Instance, "OldLocal" );
+		Assert.ThrowsException<NotImplementedException>( () => migratedLocal() );
+		((Action)GetField( fixture.Instance, "Notify" ))();
+		Assert.AreEqual( 1, GetField( fixture.Instance, "Calls" ) );
+	}
+
+	/// <summary>
+	/// Open instance methods and static methods with a bound first argument both follow the new code.
+	/// </summary>
+	[TestMethod]
+	public async Task OpenInstanceAndClosedStaticMethods()
+	{
+		await HotloadFixtureAsync(
+			"""
+			using System;
+
+			internal class Receiver : IHotloadTestFixture
+			{
+				private Func<Receiver, int> Open;
+				private Func<int> Closed;
+				private Func<int> ClosedOverNull;
+
+			-	private int Read() => 1;
+			+	private int Read() => 2;
+				private static int ReadFrom( Receiver receiver ) => receiver.Read();
+			-	private static int ReadNull( Receiver receiver ) => receiver is null ? 1 : 0;
+			+	private static int ReadNull( Receiver receiver ) => receiver is null ? 2 : 0;
+
+				void IHotloadTestFixture.Test()
+				{
+			-		Open = ((Func<int>)Read).Method.CreateDelegate<Func<Receiver, int>>();
+			-		Closed = ((Func<Receiver, int>)ReadFrom).Method.CreateDelegate<Func<int>>( this );
+			-		ClosedOverNull = ((Func<Receiver, int>)ReadNull).Method.CreateDelegate<Func<int>>( null );
+					Assert.AreEqual( Read(), Open( this ) );
+					Assert.AreEqual( Read(), Closed() );
+					Assert.AreSame( this, Closed.Target );
+					Assert.AreEqual( Read(), ClosedOverNull() );
+				}
+			}
+			""" );
+	}
+
+	/// <summary>
+	/// Open lambdas use the receiver supplied by their caller. A signature edit must not bind that receiver to null.
+	/// </summary>
+	[TestMethod]
+	public async Task OpenLambdasPreserveTheirBinding()
+	{
+		await HotloadFixtureAsync(
+			"""
+			using System;
+
+			internal class Receiver : IHotloadTestFixture
+			{
+				private Delegate Open;
+				private Action<Receiver> Notify;
+				private int Calls;
+
+			-	private Func<int> Read() => () => 1;
+			+	private Func<int> Read() => () => 2;
+			-	private Action Make() => () => Calls++;
+			+	private Action<Receiver> Make() => other => Calls += other.Calls;
+				private static void Survivor( Receiver other ) => other.Calls++;
+
+				void IHotloadTestFixture.Test()
+				{
+					var closed = Read();
+			-		var openType = typeof(Func<,>).MakeGenericType( closed.Target.GetType(), typeof(int) );
+			-		Open = closed.Method.CreateDelegate( openType );
+			-		Notify = Make().Method.CreateDelegate<Action<Receiver>>() + Survivor;
+					Assert.AreEqual( closed(), Open.DynamicInvoke( closed.Target ) );
+			+		Notify( this );
+			+		Assert.AreEqual( 1, Calls );
+				}
+			}
+			""" );
+	}
+
+	/// <summary>
+	/// A previously static handler has no receiver, and an existing closure has no value for a new capture.
+	/// Both failures must leave the remaining subscriber callable.
+	/// </summary>
+	[TestMethod]
+	public async Task HandlersRequiringNewStateAreSkipped()
+	{
+		await HotloadFixtureAsync(
+			"""
+			using System;
+
+			internal class Receiver : IHotloadTestFixture
+			{
+				private Action Notify;
+				private int Calls;
+
+			-	private static void Handle() { }
+			+	private void Handle() => Calls++;
+			-	private static void Generic<T>() { }
+			+	private static void Generic<T>() where T : struct { }
+			-	private class Handler<T>
+			+	private class Handler<T> where T : struct
+				{
+					internal static void Run() { }
+				}
+			-	private Action Make() => () => { };
+			+	private Action Make() => () => Calls++;
+			-	private Action Capture( int n ) => () => Calls++;
+			+	private Action Capture( int n ) => () => Calls += n;
+				private void Survivor() => Calls++;
+
+				void IHotloadTestFixture.Test()
+				{
+			-		Notify = Handle;
+			-		Notify += Generic<string>;
+			-		Notify += Handler<string>.Run;
+			-		var boundToNull = Make().Method.CreateDelegate<Action>( null );
+			-		boundToNull();
+			-		Notify += boundToNull;
+			-		Notify += Capture( 10 );
+			-		Notify += Survivor;
+			+		Notify();
+			+		Assert.AreEqual( 1, Calls );
+				}
+			}
+			""" );
+	}
+
+	/// <summary>
+	/// Covers retaining, adding and releasing the receiver and a saved local.
+	/// </summary>
+	public static IEnumerable<object[]> CaptureChanges()
+	{
+		var states = new (string Expression, bool Receiver, bool Local)[]
+		{
+			("0", false, false),
+			("Value", true, false),
+			("saved", false, true),
+			("Value + saved", true, true)
+		};
+
+		foreach ( var before in states )
+			foreach ( var after in states )
+			{
+				bool available = (!after.Receiver || before.Receiver) && (!after.Local || before.Local);
+				yield return [before.Expression, after.Expression, available];
+			}
+	}
+
+	/// <summary>
+	/// Lambdas and local functions follow the edited body whenever the old binding has all required captures.
+	/// </summary>
+	[TestMethod]
+	[DynamicData( nameof( CaptureChanges ), DynamicDataSourceType.Method )]
+	public async Task CaptureChangesUseAvailableState( string before, string after, bool available )
+	{
+		var check = available ? "Assert.AreEqual( Make( 100 ).Read(), read() );"
+			: "Assert.ThrowsException<NotImplementedException>( () => read() );";
+
+		await HotloadFixtureAsync(
+			$$"""
+			using System;
+
+			internal class Receiver : IHotloadTestFixture
+			{
+				private int Value = 10;
+				private Func<int> Lambda, Function;
+
+				private (Func<int> Read, Func<int> Local) Make( int saved )
+				{
+			-		int Local() => 1 + {{before}};
+			+		int Local() => 2 + {{after}};
+			-		return (() => 1 + {{before}}, Local);
+			+		return (() => 2 + {{after}}, Local);
+				}
+
+				void IHotloadTestFixture.Test()
+				{
+			-		(Lambda, Function) = Make( 100 );
+					foreach ( var read in new[] { Lambda, Function } )
+					{
+			-			Assert.AreEqual( Make( 100 ).Read(), read() );
+			+			{{check}}
+					}
+				}
+			}
+			""" );
+	}
+
+	/// <summary>
+	/// Each subscriber can use the values saved in its shared closure. An edit that needs
+	/// another value only invalidates the subscribers that need it.
+	/// </summary>
+	[TestMethod]
+	public async Task SubscribersSharingEditedCaptures()
+	{
+		await HotloadFixtureAsync(
+			"""
+			using System;
+
+			internal class Receiver : IHotloadTestFixture
+			{
+				private Action Notify;
+				private Func<int> Read;
+				private int Calls;
+
+				private void Subscribe( string first, string second )
+				{
+			-		Notify = () => Calls += first.Length;
+			+		Notify = () => Calls += first.Length + second.Length;
+					Notify += () => Calls += first.Length;
+			-		Read = () => first.Length;
+			+		Read = () => second.Length;
+				}
+
+				private Action Nested( string first, string second )
+				{
+					Action Inner( int n )
+					{
+			-			return () => Calls += n + first.Length;
+			+			return () => Calls += n + second.Length;
+					}
+					return Inner( 2 );
+				}
+
+				void IHotloadTestFixture.Test()
+				{
+			-		Subscribe( "abc", "hello" );
+			-		Notify += Nested( "abc", "hello" );
+					Calls = 0;
+					Notify();
+			-		Assert.AreEqual( 11, Calls );
+			-		Assert.AreEqual( 3, Read() );
+			+		Assert.AreEqual( 3, Calls );
+			+		Assert.ThrowsException<NotImplementedException>( () => Read() );
+				}
+			}
+			""" );
+	}
+
+	/// <summary>
+	/// A nested subscriber can still read an outer capture when its sibling starts reading a new one.
+	/// </summary>
+	[TestMethod]
+	public async Task NestedSubscribersSharingEditedCaptures()
+	{
+		await HotloadFixtureAsync(
+			"""
+			using System;
+
+			internal class Receiver : IHotloadTestFixture
+			{
+				private Action Notify;
+				private int Calls;
+
+				private Action Subscribe( string first, string second )
+				{
+					Action Inner( int n )
+					{
+			-			Action changed = () => Calls += n + first.Length;
+			+			Action changed = () => Calls += n + second.Length;
+						return changed + (() => Calls += n + first.Length);
+					}
+
+					return Inner( 2 );
+				}
+
+				void IHotloadTestFixture.Test()
+				{
+			-		Notify = Subscribe( "abc", "hello" );
+					Calls = 0;
+					Notify();
+			-		Assert.AreEqual( 10, Calls );
+			+		Assert.AreEqual( 5, Calls );
+				}
+			}
+			""" );
+	}
+
+	/// <summary>
+	/// A closed callback can drop its receiver when the incoming method becomes static.
+	/// </summary>
+	[TestMethod]
+	public async Task ClosedCallbacksCanDropTheirReceiver()
+	{
+		await HotloadFixtureAsync(
+			"""
+			using System;
+
+			internal class Receiver : IHotloadTestFixture
+			{
+				private Func<int> LocalCallback;
+				private Func<int> NamedCallback;
+				private Func<int> ClosureCallback;
+				private Func<int> GenericCallback;
+				private int Value = 11;
+			-	private int Named() => Value;
+			+	private static int Named() => 22;
+
+				private Func<int> Make()
+				{
+			-		int Local() => Value;
+			+		static int Local() => 22;
+					return Local;
+				}
+
+				private Func<int> Capture( int value )
+				{
+			-		int Local() => value;
+			+		static int Local() => 22;
+					return Local;
+				}
+
+				private class Owner<T>
+				{
+					internal static Func<int> Capture<U>( T first, U second )
+					{
+			-			int Local() => first is int n && second is string ? n : 0;
+			+			static int Local() => typeof(T) == typeof(int) && typeof(U) == typeof(string) ? 22 : 0;
+						return Local;
+					}
+				}
+
+				void IHotloadTestFixture.Test()
+				{
+			-		LocalCallback = Make();
+			-		NamedCallback = Named;
+			-		ClosureCallback = Capture( Value );
+			-		GenericCallback = Owner<int>.Capture( Value, "saved" );
+					Assert.AreEqual( Named(), LocalCallback() );
+					Assert.AreEqual( Named(), NamedCallback() );
+					Assert.AreEqual( Named(), ClosureCallback() );
+					Assert.AreEqual( Named(), GenericCallback() );
+				}
+			}
+			""" );
+	}
+
+	/// <summary>
+	/// Method groups for static local functions invoke the incoming body, including a constructed generic function.
+	/// </summary>
+	[TestMethod]
+	public async Task StaticLocalFunctionMethodGroups()
+	{
+		await HotloadFixtureAsync(
+			"""
+			using System;
+
+			internal class Receiver : IHotloadTestFixture
+			{
+				private Action Notify;
+				private Action Bound;
+				private static int Calls;
+
+				private static Action Make()
+				{
+			-		static void Local() => Calls += 1;
+			+		static void Local() => Calls += 2;
+					static void Generic<T>() => Calls += typeof(T) == typeof(string) ? 10 : 100;
+			-		static void Removed() => Calls += 1000;
+			+		static void Different() => Calls += 2000;
+			-		return (Action)Local + Generic<string> + Removed;
+			+		return (Action)Local + Generic<string> + Different;
+				}
+
+				private static Action<Receiver> Bind()
+				{
+					static void Local( Receiver receiver ) => receiver.Notify();
+					return Local;
+				}
+
+				void IHotloadTestFixture.Test()
+				{
+			-		Notify = Make();
+			-		Bound = Bind().Method.CreateDelegate<Action>( this );
+					Calls = 0;
+					Assert.AreSame( this, Bound.Target );
+					Bound();
+			-		Assert.AreEqual( 1011, Calls );
+			+		Assert.AreEqual( 12, Calls );
+				}
+			}
+			""" );
+	}
+
+	/// <summary>
+	/// Generated callbacks retain primitive locals on both sides of a compressed signature count boundary.
+	/// </summary>
+	[TestMethod]
+	public async Task GeneratedCallbacksAtLocalCountBoundary()
+	{
+		using var fixture = await CreateFixtureAsync(
+			"""
+			using System;
+			internal class Receiver : IHotloadTestFixture
+			{
+				internal Func<int>[] Readers;
+			}
+			""" );
+
+		var readers = new Func<int>[3];
+		for ( var i = 0; i < readers.Length; i++ )
+		{
+			var method = new DynamicMethod( "Read", typeof( int ), Type.EmptyTypes );
+			var il = method.GetILGenerator();
+			for ( var j = 0; j < 126 + i; j++ )
+			{
+				il.DeclareLocal( typeof( int ) );
+			}
+
+			il.Emit( OpCodes.Ldc_I4_7 );
+			il.Emit( OpCodes.Ret );
+			readers[i] = method.CreateDelegate<Func<int>>();
+		}
+
+		SetField( fixture.OldInstance, "Readers", readers );
+		await fixture.HotloadAsync();
+
+		foreach ( var read in (Func<int>[])GetField( fixture.Instance, "Readers" ) )
+		{
+			Assert.AreEqual( 7, read() );
+		}
+	}
+
 	/// <summary>
 	/// Test a lambda declared in a swapped assembly that involves a compiler-generated display class.
 	/// </summary>
@@ -201,7 +784,7 @@ public class DelegateTest : HotloadFixtureTestBase
 	}
 
 	/// <summary>
-	/// Tests delegates compiled at runtime, for example created by DelegateUpgrader.CreateErrorDelegate().
+	/// Exceptions raised by the surviving callback reach its caller after hotload.
 	/// </summary>
 	[TestMethod]
 	public async Task CompiledExpressionDelegate()
@@ -227,7 +810,8 @@ public class DelegateTest : HotloadFixtureTestBase
 				{
 			-		ActionSimple = CreateDynamic();
 			-
-					Assert.ThrowsException<NotImplementedException>( () => ActionSimple() );
+					var exception = Assert.ThrowsException<NotImplementedException>( () => ActionSimple() );
+					Assert.AreEqual( "This isn't implemented!", exception.Message );
 				}
 			}
 			""",
@@ -1340,6 +1924,7 @@ public class DelegateTest : HotloadFixtureTestBase
 			public class DerivedTargetTypeRemoved : IHotloadTestFixture
 			{
 				public Action Callback;
+				private int Calls;
 
 				public class BaseType
 				{
@@ -1356,12 +1941,45 @@ public class DelegateTest : HotloadFixtureTestBase
 
 			-	public class RemovedType : BaseType;
 			-
+				private Action Capture( BaseType target ) => () => Calls += target.Message.Length;
+				private Action CaptureNull( BaseType target ) => () => Calls += target is null ? 10 : 0;
+
 				void IHotloadTestFixture.Test()
 				{
 			-		Callback = new RemovedType().Populate();
+			-		Callback += Capture( new RemovedType() );
+			-		Callback += CaptureNull( null );
+			-		Callback += SurvivingHandler;
 			-
 					Assert.IsNotNull( Callback );
-			+		Assert.ThrowsException<NotImplementedException>( Callback );
+			+		Callback();
+			+		Assert.AreEqual( 11, Calls );
+				}
+
+				private void SurvivingHandler() => Calls++;
+			}
+			""" );
+	}
+
+	/// <summary>
+	/// A missing handler that supplies an output value must still report the binding failure.
+	/// </summary>
+	[TestMethod]
+	public async Task RemovedCallbackWithOutput()
+	{
+		await HotloadFixtureAsync(
+			"""
+			internal class Producer : IHotloadTestFixture
+			{
+				private delegate void Produce( out int value );
+				private Produce Callback;
+
+			-	private void Read( out int value ) => value = 42;
+
+				void IHotloadTestFixture.Test()
+				{
+			-		Callback = Read;
+			+		Assert.ThrowsException<System.NotImplementedException>( () => Callback( out _ ) );
 				}
 			}
 			""" );

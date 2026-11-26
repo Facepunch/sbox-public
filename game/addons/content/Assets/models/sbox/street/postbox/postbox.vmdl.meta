@@ -1,0 +1,26 @@
+{
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "Post Box",
+      "Type": "model",
+      "Org": "facepunch",
+      "Ident": "post_box",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/street/postbox/postbox.vmdl",
+        "Summary": "",
+        "Description": "",
+        "Public": true,
+        "AssetLicense": "CC0"
+      }
+    }
+  },
+  "guid": "fc32c3cf-6e27-4f59-a999-1600ff59ef71"
+}

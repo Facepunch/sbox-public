@@ -84,7 +84,6 @@ public class AssetPathControl : BaseControl
 
 		if ( asset is not null && !asset.IsDeleted )
 		{
-			// The asset browser's thumbnail, through the engine's thumb: loader
 			Add.Panel( "thumb" ).Style.BackgroundImage = Texture.Load( $"thumb:{asset.RelativePath}" );
 			Add.Label( asset.Name, "name" );
 			Add.Label( asset.RelativePath, "path" );

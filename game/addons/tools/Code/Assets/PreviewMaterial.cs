@@ -20,7 +20,10 @@ class PreviewMaterial : AssetPreview
 	public override async Task InitializeAsset()
 	{
 		var material = await Material.LoadAsync( Asset.Path );
-		if ( material is null ) return;
+
+		// The inspector can dispose this preview while the material is loading.
+		if ( material is null || !Scene.IsValid() )
+			return;
 
 		using ( Scene.Push() )
 		{

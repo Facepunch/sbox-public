@@ -108,7 +108,12 @@ internal static class LobbyManager
 	{
 		log.Trace( $"Left Lobby [{lobbyid}]" );
 		ActiveLobbies.Remove( lobbyid );
-		SteamMatchmaking.Internal.LeaveLobby( lobbyid );
+
+		// The menu may have released matchmaking before the game disposes its lobby socket.
+		if ( SteamMatchmaking.Internal is { IsValid: true } matchmaking )
+		{
+			matchmaking.LeaveLobby( lobbyid );
+		}
 	}
 
 	internal static void OnCreated( ulong lobbyid )

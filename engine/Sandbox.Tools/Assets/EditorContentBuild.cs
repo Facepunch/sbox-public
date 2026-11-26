@@ -28,7 +28,7 @@ internal static class EditorContentBuild
 	static RealTimeSince sinceChange;
 	static RealTimeUntil retryAfter;
 	static HashSet<string> current = new( StringComparer.OrdinalIgnoreCase );
-	static HashSet<string> sharedOutputs = new( StringComparer.OrdinalIgnoreCase );
+	static HashSet<string> sharedOutputs;
 	static ResourceCompiler compiler;
 	static string compilerKey;
 	static Task incrementalBuild;
@@ -92,9 +92,9 @@ internal static class EditorContentBuild
 	}
 
 	/// <summary>
-	/// A file in another output root that a record still lists, which the orphan collector has to leave.
+	/// Whether the orphan collector must keep this file until its owners are known.
 	/// </summary>
-	public static bool IsOwned( string path ) => sharedOutputs.Contains( Path.GetFullPath( path ) );
+	public static bool IsOwned( string path ) => sharedOutputs?.Contains( Path.GetFullPath( path ) ) ?? true;
 
 	/// <summary>
 	/// A single asset the user compiles needs the roots this build holds: the build stops once its running compiles are
@@ -167,6 +167,7 @@ internal static class EditorContentBuild
 	static async Task Update( bool startup )
 	{
 		building = true;
+		sharedOutputs = null;
 		cancellation = new CancellationTokenSource();
 		var generation = codeGeneration;
 		IAssetSystem.SuspendOnDemandCompiles( true );
@@ -281,7 +282,7 @@ internal static class EditorContentBuild
 			IAssetSystem.SetAssetBuiltAt( source, -1 );
 
 		current = report.Current;
-		sharedOutputs = report.SharedOutputs;
+		sharedOutputs = report.CanCleanSharedOutputs ? report.SharedOutputs : null;
 
 	}
 

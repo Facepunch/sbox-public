@@ -536,7 +536,8 @@ public class NavigationLayer : MovementLayer
 
 	protected override void OnUpdate()
 	{
-		if ( !Networking.IsHost ) return;
+		if ( !Networking.IsHost || !Npc.IsValid() )
+			return;
 
 		UpdateMovement();
 		var link = Npc.IsAirborne ? null : LinkTraversal;

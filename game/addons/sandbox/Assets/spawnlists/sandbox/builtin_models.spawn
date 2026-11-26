@@ -211,42 +211,6 @@
       "Icon": null
     },
     {
-      "Kind": "Item",
-      "Ident": "prop:models/sbox/playground/balloon/balloon.vmdl",
-      "Title": "Balloon",
-      "Icon": null
-    },
-    {
-      "Kind": "Item",
-      "Ident": "prop:models/sbox/playground/balloon/balloon_circle.vmdl",
-      "Title": "Balloon Circle",
-      "Icon": null
-    },
-    {
-      "Kind": "Item",
-      "Ident": "prop:models/sbox/playground/balloon/balloon_heart.vmdl",
-      "Title": "Balloon Heart",
-      "Icon": null
-    },
-    {
-      "Kind": "Item",
-      "Ident": "prop:models/sbox/playground/balloon/balloon_speech.vmdl",
-      "Title": "Balloon Speech",
-      "Icon": null
-    },
-    {
-      "Kind": "Item",
-      "Ident": "prop:models/sbox/playground/balloon/balloon_star.vmdl",
-      "Title": "Balloon Star",
-      "Icon": null
-    },
-    {
-      "Kind": "Item",
-      "Ident": "prop:weapons/camera/camera_film.vmdl",
-      "Title": "Film Camera",
-      "Icon": null
-    },
-    {
       "Kind": "Title",
       "Ident": null,
       "Title": "Industrial",
@@ -268,6 +232,18 @@
       "Kind": "Item",
       "Ident": "prop:models/sbox/warehouse/wooden_pallet/pallet.vmdl",
       "Title": "Wooden Pallet",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/warehouse/water_drum/water_drum_01_base.vmdl",
+      "Title": "Water Drum",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/warehouse/water_drum/water_drum_body.vmdl",
+      "Title": "Open Water Drum",
       "Icon": null
     },
     {
@@ -344,56 +320,8 @@
     },
     {
       "Kind": "Item",
-      "Ident": "prop:models/sbox/industrial/ceiling_light/ceiling_light.vmdl",
-      "Title": "Ceiling Light",
-      "Icon": null
-    },
-    {
-      "Kind": "Item",
-      "Ident": "prop:models/sbox/industrial/industrial_strip_light/industrial_strip_light.vmdl",
-      "Title": "Industrial Strip Light",
-      "Icon": null
-    },
-    {
-      "Kind": "Item",
       "Ident": "prop:models/sbox/industrial/wall_light/wall_light.vmdl",
       "Title": "Industrial Wall Light",
-      "Icon": null
-    },
-    {
-      "Kind": "Item",
-      "Ident": "prop:models/sbox/industrial/wall_light/wall_light_mount.vmdl",
-      "Title": "Industrial Wall Light Mount",
-      "Icon": null
-    },
-    {
-      "Kind": "Item",
-      "Ident": "prop:models/sbox/industrial/wiring/wiring_junction_small.vmdl",
-      "Title": "Wiring Junction Small",
-      "Icon": null
-    },
-    {
-      "Kind": "Item",
-      "Ident": "prop:models/sbox/industrial/wiring/wiring_junction_wide.vmdl",
-      "Title": "Wiring Junction Wide",
-      "Icon": null
-    },
-    {
-      "Kind": "Item",
-      "Ident": "prop:models/sbox/industrial/modular_pipe_kit/m_pipe_valve_wheel.vmdl",
-      "Title": "Large Pipe Valve",
-      "Icon": null
-    },
-    {
-      "Kind": "Item",
-      "Ident": "prop:models/sbox/industrial/modular_pipe_kit/m_pipe_valve_wheelsmall.vmdl",
-      "Title": "Small Pipe Valve",
-      "Icon": null
-    },
-    {
-      "Kind": "Item",
-      "Ident": "prop:models/sbox/industrial/modular_pipe_kit/m_pipe_valve_lever.vmdl",
-      "Title": "Large Pipe Lever",
       "Icon": null
     },
     {
@@ -434,78 +362,6 @@
     },
     {
       "Kind": "Item",
-      "Ident": "prop:models/sbox/industrial/modular_pipe_kit/m_pipe_l.vmdl",
-      "Title": "Large Pipe 80",
-      "Icon": null
-    },
-    {
-      "Kind": "Item",
-      "Ident": "prop:models/sbox/industrial/modular_pipe_kit/m_pipe_l_90long.vmdl",
-      "Title": "Large Pipe Corner A",
-      "Icon": null
-    },
-    {
-      "Kind": "Item",
-      "Ident": "prop:models/sbox/industrial/modular_pipe_kit/m_pipe_l_t.vmdl",
-      "Title": "Large Pipe Tee",
-      "Icon": null
-    },
-    {
-      "Kind": "Item",
-      "Ident": "prop:models/sbox/industrial/modular_pipe_kit/m_pipe_m.vmdl",
-      "Title": "Medium Pipe 80",
-      "Icon": null
-    },
-    {
-      "Kind": "Item",
-      "Ident": "prop:models/sbox/industrial/modular_pipe_kit/m_pipe_m_90.vmdl",
-      "Title": "Medium Pipe Corner",
-      "Icon": null
-    },
-    {
-      "Kind": "Item",
-      "Ident": "prop:models/sbox/industrial/modular_pipe_kit/m_pipe_m_t.vmdl",
-      "Title": "Medium Pipe Tee",
-      "Icon": null
-    },
-    {
-      "Kind": "Item",
-      "Ident": "prop:models/sbox/industrial/modular_pipe_kit/m_pipe_s.vmdl",
-      "Title": "Small Pipe 80",
-      "Icon": null
-    },
-    {
-      "Kind": "Item",
-      "Ident": "prop:models/sbox/industrial/modular_pipe_kit/m_pipe_s_90.vmdl",
-      "Title": "Small Pipe Corner",
-      "Icon": null
-    },
-    {
-      "Kind": "Item",
-      "Ident": "prop:models/sbox/industrial/modular_pipe_kit/m_pipe_s_t.vmdl",
-      "Title": "Small Pipe Tee",
-      "Icon": null
-    },
-    {
-      "Kind": "Item",
-      "Ident": "prop:models/sbox/industrial/modular_pipe_kit/m_pipe_thin.vmdl",
-      "Title": "Thin Pipe 80",
-      "Icon": null
-    },
-    {
-      "Kind": "Item",
-      "Ident": "prop:models/sbox/industrial/modular_pipe_kit/m_pipe_thin_90.vmdl",
-      "Title": "Thin Pipe Corner",
-      "Icon": null
-    },
-    {
-      "Kind": "Item",
-      "Ident": "prop:models/sbox/industrial/modular_pipe_kit/m_pipe_thin_t.vmdl",
-      "Title": "Thin Pipe Tee",
-      "Icon": null
-    },
-    {
-      "Kind": "Item",
       "Ident": "prop:models/sbox/construction/step_ladder/step_ladder_01.vmdl",
       "Title": "Step Ladder 01",
       "Icon": null
@@ -520,12 +376,6 @@
       "Kind": "Item",
       "Ident": "prop:models/sbox/construction/scaffolding/scaffolding_tube_a.vmdl",
       "Title": "Scaffolding Tube a",
-      "Icon": null
-    },
-    {
-      "Kind": "Item",
-      "Ident": "prop:models/sbox/construction/scaffolding/scaffolding_base_a.vmdl",
-      "Title": "Scaffolding Base a",
       "Icon": null
     },
     {
@@ -776,12 +626,6 @@
     },
     {
       "Kind": "Item",
-      "Ident": "prop:models/sbox/bathroom/bathroomprops/soap_dispenser/soap_dispenser.vmdl",
-      "Title": "Soap Dispenser",
-      "Icon": null
-    },
-    {
-      "Kind": "Item",
       "Ident": "prop:models/sbox/bathroom/bathroomprops/toilet_brush/toilet_brush_01.vmdl",
       "Title": "Toilet Brush 01",
       "Icon": null
@@ -890,56 +734,152 @@
     },
     {
       "Kind": "Item",
-      "Ident": "prop:models/sbox/street/cctv/cctv.vmdl",
-      "Title": "CCTV",
-      "Icon": null
-    },
-    {
-      "Kind": "Item",
-      "Ident": "prop:models/sbox/street/cctv/cctv_mount.vmdl",
-      "Title": "CCTV Mount",
-      "Icon": null
-    },
-    {
-      "Kind": "Item",
-      "Ident": "prop:models/sbox/street/cctv/cctv_rotating_mount.vmdl",
-      "Title": "CCTV Rotating Mount",
-      "Icon": null
-    },
-    {
-      "Kind": "Item",
       "Ident": "prop:models/sbox/street/security_light/security_light.vmdl",
       "Title": "Security Light",
       "Icon": null
     },
     {
       "Kind": "Item",
-      "Ident": "prop:models/sbox/street/security_light/security_light_mount.vmdl",
-      "Title": "Security Light Mount",
-      "Icon": null
-    },
-    {
-      "Kind": "Item",
-      "Ident": "prop:models/sbox/street/intruder_alarm_1/intruder_alarm_1.vmdl",
-      "Title": "Intruder Alarm 1",
-      "Icon": null
-    },
-    {
-      "Kind": "Item",
-      "Ident": "prop:models/sbox/street/intruder_alarm_2/intruder_alarm_2.vmdl",
-      "Title": "Intruder Alarm 2",
-      "Icon": null
-    },
-    {
-      "Kind": "Item",
-      "Ident": "prop:models/sbox/street/intruder_alarm_3/intruder_alarm_3.vmdl",
-      "Title": "Intruder Alarm 3",
+      "Ident": "prop:models/sbox/street/concrete_barrier/concrete_barrier.vmdl",
+      "Title": "Concrete Barrier",
       "Icon": null
     },
     {
       "Kind": "Item",
       "Ident": "prop:models/sbox/street/parking_bollard/parking_bollard.vmdl",
       "Title": "Parking Bollard",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/street/street_signs/sign_stop.vmdl",
+      "Title": "Stop Sign",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/street/street_signs/sign_give_way.vmdl",
+      "Title": "Give Way Sign",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/street/street_signs/sign_ahead_arrow.vmdl",
+      "Title": "Ahead Arrow Sign",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/street/street_signs/sign_dead_end.vmdl",
+      "Title": "Dead End Sign",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/street/street_signs/sign_no_entry.vmdl",
+      "Title": "No Entry Sign",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/street/street_signs/sign_bike.vmdl",
+      "Title": "Bicycle Sign",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/street/street_signs/sign_no_pedestrian.vmdl",
+      "Title": "No Pedestrians Sign",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/street/street_signs/sign_pedestrian_crossing.vmdl",
+      "Title": "Pedestrian Crossing Sign",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/street/street_signs/sign_roadworks.vmdl",
+      "Title": "Roadworks Sign",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/street/street_signs/sign_no_parking_round.vmdl",
+      "Title": "No Parking (Round) Sign",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/street/street_signs/sign_no_parking_square_large.vmdl",
+      "Title": "No Parking (Large Square) Sign",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/street/street_signs/sign_speed_5.vmdl",
+      "Title": "Speed Limit 5 Sign",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/street/street_signs/sign_speed_20.vmdl",
+      "Title": "Speed Limit 20 Sign",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/street/street_signs/sign_speed_40.vmdl",
+      "Title": "Speed Limit 40 Sign",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/street/street_signs/sign_speed_50.vmdl",
+      "Title": "Speed Limit 50 Sign",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/street/street_signs/sign_speed_60.vmdl",
+      "Title": "Speed Limit 60 Sign",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/street/street_signs/sign_speed_70.vmdl",
+      "Title": "Speed Limit 70 Sign",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/street/street_signs/sign_pole.vmdl",
+      "Title": "Sign Pole",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/street/street_signs/sign_plate_no_access.vmdl",
+      "Title": "No Access Sign Plate",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/street/street_signs/sign_plate_no_parking_square.vmdl",
+      "Title": "No Parking (Square) Sign Plate",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/street/street_signs/sign_plate_parking_arrow.vmdl",
+      "Title": "Parking Arrow Sign Plate",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/street/street_signs/sign_plate_parking_hours.vmdl",
+      "Title": "Parking Hours Sign Plate",
       "Icon": null
     },
     {
@@ -962,8 +902,20 @@
     },
     {
       "Kind": "Item",
+      "Ident": "prop:models/sbox/street/postbox/postbox.vmdl",
+      "Title": "Postbox",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
       "Ident": "prop:models/sbox/street/street_cabinets/street_cabinet_large.vmdl",
       "Title": "Street Cabinet Large",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/street/grit_bin/grit_bin.vmdl",
+      "Title": "Grit Bin",
       "Icon": null
     },
     {
@@ -976,6 +928,12 @@
       "Kind": "Item",
       "Ident": "prop:models/sbox/street/ash_bin/ash_bin_base_a.vmdl",
       "Title": "Ash Bin Base a",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/street/wheelie_bin/wheelie_bin.vmdl",
+      "Title": "Wheelie Bin",
       "Icon": null
     },
     {

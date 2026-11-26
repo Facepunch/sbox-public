@@ -45,5 +45,4 @@ internal sealed class SimGameInstance : IGameInstanceDll
 	public void ResetSceneListenerMetrics() { }
 	public object GetSceneListenerMetrics() => null;
 	public bool TryGetReplicatedVarValue( string name, out string value ) { value = null; return false; }
-	public Task LoadPackageAssembliesAsync( Package package ) => Task.CompletedTask;
 }

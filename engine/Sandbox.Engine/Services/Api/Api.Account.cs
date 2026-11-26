@@ -102,8 +102,7 @@ internal static partial class Api
 
 			if ( !string.IsNullOrWhiteSpace( result.MessagingEndpoint ) )
 			{
-				// Connect to messaging in the background, no big deal
-				_ = Sandbox.Services.Messaging.Initialize( result.MessagingEndpoint );
+				_ = ObserveMessagingStartup( Messaging.Initialize( result.MessagingEndpoint ) );
 			}
 		}
 		catch ( Exception e )
@@ -123,6 +122,22 @@ internal static partial class Api
 
 		IsConnected = true;
 		return result;
+	}
+
+	/// <summary>
+	/// Report a background connection failure while allowing account login to complete independently.
+	/// </summary>
+	internal static async Task ObserveMessagingStartup( Task startup )
+	{
+		try
+		{
+			await startup.ConfigureAwait( false );
+		}
+		catch ( Exception e )
+		{
+			// Transport exceptions can include the signed messaging URL.
+			Log.Warning( $"Messaging connection failed ({e.GetBaseException().GetType().Name})." );
+		}
 	}
 
 }

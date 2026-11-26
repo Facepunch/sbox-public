@@ -162,6 +162,32 @@ public class LocalGameResolutionTest
 	}
 
 	/// <summary>
+	/// Mounting a local addon exposes its assets even if it contains obsolete code and assembly files.
+	/// </summary>
+	[TestMethod]
+	public void MountAddonWithLegacyCode()
+	{
+		using var game = new TestGame();
+		WriteProject( game.Root, "legacyaddon", "addon", ".sbproj" );
+		var folder = Path.Combine( game.Root, "legacyaddon" );
+		Directory.CreateDirectory( Path.Combine( folder, "Assets" ) );
+		File.WriteAllText( Path.Combine( folder, "Assets", "legacy-addon.txt" ), "mounted" );
+		File.WriteAllText( Path.Combine( folder, "Code", "Legacy.cs" ), "obsolete source" );
+
+		var project = Project.AddFromFile( Path.Combine( folder, ".sbproj" ), active: false );
+		project.AssemblyFileSystem.CreateDirectory( ".bin" );
+		project.AssemblyFileSystem.WriteAllBytes( ".bin/package.local.legacyaddon.dll", [0] );
+
+#pragma warning disable CS0618 // Exercise the original game API.
+		var files = SyncContext.RunBlocking( project.Package.MountAsync( withCode: true ) );
+#pragma warning restore CS0618
+
+		Assert.IsNotNull( files );
+		Assert.AreEqual( "mounted", FileSystem.Mounted.ReadAllText( "legacy-addon.txt" ) );
+		Assert.IsFalse( project.HasCompiler );
+	}
+
+	/// <summary>
 	/// A listen host advertises its archive. Matching peers keep their assembly and older peers request the host's code.
 	/// </summary>
 	[TestMethod]

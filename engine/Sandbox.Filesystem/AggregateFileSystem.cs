@@ -12,6 +12,9 @@ internal class AggregateFileSystem : BaseFileSystem
 
 	public void UnMountAll()
 	{
-		(system as Zio.FileSystems.AggregateFileSystem).ClearFileSystems();
+		lock ( MountLock )
+		{
+			(system as Zio.FileSystems.AggregateFileSystem)?.ClearFileSystems();
+		}
 	}
 }
