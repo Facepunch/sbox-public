@@ -124,8 +124,7 @@ internal static class ThumbLoader
 
 			if ( cached is not null )
 			{
-				using var texture = cached.ToTexture();
-				placeholder.CopyFrom( texture );
+				placeholder.CopyFrom( cached );
 				return;
 			}
 
