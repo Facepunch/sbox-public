@@ -1,4 +1,4 @@
-using Sandbox.Engine;
+﻿using Sandbox.Engine;
 using Sandbox.UI;
 using System;
 using System.Collections.Generic;
@@ -238,6 +238,22 @@ public class PanelRecordingReuseTest
 		AssertFrame( root, replayed: true );
 	}
 
+	// Custom drawing that says what it drew, so it can be compared between frames as a label's text is
+	sealed class KeyedDrawn : Panel
+	{
+		public override void OnDraw( Painter painter )
+		{
+			painter.Fill = Color.Blue;
+			painter.Rect( new Rect( 0, 0, 10, 10 ) );
+		}
+
+		internal override bool TryGetDrawKey( out DrawKey key )
+		{
+			key = new DrawKey( this, 1, Box.Rect, default );
+			return true;
+		}
+	}
+
 	sealed class CustomDrawn : Panel
 	{
 		public override void OnDraw( Painter painter )
@@ -305,6 +321,33 @@ public class PanelRecordingReuseTest
 		// The fresh recording in between counts as last frame, so they replay from it as well
 		Frame( root );
 		AssertSameAsFresh( root );
+	}
+
+	/// <summary>
+	/// A subtree inside a kept list that was inserted last frame wasn't recorded then: where its keys sat in an older recording
+	/// says nothing about last frame's list, so when the list records again it records (Stax threw ArgumentOutOfRangeException
+	/// slicing a shorter list).
+	/// </summary>
+	[TestMethod]
+	public void SubtreeNotRecordedLastFrameRecords()
+	{
+		var root = Root();
+		root.AddChild<CustomDrawn>().Style.Set( "width: 10px; height: 10px;" );
+		var before = root.AddChild<KeyedDrawn>();
+		before.Style.Set( "position: absolute; left: 750px; top: 550px; width: 10px; height: 10px;" );
+		var menu = Menu( root );
+		var card = Child( menu, "width: 100px; height: 40px; background-color: #333;" );
+		card.AddChild<KeyedDrawn>().Style.Set( "width: 10px; height: 10px;" );
+		Settle( root, menu );
+
+		// The root records without the keyed panel before the menu (transparent, so culled), whose kept list is inserted as it was
+		before.Style.Opacity = 0;
+		Frame( root );
+
+		// The menu records its list again; the card in it was last recorded before the keyed panel went
+		menu.Children.ElementAt( 7 ).Style.BackgroundColor = Color.White;
+		Frame( root );
+		AssertKeptSameAsFresh( root, menu );
 	}
 
 	[TestMethod]

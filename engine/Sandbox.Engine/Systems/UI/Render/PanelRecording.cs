@@ -54,6 +54,9 @@ internal sealed class PanelRecording
 	int _uncomparable;
 	long _recordedAt = -1;
 	long _recordingAt;
+
+	// The recording _previousKeys is from: a subtree's key range indexes it only if it was recorded or replayed in that one
+	long _previousRecordingAt = -1;
 	RootKey _key;
 
 	/// <summary>Frames this root replayed its recording instead of recording, for tests and diagnostics.</summary>
@@ -247,6 +250,10 @@ internal sealed class PanelRecording
 		if ( subtree is null || !subtree.Replayable || !Enabled || !SubtreesEnabled ) return false;
 		if ( panel.PaintChangedAt > subtree.RecordedAt ) return false;
 
+		// Not drawn in the last recording (inside a kept list that was inserted, or a parent that replayed): its draws and keys
+		// are where an older one put them
+		if ( subtree.RecordedAt != _previousRecordingAt ) return false;
+
 		var batcher = painter.Batcher;
 		if ( painter.InheritedOpacity != subtree.Opacity || painter.InheritedBlendMode != subtree.Blend ) return false;
 		if ( !batcher.Destination.Scissor.Equals( in subtree.Scissor ) || !batcher.CanReplay( in subtree.Run ) ) return false;
@@ -287,6 +294,7 @@ internal sealed class PanelRecording
 	internal Scope Begin( long recordingAt )
 	{
 		(_previousKeys, _keys) = (_keys, _previousKeys);
+		_previousRecordingAt = _recordingAt;
 		_keys.Clear();
 		_retained.Clear();
 		_retainedDepth = 0;
@@ -353,6 +361,7 @@ internal sealed class PanelRecording
 	{
 		_keys.Clear();
 		_previousKeys.Clear();
+		_previousRecordingAt = -1;
 		_retained.Clear();
 		_recordedAt = -1;
 	}
