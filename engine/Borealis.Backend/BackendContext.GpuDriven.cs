@@ -1164,20 +1164,20 @@ internal sealed partial class BackendContext
 			LodCount = lodTable.Records,
 		} );
 		cullAttributes.Clear();
-		cullAttributes.Set( "BorealisCullFrame", frameBuffer );
-		if ( CountsOnDevice( cull ) ) cullAttributes.Set( "BorealisCullStats", device.CullStats.Buffer );
-		if ( lods is not null ) cullAttributes.Set( "BorealisCullLevels", lods.State );
+		cullAttributes.SetById( Ids.BorealisCullFrame, frameBuffer );
+		if ( CountsOnDevice( cull ) ) cullAttributes.SetById( Ids.BorealisCullStats, device.CullStats.Buffer );
+		if ( lods is not null ) cullAttributes.SetById( Ids.BorealisCullLevels, lods.State );
 		if ( visibility is not null )
 		{
-			cullAttributes.Set( "BorealisCullStamps", visibility.Stamps );
-			cullAttributes.Set( "BorealisCullMask", visibility.Mask );
-			cullAttributes.Set( "BorealisCullCompacted", lists ? compacted : visibility.Compacted );
-			cullAttributes.Set( "BorealisHiZVisible", hizBits ? visibility.HiZVisible[visibility.HiZCurrent] : visibility.Stamps );
+			cullAttributes.SetById( Ids.BorealisCullStamps, visibility.Stamps );
+			cullAttributes.SetById( Ids.BorealisCullMask, visibility.Mask );
+			cullAttributes.SetById( Ids.BorealisCullCompacted, lists ? compacted : visibility.Compacted );
+			cullAttributes.SetById( Ids.BorealisHiZVisible, hizBits ? visibility.HiZVisible[visibility.HiZCurrent] : visibility.Stamps );
 			if ( MeshletStampsReady( visibility ) )
 			{
-				cullAttributes.Set( "BorealisMeshletStamps", visibility.MeshletStamps );
-				cullAttributes.Set( "BorealisMeshletCompacted", visibility.PrepassCompacted );
-				cullAttributes.Set( "BorealisMeshletCompacted16", visibility.PrepassCompacted16 );
+				cullAttributes.SetById( Ids.BorealisMeshletStamps, visibility.MeshletStamps );
+				cullAttributes.SetById( Ids.BorealisMeshletCompacted, visibility.PrepassCompacted );
+				cullAttributes.SetById( Ids.BorealisMeshletCompacted16, visibility.PrepassCompacted16 );
 			}
 		}
 
@@ -1206,7 +1206,7 @@ internal sealed partial class BackendContext
 			// listed instead; then a group a part of each listed, to count, decide and copy
 			var largeList = visibility is not null ? device.CompactLargeFor( visibility ) : default;
 			var large = largeList.IsValid;
-			cullAttributes.Set( "BorealisCompactLarge", large ? largeList : compacted );
+			cullAttributes.SetById( Ids.BorealisCompactLarge, large ? largeList : compacted );
 			if ( large )
 			{
 				r.List.Barrier( PipelineStage.ComputeShader | PipelineStage.DrawIndirect, MemoryAccess.ShaderRead | MemoryAccess.ShaderWrite | MemoryAccess.IndirectRead, PipelineStage.Transfer, MemoryAccess.TransferWrite );
@@ -1350,13 +1350,13 @@ internal sealed partial class BackendContext
 		{
 			MemoryMarshal.Write( hizConstants, values );
 			hizAttributes.Clear();
-			hizAttributes.Set( "BorealisHiZ", visibility.HiZ );
-			hizAttributes.Set( "BorealisCullFrame", frameBuffer );
-			hizAttributes.Set( "BorealisCullStamps", visibility.Stamps );
-			hizAttributes.Set( "BorealisMeshletStamps", (values.Flags & 2) != 0 ? visibility.MeshletStamps : visibility.Stamps );
+			hizAttributes.SetById( Ids.BorealisHiZ, visibility.HiZ );
+			hizAttributes.SetById( Ids.BorealisCullFrame, frameBuffer );
+			hizAttributes.SetById( Ids.BorealisCullStamps, visibility.Stamps );
+			hizAttributes.SetById( Ids.BorealisMeshletStamps, (values.Flags & 2) != 0 ? visibility.MeshletStamps : visibility.Stamps );
 			hizAttributes.SetCombo( "D_HIZ_DEPTH", fromDepth ? 1 : 0 );
 			hizAttributes.SetCombo( "D_MSAA", fromDepth && samples > 1 ? 1 : 0 );
-			if ( fromDepth ) hizAttributes.Set( "BorealisHiZDepth", depthTexture.Handle );
+			if ( fromDepth ) hizAttributes.SetById( Ids.BorealisHiZDepth, depthTexture.Handle );
 			hizAttributes.SetData( "BorealisHiZ_t", hizConstants );
 		}
 
@@ -1487,12 +1487,12 @@ internal sealed partial class BackendContext
 		{
 			MemoryMarshal.Write( meshletConstants, constants );
 			meshletAttributes.Clear();
-			meshletAttributes.Set( "BorealisCullFrame", frameBuffer );
-			meshletAttributes.Set( "BorealisMeshletCompacted", compacted );
-			meshletAttributes.Set( "BorealisMeshletCompacted16", compacted16 );
-			meshletAttributes.Set( "BorealisMeshletStamps", stamps );
-			meshletAttributes.Set( "BorealisMeshletJobs", jobs );
-			meshletAttributes.Set( "g_TransformBuffer", LentInstances.Transforms );
+			meshletAttributes.SetById( Ids.BorealisCullFrame, frameBuffer );
+			meshletAttributes.SetById( Ids.BorealisMeshletCompacted, compacted );
+			meshletAttributes.SetById( Ids.BorealisMeshletCompacted16, compacted16 );
+			meshletAttributes.SetById( Ids.BorealisMeshletStamps, stamps );
+			meshletAttributes.SetById( Ids.BorealisMeshletJobs, jobs );
+			meshletAttributes.SetById( Ids.g_TransformBuffer, LentInstances.Transforms );
 			meshletAttributes.SetData( "BorealisMeshletCull_t", meshletConstants );
 		}
 
@@ -2085,6 +2085,27 @@ internal sealed partial class BackendContext
 	/// </summary>
 	internal static long CompactLargeBytes( int parts, int fragments ) => 48 + parts * 4L + fragments * (4 + CompactMaxParts) * 4L;
 	internal const uint CompactMaxParts = 64;
+	/// <summary>The attribute ids the GPU-driven passes' own dispatches bind by: found once, not by name each dispatch.</summary>
+	static class Ids
+	{
+		public static readonly int BorealisCullFrame = AttributeIds.Of( "BorealisCullFrame" );
+		public static readonly int BorealisCullStats = AttributeIds.Of( "BorealisCullStats" );
+		public static readonly int BorealisCullLevels = AttributeIds.Of( "BorealisCullLevels" );
+		public static readonly int BorealisCullStamps = AttributeIds.Of( "BorealisCullStamps" );
+		public static readonly int BorealisCullMask = AttributeIds.Of( "BorealisCullMask" );
+		public static readonly int BorealisCullCompacted = AttributeIds.Of( "BorealisCullCompacted" );
+		public static readonly int BorealisHiZVisible = AttributeIds.Of( "BorealisHiZVisible" );
+		public static readonly int BorealisMeshletStamps = AttributeIds.Of( "BorealisMeshletStamps" );
+		public static readonly int BorealisMeshletCompacted = AttributeIds.Of( "BorealisMeshletCompacted" );
+		public static readonly int BorealisMeshletCompacted16 = AttributeIds.Of( "BorealisMeshletCompacted16" );
+		public static readonly int BorealisCompactLarge = AttributeIds.Of( "BorealisCompactLarge" );
+		public static readonly int BorealisHiZ = AttributeIds.Of( "BorealisHiZ" );
+		public static readonly int BorealisHiZDepth = AttributeIds.Of( "BorealisHiZDepth" );
+		public static readonly int BorealisMeshletJobs = AttributeIds.Of( "BorealisMeshletJobs" );
+		public static readonly int g_TransformBuffer = AttributeIds.Of( "g_TransformBuffer" );
+		public static readonly int BorealisIds = AttributeIds.Of( "BorealisIds" );
+	}
+
 	static readonly int CompactParts = AttributeIds.Of( "D_PARTS" );
 
 	/// <summary>A batch record's sixth word's bit for a bucket drawn with task and mesh shaders: the rest is its task run.</summary>
@@ -2298,8 +2319,8 @@ internal sealed partial class BackendContext
 			CallInstances = call.Instances,
 		} );
 		cullAttributes.Clear();
-		cullAttributes.Set( "BorealisIds", visibility.Ids );
-		cullAttributes.Set( "BorealisCullMask", visibility.Mask );
+		cullAttributes.SetById( Ids.BorealisIds, visibility.Ids );
+		cullAttributes.SetById( Ids.BorealisCullMask, visibility.Mask );
 		cullAttributes.SetCombo( "D_MSAA", visibility.Samples > 1 ? 1 : 0 );
 		cullAttributes.SetData( "BorealisGpuDrivenMark_t", markConstants );
 		var markScope = timer?.Begin( r.List, "GPU-driven mark", PassTimer.ScopeKind.Own, count: false ) ?? -1;
