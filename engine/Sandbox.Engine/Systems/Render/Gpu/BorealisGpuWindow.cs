@@ -360,7 +360,12 @@ internal sealed partial class BorealisGpuWindow : IDisposable
 			if ( present )
 			{
 				// With nothing acquired (no swap chain yet: nothing can be shown) the frame is drawn all the same
-				if ( swapChain is { Current.IsValid: true } chain ) backend.CopyToSwapChain( target, chain );
+				if ( swapChain is { Current.IsValid: true } chain )
+				{
+					var timed = backend.BeginTimed( "Copy to swap chain" );
+					backend.CopyToSwapChain( target, chain );
+					backend.EndTimed( timed );
+				}
 				else drawnUnshown = true;
 				if ( timestamps is not null ) backend.WriteTimestamp( timestamps, TimestampSlot + 1, PipelineStage.AllCommands );
 			}
@@ -383,7 +388,15 @@ internal sealed partial class BorealisGpuWindow : IDisposable
 	void DrawOverlay()
 	{
 		Graphics.Attributes.Set( "UIGammaOutput", true );
-		overlayDraw();
+		var timed = backend.BeginTimed( "Window overlay" );
+		try
+		{
+			overlayDraw();
+		}
+		finally
+		{
+			backend.EndTimed( timed );
+		}
 	}
 
 	/// <summary>

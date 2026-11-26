@@ -344,7 +344,12 @@ internal sealed partial class SceneBridge
 			gpuView.DisplayViewport = null;
 
 			RunStage( camera, Stage.BeforePostProcess );
-			if ( exposure is not null && exposureBucket >= 0 ) frame.CountExposure( exposure, exposureBucket );
+			if ( exposure is not null && exposureBucket >= 0 )
+			{
+				var timed = backend.BeginTimed( "Exposure count" );
+				frame.CountExposure( exposure, exposureBucket );
+				backend.EndTimed( timed );
+			}
 			RunStage( camera, Stage.Tonemapping );
 
 			// Native's debug view of the reactive mask, over the frame
@@ -502,7 +507,15 @@ internal sealed partial class SceneBridge
 
 		var depth = !withDepth ? null : frame.Multisampled ? frame.ResolvedDepth() : frame.Depth;
 		if ( depth is not null && frame.Multisampled ) gpuView.Bind();
-		BorealisGpuCustomDraw.DrawOverlays( view, gpuView, depth );
+		var timed = Gpu?.BeginTimed( "Output overlays" ) ?? default;
+		try
+		{
+			BorealisGpuCustomDraw.DrawOverlays( view, gpuView, depth );
+		}
+		finally
+		{
+			Gpu?.EndTimed( timed );
+		}
 	}
 
 	/// <summary>
@@ -516,7 +529,9 @@ internal sealed partial class SceneBridge
 		copyAttributes.Set( FlipXName, flipX );
 		copyAttributes.Set( FlipYName, flipY );
 		copyAttributes.SetCombo( SrgbTransfer, encode ? 1 : 0 );
+		var timed = Gpu?.BeginTimed( "Output copy" ) ?? default;
 		Graphics.Blit( copyMaterial, copyAttributes );
+		Gpu?.EndTimed( timed );
 	}
 
 	readonly HashSet<(int, Stage)> stageFailures = new();
@@ -524,6 +539,7 @@ internal sealed partial class SceneBridge
 	/// <summary>A camera's stage, in the block being recorded. One that throws is logged once, and the frame goes on.</summary>
 	void RunStage( SceneCamera camera, Stage stage )
 	{
+		var timed = Gpu?.BeginTimed( StageScopeName( stage ) ) ?? default;
 		try
 		{
 			((IManagedCamera)camera).OnRenderStage( stage );
@@ -532,5 +548,26 @@ internal sealed partial class SceneBridge
 		{
 			if ( stageFailures.Add( (camera._cameraId, stage) ) ) Log.Warning( e, $"Borealis.Gpu: {camera.Name}'s {stage} stage: {e.Message}" );
 		}
+		finally
+		{
+			Gpu?.EndTimed( timed );
+		}
 	}
+
+	/// <summary>A stage's pass timer scope (<see cref="BorealisGpuRenderBackend.BeginTimed"/>): named once, not per frame.</summary>
+	static string StageScopeName( Stage stage ) => stage switch
+	{
+		Stage.AfterDepthPrepass => "Stage AfterDepthPrepass",
+		Stage.AfterOpaque => "Stage AfterOpaque",
+		Stage.AfterSkybox => "Stage AfterSkybox",
+		Stage.AfterTransparent => "Stage AfterTransparent",
+		Stage.AfterViewmodel => "Stage AfterViewmodel",
+		Stage.EarlyUI => "Stage EarlyUI",
+		Stage.BeforePostProcess => "Stage BeforePostProcess",
+		Stage.Tonemapping => "Stage Tonemapping",
+		Stage.AfterPostProcess => "Stage AfterPostProcess",
+		Stage.UI => "Stage UI",
+		Stage.AfterUI => "Stage AfterUI",
+		_ => "Stage",
+	};
 }

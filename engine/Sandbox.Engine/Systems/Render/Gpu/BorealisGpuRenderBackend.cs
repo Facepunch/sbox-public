@@ -706,6 +706,27 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 	internal Borealis.Backend.PassTimer ScopeTimer => services.PassTimer;
 
 	/// <summary>
+	/// Time what the block being recorded records until <see cref="EndTimed"/> as a scope of the pass timer's own, named
+	/// <paramref name="name"/> (a camera's stage, its output's copy, the window's overlay), so the engine's work after the scene
+	/// shows by part with Borealis's passes. Nothing without a timer or a block.
+	/// </summary>
+	internal TimedScope BeginTimed( string name )
+	{
+		if ( list is null || services.PassTimer is not { } timer ) return default;
+		return new TimedScope( list, timer.Begin( list, name, Borealis.Backend.PassTimer.ScopeKind.Own, count: false ) );
+	}
+
+	/// <summary>End a scope <see cref="BeginTimed"/> began, while its list is still the one recording.</summary>
+	internal void EndTimed( TimedScope scope )
+	{
+		if ( scope.List is null || scope.Id < 0 || scope.List != list ) return;
+		services.PassTimer?.End( list, scope.Id );
+	}
+
+	/// <summary>A scope <see cref="BeginTimed"/> began: its list and its pass timer scope.</summary>
+	internal readonly record struct TimedScope( GpuCommandList List, int Id );
+
+	/// <summary>
 	/// After the last frame: drop what the last block and draw were given, which would hold their textures and material
 	/// past their owners, and the sheet cache. Blocks remake the set as they start, and sheets are written again when asked for.
 	/// </summary>

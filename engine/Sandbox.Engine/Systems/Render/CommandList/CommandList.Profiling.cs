@@ -49,6 +49,12 @@ public sealed unsafe partial class CommandList
 	}
 
 	/// <summary>
+	/// Time every scope with Borealis.Gpu's pass timer whatever the dev tools show (<c>-time-profile-scopes</c>): what a probe
+	/// reading the passes needs to split an effect's work.
+	/// </summary>
+	internal static bool TimeScopes = Sandbox.Utility.CommandLine.HasSwitch( "-time-profile-scopes" );
+
+	/// <summary>
 	/// Begin a scope on the render thread. Checked here rather than at record time so toggling the profiler takes effect immediately
 	/// </summary>
 	internal static OpenScope OpenScopeFor( ProfilingSampler sampler )
@@ -59,7 +65,7 @@ public sealed unsafe partial class CommandList
 			list.BeginLabel( sampler.Name );
 
 			// Timed as a scope of its own while something shows GPU passes, so effects inside the engine's blocks have rows
-			var timer = Diagnostics.GpuProfilerStats.Enabled ? backend.ScopeTimer : null;
+			var timer = Diagnostics.GpuProfilerStats.Enabled || TimeScopes ? backend.ScopeTimer : null;
 			return new OpenScope { Label = list, Timer = timer?.Begin( list, sampler.Name, Borealis.Backend.PassTimer.ScopeKind.Own, count: false ) ?? -1 };
 		}
 
