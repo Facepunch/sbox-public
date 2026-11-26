@@ -127,6 +127,65 @@ public class RenderThreadOverlapTests
 	}
 
 	/// <summary>
+	/// A texture made while the render thread draws and released before the main thread next records (a web panel's texture,
+	/// made again as its page resizes) isn't tracked once it's gone. Before, its layout, kept for the main thread's next
+	/// recording, was tracked after the release had forgotten it, and while a worker's clear was queued unreadable the end of
+	/// every block after threw on the destroyed texture, so nothing drew again (DXRP's menu, 25 Nov).
+	/// </summary>
+	[TestMethod]
+	public void TexturesReleasedBeforeTheMainThreadRecordsArentTracked()
+	{
+		TestGraphics.Require();
+		ThreadSafe.MarkMainThread();
+		using var borealis = BorealisGpuRenderBackend.Create( validation: true );
+
+		// Made with no pixels, as a web panel's is: cleared, so left for a write rather than readable
+		const int size = 16;
+		using var texture = Texture.Create( size, size, ImageFormat.BGRA8888 ).Finish();
+
+		borealis.DrawingForTests( true );
+		Assert.IsTrue( borealis.TextureIndex( texture ) > 0, "made while the render thread draws" );
+		borealis.DrawingForTests( false );
+		borealis.Release( texture );
+
+		borealis.BeginBlock();
+		borealis.EndBlock();
+		borealis.BeginBlock();
+		borealis.EndBlock();
+
+		Assert.IsTrue( borealis.TextureIndex( texture ) > 0, "made again when next used" );
+		Assert.AreEqual( 0, borealis.ValidationErrors );
+	}
+
+	/// <summary>
+	/// A texture made with no pixels, written while the render thread draws and drawn before that write lands (a web panel's
+	/// page: made and written as the page paints, then recorded by its panel) has the write in a copy of its own format and
+	/// size once it lands. Before, the update had cleared the colour the copy would be made with, so the copy was the
+	/// transparent pixel, the write didn't fit it and was dropped, and the page never showed (DXRP's patch notes, 25 Nov).
+	/// </summary>
+	[TestMethod]
+	public void TexturesWrittenWhileTheRenderThreadDrawsTakeTheWrite()
+	{
+		TestGraphics.Require();
+		ThreadSafe.MarkMainThread();
+		using var borealis = BorealisGpuRenderBackend.Create( validation: true );
+
+		const int size = 16;
+		using var texture = Texture.Create( size, size, ImageFormat.BGRA8888 ).Finish();
+
+		borealis.DrawingForTests( true );
+		texture.Update( Pixels( size, size, new Color32( 255, 0, 255, 255 ) ), 0, 0, size, size );
+		Assert.IsTrue( borealis.TextureIndex( texture ) > 0, "drawn before the write lands" );
+		borealis.DrawingForTests( false );
+
+		var bytes = borealis.ReadBytes( texture );
+		Assert.AreEqual( size * size * 4, bytes.Length, "a copy of its own size" );
+		var middle = (8 * size + 8) * 4;
+		CollectionAssert.AreEqual( new byte[] { 255, 0, 255, 255 }, bytes[middle..(middle + 4)], "the write is in it" );
+		Assert.AreEqual( 0, borealis.ValidationErrors );
+	}
+
+	/// <summary>
 	/// A render target first used while the render thread draws is cleared in a list of its own and queued for the context
 	/// once, readable, as the clear leaves it. Before, it was queued twice (undefined, then where the clear left it): the
 	/// render thread, which takes queued layouts as each block begins, took the first in one block and the second in the

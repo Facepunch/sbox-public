@@ -1246,7 +1246,11 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 
 	void TrackWorkerTextures()
 	{
-		while ( workerTracks.TryDequeue( out var tracked ) ) context.Track( tracked.Handle, tracked.Layout );
+		// Not one released meanwhile: its release had nothing to forget yet, and the end of every block would move it
+		while ( workerTracks.TryDequeue( out var tracked ) )
+		{
+			if ( gpu.IsAlive( tracked.Handle ) ) context.Track( tracked.Handle, tracked.Layout );
+		}
 	}
 
 	/// <summary>
@@ -1574,8 +1578,47 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 	/// </summary>
 	TextureHandle Unreadable( Texture texture )
 	{
+		// Made for a write (Update): empty in its own format and size, which the write fills
+		if ( makingForWrite && EmptyForWrite( texture ) is { } empty ) return empty;
+
 		Log.Warning( $"Borealis.Gpu: {(string.IsNullOrEmpty( texture.ResourcePath ) ? $"a {texture.Width}x{texture.Height} {texture.ImageFormat} texture" : texture.ResourcePath)} has nothing to read, so it draws transparent" );
-		var handle = gpu.CreateTexture( TextureInfo.Texture2D( 1, 1, GpuFormat.RGBA8Unorm, name: "Engine image without pixels" ) );
+		var handle = gpu.CreateTexture( TextureInfo.Texture2D( 1, 1, GpuFormat.RGBA8Unorm, name: StandInName ) );
+		ClearNew( handle, Color.Transparent );
+		return handle;
+	}
+
+	/// <summary>The name of <see cref="Unreadable"/>'s transparent pixel, which a write replaces.</summary>
+	const string StandInName = "Engine image without pixels";
+
+	// While Update makes the backing it writes (MakeForWrite)
+	bool makingForWrite;
+
+	/// <summary>Make a texture's backing for a write to it: one with nothing to read is made empty, not as the stand-in.</summary>
+	void MakeForWrite( Texture texture )
+	{
+		makingForWrite = true;
+		try
+		{
+			TextureOf( texture );
+		}
+		finally
+		{
+			makingForWrite = false;
+		}
+	}
+
+	/// <summary>
+	/// A plain 2D texture with nothing to read, about to be written: in its own format, size and mips (storage when made for
+	/// compute), cleared to transparent. Null for one in a format with no Borealis.Gpu form, or a volume, array or cube.
+	/// </summary>
+	TextureHandle? EmptyForWrite( Texture texture )
+	{
+		var format = DataFormatOf( texture.ImageFormat );
+		if ( format == GpuFormat.Unknown || texture.Depth > 1 || texture.Desc.IsArray || texture.Desc.IsCube ) return null;
+
+		var info = TextureInfo.Texture2D( texture.Width, texture.Height, format, Math.Max( texture.Mips, 1 ), $"Engine image {texture.Width}x{texture.Height}" );
+		if ( texture.Desc.m_nFlags.Contains( NativeEngine.RuntimeTextureSpecificationFlags.TSPEC_UAV ) ) info.Usage |= TextureUsage.Storage;
+		var handle = gpu.CreateTexture( info );
 		ClearNew( handle, Color.Transparent );
 		return handle;
 	}
@@ -1687,11 +1730,28 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 			}
 
 			// A material's texture or the error texture has no copy of its own to write
-			TextureOf( texture );
+			MakeForWrite( texture );
 			if ( !textures.TryGetValue( texture, out backing ) ) return true;
 		}
 
 		var info = gpu.InfoOf( backing.Handle );
+
+		// Drawn before its first write (a web panel's page, its panel recorded while the render thread drew): the transparent
+		// stand-in no write fits gives way to a copy made for the write, rather than the write being dropped
+		if ( info.Name == StandInName )
+		{
+			if ( !ThreadSafe.IsMainThread )
+			{
+				workerUpdates.Enqueue( (texture, data.ToArray(), x, y, z, width, height, depth) );
+				return true;
+			}
+
+			ReleaseNow( texture );
+			MakeForWrite( texture );
+			if ( !textures.TryGetValue( texture, out backing ) ) return false;
+			info = gpu.InfoOf( backing.Handle );
+		}
+
 		if ( DataFormatOf( texture.ImageFormat ) != info.Format ) return false;
 
 		// A volume takes every slice at once (CommandList.CopyBufferToTexture), so only an update of all of them; anything
