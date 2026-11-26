@@ -241,6 +241,17 @@ internal unsafe struct VkPhysicalDeviceSubgroupProperties
 }
 
 [StructLayout( LayoutKind.Sequential )]
+internal unsafe struct VkPhysicalDeviceSubgroupSizeControlProperties
+{
+	public VkStructureType sType;
+	public void* pNext;
+	public uint minSubgroupSize;
+	public uint maxSubgroupSize;
+	public uint maxComputeWorkgroupSubgroups;
+	public uint requiredSubgroupSizeStages;
+}
+
+[StructLayout( LayoutKind.Sequential )]
 internal unsafe struct VkPhysicalDeviceDriverProperties
 {
 	public VkStructureType sType;
@@ -759,6 +770,14 @@ internal unsafe struct VkPipelineShaderStageCreateInfo
 	public ulong module;
 	public byte* pName;
 	public VkSpecializationInfo* pSpecializationInfo;
+}
+
+[StructLayout( LayoutKind.Sequential )]
+internal unsafe struct VkPipelineShaderStageRequiredSubgroupSizeCreateInfo
+{
+	public VkStructureType sType;
+	public void* pNext;
+	public uint requiredSubgroupSize;
 }
 
 [StructLayout( LayoutKind.Sequential )]

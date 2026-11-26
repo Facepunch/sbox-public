@@ -249,6 +249,7 @@ internal sealed class PipelinePartManifest
 				Constants( b, info.FragmentConstants );
 				b.Append( '\t' );
 				Sets( b, sets );
+				if ( info.FragmentWave32 ) b.Append( '\t' ).Append( '1' );
 				break;
 
 			case PipelineParts.VertexInput:
@@ -347,11 +348,12 @@ internal sealed class PipelinePartManifest
 				info.VertexConstants = computeConstants;
 				return true;
 
-			case "F" when p.Length == 5:
+			case "F" when p.Length == 5 || (p.Length == 6 && p[5] == "1"):
 				if ( !Hash( p[1], out shader ) || p[2].Length == 0 || !ReadConstants( p[3], out var fragmentConstants ) || !ReadSets( p[4], out sets ) ) return false;
 				kind = PipelineParts.FragmentShader;
 				info.FragmentEntry = p[2];
 				info.FragmentConstants = fragmentConstants;
+				info.FragmentWave32 = p.Length == 6;
 				return true;
 
 			case "V" when p.Length == 4:

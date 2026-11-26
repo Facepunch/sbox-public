@@ -88,15 +88,7 @@ public sealed unsafe partial class Device
 			if ( !replaceNow && FrameNumber - replaceSince < (ulong)Math.Max( ReplaceAfterFrames, 0 ) && replaceBytes < ReplaceAfterBytes ) return;
 		}
 
-		if ( IsLost ) return;
-		Interlocked.Exchange( ref gateMoving, 1 );
-		if ( Volatile.Read( ref gateUsers ) != 0 )
-		{
-			Volatile.Write( ref gateMoving, 0 );
-			return;
-		}
-
-		Volatile.Write( ref moverThread, Environment.CurrentManagedThreadId );
+		if ( IsLost || !TryBeginMove() ) return;
 		try
 		{
 			// Everything recorded has been sent; once the GPU has run it, nothing pending reads the old images or the slots
@@ -139,8 +131,7 @@ public sealed unsafe partial class Device
 			movedTextures.Clear();
 			movedViews.Clear();
 			oldViews.Clear();
-			Volatile.Write( ref moverThread, 0 );
-			Volatile.Write( ref gateMoving, 0 );
+			EndMove();
 		}
 	}
 

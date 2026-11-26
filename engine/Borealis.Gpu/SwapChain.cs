@@ -377,21 +377,31 @@ public sealed unsafe class SwapChain : IDisposable
 	}
 
 	/// <summary>
-	/// Queue the acquired image for presentation, once the submission that named this swap chain has finished.
+	/// Queue the acquired image for presentation after its submission finishes. If nothing was submitted, present a clear image.
 	/// </summary>
 	public void Present()
 	{
 		if ( !Current.IsValid ) throw new InvalidOperationException( "No image was acquired" );
 
-		// Nothing was submitted for the image: the present would wait on a semaphore no submission signals, and the queue behind
-		// it with it, until the watchdog resets the GPU. Submit for it here (an empty frame, the image moved to be presented)
+		// Nothing was submitted for the image: consume the acquire semaphore and signal the present semaphore by clearing it.
 		if ( SubmitsForImage == 0 && !device.IsLost )
 		{
 			PresentsWithoutSubmit++;
 			device.RememberEvent( "present without a submission for the image:", (int)imageIndex );
-			device.Warn( "Borealis.Gpu.PresentWithoutSubmit", "A swap chain image was presented with nothing submitted for it since it was acquired; an empty frame was submitted for it" + (PresentsWithoutSubmit == 1 ? " (first time, from:\n" + Environment.StackTrace + ")" : "") );
+			device.Warn( "Borealis.Gpu.PresentWithoutSubmit", "A swap chain image was presented with nothing submitted for it since it was acquired; it was cleared before presentation" + (PresentsWithoutSubmit == 1 ? " (first time, from:\n" + Environment.StackTrace + ")" : "") );
 			var list = device.BeginCommandList( QueueType.Graphics, "Present without a frame" );
-			list.Barrier( new TextureBarrier { Texture = Current, OldLayout = ImageLayout.Undefined, NewLayout = ImageLayout.Present, SourceStage = PipelineStage.AllCommands, SourceAccess = MemoryAccess.None, DestinationStage = PipelineStage.AllCommands, DestinationAccess = MemoryAccess.None, MipCount = 1, LayerCount = 1 } );
+			try
+			{
+				list.Barrier( TextureBarrier.Transition( Current, ImageLayout.Undefined, ImageLayout.ColorTarget, PipelineStage.ColorTargetOutput, MemoryAccess.None, PipelineStage.ColorTargetOutput, MemoryAccess.ColorTargetWrite ) );
+				list.BeginRendering( [ColorTarget.Of( Current, new System.Numerics.Vector4( 0, 0, 0, 1 ) )] );
+				list.EndRendering();
+				list.Barrier( TextureBarrier.Transition( Current, ImageLayout.ColorTarget, ImageLayout.Present, PipelineStage.ColorTargetOutput, MemoryAccess.ColorTargetWrite, PipelineStage.BottomOfPipe, MemoryAccess.None ) );
+			}
+			catch
+			{
+				list.Discard();
+				throw;
+			}
 			device.Submit( list, default, this );
 		}
 

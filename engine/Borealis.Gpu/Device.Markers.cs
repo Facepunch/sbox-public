@@ -26,7 +26,10 @@ public sealed unsafe partial class Device
 	const int NamedMarkers = 128;
 	string[] markerNames;
 
-	/// <summary>A slot's list and how many markers it has written: marker n is named at <c>n - 1</c> of the slot's window.</summary>
+	/// <summary>
+	/// A slot's list and how many markers it has written: marker n is named at <c>n - 1</c> of the slot's window. Only the
+	/// thread recording the slot's list writes it, the count after the name; a loss report reads it.
+	/// </summary>
 	sealed class MarkerTrail
 	{
 		public string List;
@@ -37,6 +40,11 @@ public sealed unsafe partial class Device
 
 	/// <summary>Whether lists write progress markers.</summary>
 	internal bool ProgressMarkers => bufferMarkers && markerWords != null;
+
+	bool passMarkers;
+
+	/// <summary>Whether labels write progress markers too (<see cref="DeviceOptions.PassProgressMarkers"/>), not just lists' ends.</summary>
+	internal bool PassMarkers => passMarkers && ProgressMarkers;
 
 	void CreateMarkers()
 	{
@@ -56,11 +64,8 @@ public sealed unsafe partial class Device
 		Volatile.Write( ref markerWords[slot * 2], 0 );
 		Volatile.Write( ref markerWords[slot * 2 + 1], 0 );
 		var trail = markerTrails[slot];
-		lock ( trail )
-		{
-			trail.List = list;
-			trail.Count = 0;
-		}
+		trail.List = list;
+		Volatile.Write( ref trail.Count, 0 );
 
 		return slot;
 	}
@@ -69,12 +74,9 @@ public sealed unsafe partial class Device
 	internal void WriteMarker( nint list, int slot, string name )
 	{
 		var trail = markerTrails[slot];
-		uint number;
-		lock ( trail )
-		{
-			number = (uint)++trail.Count;
-			if ( number <= NamedMarkers ) markerNames[slot * NamedMarkers + (int)number - 1] = name;
-		}
+		var number = (uint)trail.Count + 1;
+		if ( number <= NamedMarkers ) markerNames[slot * NamedMarkers + (int)number - 1] = name;
+		Volatile.Write( ref trail.Count, (int)number );
 
 		// VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT as the front end reaches it, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT once the work before it is done
 		Vk.vkCmdWriteBufferMarkerAMD( list, 0x1, markerVkBuffer, (ulong)slot * 8, number );
@@ -94,7 +96,7 @@ public sealed unsafe partial class Device
 		if ( !ProgressMarkers || slot < 0 ) return false;
 		var done = Volatile.Read( ref markerWords[slot * 2 + 1] );
 		var reached = Volatile.Read( ref markerWords[slot * 2] );
-		lock ( markerTrails[slot] ) return reached > 0 && done < markerTrails[slot].Count;
+		return reached > 0 && done < Volatile.Read( ref markerTrails[slot].Count );
 	}
 
 	/// <summary>How far the GPU got in a slot's list: "reached 12/40, done 11/40 (after 'Opaque Forward', in 'Static World Overlays')".</summary>
@@ -103,13 +105,9 @@ public sealed unsafe partial class Device
 		if ( !ProgressMarkers || slot < 0 ) return "";
 		var reached = Volatile.Read( ref markerWords[slot * 2] );
 		var done = Volatile.Read( ref markerWords[slot * 2 + 1] );
-		var trail = markerTrails[slot];
-		lock ( trail )
-		{
-			var count = trail.Count;
-			if ( done == count && reached == count ) return $" [markers {count}/{count}]";
-			string Name( uint n ) => n >= 1 && n <= count ? $"'{MarkerName( slot, n )}'" : "none";
-			return $" [markers reached {reached}/{count}, done {done}/{count}: done to {Name( done )}, first not done {Name( done + 1 )}, reached {Name( reached )}, next {Name( reached + 1 )}]";
-		}
+		var count = Volatile.Read( ref markerTrails[slot].Count );
+		if ( done == count && reached == count ) return $" [markers {count}/{count}]";
+		string Name( uint n ) => n >= 1 && n <= count ? $"'{MarkerName( slot, n )}'" : "none";
+		return $" [markers reached {reached}/{count}, done {done}/{count}: done to {Name( done )}, first not done {Name( done + 1 )}, reached {Name( reached )}, next {Name( reached + 1 )}]";
 	}
 }

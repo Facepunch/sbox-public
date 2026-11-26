@@ -36,6 +36,25 @@ public sealed unsafe partial class Device
 
 	internal void ExitGate() => Interlocked.Decrement( ref gateUsers );
 
+	bool TryBeginMove()
+	{
+		if ( Interlocked.CompareExchange( ref gateMoving, 1, 0 ) != 0 ) return false;
+		if ( Volatile.Read( ref gateUsers ) != 0 )
+		{
+			Volatile.Write( ref gateMoving, 0 );
+			return false;
+		}
+
+		Volatile.Write( ref moverThread, Environment.CurrentManagedThreadId );
+		return true;
+	}
+
+	void EndMove()
+	{
+		Volatile.Write( ref moverThread, 0 );
+		Volatile.Write( ref gateMoving, 0 );
+	}
+
 	/// <summary>
 	/// Hold moves (set while a load is going on, <c>BackendDevice.Loading</c>): what loads makes and uploads all the time, and
 	/// a move waits for the GPU; blocks drain once it's over.
@@ -110,29 +129,33 @@ public sealed unsafe partial class Device
 	readonly List<ulong> oldViews = new();
 
 	/// <summary>
-	/// In <see cref="BeginFrame"/>: while the allocator drains a block that isn't content, move what's in it. The copies are
-	/// made first, in room the other blocks have; if they all fit and nothing records, the device waits for the GPU to finish
-	/// what was sent, copies, and swaps them in. A block with something that can't move, or no room for it, is left without
-	/// waiting. Put off to the next frame while anything records.
+	/// In <see cref="BeginFrame"/>: while the allocator drains a block that isn't content, move what's in it. Put off to the
+	/// next frame while anything records. Make the copies in room the other blocks have, then wait for the GPU to finish
+	/// what was sent, copy and swap them in. A block with something that can't move, or no room for it, is left without waiting.
 	/// </summary>
 	void RelocateDraining()
 	{
 		if ( !Allocator.AnyDrainingToMove || IsLost || HoldRelocation ) return;
 		var started = System.Diagnostics.Stopwatch.GetTimestamp();
-		if ( !PrepareMoves() ) return;
 
-		Interlocked.Exchange( ref gateMoving, 1 );
-		if ( Volatile.Read( ref gateUsers ) != 0 )
+		if ( !TryBeginMove() )
 		{
-			Volatile.Write( ref gateMoving, 0 );
 			RelocationsPutOff++;
-			ReleaseCopies( 0, 0 );
 			return;
 		}
 
-		Volatile.Write( ref moverThread, Environment.CurrentManagedThreadId );
 		try
 		{
+			try
+			{
+				if ( !PrepareMoves() ) return;
+			}
+			catch
+			{
+				ReleaseCopies( 0, 0 );
+				throw;
+			}
+
 			// Everything recorded has been sent; once the GPU has run it, nothing pending names the old memory
 			Flush();
 			graphicsQueue.Wait( graphicsQueue.Submitted );
@@ -141,10 +164,18 @@ public sealed unsafe partial class Device
 			var waited = System.Diagnostics.Stopwatch.GetTimestamp();
 
 			var list = BeginCommandList( QueueType.Graphics, "Relocation" );
-			list.Barrier( PipelineStage.AllCommands, MemoryAccess.MemoryWrite, PipelineStage.Transfer, MemoryAccess.TransferRead | MemoryAccess.TransferWrite );
-			foreach ( var (moving, copy) in bufferMoves ) MoveBuffer( moving, copy, list );
-			foreach ( var (moving, copy) in textureMoves ) MoveTexture( moving, copy, list );
-			list.Barrier( PipelineStage.Transfer, MemoryAccess.TransferWrite, PipelineStage.AllCommands, MemoryAccess.MemoryRead | MemoryAccess.MemoryWrite );
+			try
+			{
+				list.Barrier( PipelineStage.AllCommands, MemoryAccess.MemoryWrite, PipelineStage.Transfer, MemoryAccess.TransferRead | MemoryAccess.TransferWrite );
+				foreach ( var (moving, copy) in bufferMoves ) MoveBuffer( moving, copy, list );
+				foreach ( var (moving, copy) in textureMoves ) MoveTexture( moving, copy, list );
+				list.Barrier( PipelineStage.Transfer, MemoryAccess.TransferWrite, PipelineStage.AllCommands, MemoryAccess.MemoryRead | MemoryAccess.MemoryWrite );
+			}
+			catch
+			{
+				list.Discard();
+				throw;
+			}
 			SubmitAndRecycle( list );
 
 			// Views made of moved textures are made again over their new images, in their slots
@@ -180,8 +211,7 @@ public sealed unsafe partial class Device
 			movedTextures.Clear();
 			movedViews.Clear();
 			oldViews.Clear();
-			Volatile.Write( ref moverThread, 0 );
-			Volatile.Write( ref gateMoving, 0 );
+			EndMove();
 		}
 	}
 
@@ -225,8 +255,7 @@ public sealed unsafe partial class Device
 
 	/// <summary>
 	/// Whether what an allocation holds can move: null when it was destroyed (it goes with its frame), false for a pinned
-	/// resource, a swap chain image, a texture whose layout isn't known and a buffer outside device memory. Reads the
-	/// records without throwing, as it runs outside the gate.
+	/// resource, a swap chain image, a texture whose layout isn't known and a buffer outside device memory.
 	/// </summary>
 	bool? Movable( ulong owner, bool images )
 	{
@@ -251,8 +280,6 @@ public sealed unsafe partial class Device
 		MemoryAllocator.ExistingBlocksOnly = true;
 		try
 		{
-			// Read outside the gate: something may have destroyed it since it was found, which the move then skips
-			if ( !Buffers.IsAlive( buffer.Index, buffer.Generation ) ) return true;
 			var record = Get( buffer );
 			bufferMoves.Add( (buffer, CreateBuffer( new BufferInfo { Size = record.Size, Usage = record.Usage, Memory = record.Location, Name = record.Name } )) );
 			return true;
@@ -277,8 +304,6 @@ public sealed unsafe partial class Device
 		MemoryAllocator.ExistingBlocksOnly = true;
 		try
 		{
-			// Read outside the gate: something may have destroyed it since it was found
-			if ( !Textures.IsAlive( texture.Index, texture.Generation ) ) return true;
 			var info = Get( texture ).Info;
 			textureMoves.Add( (texture, CreateTexture( info )) );
 			return true;
@@ -298,8 +323,8 @@ public sealed unsafe partial class Device
 	}
 
 	/// <summary>
-	/// Free the copies from these indices on, and forget them: a copy not moved in (its block given up, or the move put off)
-	/// never reached the GPU; after a move each holds the old buffer or image, which nothing pending uses.
+	/// Free the copies from these indices on, and forget them: an unused copy never reached the GPU; after a move each holds
+	/// the old buffer or image, which nothing pending uses.
 	/// </summary>
 	void ReleaseCopies( int buffersFrom, int texturesFrom )
 	{
@@ -473,10 +498,12 @@ public sealed unsafe partial class Device
 	void DestroyViewLater( ulong view ) => Defer( new Garbage( new ViewRecord { View = view }, imageViewOnly: true ) );
 
 	/// <summary>Free a buffer at once: only when no pending work can use it.</summary>
-	void FreeBufferNow( in BufferRecord record )
+	void FreeBufferNow( in BufferRecord record ) => FreeBufferNow( record.Buffer, record.Memory, record.BindlessSlot );
+
+	void FreeBufferNow( ulong buffer, in Allocation memory, int bindlessSlot )
 	{
-		if ( record.BindlessSlot > 0 ) Bindless.RemoveBuffer( record.BindlessSlot - 1 );
-		Vk.vkDestroyBuffer( Vk.Device, record.Buffer, null );
-		FreeMemory( record.Memory );
+		if ( bindlessSlot > 0 ) Bindless.RemoveBuffer( bindlessSlot - 1 );
+		Vk.vkDestroyBuffer( Vk.Device, buffer, null );
+		FreeMemory( memory );
 	}
 }

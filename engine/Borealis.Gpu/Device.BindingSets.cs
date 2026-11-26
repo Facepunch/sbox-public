@@ -16,6 +16,7 @@ internal struct BindingSetRecord
 {
 	public ulong Set;
 	public ulong SetLayout;
+	public BindingLayoutHandle Layout;
 
 	/// <summary>What it holds, as last written, so a resource remade or moved in place can be written again.</summary>
 	public List<Binding> Bindings;
@@ -27,9 +28,10 @@ public sealed unsafe partial class Device
 	internal ref BindingSetRecord Get( BindingSetHandle handle ) => ref BindingSets.Get( handle.Index, handle.Generation );
 
 	// Persistent sets come from pools that are never reset; a destroyed set goes back to a free list for its layout once
-	// the GPU is done with it, so pools need no free flag
+	// the GPU is done with it, so pools need no free flag. The lists go with their layout: the driver may give a later
+	// layout the same Vulkan handle
 	readonly List<ulong> bindingSetPools = new();
-	readonly Dictionary<ulong, Stack<ulong>> freeBindingSets = new();
+	readonly Dictionary<BindingLayoutHandle, Stack<ulong>> freeBindingSets = new();
 
 	/// <summary>
 	/// Make a persistent descriptor set of <paramref name="layout"/> holding <paramref name="bindings"/>. Its contents stay
@@ -42,17 +44,23 @@ public sealed unsafe partial class Device
 		List<Binding> held;
 		lock ( bindingSetPools )
 		{
-			set = freeBindingSets.TryGetValue( setLayout, out var free ) && free.Count > 0 ? free.Pop() : AllocatePersistentSet( setLayout );
+			set = freeBindingSets.TryGetValue( layout, out var free ) && free.Count > 0 ? free.Pop() : AllocatePersistentSet( setLayout );
 			held = freeBindingLists.TryPop( out var list ) ? list : new List<Binding>( bindings.Length );
 		}
 
+		var record = new BindingSetRecord { Set = set, SetLayout = setLayout, Layout = layout, Bindings = held };
 		var gated = EnterGate();
 		try
 		{
 			WriteDescriptors( set, bindings );
 			Track( held, bindings );
-			var (index, generation) = BindingSets.Add( new BindingSetRecord { Set = set, SetLayout = setLayout, Bindings = held } );
+			var (index, generation) = BindingSets.Add( record );
 			return new BindingSetHandle( index, generation );
+		}
+		catch
+		{
+			FreeSet( record );
+			throw;
 		}
 		finally
 		{
@@ -148,13 +156,15 @@ public sealed unsafe partial class Device
 	{
 		lock ( bindingSetPools )
 		{
-			if ( !freeBindingSets.TryGetValue( record.SetLayout, out var free ) ) freeBindingSets[record.SetLayout] = free = new();
-			free.Push( record.Set );
 			if ( record.Bindings is { } held )
 			{
 				held.Clear();
 				freeBindingLists.Push( held );
 			}
+
+			if ( !Layouts.IsAlive( record.Layout.Index, record.Layout.Generation ) ) return;
+			if ( !freeBindingSets.TryGetValue( record.Layout, out var free ) ) freeBindingSets[record.Layout] = free = new();
+			free.Push( record.Set );
 		}
 	}
 

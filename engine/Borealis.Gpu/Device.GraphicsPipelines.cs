@@ -60,7 +60,7 @@ internal sealed class PipelinePart( PartKey key, uint kind, UInt128 shader, UInt
 	public ulong Pipeline;
 
 	public bool Ready;
-	public GpuException Failed;
+	public Exception Failed;
 
 	/// <summary>Pipelines linked from it that are alive, and links of it under way.</summary>
 	public int Users;
@@ -255,9 +255,6 @@ public sealed unsafe partial class Device
 		return false;
 	}
 
-	/// <summary>The SPIR-V hash a pre-rasterisation part is made from: the mesh shader's in a mesh pipeline, else the vertex shader's.</summary>
-	UInt128 PreRasterizationShader( in GraphicsPipelineInfo info ) => ShaderHash( info.MeshShader.IsValid ? info.MeshShader : info.VertexShader );
-
 	/// <summary>
 	/// Create a graphics pipeline, through the device's pipeline cache. With pipeline libraries
 	/// (<see cref="DeviceCapabilities.PipelineLibraries"/>) it's a fast link of four parts (three for a mesh pipeline, which
@@ -269,7 +266,7 @@ public sealed unsafe partial class Device
 	/// </summary>
 	public PipelineHandle CreateGraphicsPipeline( in GraphicsPipelineInfo info )
 	{
-		var layout = PipelineLayout( info.Sets );
+		var layout = PipelineLayout( info.Sets, graphics: true );
 		if ( info.MeshShader.IsValid && !Capabilities.MeshShaders ) throw new InvalidOperationException( $"{info.Name}: the device has no mesh shaders" );
 		// One linked optimised at once is made on the builders too: that link takes as long as making the parts
 		if ( info.SkipUntilReady && SkipDrawsUntilReady && !(UsesLibraries( info ) && PartsReady( info, layout ) && !LinksOptimisedAtOnce( info )) ) return Defer( info, layout );
@@ -339,13 +336,13 @@ public sealed unsafe partial class Device
 	void PrepareParts( in GraphicsPipelineInfo info, PipelineParts parts, bool guess )
 	{
 		if ( !UsesLibraries( info ) ) return;
-		var layout = PipelineLayout( info.Sets );
+		var layout = PipelineLayout( info.Sets, graphics: true );
 		using ( Zone( ZonePipeline ) )
 		{
-			if ( (parts & PipelineParts.PreRasterization) != 0 ) Part( preRasterizationParts, Vulkan.Vk.LibraryPreRasterization, PreRasterizationKey( info, layout ), info, layout, PreRasterizationShader( info ), use: false, guess );
-			if ( (parts & PipelineParts.FragmentShader) != 0 ) Part( fragmentParts, Vulkan.Vk.LibraryFragmentShader, FragmentKey( info, layout ), info, layout, ShaderHash( info.FragmentShader ), use: false, guess );
-			if ( (parts & PipelineParts.VertexInput) != 0 && !info.MeshShader.IsValid ) Part( vertexInputParts, Vulkan.Vk.LibraryVertexInput, VertexInputKey( info ), info, layout, 0, use: false );
-			if ( (parts & PipelineParts.FragmentOutput) != 0 ) Part( outputParts, Vulkan.Vk.LibraryFragmentOutput, OutputKey( info ), info, layout, 0, use: false );
+			if ( (parts & PipelineParts.PreRasterization) != 0 ) Part( PipelineParts.PreRasterization, info, layout, use: false, guess );
+			if ( (parts & PipelineParts.FragmentShader) != 0 ) Part( PipelineParts.FragmentShader, info, layout, use: false, guess );
+			if ( (parts & PipelineParts.VertexInput) != 0 && !info.MeshShader.IsValid ) Part( PipelineParts.VertexInput, info, layout, use: false );
+			if ( (parts & PipelineParts.FragmentOutput) != 0 ) Part( PipelineParts.FragmentOutput, info, layout, use: false );
 		}
 	}
 
@@ -389,10 +386,10 @@ public sealed unsafe partial class Device
 		PipelinePart vertexInput = null, preRasterization = null, fragment = null, output = null;
 		try
 		{
-			preRasterization = Part( preRasterizationParts, Vulkan.Vk.LibraryPreRasterization, PreRasterizationKey( info, layout ), info, layout, PreRasterizationShader( info ), use: true );
-			fragment = Part( fragmentParts, Vulkan.Vk.LibraryFragmentShader, FragmentKey( info, layout ), info, layout, ShaderHash( info.FragmentShader ), use: true );
-			if ( !info.MeshShader.IsValid ) vertexInput = Part( vertexInputParts, Vulkan.Vk.LibraryVertexInput, VertexInputKey( info ), info, layout, 0, use: true );
-			output = Part( outputParts, Vulkan.Vk.LibraryFragmentOutput, OutputKey( info ), info, layout, 0, use: true );
+			preRasterization = Part( PipelineParts.PreRasterization, info, layout, use: true );
+			fragment = Part( PipelineParts.FragmentShader, info, layout, use: true );
+			if ( !info.MeshShader.IsValid ) vertexInput = Part( PipelineParts.VertexInput, info, layout, use: true );
+			output = Part( PipelineParts.FragmentOutput, info, layout, use: true );
 		}
 		catch
 		{
@@ -414,96 +411,153 @@ public sealed unsafe partial class Device
 	/// A part by its key: made here if nobody has it. With <paramref name="use"/>, waited for if another thread is making it
 	/// and counted as used until <see cref="Release"/>; without, returned as it is.
 	/// </summary>
-	PipelinePart Part( Dictionary<PartKey, PipelinePart> cache, uint kind, PartKey key, in GraphicsPipelineInfo info, ulong layout, UInt128 shader, bool use, bool guess = false )
+	PipelinePart Part( PipelineParts kind, in GraphicsPipelineInfo info, ulong layout, bool use, bool guess = false )
 	{
-		PipelinePart part;
-		bool make, record, guessUsed = false;
-		var task = kind == Vulkan.Vk.LibraryPreRasterization && info.MeshShader.IsValid ? ShaderHash( info.TaskShader ) : 0;
-		lock ( partLock )
+		PipelinePart part = null;
+		try
 		{
-			make = !cache.TryGetValue( key, out part );
-			if ( make ) cache[key] = part = new PipelinePart( key, kind, shader, task ) { Guessed = guess };
-			if ( use ) part.Users++;
+			var shaders = kind is PipelineParts.PreRasterization or PipelineParts.FragmentShader;
+			bool make, record, guessUsed;
+			UInt128 shader = 0, task = 0;
+			long started = 0;
 
-			// A guess's part linked: the guess was right (counted once)
-			if ( use && part.Guessed && !part.GuessUsed ) part.GuessUsed = guessUsed = true;
-
-			// Linked by a pipeline: kept for the next run, once a run (never per frame: a pipeline is made once)
-			record = use && partManifest is not null && !part.Recorded;
-			if ( record ) part.Recorded = true;
-		}
-
-		if ( record ) Record( (PipelineParts)kind, info, shader );
-		if ( guessUsed )
-		{
-			Interlocked.Increment( ref guessesUsed );
-			if ( partLog is not null )
-			{
-				var line = $"{DateTime.Now:HH:mm:ss.fff} guessed {(PipelineParts)kind} {info.Name} shader {(ulong)(shader >> 64):x16} key {key.GetHashCode():x8}\n";
-				lock ( partLogLock ) System.IO.File.AppendAllText( partLog, line );
-			}
-		}
-
-		if ( make )
-		{
-			ulong made = 0;
-			GpuException failed = null;
-			var started = System.Diagnostics.Stopwatch.GetTimestamp();
+			// Keep the modules alive from key creation and publication until the maker is done with them.
+			// A thread joining an existing part releases the read lock before waiting for the maker.
+			if ( shaders ) shaderUse.EnterReadLock();
 			try
 			{
-				made = MakeGraphics( info, (PipelineParts)kind, library: true, layout, null, 0, 0 );
-				SetName( VkObjectType.Pipeline, made, $"{info.Name} ({(PipelineParts)kind})" );
+				var (cache, key) = kind switch
+				{
+					PipelineParts.PreRasterization => (preRasterizationParts, PreRasterizationKey( info, layout, out shader, out task )),
+					PipelineParts.FragmentShader => (fragmentParts, FragmentKey( info, layout, out shader )),
+					PipelineParts.VertexInput => (vertexInputParts, VertexInputKey( info )),
+					PipelineParts.FragmentOutput => (outputParts, OutputKey( info )),
+					_ => throw new ArgumentOutOfRangeException( nameof( kind ) ),
+				};
+
+				lock ( partLock )
+				{
+					// A destroy can already have dropped the shader's parts even if its worker hasn't removed the module.
+					if ( kind == PipelineParts.PreRasterization )
+					{
+						CheckPartShader( info.MeshShader.IsValid ? info.MeshShader : info.VertexShader );
+						if ( info.MeshShader.IsValid && info.TaskShader.IsValid ) CheckPartShader( info.TaskShader );
+					}
+					else if ( kind == PipelineParts.FragmentShader && info.FragmentShader.IsValid )
+					{
+						CheckPartShader( info.FragmentShader );
+					}
+
+					make = !cache.TryGetValue( key, out part );
+					if ( make ) cache[key] = part = new PipelinePart( key, (uint)kind, shader, task ) { Guessed = guess };
+					if ( use ) part.Users++;
+
+					// A guess's part linked: the guess was right (counted once)
+					guessUsed = use && part.Guessed && !part.GuessUsed;
+					if ( guessUsed ) part.GuessUsed = true;
+
+					// Linked by a pipeline: kept for the next run, once a run (never per frame: a pipeline is made once)
+					record = use && partManifest is not null && !part.Recorded;
+					if ( record ) part.Recorded = true;
+				}
+
+				if ( make )
+				{
+					started = System.Diagnostics.Stopwatch.GetTimestamp();
+					MakePart( cache, part, info, layout, started );
+				}
 			}
-			catch ( GpuException e )
+			finally
 			{
-				failed = e;
+				if ( shaders ) shaderUse.ExitReadLock();
 			}
 
-			Interlocked.Add( ref partTicks, System.Diagnostics.Stopwatch.GetTimestamp() - started );
-			Interlocked.Increment( ref partsMade );
-			if ( guess ) Interlocked.Increment( ref guessesMade );
-			if ( partLog is not null )
+			if ( !make )
+			{
+				// Made ahead: another thread has it, so there's nothing to do here (and no reason to hold a worker).
+				if ( !use ) return part;
+				lock ( partLock )
+				{
+					while ( !part.Ready ) Monitor.Wait( partLock );
+				}
+			}
+
+			if ( record ) Record( kind, info, shader );
+			if ( guessUsed )
+			{
+				Interlocked.Increment( ref guessesUsed );
+				if ( partLog is not null )
+				{
+					var line = $"{DateTime.Now:HH:mm:ss.fff} guessed {kind} {info.Name} shader {(ulong)(shader >> 64):x16} key {part.Key.GetHashCode():x8}\n";
+					lock ( partLogLock ) System.IO.File.AppendAllText( partLog, line );
+				}
+			}
+
+			if ( make && partLog is not null )
 			{
 				var ms = (System.Diagnostics.Stopwatch.GetTimestamp() - started) * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
-				var constants = (PipelineParts)kind == PipelineParts.PreRasterization ? info.MeshShader.IsValid ? info.MeshConstants : info.VertexConstants : info.FragmentConstants;
-				var line = $"{DateTime.Now:HH:mm:ss.fff} {(use ? "use" : guess ? "guess" : "ahead")} {(PipelineParts)kind} {ms:0} ms {info.Name} [{string.Join( ',', System.Linq.Enumerable.Select( constants ?? [], c => $"{c.Id}={c.Value}" ) )}] layout {layout:x} shader {(ulong)(shader >> 64):x16} samples {info.Samples} depth {info.DepthFormat} key {key.GetHashCode():x8}\n";
+				var constants = kind == PipelineParts.PreRasterization ? info.MeshShader.IsValid ? info.MeshConstants : info.VertexConstants : info.FragmentConstants;
+				var line = $"{DateTime.Now:HH:mm:ss.fff} {(use ? "use" : guess ? "guess" : "ahead")} {kind} {ms:0} ms {info.Name} [{string.Join( ',', System.Linq.Enumerable.Select( constants ?? [], c => $"{c.Id}={c.Value}" ) )}] layout {layout:x} shader {(ulong)(shader >> 64):x16} samples {info.Samples} depth {info.DepthFormat} key {part.Key.GetHashCode():x8}\n";
 				lock ( partLogLock ) System.IO.File.AppendAllText( partLog, line );
 			}
+
+			if ( part.Failed is GpuException gpuError ) throw new GpuException( $"{info.Name} ({kind}): {gpuError.Message}" );
+			if ( part.Failed is { } error ) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw( error );
+			return part;
+		}
+		catch
+		{
+			if ( use && part is not null )
+			{
+				lock ( partLock ) Release( part );
+			}
+
+			throw;
+		}
+	}
+
+	// Under partLock, which also orders publication against Destroy( ShaderHandle ) dropping the shader's parts.
+	void CheckPartShader( ShaderHandle shader )
+	{
+		if ( shadersGoing.Contains( shader ) ) throw new ArgumentException( $"shader {shader.Index} was destroyed or never existed" );
+	}
+
+	void MakePart( Dictionary<PartKey, PipelinePart> cache, PipelinePart part, in GraphicsPipelineInfo info, ulong layout, long started )
+	{
+		var kind = (PipelineParts)part.Kind;
+		ulong made = 0;
+		Exception failed = null;
+		try
+		{
+			made = MakeGraphicsWithShaders( info, kind, library: true, layout, null, 0, 0 );
+			SetName( VkObjectType.Pipeline, made, $"{info.Name} ({kind})" );
+		}
+		catch ( Exception e )
+		{
+			failed = e;
+		}
+		finally
+		{
+			Interlocked.Add( ref partTicks, System.Diagnostics.Stopwatch.GetTimestamp() - started );
+			Interlocked.Increment( ref partsMade );
+			if ( part.Guessed ) Interlocked.Increment( ref guessesMade );
 
 			lock ( partLock )
 			{
 				part.Pipeline = made;
 				part.Failed = failed;
 				part.Ready = true;
-				if ( failed is not null && cache.TryGetValue( key, out var cached ) && cached == part ) cache.Remove( key );
-				else if ( part.Dropped && part.Users == 0 ) DestroyPart( part );
+				if ( failed is not null )
+				{
+					// A destroy may have dropped this entry already. Don't evict a new maker's entry.
+					if ( cache.TryGetValue( part.Key, out var cached ) && cached == part ) cache.Remove( part.Key );
+					part.Dropped = true;
+				}
+
 				Monitor.PulseAll( partLock );
+				if ( part.Dropped && part.Users == 0 ) DestroyPart( part );
 			}
 		}
-		else if ( !use )
-		{
-			// Made ahead: another thread already has it, so there's nothing to do here (and no reason to hold a worker)
-			return part;
-		}
-		else
-		{
-			lock ( partLock )
-			{
-				while ( !part.Ready ) Monitor.Wait( partLock );
-			}
-		}
-
-		if ( part.Failed is { } error )
-		{
-			if ( use )
-			{
-				lock ( partLock ) Release( part );
-			}
-
-			throw new GpuException( $"{info.Name} ({(PipelineParts)kind}): {error.Message}" );
-		}
-
-		return part;
 	}
 
 	void Record( PipelineParts kind, in GraphicsPipelineInfo info, UInt128 shader )
@@ -550,23 +604,25 @@ public sealed unsafe partial class Device
 
 	// A shader part is keyed by its SPIR-V and what its layout's sets hold, not by handles: a module or layout made again
 	// with the same contents (another variant, the part manifest's replay) finds the part made
-	PartKey PreRasterizationKey( in GraphicsPipelineInfo info, ulong layout )
+	PartKey PreRasterizationKey( in GraphicsPipelineInfo info, ulong layout, out UInt128 shader, out UInt128 task )
 	{
 		var key = new PartKeyWriter( Vulkan.Vk.LibraryPreRasterization );
 		var mesh = info.MeshShader.IsValid;
 		key.Add( mesh );
+		shader = ShaderHash( mesh ? info.MeshShader : info.VertexShader );
+		task = mesh ? ShaderHash( info.TaskShader ) : 0;
 		if ( mesh )
 		{
-			key.Add( ShaderHash( info.TaskShader ) );
+			key.Add( task );
 			key.Add( info.TaskShader.IsValid ? info.TaskEntry ?? "main" : null );
 			key.Add( info.TaskShader.IsValid ? info.TaskConstants : null );
-			key.Add( ShaderHash( info.MeshShader ) );
+			key.Add( shader );
 			key.Add( info.MeshEntry ?? "main" );
 			key.Add( info.MeshConstants );
 		}
 		else
 		{
-			key.Add( ShaderHash( info.VertexShader ) );
+			key.Add( shader );
 			key.Add( info.VertexEntry ?? "main" );
 			key.Add( info.VertexConstants );
 		}
@@ -577,12 +633,16 @@ public sealed unsafe partial class Device
 		return key.Key();
 	}
 
-	PartKey FragmentKey( in GraphicsPipelineInfo info, ulong layout )
+	bool UsesFragmentWave32( in GraphicsPipelineInfo info ) => info.FragmentWave32 && Capabilities.FragmentWave32;
+
+	PartKey FragmentKey( in GraphicsPipelineInfo info, ulong layout, out UInt128 shader )
 	{
 		var key = new PartKeyWriter( Vulkan.Vk.LibraryFragmentShader );
-		key.Add( ShaderHash( info.FragmentShader ) );
+		shader = ShaderHash( info.FragmentShader );
+		key.Add( shader );
 		key.Add( info.FragmentShader.IsValid ? info.FragmentEntry ?? "main" : null );
 		key.Add( info.FragmentShader.IsValid ? info.FragmentConstants : null );
+		key.Add( info.FragmentShader.IsValid && UsesFragmentWave32( info ) );
 		key.Add( LayoutHash( layout ) );
 		return key.Key();
 	}
@@ -684,7 +744,20 @@ public sealed unsafe partial class Device
 			else Stage( Vulkan.Vk.StageVertex, info.VertexShader, info.VertexEntry, info.VertexConstants, stages, specializations, strings );
 		}
 
-		if ( fragmentPart && info.FragmentShader.IsValid ) Stage( Vulkan.Vk.StageFragment, info.FragmentShader, info.FragmentEntry, info.FragmentConstants, stages, specializations, strings );
+		VkPipelineShaderStageRequiredSubgroupSizeCreateInfo fragmentSubgroup;
+		if ( fragmentPart && info.FragmentShader.IsValid )
+		{
+			Stage( Vulkan.Vk.StageFragment, info.FragmentShader, info.FragmentEntry, info.FragmentConstants, stages, specializations, strings );
+			if ( UsesFragmentWave32( info ) )
+			{
+				fragmentSubgroup = new VkPipelineShaderStageRequiredSubgroupSizeCreateInfo
+				{
+					sType = VkStructureType.PipelineShaderStageRequiredSubgroupSizeCreateInfo,
+					requiredSubgroupSize = 32,
+				};
+				stages[stageCount - 1].pNext = &fragmentSubgroup;
+			}
+		}
 
 		var buffers = info.VertexBuffers ?? [];
 		var attributes = info.Attributes ?? [];
@@ -1095,23 +1168,20 @@ public sealed unsafe partial class Device
 
 	/// <summary>
 	/// A module was destroyed: when it was the last alive with its SPIR-V, the parts made from it are forgotten, each going
-	/// when the pipelines linked from it have.
+	/// when the pipelines linked from it have. Under <see cref="partLock"/>.
 	/// </summary>
 	void DropParts( UInt128 shader )
 	{
 		if ( !pipelineLibraries ) return;
-		lock ( partLock )
+		if ( modulesAlive.TryGetValue( shader, out var alive ) && alive > 1 )
 		{
-			if ( modulesAlive.TryGetValue( shader, out var alive ) && alive > 1 )
-			{
-				modulesAlive[shader] = alive - 1;
-				return;
-			}
-
-			modulesAlive.Remove( shader );
-			Drop( preRasterizationParts, shader );
-			Drop( fragmentParts, shader );
+			modulesAlive[shader] = alive - 1;
+			return;
 		}
+
+		modulesAlive.Remove( shader );
+		Drop( preRasterizationParts, shader );
+		Drop( fragmentParts, shader );
 	}
 
 	void Drop( Dictionary<PartKey, PipelinePart> cache, UInt128 shader )

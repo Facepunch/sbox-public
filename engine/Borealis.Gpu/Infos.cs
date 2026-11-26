@@ -285,6 +285,9 @@ public struct GraphicsPipelineInfo
 	/// <summary>Specialization constants for the pixel shader; null for none.</summary>
 	public SpecializationConstant[] FragmentConstants;
 
+	/// <summary>Require 32-lane subgroups in the fragment stage when <see cref="DeviceCapabilities.FragmentWave32"/> is supported.</summary>
+	public bool FragmentWave32;
+
 	/// <summary>
 	/// A mesh shader in place of the vertex shader and vertex input (<see cref="DeviceCapabilities.MeshShaders"/>): drawn with
 	/// <see cref="CommandList.DrawMeshTasksIndirect"/>; <see cref="VertexShader"/>, <see cref="VertexBuffers"/>,

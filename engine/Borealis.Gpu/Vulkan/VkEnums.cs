@@ -92,6 +92,8 @@ internal enum VkStructureType
 	SemaphoreTypeCreateInfo = 1000207002,
 	SemaphoreWaitInfo = 1000207004,
 	SemaphoreSignalInfo = 1000207005,
+	PhysicalDeviceSubgroupSizeControlProperties = 1000225000,
+	PipelineShaderStageRequiredSubgroupSizeCreateInfo = 1000225001,
 	PhysicalDeviceMemoryBudgetPropertiesExt = 1000237000,
 	ValidationFeaturesExt = 1000247000,
 	MemoryBarrier2 = 1000314000,

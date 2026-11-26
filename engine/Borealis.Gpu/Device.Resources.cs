@@ -104,6 +104,10 @@ internal struct LayoutRecord
 	public BindingSlot[] Slots;
 }
 
+// The Vulkan handle can be reused after a set layout is destroyed while a pipeline layout made with it still lives.
+internal readonly record struct PipelineSetLayout( ulong Handle, BindingLayoutHandle Identity );
+internal readonly record struct PipelineSetLayouts( PipelineSetLayout First, PipelineSetLayout Second, PipelineSetLayout Third, PipelineSetLayout Fourth, bool Independent );
+
 internal struct PipelineRecord
 {
 	public ulong Pipeline;
@@ -146,8 +150,8 @@ public sealed unsafe partial class Device
 	/// shaders read as no lights, no sun and no volumes.
 	/// </summary>
 	public BindingSetHandle DefaultViewSet { get; private set; }
-	readonly Dictionary<(ulong, ulong, ulong, ulong), ulong> pipelineLayouts = new();
-	readonly Dictionary<ulong, (ulong, ulong, ulong, ulong)> pipelineLayoutSets = new();
+	readonly Dictionary<((ulong, ulong, ulong, ulong) Sets, bool Independent), ulong> pipelineLayouts = new();
+	readonly Dictionary<ulong, PipelineSetLayouts> pipelineLayoutSets = new();
 	readonly List<ulong> retiredPipelineLayouts = new();
 
 	// What each pipeline layout's sets 0 to 3 hold (their slots), so parts made with identically defined layouts are shared
@@ -194,7 +198,7 @@ public sealed unsafe partial class Device
 	}
 
 	/// <summary>The set layouts of sets 0 to 3 a pipeline layout was made from.</summary>
-	internal (ulong, ulong, ulong, ulong) SetLayoutsOf( ulong pipelineLayout )
+	internal PipelineSetLayouts SetLayoutsOf( ulong pipelineLayout )
 	{
 		lock ( pipelineLayouts ) return pipelineLayoutSets[pipelineLayout];
 	}
@@ -247,7 +251,7 @@ public sealed unsafe partial class Device
 			VkMemoryRequirements requirements;
 			Vk.vkGetBufferMemoryRequirements( Vk.Device, buffer, &requirements );
 
-			Allocation memory;
+			Allocation memory = default;
 			try
 			{
 				memory = Allocator.Allocate( requirements, info.Memory, image: false, content: info.Content );
@@ -257,6 +261,7 @@ public sealed unsafe partial class Device
 			catch
 			{
 				Vk.vkDestroyBuffer( Vk.Device, buffer, null );
+				FreeMemory( memory );
 				throw;
 			}
 
@@ -323,7 +328,7 @@ public sealed unsafe partial class Device
 		if ( srgbPair ) flags |= Vulkan.Vk.ImageCreateMutableFormat | Vulkan.Vk.ImageCreateExtendedUsage;
 
 		ulong image;
-		Allocation memory;
+		Allocation memory = default;
 		fixed ( uint* families = queueFamilies )
 		{
 			var create = new VkImageCreateInfo
@@ -356,6 +361,7 @@ public sealed unsafe partial class Device
 			catch
 			{
 				Vk.vkDestroyImage( Vk.Device, image, null );
+				FreeMemory( memory );
 				throw;
 			}
 		}
@@ -373,30 +379,39 @@ public sealed unsafe partial class Device
 			StorageIndex = -1,
 		};
 
-		var sampledAspect = desc.Format.IsDepth() ? Vulkan.Vk.AspectDepth : Vulkan.Vk.AspectColor;
-		var linear = desc.Format.Linear().ToVk();
+		var depth = desc.Format.IsDepth();
+		var sampledAspect = depth ? Vulkan.Vk.AspectDepth : Vulkan.Vk.AspectColor;
+		var linear = depth ? format : desc.Format.Linear().ToVk();
 		var sampledUsage = usage & ~Vulkan.Vk.ImageStorage;
 
-		if ( (desc.Usage & (TextureUsage.Sampled | TextureUsage.Storage)) != 0 )
+		try
 		{
-			record.View = MakeView( image, ViewType( desc.Dimension ), linear, sampledAspect, 0, (uint)desc.Mips, 0, (uint)arrayLayers, srgbPair ? usage : 0 );
-			record.SrgbView = srgbPair ? MakeView( image, ViewType( desc.Dimension ), desc.Format.Srgb().ToVk(), sampledAspect, 0, (uint)desc.Mips, 0, (uint)arrayLayers, sampledUsage ) : record.View;
-		}
-
-		if ( (desc.Usage & TextureUsage.Storage) != 0 )
-		{
-			var storageType = desc.Dimension switch
+			if ( (desc.Usage & (TextureUsage.Sampled | TextureUsage.Storage)) != 0 )
 			{
-				TextureDimension.Texture3D => Vulkan.Vk.ViewType3D,
-				TextureDimension.Texture2D => Vulkan.Vk.ViewType2D,
-				_ => Vulkan.Vk.ViewType2DArray,
-			};
+				record.View = MakeView( image, ViewType( desc.Dimension ), linear, sampledAspect, 0, (uint)desc.Mips, 0, (uint)arrayLayers, srgbPair ? usage : 0 );
+				record.SrgbView = srgbPair ? MakeView( image, ViewType( desc.Dimension ), desc.Format.Srgb().ToVk(), sampledAspect, 0, (uint)desc.Mips, 0, (uint)arrayLayers, sampledUsage ) : record.View;
+			}
 
-			record.StorageView = MakeView( image, storageType, linear, Vulkan.Vk.AspectColor, 0, 1, 0, (uint)arrayLayers, srgbPair ? usage : 0 );
-			record.StorageIndex = Bindless.AddStorage( record.StorageView );
+			if ( (desc.Usage & TextureUsage.Storage) != 0 )
+			{
+				var storageType = desc.Dimension switch
+				{
+					TextureDimension.Texture3D => Vulkan.Vk.ViewType3D,
+					TextureDimension.Texture2D => Vulkan.Vk.ViewType2D,
+					_ => Vulkan.Vk.ViewType2DArray,
+				};
+
+				record.StorageView = MakeView( image, storageType, linear, Vulkan.Vk.AspectColor, 0, 1, 0, (uint)arrayLayers, srgbPair ? usage : 0 );
+				record.StorageIndex = Bindless.AddStorage( record.StorageView );
+			}
+
+			if ( (desc.Usage & TextureUsage.Sampled) != 0 ) record.BindlessIndex = Bindless.AddTexture( record.View, record.SrgbView );
 		}
-
-		if ( (desc.Usage & TextureUsage.Sampled) != 0 ) record.BindlessIndex = Bindless.AddTexture( record.View, record.SrgbView );
+		catch
+		{
+			FreeTexture( record );
+			throw;
+		}
 
 		var (index, generation) = Textures.Add( record );
 		var handle = new TextureHandle( index, generation );
@@ -648,11 +663,19 @@ public sealed unsafe partial class Device
 
 		var deferred = DeferredUploads();
 		var list = deferred ?? BeginCommandList( QueueType.Graphics, "Relocate" );
-		list.Barrier( TextureBarrier.Transition( texture, layout, ImageLayout.CopySource, PipelineStage.AllCommands, MemoryAccess.MemoryWrite, PipelineStage.Transfer, MemoryAccess.TransferRead ) );
-		list.Barrier( TextureBarrier.Transition( copy, ImageLayout.Undefined, ImageLayout.CopyDestination, PipelineStage.AllCommands, MemoryAccess.None, PipelineStage.Transfer, MemoryAccess.TransferWrite ) );
-		for ( int mip = 0; mip < info.Mips; mip++ ) list.CopyImage( texture, copy, mip, 0, layers );
-		list.Barrier( TextureBarrier.Transition( texture, ImageLayout.CopySource, layout, PipelineStage.Transfer, MemoryAccess.TransferRead, PipelineStage.AllCommands, MemoryAccess.MemoryRead ) );
-		list.Barrier( TextureBarrier.Transition( copy, ImageLayout.CopyDestination, layout, PipelineStage.Transfer, MemoryAccess.TransferWrite, PipelineStage.AllCommands, MemoryAccess.MemoryRead ) );
+		try
+		{
+			list.Barrier( TextureBarrier.Transition( texture, layout, ImageLayout.CopySource, PipelineStage.AllCommands, MemoryAccess.MemoryWrite, PipelineStage.Transfer, MemoryAccess.TransferRead ) );
+			list.Barrier( TextureBarrier.Transition( copy, ImageLayout.Undefined, ImageLayout.CopyDestination, PipelineStage.AllCommands, MemoryAccess.None, PipelineStage.Transfer, MemoryAccess.TransferWrite ) );
+			for ( int mip = 0; mip < info.Mips; mip++ ) list.CopyImage( texture, copy, mip, 0, layers );
+			list.Barrier( TextureBarrier.Transition( texture, ImageLayout.CopySource, layout, PipelineStage.Transfer, MemoryAccess.TransferRead, PipelineStage.AllCommands, MemoryAccess.MemoryRead ) );
+			list.Barrier( TextureBarrier.Transition( copy, ImageLayout.CopyDestination, layout, PipelineStage.Transfer, MemoryAccess.TransferWrite, PipelineStage.AllCommands, MemoryAccess.MemoryRead ) );
+		}
+		catch
+		{
+			if ( deferred is null ) list.Discard();
+			throw;
+		}
 		if ( deferred is null ) SubmitAndRecycle( list );
 		else Interlocked.Add( ref deferredBytes, bytes );
 		return copy;
@@ -683,15 +706,23 @@ public sealed unsafe partial class Device
 	/// </summary>
 	public SamplerHandle CreateSampler( in SamplerInfo info )
 	{
-		var sampler = MakeSampler( info, out var anisotropy, out var mipBias );
-		var (index, generation) = Samplers.Add( new SamplerRecord { Sampler = sampler, Index = Bindless.AddSampler( sampler ), Info = info, Anisotropy = anisotropy, MipBias = mipBias } );
-		var handle = new SamplerHandle( index, generation );
-		if ( info.MaxAnisotropy > 1 )
+		var gated = EnterGate();
+		try
 		{
-			lock ( anisotropicSamplers ) anisotropicSamplers.Add( handle );
-		}
+			var sampler = MakeSampler( info, out var anisotropy, out var mipBias );
+			var (index, generation) = Samplers.Add( new SamplerRecord { Sampler = sampler, Index = Bindless.AddSampler( sampler ), Info = info, Anisotropy = anisotropy, MipBias = mipBias } );
+			var handle = new SamplerHandle( index, generation );
+			if ( info.MaxAnisotropy > 1 )
+			{
+				lock ( anisotropicSamplers ) anisotropicSamplers.Add( handle );
+			}
 
-		return handle;
+			return handle;
+		}
+		finally
+		{
+			if ( gated ) ExitGate();
+		}
 	}
 
 	/// <summary>The anisotropy a sampler filters with, after the device's limit and <see cref="AnisotropyLimit"/>.</summary>
@@ -702,6 +733,8 @@ public sealed unsafe partial class Device
 
 	// Samplers made anisotropic, remade when the limit or the global mip bias changes
 	readonly HashSet<SamplerHandle> anisotropicSamplers = new();
+	float requestedAnisotropyLimit = float.MaxValue;
+	float requestedGlobalMipBias;
 
 	/// <summary>
 	/// The most anisotropy any sampler filters with: the player's setting (native's <c>r_max_anisotropy</c>), unlimited
@@ -712,14 +745,14 @@ public sealed unsafe partial class Device
 	/// <summary>
 	/// Limit every sampler's anisotropy, as native clamps each anisotropic sampler to <c>r_max_anisotropy</c>. Samplers made
 	/// anisotropic are remade in place: their handles and bindless slots stay, and the persistent sets that bind them are
-	/// rewritten. Waits for the GPU to go idle, so call it between frames, with nothing recording.
+	/// rewritten. Waits for the GPU to go idle; if the device gate is busy, retries at the next <see cref="BeginFrame"/>.
 	/// </summary>
 	public void SetAnisotropyLimit( float limit )
 	{
 		limit = Math.Max( limit, 1 );
-		if ( limit == AnisotropyLimit ) return;
-		AnisotropyLimit = limit;
-		RemakeAnisotropicSamplers( biasedOnly: false );
+		if ( limit.Equals( Volatile.Read( ref requestedAnisotropyLimit ) ) ) return;
+		Volatile.Write( ref requestedAnisotropyLimit, limit );
+		ApplySamplerSettings();
 	}
 
 	/// <summary>
@@ -733,14 +766,36 @@ public sealed unsafe partial class Device
 	/// <summary>
 	/// Set <see cref="GlobalMipBias"/>. The samplers it applies to are remade in place, as <see cref="SetAnisotropyLimit"/>
 	/// remakes them: their handles and bindless slots stay, and the persistent sets that bind them are rewritten. Waits for
-	/// the GPU to go idle when it changes, so call it between frames, with nothing recording.
+	/// the GPU to go idle; if the device gate is busy, retries at the next <see cref="BeginFrame"/>.
 	/// </summary>
 	public void SetGlobalMipBias( float bias )
 	{
 		if ( !float.IsFinite( bias ) ) bias = 0;
-		if ( bias == GlobalMipBias ) return;
-		GlobalMipBias = bias;
-		RemakeAnisotropicSamplers( biasedOnly: true );
+		if ( bias == Volatile.Read( ref requestedGlobalMipBias ) ) return;
+		Volatile.Write( ref requestedGlobalMipBias, bias );
+		ApplySamplerSettings();
+	}
+
+	void ApplySamplerSettings()
+	{
+		if ( IsLost || (Volatile.Read( ref requestedAnisotropyLimit ).Equals( AnisotropyLimit ) &&
+			Volatile.Read( ref requestedGlobalMipBias ) == GlobalMipBias) || !TryBeginMove() ) return;
+
+		try
+		{
+			var limit = Volatile.Read( ref requestedAnisotropyLimit );
+			var bias = Volatile.Read( ref requestedGlobalMipBias );
+			var limitChanged = !limit.Equals( AnisotropyLimit );
+			if ( !limitChanged && bias == GlobalMipBias ) return;
+
+			AnisotropyLimit = limit;
+			GlobalMipBias = bias;
+			RemakeAnisotropicSamplers( biasedOnly: !limitChanged );
+		}
+		finally
+		{
+			EndMove();
+		}
 	}
 
 	// Anisotropic samplers only, as native's: those are the material textures'. Vulkan adds a sampler's bias to explicit-LOD
@@ -750,13 +805,11 @@ public sealed unsafe partial class Device
 	// Every anisotropic sampler remade in place, or only those the global mip bias reaches
 	void RemakeAnisotropicSamplers( bool biasedOnly )
 	{
-		SamplerHandle[] remake;
-		lock ( anisotropicSamplers ) remake = [.. anisotropicSamplers];
-		if ( remake.Length == 0 ) return;
+		if ( anisotropicSamplers.Count == 0 ) return;
 
-		var old = new List<ulong>( remake.Length );
-		var remade = new HashSet<SamplerHandle>( remake.Length );
-		foreach ( var handle in remake )
+		var old = new List<ulong>( anisotropicSamplers.Count );
+		var remade = new HashSet<SamplerHandle>( anisotropicSamplers.Count );
+		foreach ( var handle in anisotropicSamplers )
 		{
 			ref var record = ref Get( handle );
 			if ( biasedOnly && !TakesGlobalMipBias( record.Info ) ) continue;
@@ -883,28 +936,33 @@ public sealed unsafe partial class Device
 		return new BindingLayoutHandle( index, generation );
 	}
 
-	ulong SetLayoutOf( BindingLayoutHandle[] sets, int set ) => sets is not null && set < sets.Length && sets[set].IsValid ? Get( sets[set] ).SetLayout : emptySetLayout;
+	PipelineSetLayout SetLayoutOf( BindingLayoutHandle[] sets, int set )
+	{
+		if ( sets is not null && set < sets.Length && sets[set] is { IsValid: true } handle ) return new( Get( handle ).SetLayout, handle );
+		return new( emptySetLayout, default );
+	}
 
 	/// <summary>
-	/// The pipeline layout of pipelines with these sets. With pipeline libraries, its sets are independent
-	/// (<c>VK_PIPELINE_LAYOUT_CREATE_INDEPENDENT_SETS_BIT_EXT</c>), as libraries' layouts are: on AMD's driver, with the
-	/// extension on, pipelines whose layouts weren't read push constants wrong.
+	/// The pipeline layout of pipelines with these sets. With graphics pipeline libraries enabled, graphics layouts use
+	/// <c>VK_PIPELINE_LAYOUT_CREATE_INDEPENDENT_SETS_BIT_EXT</c> even for pipelines made whole: AMD's driver read push
+	/// constants wrong otherwise. Vulkan forbids the flag for compute pipelines.
 	/// </summary>
-	ulong PipelineLayout( BindingLayoutHandle[] sets )
+	ulong PipelineLayout( BindingLayoutHandle[] sets, bool graphics )
 	{
 		if ( sets is { Length: > ShaderAbi.BindlessSet } ) throw new ArgumentException( $"Sets 0 to {ShaderAbi.BindlessSet - 1} are the pipeline's; set {ShaderAbi.BindlessSet} is the bindless table" );
 
-		var key = (SetLayoutOf( sets, 0 ), SetLayoutOf( sets, 1 ), SetLayoutOf( sets, 2 ), SetLayoutOf( sets, 3 ));
+		var metadata = new PipelineSetLayouts( SetLayoutOf( sets, 0 ), SetLayoutOf( sets, 1 ), SetLayoutOf( sets, 2 ), SetLayoutOf( sets, 3 ), graphics && pipelineLibraries );
+		var key = (Sets: (metadata.First.Handle, metadata.Second.Handle, metadata.Third.Handle, metadata.Fourth.Handle), metadata.Independent);
 		lock ( pipelineLayouts )
 		{
 			if ( pipelineLayouts.TryGetValue( key, out var existing ) ) return existing;
 
-			var setLayouts = stackalloc ulong[ShaderAbi.SetCount] { key.Item1, key.Item2, key.Item3, key.Item4, Bindless.SetLayout, Get( ViewSetLayout ).SetLayout };
+			var setLayouts = stackalloc ulong[ShaderAbi.SetCount] { key.Sets.Item1, key.Sets.Item2, key.Sets.Item3, key.Sets.Item4, Bindless.SetLayout, Get( ViewSetLayout ).SetLayout };
 			var push = new VkPushConstantRange { stageFlags = StageAll, size = ShaderAbi.PushConstantSize };
 			var info = new VkPipelineLayoutCreateInfo
 			{
 				sType = VkStructureType.PipelineLayoutCreateInfo,
-				flags = pipelineLibraries ? Vulkan.Vk.PipelineLayoutIndependentSets : 0,
+				flags = key.Independent ? Vulkan.Vk.PipelineLayoutIndependentSets : 0,
 				setLayoutCount = ShaderAbi.SetCount,
 				pSetLayouts = setLayouts,
 				pushConstantRangeCount = 1,
@@ -914,7 +972,7 @@ public sealed unsafe partial class Device
 			ulong layout;
 			Vk.vkCreatePipelineLayout( Vk.Device, &info, null, &layout ).Check( "vkCreatePipelineLayout" );
 			pipelineLayouts[key] = layout;
-			pipelineLayoutSets[layout] = key;
+			pipelineLayoutSets[layout] = metadata;
 			pipelineLayoutHashes[layout] = SetsHash( sets );
 			return layout;
 		}
@@ -925,7 +983,7 @@ public sealed unsafe partial class Device
 	/// </summary>
 	public PipelineHandle CreateComputePipeline( in ComputePipelineInfo info )
 	{
-		var layout = PipelineLayout( info.Sets );
+		var layout = PipelineLayout( info.Sets, graphics: false );
 		var started = System.Diagnostics.Stopwatch.GetTimestamp();
 
 		// Made ahead from the part manifest (a builder making it now is waited for), else made here and recorded
@@ -1287,14 +1345,13 @@ public sealed unsafe partial class Device
 		var gated = EnterGate();
 		try
 		{
+			if ( Get( texture ).External ) throw new InvalidOperationException( "Swap chain images belong to their swap chain" );
 			record = Textures.Remove( texture.Index, texture.Generation );
 		}
 		finally
 		{
 			if ( gated ) ExitGate();
 		}
-
-		if ( record.External ) throw new InvalidOperationException( "Swap chain images belong to their swap chain" );
 
 		Defer( new Garbage( record ) );
 	}
@@ -1338,13 +1395,21 @@ public sealed unsafe partial class Device
 	/// <summary>Destroy a sampler once the GPU is done with it.</summary>
 	public void Destroy( SamplerHandle sampler )
 	{
-		lock ( anisotropicSamplers ) anisotropicSamplers.Remove( sampler );
-		var record = Samplers.Remove( sampler.Index, sampler.Generation );
-		Defer( () =>
+		var gated = EnterGate();
+		try
 		{
-			Bindless.RemoveSampler( record.Index );
-			Vk.vkDestroySampler( Vk.Device, record.Sampler, null );
-		} );
+			lock ( anisotropicSamplers ) anisotropicSamplers.Remove( sampler );
+			var record = Samplers.Remove( sampler.Index, sampler.Generation );
+			Defer( () =>
+			{
+				Bindless.RemoveSampler( record.Index );
+				Vk.vkDestroySampler( Vk.Device, record.Sampler, null );
+			} );
+		}
+		finally
+		{
+			if ( gated ) ExitGate();
+		}
 	}
 
 	/// <summary>
@@ -1355,43 +1420,52 @@ public sealed unsafe partial class Device
 	{
 		// The record and module go on a worker once no pipeline is being made from a shader, so the caller never waits for one
 		// and a pipeline being made meanwhile still finds its shader
-		var record = Shaders.Get( shader.Index, shader.Generation );
-		lock ( moduleDestroys )
+		lock ( partLock )
 		{
+			var record = Shaders.Get( shader.Index, shader.Generation );
 			if ( !shadersGoing.Add( shader ) ) throw new ArgumentException( $"shader {shader.Index} was destroyed or never existed" );
-			moduleDestroys.RemoveAll( t => t.IsCompleted );
-			moduleDestroys.Add( Task.Run( () =>
+			lock ( moduleDestroys )
 			{
-				shaderUse.EnterWriteLock();
-				try
+				moduleDestroys.RemoveAll( t => t.IsCompleted );
+				moduleDestroys.Add( Task.Run( () =>
 				{
-					Shaders.Remove( shader.Index, shader.Generation );
-					Vk.vkDestroyShaderModule( Vk.Device, record.Module, null );
-				}
-				finally
-				{
-					shaderUse.ExitWriteLock();
-					lock ( moduleDestroys ) shadersGoing.Remove( shader );
-				}
-			} ) );
-		}
+					shaderUse.EnterWriteLock();
+					try
+					{
+						lock ( partLock )
+						{
+							Shaders.Remove( shader.Index, shader.Generation );
+							shadersGoing.Remove( shader );
+						}
 
-		DropParts( record.Hash );
+						Vk.vkDestroyShaderModule( Vk.Device, record.Module, null );
+					}
+					finally
+					{
+						shaderUse.ExitWriteLock();
+					}
+				} ) );
+			}
+
+			DropParts( record.Hash );
+		}
 	}
 
 	/// <summary>Destroy a binding layout once the GPU is done with it.</summary>
 	public void Destroy( BindingLayoutHandle layout )
 	{
 		var record = Layouts.Remove( layout.Index, layout.Generation );
+		lock ( bindingSetPools ) freeBindingSets.Remove( layout );
 
 		// Pipeline layouts made with it leave the cache: the driver may give the next set layout the same handle, and a cached
 		// layout found by it would point at this one once it's gone. They live on, for pipelines made with them, until shutdown
 		lock ( pipelineLayouts )
 		{
-			List<(ulong, ulong, ulong, ulong)> stale = null;
+			List<((ulong, ulong, ulong, ulong) Sets, bool Independent)> stale = null;
 			foreach ( var key in pipelineLayouts.Keys )
 			{
-				if ( key.Item1 == record.SetLayout || key.Item2 == record.SetLayout || key.Item3 == record.SetLayout || key.Item4 == record.SetLayout ) (stale ??= new()).Add( key );
+				var (a, b, c, d) = key.Sets;
+				if ( a == record.SetLayout || b == record.SetLayout || c == record.SetLayout || d == record.SetLayout ) (stale ??= new()).Add( key );
 			}
 
 			foreach ( var key in stale ?? [] )
@@ -1419,12 +1493,12 @@ public sealed unsafe partial class Device
 
 	readonly List<Task> moduleDestroys = new();
 
-	// Shaders destroyed whose record and module haven't gone yet (under moduleDestroys' lock)
+	// Shaders destroyed whose records haven't gone yet (under partLock, with their parts).
 	readonly HashSet<ShaderHandle> shadersGoing = new();
 
 	void DestroyAllResources()
 	{
-		// Waited for outside the lock: each takes it as it ends, to say its shader has gone
+		// Wait outside the locks: workers may still have to remove shaders under partLock.
 		Task[] destroying;
 		lock ( moduleDestroys ) destroying = [.. moduleDestroys];
 		Task.WaitAll( destroying );

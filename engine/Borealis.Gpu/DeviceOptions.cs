@@ -47,11 +47,17 @@ public sealed class DeviceOptions
 	public bool GpuAssistedDescriptorChecks { get; init; } = true;
 
 	/// <summary>
-	/// Write progress markers (VK_AMD_buffer_marker, when the device has it) into host memory at each list's start and end
-	/// and at every label, so a report after the device is lost shows how far the GPU got in each list
-	/// (<see cref="Device.DescribeRecentSubmissions"/>).
+	/// Write progress markers (VK_AMD_buffer_marker, when the device has it) into host memory at each list's start and end,
+	/// so a report after the device is lost shows how far the GPU got in each list
+	/// (<see cref="Device.DescribeRecentSubmissions"/>); with <see cref="PassProgressMarkers"/>, at every label too.
 	/// </summary>
 	public bool ProgressMarkers { get; init; }
+
+	/// <summary>
+	/// With <see cref="ProgressMarkers"/>, a marker at either end of every label (each pass) as well, so the report names the
+	/// pass the GPU stopped in. Off by default: two markers per pass cost ~0.02 ms of CPU a frame.
+	/// </summary>
+	public bool PassProgressMarkers { get; init; }
 
 	/// <summary>
 	/// Watch the frames from a thread of the device's own: one that goes on over a second is noted (where the frame thread
@@ -313,4 +319,7 @@ public sealed class DeviceCapabilities
 	/// GPUs only have them in fragment, compute, task and mesh shaders, and reject vertex modules that use them.
 	/// </summary>
 	public bool VertexWaveOps { get; init; }
+
+	/// <summary>Whether a graphics pipeline can require 32-lane subgroups in its fragment stage.</summary>
+	public bool FragmentWave32 { get; init; }
 }

@@ -80,8 +80,8 @@ public sealed unsafe partial class Device
 	/// <summary>Whether the parts a pipeline links are all made, so linking it is quick.</summary>
 	bool PartsReady( in GraphicsPipelineInfo info, ulong layout )
 	{
-		var preRasterization = PreRasterizationKey( info, layout );
-		var fragment = FragmentKey( info, layout );
+		var preRasterization = PreRasterizationKey( info, layout, out _, out _ );
+		var fragment = FragmentKey( info, layout, out _ );
 		var vertexInput = info.MeshShader.IsValid ? null : VertexInputKey( info );
 		var output = OutputKey( info );
 		lock ( partLock )
@@ -420,7 +420,7 @@ public sealed unsafe partial class Device
 		var started = System.Diagnostics.Stopwatch.GetTimestamp();
 		try
 		{
-			using ( Zone( ZonePipeline ) ) pipeline = MakeCompute( info, PipelineLayout( info.Sets ) );
+			using ( Zone( ZonePipeline ) ) pipeline = MakeCompute( info, PipelineLayout( info.Sets, graphics: false ) );
 			Interlocked.Add( ref computeTicks, System.Diagnostics.Stopwatch.GetTimestamp() - started );
 			Interlocked.Increment( ref computeMade );
 		}

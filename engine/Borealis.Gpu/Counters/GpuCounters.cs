@@ -626,9 +626,15 @@ public sealed unsafe class GpuCounters
 	{
 		if ( Interlocked.CompareExchange( ref initialised, 1, 0 ) != 0 ) return "GPUPerfAPI is already in use by another device in this process";
 		var why = Gpa.Load();
-		if ( why is not null ) return why;
-		var status = Gpa.Initialize( 0 );
-		return status == Gpa.Ok ? null : $"GpaInitialize failed: {Gpa.Status( status )}";
+		if ( why is null )
+		{
+			var status = Gpa.Initialize( 0 );
+			if ( status == Gpa.Ok ) return null;
+			why = $"GpaInitialize failed: {Gpa.Status( status )}";
+		}
+
+		Volatile.Write( ref initialised, 0 );
+		return why;
 	}
 
 	/// <summary>Undo <see cref="Prepare"/> once the device and instance are gone.</summary>

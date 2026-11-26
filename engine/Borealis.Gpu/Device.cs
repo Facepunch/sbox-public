@@ -240,7 +240,8 @@ public sealed unsafe partial class Device : IDisposable
 			if ( AddressReports ) ListenForAddressBindings();
 
 			var driver = new VkPhysicalDeviceDriverProperties { sType = VkStructureType.PhysicalDeviceDriverProperties };
-			var subgroups = new VkPhysicalDeviceSubgroupProperties { sType = VkStructureType.PhysicalDeviceSubgroupProperties, pNext = &driver };
+			var subgroupSizes = new VkPhysicalDeviceSubgroupSizeControlProperties { sType = VkStructureType.PhysicalDeviceSubgroupSizeControlProperties, pNext = &driver };
+			var subgroups = new VkPhysicalDeviceSubgroupProperties { sType = VkStructureType.PhysicalDeviceSubgroupProperties, pNext = &subgroupSizes };
 			var indexing = new VkPhysicalDeviceDescriptorIndexingProperties { sType = VkStructureType.PhysicalDeviceDescriptorIndexingProperties, pNext = &subgroups };
 			var properties2 = new VkPhysicalDeviceProperties2 { sType = VkStructureType.PhysicalDeviceProperties2, pNext = &indexing };
 			Instance.vkGetPhysicalDeviceProperties2( PhysicalDevice, &properties2 );
@@ -280,6 +281,8 @@ public sealed unsafe partial class Device : IDisposable
 				PipelineLibraries = pipelineLibraries,
 				// VK_SHADER_STAGE_VERTEX_BIT, and the vote (2) and ballot (8) operations wave-uniform vertex code uses
 				VertexWaveOps = (subgroups.supportedStages & 1) != 0 && (subgroups.supportedOperations & 0xA) == 0xA,
+				FragmentWave32 = features.subgroupSizeControl && (subgroupSizes.requiredSubgroupSizeStages & Vulkan.Vk.StageFragment) != 0
+					&& subgroupSizes.minSubgroupSize <= 32 && subgroupSizes.maxSubgroupSize >= 32,
 			};
 
 			Bindless = new BindlessTable( this, bindlessTextures, bindlessSamplers, bindlessStorage, features.storageBufferUpdateAfterBind );
@@ -324,6 +327,7 @@ public sealed unsafe partial class Device : IDisposable
 		public bool pipelineStatistics { get; init; }
 		public bool hostQueryReset { get; init; }
 		public bool storageBufferUpdateAfterBind { get; init; }
+		public bool subgroupSizeControl { get; init; }
 		public bool meshShaders { get; init; }
 	}
 
@@ -519,6 +523,7 @@ public sealed unsafe partial class Device : IDisposable
 			pipelineStatistics = features.features.values[(int)VkFeature.PipelineStatisticsQuery] != 0,
 			hostQueryReset = e12.values[VkPhysicalDeviceVulkan12Features.HostQueryReset] != 0,
 			storageBufferUpdateAfterBind = e12.values[VkPhysicalDeviceVulkan12Features.DescriptorBindingStorageBufferUpdateAfterBind] != 0,
+			subgroupSizeControl = e13.values[VkPhysicalDeviceVulkan13Features.SubgroupSizeControl] != 0,
 		};
 
 		var extensions = new List<string>();
@@ -667,6 +672,7 @@ public sealed unsafe partial class Device : IDisposable
 		BufferAddresses = e12.values[VkPhysicalDeviceVulkan12Features.BufferDeviceAddress] != 0 && vk.vkGetBufferDeviceAddress != null;
 		memoryBudget = extensions.Contains( "VK_EXT_memory_budget" );
 		bufferMarkers = extensions.Contains( "VK_AMD_buffer_marker" );
+		passMarkers = options.PassProgressMarkers;
 		shaderStatistics = extensions.Contains( "VK_KHR_pipeline_executable_properties" );
 		pipelineLibraries = extensions.Contains( "VK_EXT_graphics_pipeline_library" );
 		enabled = enabled with { meshShaders = extensions.Contains( "VK_EXT_mesh_shader" ) && vk.vkCmdDrawMeshTasksIndirectEXT != null && vk.vkCmdDrawMeshTasksIndirectCountEXT != null };
