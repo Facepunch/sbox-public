@@ -889,6 +889,16 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 
 		using var process = Process.Start( info );
 		if ( process is null ) return false;
+
+		// Background work for a later frame: below the game's threads, so a first session's compiles don't take its frame time
+		try
+		{
+			process.PriorityClass = ProcessPriorityClass.BelowNormal;
+		}
+		catch ( Exception e ) when ( e is InvalidOperationException or System.ComponentModel.Win32Exception or PlatformNotSupportedException )
+		{
+		}
+
 		process.OutputDataReceived += static ( _, _ ) => { };
 		process.ErrorDataReceived += static ( _, _ ) => { };
 		process.BeginOutputReadLine();
