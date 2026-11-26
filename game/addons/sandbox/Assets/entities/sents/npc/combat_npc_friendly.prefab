@@ -628,7 +628,7 @@
           "Roll": true
         },
         "MassCenterOverride": "0,0,0",
-        "MassOverride": 0,
+        "MassOverride": 100,
         "MinImpactDamageSpeed": 500,
         "MotionEnabled": false,
         "OnComponentDestroy": null,

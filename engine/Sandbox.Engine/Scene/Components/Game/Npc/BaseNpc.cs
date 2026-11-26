@@ -99,7 +99,7 @@ public partial class BaseNpc : Component, Component.IDamageable, BaseCombatWeapo
 		if ( go.Root.GetComponent<PlayerController>() is { } controller )
 			return controller.Velocity;
 
-		// NPCs walk on the navmesh, their rigidbody sits still
+		// An NPC's own walking, without what the ground carries
 		if ( go.GetComponent<BaseNpc>() is { } npc && npc.Animation.IsValid() && !npc.Animation.MoveVelocity.IsNearlyZero() )
 			return npc.Animation.MoveVelocity;
 
@@ -133,6 +133,22 @@ public partial class BaseNpc : Component, Component.IDamageable, BaseCombatWeapo
 	{
 		return Vector3.Lerp( target.WorldPosition, CalculateEyePosition( target ), 0.7f );
 	}
+
+	/// <summary>
+	/// The body's rotation as physics has it. A simulated body is turned through physics: writing the transform would
+	/// put it back where it was last drawn.
+	/// </summary>
+	internal Rotation BodyRotation => SimulatedBody is { } body ? body.Rotation : WorldRotation;
+
+	internal void SetBodyRotation( Rotation rotation )
+	{
+		if ( SimulatedBody is { } body )
+			body.Rotation = rotation;
+		else
+			WorldRotation = rotation;
+	}
+
+	private PhysicsBody SimulatedBody => _rigidbody.IsValid() && _rigidbody.MotionEnabled && _rigidbody.PhysicsBody is { IsValid: true } body ? body : null;
 
 	private Rigidbody _rigidbody;
 	private bool _started;
@@ -173,6 +189,8 @@ public partial class BaseNpc : Component, Component.IDamageable, BaseCombatWeapo
 
 	protected override void OnUpdate()
 	{
+		UpdateKnockdownPose();
+
 		// NPCs are the host's: it thinks, moves and takes damage for them, whoever was given the object
 		if ( !Networking.IsHost )
 			return;
@@ -182,6 +200,12 @@ public partial class BaseNpc : Component, Component.IDamageable, BaseCombatWeapo
 
 		if ( _dead )
 			return;
+
+		if ( KnockdownState == KnockdownStates.Down )
+		{
+			UpdateKnockdown();
+			return;
+		}
 
 		UpdateMovement();
 		CategorizeGround();
@@ -196,8 +220,8 @@ public partial class BaseNpc : Component, Component.IDamageable, BaseCombatWeapo
 				StandDown();
 		}
 
-		// No thinking in mid-air - the schedule picks up again once we land
-		if ( thinking && !IsAirborne )
+		// No thinking in mid-air or getting up - the schedule picks up again once we're on our feet
+		if ( thinking && !IsAirborne && KnockdownState == KnockdownStates.None )
 			Think();
 
 		if ( ShowDebugOverlay )

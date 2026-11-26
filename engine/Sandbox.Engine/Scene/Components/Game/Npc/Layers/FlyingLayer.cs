@@ -48,10 +48,10 @@ public class FlyingLayer : MovementLayer
 	/// </summary>
 	public Vector3 Velocity { get; set; }
 
-	public override bool IsMoving => _velocity.WithZ( 0 ).Length > 20f;
+	public override bool IsMoving => _movedVelocity.WithZ( 0 ).Length > 20f;
 
 	// How fast the object actually moved, whoever moved it
-	private Vector3 _velocity;
+	private Vector3 _movedVelocity;
 	private Rigidbody _body;
 	private bool _physics;
 	private bool _gravity = true;
@@ -73,7 +73,7 @@ public class FlyingLayer : MovementLayer
 		// Weightless while we fly it: another mover gets the gravity it had back
 		_gravity = _body.Gravity;
 		_body.Gravity = false;
-		_body.MotionEnabled = _physics;
+		Npc.UpdateBodyOwner();
 	}
 
 	protected override void OnDisabled()
@@ -127,7 +127,7 @@ public class FlyingLayer : MovementLayer
 	{
 		_physics = physics;
 		Velocity = default;
-		if ( _body.IsValid() ) _body.MotionEnabled = physics;
+		Npc.UpdateBodyOwner();
 	}
 
 	protected override void OnUpdate()
@@ -148,13 +148,14 @@ public class FlyingLayer : MovementLayer
 			_sinceProgress = 0;
 		}
 
-		_velocity = Time.Delta > 0 ? (WorldPosition - from) / Time.Delta : default;
-		Npc.Animation.SetMove( _velocity );
+		_movedVelocity = Time.Delta > 0 ? (WorldPosition - from) / Time.Delta : default;
+		Npc.Animation.SetMove( _movedVelocity );
 		Npc.Animation.IsGrounded = false;
 	}
 
 	private void Fly()
 	{
+		var cruise = _moveSpeed ?? WalkSpeed;
 		var wanted = Vector3.Zero;
 		if ( MoveTarget is { } target )
 		{
@@ -162,7 +163,7 @@ public class FlyingLayer : MovementLayer
 			var remaining = delta.Length - StopDistance;
 			if ( remaining > 0 )
 			{
-				var speed = _moveSpeed ?? WalkSpeed;
+				var speed = cruise;
 				if ( Acceleration > 0 )
 					speed = MathF.Min( speed, MathF.Sqrt( 2f * Acceleration * remaining ) );
 
@@ -181,7 +182,7 @@ public class FlyingLayer : MovementLayer
 		// Face who we were told to, else the way we fly: fully at a real pace, less the slower we drift, and a hover
 		// keeps the facing it has.
 		var facing = (_moveFaceTarget.IsValid() ? _moveFaceTarget.WorldPosition - WorldPosition : Velocity).WithZ( 0 );
-		var pace = MathF.Max( (_moveSpeed ?? WalkSpeed) * 0.35f, 20f );
+		var pace = MathF.Max( cruise * 0.35f, 20f );
 		var turn = _moveFaceTarget.IsValid() ? 1f : Math.Clamp( facing.Length / pace, 0f, 1f );
 		if ( facing.Length > 1f )
 			WorldRotation = Rotation.Slerp( WorldRotation, Rotation.LookAt( facing ), Time.Delta * TurnSpeed * turn );

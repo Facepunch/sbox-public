@@ -4,7 +4,7 @@ namespace Sandbox.Npcs.Layers;
 /// <summary>
 /// Walks the navmesh with a <see cref="NavMeshAgent"/>, crossing nav links by their type.
 /// </summary>
-public class NavigationLayer : MovementLayer
+public partial class NavigationLayer : MovementLayer
 {
 	/// <summary>
 	/// The navmesh agent this layer drives, for a subclass that crosses a link itself.
@@ -15,7 +15,35 @@ public class NavigationLayer : MovementLayer
 	[Property]
 	public float RunDistance { get; set; } = 200f;
 
-	public override bool IsMoving => IsTraversingLink || Agent.IsValid() && Agent.Velocity.WithZ( 0 ).Length > 20f;
+	/// <summary>
+	/// How a <see cref="NavigationLayer"/> moves the NPC's body along its route.
+	/// </summary>
+	[Expose]
+	public enum MovementModes
+	{
+		/// <summary>A physics body steered along the route: it pushes and gets pushed, like a player.</summary>
+		Physics,
+
+		/// <summary>The navmesh agent places the body on its route and nothing pushes it off. Physics has it only in the air, carried or launched.</summary>
+		Kinematic,
+	}
+
+	/// <summary>
+	/// How the body is moved along the route. Host only.
+	/// </summary>
+	[Property]
+	public MovementModes MovementMode { get; set; } = MovementModes.Physics;
+
+	// Slower than this counts as standing
+	private const float MovingSpeed = 20f;
+
+	// Under physics, moving means wanting to move, even when blocked
+	public override bool IsMoving => IsTraversingLink || (_simulating
+		? _wish.Length > MovingSpeed
+		: Agent.IsValid() && Agent.Velocity.WithZ( 0 ).Length > MovingSpeed);
+
+	private float AgentRadius => MathF.Max( Agent.Radius, 1f );
+	private float AgentSpeed => MathF.Max( Agent.MaxSpeed, 1f );
 
 	public override Vector3? ProjectPoint( Vector3 point ) => Scene.NavMesh.GetClosestPoint( point );
 
@@ -28,6 +56,7 @@ public class NavigationLayer : MovementLayer
 		if ( !Agent.IsValid() ) return;
 
 		// Physics has the body: the link we were crossing ends here, wherever that is
+		EndFlight();
 		_traversal = null;
 		Agent.Enabled = false;
 	}
@@ -38,6 +67,7 @@ public class NavigationLayer : MovementLayer
 
 		var resumed = !Agent.Enabled;
 		Agent.Enabled = true;
+		UpdateSimulation();
 
 		// Back on the navmesh. The agent lost its target while it was off, so carry on with the move from here.
 		if ( resumed && MoveTarget.HasValue && !_moveFailed )
@@ -119,6 +149,7 @@ public class NavigationLayer : MovementLayer
 	private LinkTraversalState? _traversal;
 	private float _traversalTime;
 	private Vector3 _climbFoot;
+	private Vector3 _climbEntry;
 	private Vector3 _climbDirection;
 	private float _climbExitLift;
 	private Vector3 _dropDeparture;
@@ -135,6 +166,10 @@ public class NavigationLayer : MovementLayer
 	/// </summary>
 	public void HoldMovement( float seconds ) => _holdMovement = MathF.Max( _holdMovement, seconds );
 
+	internal override void PauseMovement( float seconds ) => HoldMovement( seconds );
+
+	internal override bool IsCrossingLink => IsTraversingLink;
+
 	protected override void OnEnabled() => InitializeAgent();
 
 	protected override void OnStart() => InitializeAgent();
@@ -145,6 +180,8 @@ public class NavigationLayer : MovementLayer
 
 		Agent = Npc.GetComponent<NavMeshAgent>( true );
 		if ( !Agent.IsValid() ) return;
+
+		_body = Npc.GetComponent<Rigidbody>();
 
 		Agent.AutoTraverseLinks = false;
 		Agent.LinkEnter += OnLinkEnter;
@@ -173,12 +210,9 @@ public class NavigationLayer : MovementLayer
 		var crossing = _traversal.HasValue;
 
 		_traversal = null;
-		MoveTarget = null;
-		_moveSpeed = null;
-		_moveFaceTarget = null;
-		_running = false;
-		_moveFailed = false;
+		ClearMove();
 		_holdMovement = 0;
+		ResetSimulation();
 
 		if ( !Networking.IsHost )
 			return;
@@ -217,6 +251,7 @@ public class NavigationLayer : MovementLayer
 		_traversal = new LinkTraversalState { Type = type ?? linkType, Link = link, Start = start, End = end };
 		_traversalTime = 0;
 		_climbFoot = GetClimbFoot( data );
+		_climbEntry = data.LinkEnterPosition;
 		_climbDirection = link.IsValid() ? link.ClimbDirection : Vector3.Up;
 		_climbExitLift = link.IsValid() ? link.ClimbExitLift : 0;
 		_traversalLastPosition = WorldPosition;
@@ -229,11 +264,21 @@ public class NavigationLayer : MovementLayer
 			_traversal = _traversal.Value with { Type = null };
 		}
 
-		if ( KindOf( _traversal.Value.Type ) == Crossing.Drop && !PrepareDrop( _traversal.Value ) )
+		var kind = KindOf( _traversal.Value.Type );
+		if ( kind == Crossing.Drop && !PrepareDrop( _traversal.Value ) )
 		{
 			AbortLinkTraversal();
 			return;
 		}
+
+		if ( MovementMode == MovementModes.Physics && HasSolidShape() && kind is Crossing.Jump or Crossing.Drop )
+		{
+			BeginFlight( _traversal.Value );
+			return;
+		}
+
+		// Any other crossing is keyframed from its first step
+		UpdateSimulation();
 
 		_traversal = _traversal.Value with { Duration = MathF.Max( GetTraversalDuration( _traversal.Value ), 0.01f ) };
 	}
@@ -300,7 +345,7 @@ public class NavigationLayer : MovementLayer
 				return (t.Start.Distance( entry ) + entry.Distance( on ) + off.Distance( exit ) + exit.Distance( t.End )) / stepSpeed + on.Distance( off ) / climbSpeed;
 
 			default:
-				return t.Start.Distance( t.End ) / MathF.Max( Agent.MaxSpeed, 1 );
+				return t.Start.Distance( t.End ) / AgentSpeed;
 		}
 	}
 
@@ -322,7 +367,8 @@ public class NavigationLayer : MovementLayer
 	{
 		var climbSpeed = MathF.Max( KindOf( t.Type ) == Crossing.Ladder ? LadderSpeed : ClimbSpeed, 1 );
 		bool ascending = t.End.z > t.Start.z;
-		var entry = t.Start + Vector3.Up * (ascending ? 0 : _climbExitLift);
+		// From the link's own end: a body physics walked can stop nearer an edge
+		var entry = _climbEntry + Vector3.Up * (ascending ? 0 : _climbExitLift);
 		var exit = t.End + Vector3.Up * (ascending ? _climbExitLift : 0);
 		var on = _climbFoot + _climbDirection * ((entry.z - _climbFoot.z) / _climbDirection.z);
 		var off = _climbFoot + _climbDirection * ((exit.z - _climbFoot.z) / _climbDirection.z);
@@ -397,7 +443,7 @@ public class NavigationLayer : MovementLayer
 		var direction = (t.End - t.Start).WithZ( 0 ).Normal;
 		if ( direction.LengthSquared == 0 ) return true;
 
-		var radius = MathF.Max( Agent.Radius, 1 );
+		var radius = AgentRadius;
 		var step = MathF.Max( StepHeight, 0 );
 		var reach = radius * 2 + step + 2;
 		var outside = t.End.WithZ( t.Start.z );
@@ -434,7 +480,7 @@ public class NavigationLayer : MovementLayer
 			_traversal = t with { End = point };
 		}
 
-		var speed = MathF.Max( Agent.MaxSpeed, 1 );
+		var speed = AgentSpeed;
 		_dropLiftTime = t.Start.Distance( _dropLift ) / speed;
 		_dropStepTime = _dropLift.Distance( _dropDeparture ) / speed;
 		return true;
@@ -442,19 +488,20 @@ public class NavigationLayer : MovementLayer
 
 	private SceneTraceResult TraceDrop( Vector3 from, Vector3 to, float bottom = 1 )
 	{
-		var radius = MathF.Max( Agent.Radius, 1 );
-		var hull = new BBox( new Vector3( -radius, -radius, bottom ), new Vector3( radius, radius, MathF.Max( Agent.Height, 2 ) ) );
-		return Scene.Trace.Box( hull, from, to )
-			.IgnoreGameObjectHierarchy( Npc.GameObject )
-			.WithCollisionRules( Npc.Tags )
-			.WithoutTags( "trigger" )
-			.Run();
+		var radius = AgentRadius;
+		return TraceBody( new BBox( new Vector3( -radius, -radius, bottom ), new Vector3( radius, radius, MathF.Max( Agent.Height, 2 ) ) ), from, to );
 	}
 
 	private void UpdateTraversal()
 	{
 		var t = _traversal.Value;
 		var done = false;
+
+		if ( _flying )
+		{
+			_traversal = t with { Progress = Math.Clamp( _traversalTime / t.Duration, 0, 1 ), Velocity = _body.Velocity };
+			return;
+		}
 
 		if ( t.Duration > 0 )
 		{
@@ -469,14 +516,14 @@ public class NavigationLayer : MovementLayer
 					if ( !trace.StartedSolid )
 					{
 						Agent.SetAgentPosition( trace.EndPosition );
-						Npc.WorldPosition = trace.EndPosition;
+						WorldPosition = trace.EndPosition;
 					}
 					AbortLinkTraversal();
 					return;
 				}
 			}
 			Agent.SetAgentPosition( position );
-			Npc.WorldPosition = position;
+			WorldPosition = position;
 		}
 
 		var velocity = Time.Delta > 0 ? (WorldPosition - _traversalLastPosition) / Time.Delta : default;
@@ -490,9 +537,8 @@ public class NavigationLayer : MovementLayer
 	private Vector3 GetTraversalFacing( in LinkTraversalState t )
 	{
 		// Face from the climb line toward the upper landing, rather than along a tilted ladder's axis.
-		var climbing = KindOf( t.Type ) is Crossing.Ladder or Crossing.Climb;
+		if ( KindOf( t.Type ) is not (Crossing.Ladder or Crossing.Climb) ) return (t.End - t.Start).WithZ( 0 );
 		var upper = t.Start.z < t.End.z ? t.End : t.Start;
-		if ( !climbing ) return (t.End - t.Start).WithZ( 0 );
 		var onAxis = _climbFoot + _climbDirection * ((upper.z - _climbFoot.z) / _climbDirection.z);
 		var facing = (upper - onAxis).WithZ( 0 );
 		return facing.IsNearlyZero() ? (upper - _climbFoot).WithZ( 0 ) : facing;
@@ -500,6 +546,16 @@ public class NavigationLayer : MovementLayer
 
 	public override void MoveTo( Vector3 target, float stopDistance = 10f, float? speed = null, GameObject faceTarget = null )
 	{
+		// Asked again for much the same place, as a following task does, it keeps its stuck timer and detours
+		if ( !MoveTarget.HasValue || _requestedTarget.Distance( target ) > 32f )
+		{
+			_closestDetour = float.PositiveInfinity;
+			_sinceDetour = 10;
+			_flightRetries = 0;
+			_newMove = true;
+		}
+
+		_requestedTarget = target;
 		MoveTarget = target;
 		StopDistance = stopDistance;
 		_moveSpeed = speed;
@@ -523,15 +579,20 @@ public class NavigationLayer : MovementLayer
 
 	public override void Stop()
 	{
+		ClearMove();
+
+		// Mid-link the agent stops once the traversal completes, rather than dropping out of the air.
+		if ( Agent.IsValid() && !IsTraversingLink )
+			Agent.Stop();
+	}
+
+	private void ClearMove()
+	{
 		MoveTarget = null;
 		_moveSpeed = null;
 		_moveFaceTarget = null;
 		_running = false;
 		_moveFailed = false;
-
-		// Mid-link the agent stops once the traversal completes, rather than dropping out of the air.
-		if ( Agent.IsValid() && !IsTraversingLink )
-			Agent.Stop();
 	}
 
 	protected override void OnUpdate()
@@ -574,13 +635,13 @@ public class NavigationLayer : MovementLayer
 		}
 
 		FaceMovement();
-		Npc.Animation.SetMove( Agent.Velocity );
+		Npc.Animation.SetMove( _simulating ? GetSimulatedMove() : Agent.Velocity );
 	}
 
 	private void FaceDirection( Vector3 direction )
 	{
 		if ( direction.Length < 1f ) return;
-		Npc.WorldRotation = Rotation.Slerp( Npc.WorldRotation, Rotation.LookAt( direction.Normal, Vector3.Up ), TurnSpeed * Time.Delta );
+		Npc.SetBodyRotation( Rotation.Slerp( Npc.BodyRotation, Rotation.LookAt( direction.Normal, Vector3.Up ), TurnSpeed * Time.Delta ) );
 	}
 
 	// Turn the body to face the way we're actually moving, so the NPC runs forward instead of
@@ -589,22 +650,13 @@ public class NavigationLayer : MovementLayer
 	{
 		if ( _moveFaceTarget.IsValid() )
 		{
-			var direction = (_moveFaceTarget.WorldPosition - Npc.WorldPosition).WithZ( 0 );
-			if ( direction.Length > 1f )
-			{
-				var faceRotation = Rotation.LookAt( direction.Normal, Vector3.Up );
-				Npc.WorldRotation = Rotation.Slerp( Npc.WorldRotation, faceRotation, TurnSpeed * Time.Delta );
-			}
-
+			FaceDirection( (_moveFaceTarget.WorldPosition - WorldPosition).WithZ( 0 ) );
 			return;
 		}
 
-		var velocity = Agent.Velocity.WithZ( 0 );
-		if ( velocity.Length < 20f )
-			return;
-
-		var targetRotation = Rotation.LookAt( velocity.Normal, Vector3.Up );
-		Npc.WorldRotation = Rotation.Slerp( Npc.WorldRotation, targetRotation, TurnSpeed * Time.Delta );
+		var velocity = _simulating ? _planned : Agent.Velocity.WithZ( 0 );
+		if ( velocity.Length >= MovingSpeed )
+			FaceDirection( velocity );
 	}
 
 	// A speed given with the move is used as-is. Otherwise walk, and break into a run when the
@@ -620,7 +672,7 @@ public class NavigationLayer : MovementLayer
 		if ( !MoveTarget.HasValue )
 			return speed;
 
-		var distance = Npc.WorldPosition.Distance( MoveTarget.Value );
+		var distance = WorldPosition.Distance( MoveTarget.Value );
 
 		if ( _running && distance < RunDistance * 0.6f )
 			_running = false;
@@ -635,9 +687,7 @@ public class NavigationLayer : MovementLayer
 		if ( LinkTraversal is { } link ) return $"Nav: {link.Type?.ResourceName ?? "plain"} link {link.Progress:P0}";
 		if ( !MoveTarget.HasValue ) return null;
 
-		var status = Status;
-		var dist = Npc.WorldPosition.Distance( MoveTarget.Value ).CeilToInt();
-		return $"Nav: {status} ({dist}u)";
+		return $"Nav: {Status} ({WorldPosition.Distance( MoveTarget.Value ).CeilToInt()}u)";
 	}
 
 	public override MovementStatus Status
@@ -649,7 +699,9 @@ public class NavigationLayer : MovementLayer
 			// No agent means we can never get there -- fail instead of hanging on Moving forever.
 			if ( !Agent.IsValid() || _moveFailed ) return MovementStatus.Failed;
 
-			var distance = Npc.WorldPosition.Distance( MoveTarget.Value );
+			// A physics body stands a little off the navmesh's height
+			var offset = WorldPosition - MoveTarget.Value;
+			var distance = _simulating && MathF.Abs( offset.z ) <= Agent.Height * 0.5f ? offset.WithZ( 0 ).Length : offset.Length;
 
 			if ( distance <= StopDistance )
 				return MovementStatus.Arrived;

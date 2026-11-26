@@ -59,7 +59,7 @@
         },
         "BodyCollisionTags": "playercontroller",
         "BodyHeight": 72,
-        "BodyMass": 500,
+        "BodyMass": 100,
         "BodyRadius": 16,
         "BrakePower": 1.25,
         "CameraCollisionIgnore": "",
