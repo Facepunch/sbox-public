@@ -2100,29 +2100,29 @@ public class SurfaceTests : GpuTest
 
 	/// <summary>
 	/// The surface material records grow while a frame records (more materials than the first buffer holds, drawn at
-	/// once): draws recorded before the growth keep the buffer they bound until the GPU is done with it, so validation
-	/// stays clean.
+	/// once, the classic way: GPU-driven draws read their own table and write no records): draws recorded before the growth
+	/// keep the buffer they bound until the GPU is done with it, so validation stays clean.
 	/// </summary>
 	[TestMethod]
 	public void SurfaceRecordsGrowWhileDrawing()
 	{
 		Compiler();
-		using var backend = new BackendDevice( Device );
+		using var backend = new BackendDevice( Device ) { GpuDriven = false };
 		backend.Surfaces.AddFolder( Surfaces );
 		var previousHost = RenderHost.Current;
 		RenderHost.Current = new BackendRenderHost( backend );
 		var materials = new List<Rock>();
 		try
 		{
-			// 64 KiB holds 2048 of Rock's 32-byte records
+			// 64 KiB holds 2048 of Rock's 32-byte records. One box drawn once per rock (a box mesh each took most of the test's
+			// time), in a grid of 48 by 48
 			var world = new RenderWorld();
 			world.Lighting.SunDirection = new Vector3( -0.4f, 0.5f, -0.75f ).Normal;
-			for ( int i = 0; i < 2304; i++ )
-			{
-				var rock = new Rock { Tint = new Vector3( (i % 48) / 48f, (i / 48) / 48f, 0.5f ) };
-				materials.Add( rock );
-				world.Add( new MeshObject( ObjectAttributeTests.BoxMesh( backend, rock ), new Transform( new Vector3( (i % 48) * 12 - 288, (i / 48) * 12 - 288, 0 ), Rotation.Identity, 0.1f ) ) );
-			}
+			for ( int i = 0; i < 2304; i++ ) materials.Add( new Rock { Tint = new Vector3( (i % 48) / 48f, (i / 48) / 48f, 0.5f ) } );
+			using var first = new Rock();
+			var box = ObjectAttributeTests.BoxMesh( backend, first );
+			var draw = box.DrawsForLod( 0 )[0];
+			world.Add( new MeshObject( new RenderMesh( box.Geometry, box.Bounds, [[.. materials.Select( m => draw with { Material = m } )]], [] ), new Transform( Vector3.Zero, Rotation.Identity, 2 ) ) );
 
 			using var system = new RenderSystem { ParallelRecording = false };
 			using var target = ViewTarget.Create( new Vector2Int( Width, Height ), 1, TextureFormat.RGBA16161616F, TextureFormat.D32FS8, "Surface records test" );
@@ -2137,6 +2137,7 @@ public class SurfaceTests : GpuTest
 			}
 
 			Device.WaitIdle();
+			Assert.IsTrue( backend.Surfaces.Records.Grows > 0 && backend.Surfaces.Records.Use.Size > 64 << 10, $"the records grew past the first buffer: {backend.Surfaces.Records.Use}" );
 		}
 		finally
 		{
