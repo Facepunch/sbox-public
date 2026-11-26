@@ -277,4 +277,35 @@ public class DrawConstantsTests : GpuTest
 		Assert.IsFalse( a.SameValues( b ) );
 		Assert.IsTrue( a.SameStructure( b ), "numbers need only the same names" );
 	}
+
+	/// <summary>
+	/// A set kept and used again (Borealis.Gpu's lowered sets, <c>LoweredFor</c>): putting the same number or handle again
+	/// leaves <see cref="ShaderAttributes.OwnVersion"/> where it was, and so does a change in the set under it, which moves
+	/// <see cref="ShaderAttributes.Version"/>; a new value moves both.
+	/// </summary>
+	[TestMethod]
+	public void OwnVersionHoldsForEqualValuesAndChangesUnder()
+	{
+		var block = new ShaderAttributes();
+		block.Set( "TestOwnBlock", 1.0f );
+		var kept = new ShaderAttributes();
+		var buffer = new BufferHandle( 7, 1 );
+		kept.SetById( AttributeIds.Of( "TestOwnBuffer" ), buffer );
+		kept.SetById( AttributeIds.Of( "TestOwnNumber" ), 2.0f );
+		kept.Under = block;
+		var (own, version) = (kept.OwnVersion, kept.Version);
+
+		kept.SetById( AttributeIds.Of( "TestOwnBuffer" ), buffer );
+		kept.SetById( AttributeIds.Of( "TestOwnNumber" ), 2.0f );
+		kept.Under = block;
+		Assert.AreEqual( own, kept.OwnVersion, "the same values put again" );
+		Assert.AreEqual( version, kept.Version );
+
+		block.Set( "TestOwnBlock", 3.0f );
+		Assert.AreEqual( own, kept.OwnVersion, "a change under it" );
+		Assert.AreNotEqual( version, kept.Version );
+
+		kept.SetById( AttributeIds.Of( "TestOwnNumber" ), 4.0f );
+		Assert.AreNotEqual( own, kept.OwnVersion, "a new value" );
+	}
 }
