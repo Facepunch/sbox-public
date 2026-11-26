@@ -572,7 +572,10 @@ internal sealed class BorealisGpuFrame : IDisposable
 			// A multisampled frame hands over its resolved colour, and its depth resolved to one sample to go with it: what the
 			// stages draw is depth tested against the scene, and what reads the bound depth (depth of field's
 			// RenderValue.DepthTarget, depth grabs) reads it. The view chain is built from every sample
-			if ( Multisampled && ResolvedDepth() is { } resolved )
+			var timed = backend.BeginTimed( "Post depth resolve" );
+			var oneSample = Multisampled ? ResolvedDepth() : null;
+			backend.EndTimed( timed );
+			if ( oneSample is { } resolved )
 			{
 				frameTarget = StageTarget( Color, resolved );
 				if ( view is not null ) view.Target = frameTarget;
@@ -584,10 +587,11 @@ internal sealed class BorealisGpuFrame : IDisposable
 			var attributes = Graphics.Attributes;
 			attributes.SetDataShared( ViewConstantsName, constants );
 
-			// What reads the view's depth through Depth::Get; the previous frame's aliases it, as Borealis's does
+			// What reads the view's depth through Depth::Get; the previous frame's aliases it, as Borealis's does. Built when
+			// something in the block first reads it: a camera's stages after the scene mostly don't
 			if ( Depth is not null )
 			{
-				backend.BuildDepthChain( Depth, sceneChain = Chain( sceneChain, Depth.Width, Depth.Height ) );
+				backend.DeferDepthChain( Depth, sceneChain = Chain( sceneChain, Depth.Width, Depth.Height ) );
 				attributes.Set( DepthChainName, sceneChain );
 				attributes.Set( DepthChainPrevFrameName, sceneChain );
 			}

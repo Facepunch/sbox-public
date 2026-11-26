@@ -96,6 +96,7 @@ public sealed class GraphicsContext
 		SrgbWrite = false;
 		Viewport = default;
 		dispatched.Clear();
+		deferredChain = default;
 		ReleaseIdleScratch();
 	}
 
@@ -644,6 +645,7 @@ public sealed class GraphicsContext
 	{
 		EndScope();
 		if ( variant is null ) return;
+		if ( deferredChain.Chain.IsValid ) BuildDeferredChainFor( attributes, null, variant, null );
 
 		// Textures it writes go to General, which it may also read; those it only samples to ShaderRead, as their
 		// bindings expect
@@ -953,6 +955,10 @@ public sealed class GraphicsContext
 	/// </summary>
 	public void BuildDepthChain( TextureHandle depth, TextureHandle chain, ShaderFile spd )
 	{
+		// One asked for earlier is built first, from the depth as it was then
+		if ( deferredChain.Chain.IsValid && deferredChain.Chain != chain ) BuildDeferredChain();
+		else deferredChain = default;
+
 		var info = gpu.InfoOf( chain );
 		EndScope();
 		Transition( depth, ImageLayout.ShaderRead );
@@ -984,6 +990,46 @@ public sealed class GraphicsContext
 		}
 
 		Transition( chain, ImageLayout.ShaderRead );
+	}
+
+	/// <summary>
+	/// <see cref="BuildDepthChain"/>, but only once something in this list needs it: before the first draw or dispatch whose
+	/// shader reads <paramref name="chain"/> (by any attribute name; a surface's draw, whose reads aren't known, counts),
+	/// before anything writes <paramref name="depth"/>, or before another chain is built. A list that never reads it doesn't
+	/// build it: a camera's stages after the scene mostly don't. The chain is the same as built at once.
+	/// </summary>
+	public void DeferDepthChain( TextureHandle depth, TextureHandle chain, ShaderFile spd )
+	{
+		if ( deferredChain.Chain.IsValid && deferredChain.Chain != chain ) BuildDeferredChain();
+		deferredChain = (depth, chain, spd);
+	}
+
+	// A chain DeferDepthChain asked for and not built yet
+	(TextureHandle Depth, TextureHandle Chain, ShaderFile Spd) deferredChain;
+
+	/// <summary>Whether a chain was deferred and not yet built, for the tests.</summary>
+	public bool DepthChainDeferred => deferredChain.Chain.IsValid;
+
+	void BuildDeferredChain()
+	{
+		var (depth, chain, spd) = deferredChain;
+		deferredChain = default;
+		if ( chain.IsValid ) BuildDepthChain( depth, chain, spd );
+	}
+
+	/// <summary>
+	/// Build the deferred chain if a draw or dispatch with <paramref name="attributes"/> reads it: its variant (<paramref name="variant"/>,
+	/// else <paramref name="shader"/>'s) binds it, or with neither known (a surface's draw), the attributes hold it.
+	/// </summary>
+	void BuildDeferredChainFor( ShaderAttributes attributes, ShaderFile shader, ShaderVariant variant, string mode )
+	{
+		foreach ( var (name, value) in attributes.Values )
+		{
+			if ( value is not TextureHandle texture || texture != deferredChain.Chain ) continue;
+			if ( (variant is not null || shader is not null) && !Reads( variant ?? drawer.Variant( shader, attributes, mode ), name ) ) continue;
+			BuildDeferredChain();
+			return;
+		}
 	}
 
 	static TextureBarrier MipBarrier( TextureHandle texture, int mip, ImageLayout from, ImageLayout to ) => new()
@@ -1121,6 +1167,8 @@ public sealed class GraphicsContext
 	/// </summary>
 	public void FinishReadable()
 	{
+		// Nothing in the block read a deferred chain: it isn't built
+		deferredChain = default;
 		EndScope();
 		finishing.Clear();
 		finishing.AddRange( layouts.Keys );
@@ -1217,6 +1265,7 @@ public sealed class GraphicsContext
 	// surface, with no shader, reads none)
 	Format BeginScope( DepthUse depth, ShaderAttributes attributes, ShaderFile shader, string mode, ShaderVariant variant )
 	{
+		if ( deferredChain.Chain.IsValid ) BuildDeferredChainFor( attributes, shader, variant, mode );
 		if ( depth == DepthUse.None && !Target.IsValid ) depth = DepthUse.ReadOnly;
 
 		if ( dispatched.Count > 0 ) ReadableAfterDispatches( attributes );
@@ -1343,6 +1392,7 @@ public sealed class GraphicsContext
 	/// </summary>
 	void TransitionForWrite( TextureHandle texture, ImageLayout layout )
 	{
+		if ( deferredChain.Chain.IsValid && (texture == deferredChain.Depth || texture == deferredChain.Chain) ) BuildDeferredChain();
 		if ( Layout( texture ) != layout )
 		{
 			Transition( texture, layout );
@@ -1366,6 +1416,9 @@ public sealed class GraphicsContext
 	/// <summary>Move a whole texture to <paramref name="layout"/>, conservatively ordered after everything before it.</summary>
 	void Transition( TextureHandle texture, ImageLayout layout )
 	{
+		// A deferred chain before anything uses it (a copy) or writes the depth it's built from
+		if ( deferredChain.Chain.IsValid && (texture == deferredChain.Chain || texture == deferredChain.Depth && layout is ImageLayout.DepthTarget or ImageLayout.General or ImageLayout.CopyDestination) ) BuildDeferredChain();
+
 		var from = Layout( texture );
 		if ( GraphMeasure.Listing ) GraphMeasure.Used( List, texture.Index, texture.Generation, null, (int)layout, from != layout );
 		if ( from == layout ) return;

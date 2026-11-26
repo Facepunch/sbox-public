@@ -623,6 +623,46 @@ public class GraphicsContextTests : GpuTest
 	}
 
 	/// <summary>
+	/// A deferred depth chain (<see cref="GraphicsContext.DeferDepthChain"/>, a camera's stages after the scene) is built
+	/// from the depth as it was when asked, before the depth is next written: the depth at a quarter, the chain deferred,
+	/// then the depth cleared to 0, and the chain still holds a quarter. One nothing used isn't built: the block's end drops it.
+	/// </summary>
+	[TestMethod]
+	public void DeferredDepthChainBuildsBeforeItsDepthIsWritten()
+	{
+		const int size = 64;
+		var spd = library.Load( "shaders/downsample_spd.shader" );
+		var list = Device.BeginCommandList( QueueType.Graphics, "Depth chain deferred" );
+		var context = new GraphicsContext( Device, drawer, list );
+		var color = context.CreateTarget( size, size, Format.RGBA8Unorm, name: "Colour" );
+		var depth = Device.CreateTexture( TextureInfo.RenderTarget( size, size, Format.D32FloatS8Uint, name: "Depth" ) );
+		var chain = context.CreateTarget( size, size, Format.RG32Float, mips: 7, name: "Depth chain" );
+		var unused = context.CreateTarget( size, size, Format.RG32Float, mips: 7, name: "Unused depth chain" );
+
+		list.Barrier( TextureBarrier.Transition( depth, ImageLayout.Undefined, ImageLayout.CopyDestination, PipelineStage.None, MemoryAccess.None, PipelineStage.Transfer, MemoryAccess.TransferWrite ) );
+		list.ClearTexture( depth, depth: 0.25f, stencil: 7 );
+		context.Track( depth, ImageLayout.CopyDestination );
+		context.SetTarget( color, depth );
+		context.DeferDepthChain( depth, chain, spd );
+		Assert.IsTrue( context.DepthChainDeferred, "nothing read it yet" );
+		context.ClearDepth();
+		Assert.IsFalse( context.DepthChainDeferred, "clearing the depth built it first" );
+
+		var readback = Device.CreateBuffer( new BufferInfo { Size = size * size * 8, Memory = MemoryLocation.Readback, Name = "Chain" } );
+		context.CopyToBuffer( chain, readback, 0 );
+
+		context.DeferDepthChain( depth, unused, spd );
+		context.FinishReadable();
+		Assert.IsFalse( context.DepthChainDeferred, "the block's end drops it" );
+		Device.Wait( Device.Submit( list ) );
+
+		var texels = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, float>( Device.Map( readback )[..(size * size * 8)] ).ToArray();
+		Assert.IsTrue( texels.All( d => d == 0.25f ), $"mip 0 holds {texels.Distinct().Count()} values, first {texels[0]}, not the depth from before the clear" );
+		Device.Destroy( depth );
+		context.Release();
+	}
+
+	/// <summary>
 	/// <see cref="GraphicsContext.ClearDepth"/> (<c>Graphics.Clear</c> asked to clear depth) clears the bound depth to the far
 	/// plane, 0: a depth at a quarter reads 0 everywhere after, through the depth chain.
 	/// </summary>

@@ -2672,6 +2672,16 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		context.BuildDepthChain( TextureOf( depth ), TextureOf( chain ), Shader( "shaders/downsample_spd.shader" ) );
 	}
 
+	/// <summary>
+	/// <see cref="BuildDepthChain"/> once something in the block being recorded reads <paramref name="chain"/> or writes
+	/// <paramref name="depth"/> (<see cref="GraphicsContext.DeferDepthChain"/>); not at all in a block where nothing does.
+	/// </summary>
+	internal void DeferDepthChain( Texture depth, Texture chain )
+	{
+		_ = Recording;
+		context.DeferDepthChain( TextureOf( depth ), TextureOf( chain ), Shader( "shaders/downsample_spd.shader" ) );
+	}
+
 	//
 	// Auto exposure
 	//
