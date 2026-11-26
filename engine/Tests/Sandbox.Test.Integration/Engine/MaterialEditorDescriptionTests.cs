@@ -46,8 +46,11 @@ public class MaterialEditorDescriptionTests
 	public void ModulesDescribeTheirMaterialsAsTheirShaders( string shaderPath )
 	{
 		var stem = Path.Combine( Game, shaderPath );
-		Check( stem + ".slang", stem, [], [] );
+		Check( stem + ".slang", stem, [], [], shaderPath.EndsWith( "citizen_eye" ) ? CitizenEyeControls : [] );
 	}
+
+	/// <summary>The procedural eye's artist controls, fields of its surface that citizen_eye.shader never had.</summary>
+	static readonly string[] CitizenEyeControls = ["g_vIrisColor", "g_flDetailSeed", "g_flPupilSize", "g_flIrisRadius", "g_vIrisCenter"];
 
 	/// <summary>
 	/// standard.slang describes the materials of complex, simple and generic, which stand for it (ShaderAliases), with
@@ -65,10 +68,12 @@ public class MaterialEditorDescriptionTests
 
 	/// <summary>
 	/// The module at <paramref name="modulePath"/> described as the compiled shader at <paramref name="referenceStem"/> is,
-	/// less <paramref name="notOffered"/> features (their rules too) and <paramref name="notOfferedVariables"/>.
+	/// less <paramref name="notOffered"/> features (their rules too) and <paramref name="notOfferedVariables"/>, plus
+	/// <paramref name="moduleOnlyVariables"/>.
 	/// </summary>
-	static void Check( string modulePath, string referenceStem, string[] notOffered, string[] notOfferedVariables )
+	static void Check( string modulePath, string referenceStem, string[] notOffered, string[] notOfferedVariables, string[] moduleOnlyVariables = null )
 	{
+		moduleOnlyVariables ??= [];
 		var name = Path.GetFileName( referenceStem );
 		if ( !File.Exists( referenceStem + ".shader_c" ) ) Assert.Inconclusive( $"{name}.shader isn't compiled: nothing to check the module against" );
 		var module = PassModule.Read( modulePath, [Path.GetDirectoryName( modulePath ), Path.Combine( Game, "core", "shaders" )] );
@@ -94,7 +99,7 @@ public class MaterialEditorDescriptionTests
 				foreach ( var kind in new[] { "variable", "attribute" } )
 				{
 					var e = Lines( expected, kind ).Where( Offered ).ToList();
-					var a = Lines( actual, kind ).Where( l => kind != "attribute" || !ModuleOnlyAttributes.Contains( l.Split( '\t' )[0] ) ).ToList();
+					var a = Lines( actual, kind ).Where( l => !(kind == "attribute" ? ModuleOnlyAttributes : moduleOnlyVariables).Contains( l.Split( '\t' )[0] ) ).ToList();
 					foreach ( var missing in e.Except( a ) ) mismatches.Add( $"[{state}] {kind} the module lacks or differs: {missing}" );
 					foreach ( var extra in a.Except( e ) ) mismatches.Add( $"[{state}] {kind} only the module has: {extra}" );
 				}
