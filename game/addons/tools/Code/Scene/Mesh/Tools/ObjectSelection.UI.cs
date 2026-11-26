@@ -1,4 +1,4 @@
-﻿
+
 using HalfEdgeMesh;
 using System.Text.Json.Nodes;
 
@@ -374,9 +374,7 @@ partial class ObjectSelection
 				mesh.SetVertexPosition( handle, position - normal * distance * 2.0f );
 			}
 
-			var painted = CaptureVertexPaint( mesh );
 			mesh.FlipAllFaces();
-			RestoreVertexPaint( mesh, painted );
 
 			if ( lockTexture )
 			{
@@ -388,45 +386,6 @@ partial class ObjectSelection
 			}
 
 			component.RebuildMesh();
-		}
-
-		static Dictionary<(FaceHandle, VertexHandle), (Color32 Color, Color32 Blend)> CaptureVertexPaint( PolygonMesh mesh )
-		{
-			var painted = new Dictionary<(FaceHandle, VertexHandle), (Color32, Color32)>();
-
-			foreach ( var face in mesh.FaceHandles )
-			{
-				if ( !mesh.GetFaceVerticesConnectedToFace( face, out var corners ) )
-					continue;
-
-				foreach ( var corner in corners )
-				{
-					var vertex = mesh.GetVertexConnectedToFaceVertex( corner );
-					painted[(face, vertex)] = (mesh.GetVertexColor( corner ), mesh.GetVertexBlend( corner ));
-				}
-			}
-
-			return painted;
-		}
-
-		static void RestoreVertexPaint( PolygonMesh mesh, Dictionary<(FaceHandle, VertexHandle), (Color32 Color, Color32 Blend)> painted )
-		{
-			foreach ( var face in mesh.FaceHandles )
-			{
-				if ( !mesh.GetFaceVerticesConnectedToFace( face, out var corners ) )
-					continue;
-
-				foreach ( var corner in corners )
-				{
-					var vertex = mesh.GetVertexConnectedToFaceVertex( corner );
-
-					if ( !painted.TryGetValue( (face, vertex), out var paint ) )
-						continue;
-
-					mesh.SetVertexColor( corner, paint.Color );
-					mesh.SetVertexBlend( corner, paint.Blend );
-				}
-			}
 		}
 
 		static void MirrorTextureAxes( PolygonMesh mesh, Vector3 normal, float distance )

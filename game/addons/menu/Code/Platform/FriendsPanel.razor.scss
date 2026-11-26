@@ -9,10 +9,22 @@ FriendsPanel
 {
 	@include platform-side-panel;
 
+	// Rises out of the dock above the Friends button instead of sliding in from the right. Horizontal position is set in
+	// FriendsPanel.Tick.
+	top: auto;
+	right: auto;
+	height: 640px;
+	transform: translateY( 24px );
+
+	&.open
+	{
+		transform: translateY( 0px );
+	}
+
 	// The list's icons are <icon>s - the font they're drawn in isn't on this root, as it is on the old menu's
 	icon
 	{
-		font-family: "Material Icons";
+		font-family: "Material Symbols Outlined";
 		text-transform: none;
 		letter-spacing: 0;
 	}
@@ -130,4 +142,9 @@ FriendsPanel
 			}
 		}
 	}
+}
+
+FriendsPanel .flyout-arrow
+{
+	@include platform-flyout-arrow( #16181f );
 }

@@ -115,6 +115,7 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession, AssetSystem
 		}
 
 		All.Remove( this );
+		editedScenes.Remove( this );
 		EditorEvent.Unregister( this );
 
 		// remove the tab before destroying its scene view
@@ -274,19 +275,29 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession, AssetSystem
 	/// </summary>
 	public bool IsMounted => Sandbox.Mounting.MountUtility.IsMountPath( Scene?.Source?.ResourcePath );
 
+	/// <summary>
+	/// Marks the scene as edited. Each dirty notification counts as an edit even if a bake has already marked it dirty.
+	/// </summary>
 	public bool HasUnsavedChanges
 	{
 		get => unsavedChanges && !IsMounted;
 		set
 		{
-			editedScenes.Add( this );
-
-			if ( unsavedChanges == value )
-				return;
-
-			unsavedChanges = value;
-			UpdateEditorTitle();
+			if ( value ) UndoSystem.MarkDocumentChanged();
+			SetUnsavedChanges( value );
 		}
+	}
+
+	void Scene.ISceneEditorSession.MarkBakeReferencesChanged() => SetUnsavedChanges( true );
+
+	void SetUnsavedChanges( bool value )
+	{
+		editedScenes.Add( this );
+		if ( unsavedChanges == value )
+			return;
+
+		unsavedChanges = value;
+		UpdateEditorTitle();
 	}
 
 	BaseFileSystem Scene.ISceneEditorSession.TransientFilesystem => FileSystem.Transient;
@@ -310,7 +321,20 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession, AssetSystem
 		Selection.Clear();
 	}
 
-	public void Save( bool saveAs )
+	/// <summary>
+	/// Saves the active scene or prefab and starts the scene's navigation bake when enabled.
+	/// </summary>
+	public void Save( bool saveAs ) => Save( saveAs, bakeNavMesh: true );
+
+	internal void SaveBakeReferences( long revision )
+	{
+		if ( UndoSystem.DocumentRevision != revision || IsUndoScopeOpen )
+			throw new InvalidOperationException( "The scene changed during compilation. Save and compile again." );
+
+		Save( saveAs: false, bakeNavMesh: false );
+	}
+
+	void Save( bool saveAs, bool bakeNavMesh )
 	{
 		// Mounted scenes live at a read-only mount:// path - they can't be saved or saved as.
 		if ( IsMounted )
@@ -363,6 +387,10 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession, AssetSystem
 
 		var asset = AssetSystem.CreateResource( extension, saveLocation );
 		Assert.NotNull( asset, $"Failed to CreateResource for {fileType} at {saveLocation}" );
+
+		// The saved scene refers to its navmesh bake, which is written once the navmesh is built from the scene as saved
+		if ( !isPrefab && bakeNavMesh )
+			_ = Scene.NavMesh.BakeInEditor( Scene.PhysicsWorld, Scene.NavMesh.IsEnabled ? SceneFolderOf( asset ) : null, () => !HasUnsavedChanges, regenerate: true );
 
 		GameResource resource = Scene is PrefabScene prefabScene ? prefabScene.ToPrefabFile() : Scene.CreateSceneFile();
 		var saved = resource is SceneFile sceneFile ? SceneSource.Save( asset, sceneFile ) : asset.SaveToDisk( resource );
@@ -598,8 +626,13 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession, AssetSystem
 		if ( Scene?.Source?.ResourcePath is not { } path || AssetSystem.FindByPath( path ) is not { } sourceAsset )
 			return default;
 
-		var relativePath = sourceAsset.GetSourceFile( false );
-		var assetPath = sourceAsset.GetSourceFile( true );
+		return SceneFolderOf( sourceAsset );
+	}
+
+	static Editor.SceneFolder SceneFolderOf( Asset asset )
+	{
+		var relativePath = asset.GetSourceFile( false );
+		var assetPath = asset.GetSourceFile( true );
 		if ( string.IsNullOrEmpty( relativePath ) || string.IsNullOrEmpty( assetPath ) )
 			return default;
 
@@ -635,6 +668,10 @@ file class AssetFolderInstance : SceneFolder
 	public override string WriteFile( string filename, byte[] data )
 	{
 		_fs.WriteAllBytes( filename, data );
+
+		// A baker can reload its output immediately, before the file watcher sees it.
+		if ( filename.EndsWith( "_c", StringComparison.OrdinalIgnoreCase ) && AssetSystem.RegisterFile( _fs.GetFullPath( filename ) ) is null )
+			throw new InvalidOperationException( $"Could not register compiled scene resource '{filename}'." );
 
 		if ( filename.StartsWith( '/' ) ) filename = filename[1..];
 

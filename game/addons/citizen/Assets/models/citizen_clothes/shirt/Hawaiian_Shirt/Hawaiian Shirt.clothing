@@ -36,7 +36,7 @@
   "TintDefault": 0.5,
   "SteamItemDefinitionId": null,
   "Icon": {
-    "Path": "models/citizen_clothes/shirt/hawaiian_shirt/hawaiian shirt.clothing.png",
+    "Path": "models/citizen_clothes/shirt/hawaiian_shirt/hawaiian shirt.clothing.vtex",
     "Mode": "Chest",
     "UsePositionOffset": false,
     "PositionOffset": "64.8000031,0,-1.299999"

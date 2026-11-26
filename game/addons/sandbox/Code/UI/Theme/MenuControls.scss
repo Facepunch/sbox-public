@@ -1,0 +1,278 @@
+$ui-menu-blur: 6px;
+$ui-menu-radius: 5px;
+$ui-menu-control-height: 30px;
+$ui-menu-tab-height: 32px;
+$ui-menu-title-height: 51px;
+
+@mixin ui-control-surface
+{
+	background-image: none;
+	background-color: $ui-control-bg;
+}
+
+// Clickable fields in property sheets and the object inspector.
+@mixin ui-inspector-field
+{
+	@include ui-control-surface;
+	@include ui-focus-ring;
+	align-items: center;
+	flex-grow: 1;
+	flex-shrink: 1;
+	min-width: 0;
+	height: 34px;
+	padding: 4px 10px;
+	gap: 9px;
+	border: 1px solid $ui-control-border;
+	border-radius: $ui-menu-radius;
+	font-family: $body-font;
+	font-size: $ui-settings-font;
+	font-weight: 500;
+	color: $ui-text;
+	cursor: pointer;
+
+	> .preview
+	{
+		width: 22px;
+		height: 22px;
+	}
+
+	&:hover, &.capturing
+	{
+		filter: brightness( 1 );
+		background-color: $ui-blue-soft;
+		border-color: $ui-control-border-hover;
+	}
+
+	&:hover
+	{
+		sound-in: ui.hover;
+	}
+
+	&:active
+	{
+		transform: none;
+		border-color: $ui-blue;
+		sound-in: ui.select;
+	}
+}
+
+@mixin ui-switch
+{
+	pointer-events: all;
+
+	> .switch-frame
+	{
+		width: 34px;
+		height: 20px;
+		padding: 2px;
+		border-radius: 10px;
+		background-color: $ui-check-bg;
+		border: 1px solid $ui-control-border;
+		transition: background-color 0s;
+		pointer-events: none;
+
+		> .switch-inner
+		{
+			background-color: white;
+			box-shadow: 0 1px 2px rgba( 0, 0, 0, 0.2 );
+			transition: margin-left 0s, background-color 0s;
+		}
+	}
+
+	&:hover
+	{
+		filter: brightness( 1.25 );
+		sound-in: ui.hover;
+	}
+
+	&.active > .switch-frame
+	{
+		justify-content: flex-end;
+		background-color: $ui-blue;
+		border-color: $ui-blue;
+
+		> .switch-inner
+		{
+			margin-left: 0;
+		}
+	}
+}
+
+// Keep the draggable track and editable number visible in narrow tool panels.
+@mixin ui-property-slider
+{
+	min-width: 0;
+	min-height: 26px;
+	padding: 0;
+	gap: 4px;
+	background-color: transparent;
+
+	> .prefix-chip
+	{
+		display: none;
+	}
+
+	> .inner > .track
+	{
+		height: 4px;
+		background-color: $ui-slider-track;
+
+		> .track-active
+		{
+			background-color: $ui-blue;
+		}
+	}
+
+	> .entry
+	{
+		width: 48px;
+
+		> numberentry
+		{
+			@include ui-number-entry;
+			height: 24px;
+			border-radius: $ui-menu-radius;
+			background-color: $ui-input-bg;
+			color: $ui-text-strong;
+
+			> .content-label
+			{
+				padding: 0;
+				text-align: center;
+			}
+		}
+	}
+}
+
+@mixin ui-menu-segments
+{
+	border-radius: $ui-menu-radius;
+	overflow: hidden;
+
+	> .button
+	{
+		color: $ui-text-label;
+		font-weight: 600;
+		text-transform: none;
+
+		&.active { @include ui-selected( $ui-catalog-selected-bg ); }
+	}
+}
+
+@mixin ui-header-button
+{
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+	height: $ui-menu-tab-height;
+	border: 1px solid transparent;
+	border-radius: $ui-menu-radius;
+	color: $ui-text-label;
+	cursor: pointer;
+
+	&:hover { background-color: $ui-blue-soft; color: $ui-text-strong; sound-in: ui.hover; }
+	&:active { sound-in: ui.select; }
+	&:focus { border-color: $ui-hover-border; }
+}
+
+@mixin ui-tab-button
+{
+	@include ui-header-button;
+	flex-direction: row;
+	padding: 0 8px;
+	gap: 6px;
+	font-size: 13px;
+	font-weight: 600;
+	white-space: nowrap;
+
+	&.selected { @include ui-selected( $ui-catalog-selected-bg ); }
+
+	> .tab-icon
+	{
+		width: auto;
+		height: auto;
+		font-size: 16px;
+		font-weight: 400;
+		pointer-events: none;
+	}
+}
+
+@mixin ui-menu-tab-panel
+{
+	border-radius: 8px;
+	backdrop-filter: blur( $ui-menu-blur );
+
+	> .tabbar
+	{
+		align-items: center;
+		height: 49px;
+		padding: 0 8px;
+		gap: 4px;
+		background-color: $ui-catalog-surface;
+		border-bottom: 1px solid $ui-separator;
+		border-radius: 8px 8px 0 0;
+
+		> .tab
+		{
+			@include ui-tab-button;
+		}
+
+		> .button
+		{
+			@include ui-header-button;
+			width: $ui-menu-tab-height;
+			pointer-events: all;
+
+			> .icon
+			{
+				font-size: 18px;
+				pointer-events: none;
+			}
+		}
+	}
+
+	> .tab-body
+	{
+		overflow: hidden;
+		border-radius: 0 0 8px 8px;
+	}
+}
+
+@mixin ui-sidebar
+{
+	flex-direction: column;
+	flex-shrink: 0;
+	min-height: 0px;
+	overflow: hidden;
+	padding: 8px;
+	color: $ui-text;
+	background-color: $ui-catalog-surface;
+	border-right: 1px solid $ui-separator;
+}
+
+@mixin ui-sidebar-row
+{
+	@include ui-selectable;
+	border-radius: $ui-menu-radius;
+	color: $ui-text;
+	font-size: 13px;
+	font-weight: 500;
+}
+
+@mixin ui-sidebar-heading
+{
+	color: $ui-sidebar-heading-text;
+	font-size: 13px;
+	font-weight: 600;
+	white-space: normal;
+}
+
+@mixin ui-section-band
+{
+	background-color: rgba( $ui-text-strong, 0.06 );
+	border-bottom: 1px solid $ui-separator;
+	border-radius: 0;
+	color: $ui-text-strong;
+	font-size: 13px;
+	font-weight: 700;
+}

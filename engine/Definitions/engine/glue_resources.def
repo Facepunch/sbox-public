@@ -3,6 +3,11 @@ include "sbox/glue_resources.h"
 
 native static class Glue.Resources as NativeGlue.Resources
 {
+	inline bool IsAnonymousResource( CastTo[ResourceHandle_t] void* handle )
+	{
+		return ResourceIsAnonymous( handle );
+	}
+
 	IMaterial GetMaterial( string name, Guid guid );
 	ITexture GetTexture( string name, Guid guid );
 	bool IsTextureWebStreamingActive();

@@ -6,7 +6,7 @@
 @using System;
 @using Sandbox.Network
 
-@if (Package is null) return;
+@if (Package is null && Workshop is null) return;
 
 <root>
 
@@ -29,7 +29,7 @@
                 <div class="notice">
                     <i>@(Failed ? "cloud_off" : "hide_image")</i>
                     <label class="notice-title">@(Failed ? "#menu.games.couldn_t_load_the_gallery" : "#menu.games.no_screenshots_yet")</label>
-                    <label class="notice-text">@(Failed ? "#menu.games.sbox_game_didn_t_answer_check_your_connection_then" : $"{Package.Title} hasn't added any screenshots or videos.")</label>
+                    <label class="notice-text">@(Failed ? "#menu.games.sbox_game_didn_t_answer_check_your_connection_then" : $"{Workshop?.Title ?? Package?.Title} hasn't added any screenshots or videos.")</label>
                 </div>
             }
         }
@@ -132,11 +132,16 @@
     [Parameter] public IReadOnlyList<string> Images { get; set; }
 
     /// <summary>
+    /// Supplies gallery previews and cover art for a published Workshop item.
+    /// </summary>
+    [Parameter] public WorkshopItemDetails Workshop { get; set; }
+
+    /// <summary>
     /// Its Steam Workshop item's YouTube videos, by their YouTube ids - ahead of <see cref="Images"/>, like a package's videos
     /// </summary>
     [Parameter] public IReadOnlyList<string> YouTubeVideos { get; set; }
 
-    protected override int BuildHash() => System.HashCode.Combine(Package, Package?.Screenshots, Images, YouTubeVideos, Loaded, Failed, SelectedScreenshot, System.HashCode.Combine( _playRequested, Autoplay, Player?.Time, Player?.Duration, Player?.Buffered, Player?.IsPlaying, Player?.IsBuffering, System.HashCode.Combine( Player?.IsMuted, Player?.HasEnded ) ));
+    protected override int BuildHash() => System.HashCode.Combine(Package, Package?.Screenshots, Workshop?.Images ?? Images, Workshop?.YouTubeVideos ?? YouTubeVideos, Loaded, Failed, SelectedScreenshot, System.HashCode.Combine( _playRequested, Autoplay, Player?.Time, Player?.Duration, Player?.Buffered, Player?.IsPlaying, Player?.IsBuffering, System.HashCode.Combine( Player?.IsMuted, Player?.HasEnded ) ));
 
     const string YouTubeWatch = "https://www.youtube.com/watch?v=";
 
@@ -226,15 +231,15 @@
     /// <summary>
     /// The game's own art, blurred behind a notice.
     /// </summary>
-    string Art => !string.IsNullOrEmpty( Package?.ThumbWide ) ? Package.ThumbWide : Package?.Thumb;
+    string Art => Workshop?.Thumb ?? Package?.ThumbWide ?? Package?.Thumb;
 
     /// <summary>
     /// Videos first, then the stills - the order the strip shows them in, and what's up first. The
     /// selection indexes this, not the package's own order: it used to index that, so the strip
     /// had the video first but the big view opened on whatever the package listed first.
     /// </summary>
-    List<Package.Screenshot> Shots => Images is not null || YouTubeVideos is not null
-        ? (YouTubeVideos ?? []).Select( YouTubeShot ).Concat( (Images ?? []).Select( x => new Package.Screenshot { Url = x, Thumb = x } ) ).ToList()
+    List<Package.Screenshot> Shots => Workshop is not null || Images is not null || YouTubeVideos is not null
+        ? (Workshop?.YouTubeVideos ?? YouTubeVideos ?? []).Select( YouTubeShot ).Concat( (Workshop?.Images ?? Images ?? []).Select( x => new Package.Screenshot { Url = x, Thumb = x } ) ).ToList()
         : Package?.Screenshots?.OrderBy( x => x.IsVideo ? 0 : 1 ).ToList() ?? new();
 
     // 0 - the video, when there is one, which plays by itself as soon as it's up
@@ -248,7 +253,7 @@
     string BackdropOf( Package.Screenshot shot )
     {
         if ( !string.IsNullOrEmpty( shot.Thumb ) ) return shot.Thumb;
-        return shot.IsVideo ? (Package.ThumbWide ?? Package.Thumb) : shot.Url;
+        return shot.IsVideo ? Art : shot.Url;
     }
 
     void SelectScreenshot(int index)

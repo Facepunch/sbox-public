@@ -16,7 +16,10 @@ public class CloudAsset
 	private static bool IsInstalled( string ident )
 	{
 		// this shouldn't really happen, but I guess just in case someone fudges a file
-		if ( !Package.TryParseIdent( ident, out var parts ) )
+		if ( !Package.TryParseIdentParts( ident, out var parts ) )
+			return true;
+
+		if ( Project.FindByIdent( parts.org, parts.package ) is not null )
 			return true;
 
 		var packageIdentNoVersion = $"{parts.org}.{parts.package}";
@@ -26,7 +29,7 @@ public class CloudAsset
 			return true;
 
 		// Do we have this package on disk already?
-		var localPackage = AssetSystem.CloudDirectory.FindPackage( packageIdentNoVersion );
+		var localPackage = AssetSystem.CloudDirectory?.FindPackage( packageIdentNoVersion );
 		if ( localPackage is null )
 			return false;
 
@@ -69,7 +72,7 @@ public class CloudAsset
 		Dictionary<string, int?> versions = new();
 		foreach ( var ident in packages )
 		{
-			if ( !Package.TryParseIdent( ident, out var parts ) )
+			if ( !Package.TryParseIdentParts( ident, out var parts ) )
 				continue;
 
 			string fullIdent = Package.FormatIdent( parts.org, parts.package );
@@ -102,7 +105,8 @@ public class CloudAsset
 	/// </summary>
 	public static async Task<bool> Install( string windowTitle, IEnumerable<string> packages )
 	{
-		if ( packages.Count() == 0 ) return true;
+		var undownloaded = DeduplicateReferences( packages ).Where( x => !IsInstalled( x ) ).ToArray();
+		if ( undownloaded.Length == 0 ) return true;
 
 		if ( Backend.Package is null )
 		{
@@ -114,15 +118,13 @@ public class CloudAsset
 		progress.Title = windowTitle;
 		var cancel = progress.GetCancel();
 
-		var undownloaded = DeduplicateReferences( packages ).Where( x => !IsInstalled( x ) ).ToArray();
-
-		int total = undownloaded.Count();
+		int total = undownloaded.Length;
 		int i = 0;
 
 		await undownloaded.ForEachTaskAsync( async ident =>
 		{
 			Package package = await Package.FetchAsync( ident, true );
-			if ( package == null )
+			if ( package?.Revision is null )
 				return;
 
 			progress.Title = $"Installing '{package.Title}'";
@@ -150,7 +152,8 @@ public class CloudAsset
 	/// </summary>
 	public static async Task<bool> Install( IEnumerable<string> packages, CancellationToken token )
 	{
-		if ( !packages.Any() ) return true;
+		var undownloaded = DeduplicateReferences( packages ).Where( x => !IsInstalled( x ) ).ToArray();
+		if ( undownloaded.Length == 0 ) return true;
 
 		if ( Backend.Package is null )
 		{
@@ -158,10 +161,7 @@ public class CloudAsset
 			return false;
 		}
 
-		var undownloaded = DeduplicateReferences( packages ).Where( x => !IsInstalled( x ) ).ToArray();
-
-		int total = undownloaded.Count();
-		if ( total == 0 ) return true;
+		int total = undownloaded.Length;
 
 		Log.Info( $"Installing {total:n0} missing cloud assets.." );
 		var tasks = undownloaded.Select( ident => InstallPackage( ident, total, token ) ).ToList();
@@ -216,7 +216,7 @@ public class CloudAsset
 
 		HashSet<string> filesInManifest = new( StringComparer.OrdinalIgnoreCase );
 
-		var gamePackage = await Package.FetchAsync( IGameInstance.Current.Package.GetIdent( false, true ), false );
+		var gamePackage = await Package.FetchAsync( IGameInstance.Current.Package.GetVersionedIdent(), false );
 		if ( gamePackage is not null && gamePackage.Revision is not null )
 		{
 			await gamePackage.Revision.DownloadManifestAsync();
@@ -232,10 +232,11 @@ public class CloudAsset
 		int count = 0;
 		foreach ( var ident in packages )
 		{
-			if ( !Package.TryParseIdent( ident, out var parts ) )
+			if ( !Package.TryParseIdentParts( ident, out var parts ) )
 				continue;
 
-			var package = AssetSystem.CloudDirectory.FindPackage( Package.FormatIdent( parts.org, parts.package ) );
+			var package = Project.FindByIdent( parts.org, parts.package )?.Package
+				?? AssetSystem.CloudDirectory.FindPackage( Package.FormatIdent( parts.org, parts.package ) );
 			if ( package is null )
 				continue;
 

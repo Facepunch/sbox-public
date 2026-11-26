@@ -1,0 +1,27 @@
+{
+  "guid": "e82699a3-264e-4b60-a626-f43c771c3122",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "Roof Vents",
+      "Type": "material",
+      "Org": "local",
+      "Ident": "roofvents",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/industrial/roof_vents/roof_vents.vmat"
+      }
+    },
+    "HammerAutoPackageReferences": null
+  }
+}

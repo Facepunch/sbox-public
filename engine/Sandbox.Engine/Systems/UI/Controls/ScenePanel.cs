@@ -93,13 +93,17 @@ namespace Sandbox.UI
 		{
 			base.Tick();
 
-			if ( !RenderScene.IsValid() )
+			var scene = RenderScene;
+			if ( !scene.IsValid() )
 				return;
 
-			using ( RenderScene.PushScope() )
+			using ( scene.PushScope() )
 			{
-				RenderScene.GameTick( RealTime.Delta );
+				scene.GameTick( RealTime.Delta );
 			}
+
+			// Tick callbacks can delete the panel or replace its scene.
+			if ( !scene.IsValid || scene != RenderScene ) return;
 
 			if ( Box.RectInner.Size.x <= 0 ) return;
 			if ( Box.RectInner.Size.y <= 0 ) return;

@@ -1,0 +1,27 @@
+{
+  "guid": "8e5412d7-f848-44ee-ad7e-f4fed44aa41e",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "Pallet Painted",
+      "Type": "material",
+      "Org": "local",
+      "Ident": "pallet_painted",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/warehouse/wooden_pallet/materials/pallet_painted.vmat"
+      }
+    },
+    "HammerAutoPackageReferences": null
+  }
+}

@@ -7,7 +7,7 @@ native class CVideoPlayer as NativeEngine.CVideoPlayer
 	static CVideoPlayer Create( Sandbox.VideoPlayer managedObject ); [new]
 	void Destroy(); [delete]
 
-	bool Play( string pUrl, string pExt );
+	bool Play( string pUrl, string pExt, bool bAllowLocal );
 	void Resume();
 	void Stop();
 	void Pause();

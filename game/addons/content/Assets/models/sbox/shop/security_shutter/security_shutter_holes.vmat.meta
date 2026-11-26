@@ -1,0 +1,26 @@
+{
+  "guid": "020800f4-0000-0000-40e8-2708fc000000",
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "Security Shutter Holes",
+      "Type": "material",
+      "Org": "facepunch",
+      "Ident": "security_shutter_holes",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/shop/security_shutter/security_shutter_holes.vmat",
+        "AssetLicense": "CC0"
+      }
+    }
+  }
+}

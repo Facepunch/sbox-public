@@ -21,13 +21,16 @@ public record RecentsLocation : LocalAssetBrowser.Location
 
 		foreach ( var asset in AssetSystem.All.OrderByDescending( x => x.LastOpened ).Take( 50 ) )
 		{
+			var path = asset.AbsolutePath;
+			if ( string.IsNullOrEmpty( path ) ) continue;
+
 			if ( menuPath is not null && menuProject != Project.Current )
 			{
-				bool isMenu = asset.AbsolutePath.StartsWith( menuPath );
+				bool isMenu = path.StartsWith( menuPath );
 				if ( isMenu ) continue;
 			}
 
-			yield return new FileInfo( asset.AbsolutePath );
+			yield return new FileInfo( path );
 		}
 	}
 }

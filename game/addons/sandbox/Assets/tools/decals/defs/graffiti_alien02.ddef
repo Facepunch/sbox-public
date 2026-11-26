@@ -1,0 +1,9 @@
+{
+  "Decal": {
+    "Id": "8e09ad89-3233-4d05-be96-c484ed9b76c9",
+    "Path": "decals/graffiti/graffiti_alien02.decal"
+  },
+  "Title": "#asset.decal.alien02.title",
+  "__references": [],
+  "__version": 0
+}

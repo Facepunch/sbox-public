@@ -54,19 +54,8 @@ public class RewardOffer
 /// </summary>
 public class RewardItem
 {
-	/// <summary>
-	/// Steam item definition identifier.
-	/// </summary>
 	public long ItemDefId { get; set; }
-
-	/// <summary>
-	/// Display name of the item.
-	/// </summary>
 	public string Name { get; set; }
-
-	/// <summary>
-	/// Item icon URL.
-	/// </summary>
 	public string Icon { get; set; }
 }
 
@@ -75,14 +64,7 @@ public class RewardItem
 /// </summary>
 public class RewardChoice
 {
-	/// <summary>
-	/// The open offer's drop identifier.
-	/// </summary>
 	public long DropId { get; set; }
-
-	/// <summary>
-	/// Offered item definition identifiers to keep. Retries must use the saved selection.
-	/// </summary>
 	public long[] ItemDefIds { get; set; }
 }
 
@@ -91,9 +73,6 @@ public class RewardChoice
 /// </summary>
 public class RewardResult
 {
-	/// <summary>
-	/// Whether the chosen items were granted successfully.
-	/// </summary>
 	public bool Success { get; set; }
 
 	/// <summary>

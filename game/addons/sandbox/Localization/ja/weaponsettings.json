@@ -1,0 +1,15 @@
+{
+    "weapon.group.recoil": "反動",
+    "weapon.setting.primary.description": "武器の主アクションを操作します。",
+    "weapon.setting.secondary.description": "武器の副アクションを操作します。",
+    "weapon.setting.recoil_force": "反動の力",
+    "weapon.setting.recoil_force.description": "手に持っていない武器が発射したときの物理的な反動。",
+    "weapon.setting.extend": "つかむ距離を伸ばす",
+    "weapon.setting.extend.description": "つかんだオブジェクトを遠ざけます。",
+    "weapon.setting.retract": "つかむ距離を縮める",
+    "weapon.setting.retract.description": "つかんだオブジェクトを近づけます。",
+    "weapon.setting.camera_aim": "カメラで照準",
+    "weapon.setting.camera_aim.description": "着席中のプレイヤーのカメラ方向に照準を合わせます。",
+    "weapon.setting.guide_rockets": "ロケット誘導",
+    "weapon.setting.guide_rockets.description": "発射したロケットをプレイヤーの照準へ誘導します。"
+}

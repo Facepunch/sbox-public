@@ -96,7 +96,7 @@
 
             var query = search?.Trim();
             if ( !string.IsNullOrEmpty( query ) )
-                shown = shown.Where( x => $"{x.Name} {x.Map} {MenuHelpers.CachedTitle( x.Map )}".Contains( query, StringComparison.OrdinalIgnoreCase ) );
+                shown = shown.Where( x => $"{x.Name} {x.Map} {MenuHelpers.MapTitle( x.Map )}".Contains( query, StringComparison.OrdinalIgnoreCase ) );
 
             return shown.ToList();
         }
@@ -154,7 +154,7 @@
 
             // Their maps' names and art, before they're shown
             found ??= new();
-            await MenuHelpers.FetchPackages( found.Select( x => x.Map ) );
+            await MenuHelpers.FetchMaps( found.Select( x => x.Map ) );
 
             if ( !IsValid || ident != Ident || lan != Lan ) return;
 
@@ -172,7 +172,7 @@
         }
     }
 
-    void Back() => FrontPages.Of( this )?.GoBack();
+    void Back() => FrontPages.Of( this )?.Leave();
 
     Panel PanelBox;
     ServerTable Table;

@@ -20,7 +20,7 @@ public class VolumetricFogVolume : Component, Component.ExecuteInEditor
 
 	protected override void DrawGizmos()
 	{
-		using var scope = Gizmo.Scope( $"volumetricfogvolume-{GetHashCode()}" );
+		using var scope = Gizmo.PushScope( "volume" );
 
 		if ( !Gizmo.IsSelected && !Gizmo.IsHovered )
 			return;
@@ -54,7 +54,7 @@ public class VolumetricFogVolume : Component, Component.ExecuteInEditor
 		{
 			// this is a legacy thing, not too much of a big deal yet but we shouldn't really be looking
 			// up every frame. Should really have VolumetricFogController
-			strength *= Scene.GetAll<VolumetricFogController>().FirstOrDefault()?.GlobalScale ?? 1.0f;
+			strength *= Scene.Get<VolumetricFogController>()?.GlobalScale ?? 1.0f;
 		}
 
 		sceneObject.Transform = WorldTransform;

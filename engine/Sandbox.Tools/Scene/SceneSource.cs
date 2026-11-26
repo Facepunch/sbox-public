@@ -77,13 +77,22 @@ internal static class SceneSource
 	internal static SceneFile LoadForPlay( SceneEditorSession editor )
 	{
 		if ( editor.HasUnsavedChanges || editor.Scene.Source is not SceneFile { ResourcePath: { Length: > 0 } } source )
-			return editor.Scene.CreateSceneFile();
+		{
+			// The navmesh bake on disk is of the scene as it was saved
+			var edited = editor.Scene.CreateSceneFile();
+			(edited.SceneProperties?["NavMesh"] as System.Text.Json.Nodes.JsonObject)?.Remove( "BakedDataPath" );
+			return edited;
+		}
 
 		try
 		{
 			if ( !editor.IsMounted && FindAsset( source ) is { } asset )
 			{
 				var path = asset.GetCompiledFile( true );
+				// Clear all removes the runtime scene too. Materialize the ordinary resource when play next needs it.
+				if ( !File.Exists( path ) && asset.Compile( false ) )
+					path = asset.GetCompiledFile( true );
+
 				if ( string.IsNullOrEmpty( path ) )
 					throw new FileNotFoundException( $"No compiled file exists for '{asset.Path}'." );
 				return SceneFile.FromCompiled( asset.Path, asset.Guid, File.ReadAllBytes( path ) );

@@ -6,6 +6,55 @@ namespace UITests;
 [DoNotParallelize] // Modfiies UI System Global
 public class StyleSelectorUsageTest
 {
+	/// <summary>
+	/// Axis lists survive stylesheet parsing, cascade to children and reset independently.
+	/// </summary>
+	[TestMethod]
+	public void VariableFontAxesCascade()
+	{
+		var root = new RootPanel();
+		root.StyleSheet.Parse( """.axes { font-variation-settings: "FILL" 0, 'GRAD' -12.5, 'FILL' 1; font-optical-sizing: none; }""" );
+		var parent = new Panel { Parent = root };
+		parent.AddClass( "axes" );
+		var child = new IconPanel( "favorite" ) { Parent = parent };
+		root.Layout();
+
+		var settings = child.ComputedStyle.FontVariationSettings.Value;
+		Assert.IsTrue( settings.TryGetValue( "FILL", out var fill ) );
+		Assert.AreEqual( 1f, fill );
+		Assert.IsTrue( settings.TryGetValue( "GRAD", out var grade ) );
+		Assert.AreEqual( -12.5f, grade );
+		Assert.IsFalse( settings.TryGetValue( "grad", out _ ) );
+		Assert.AreEqual( FontOpticalSizing.None, child.ComputedStyle.FontOpticalSizing );
+
+		// Moving a gallery slider changes the value while keeping the same axis tags.
+		var previousLayout = child._textBlock.InlineStyleHash;
+		Assert.IsTrue( parent.Style.Set( "font-variation-settings", "'FILL' 0, 'GRAD' -12.5" ) );
+		root.Layout();
+		Assert.AreNotEqual( previousLayout, child._textBlock.InlineStyleHash );
+
+		Assert.IsTrue( child.Style.Set( "font-variation-settings", "normal" ) );
+		Assert.IsFalse( child.Style.Set( "font-variation-settings", "'FILL' 1, 'bad' 1" ) );
+		root.Layout();
+		Assert.AreEqual( default( FontVariationSettings ), child.ComputedStyle.FontVariationSettings.Value );
+
+		Assert.IsTrue( child.Style.Set( "font", "initial" ) );
+		Assert.IsFalse( child.Style.Set( "font-optical-sizing", "2" ) );
+		root.Layout();
+		Assert.AreEqual( FontOpticalSizing.Auto, child.ComputedStyle.FontOpticalSizing );
+
+		Assert.IsTrue( child.Style.Set( "font", "inherit" ) );
+		Assert.IsFalse( child.Style.Set( "font-variation-settings", "'FILL' 1," ) );
+		root.Layout();
+		Assert.AreEqual( parent.ComputedStyle.FontVariationSettings, child.ComputedStyle.FontVariationSettings );
+		Assert.AreEqual( FontOpticalSizing.None, child.ComputedStyle.FontOpticalSizing );
+
+		Assert.IsTrue( child.Style.Set( "font", "32px Arial" ) );
+		root.Layout();
+		Assert.AreEqual( default( FontVariationSettings ), child.ComputedStyle.FontVariationSettings.Value );
+		Assert.AreEqual( FontOpticalSizing.Auto, child.ComputedStyle.FontOpticalSizing );
+	}
+
 	[TestMethod]
 	public void SingleClass()
 	{

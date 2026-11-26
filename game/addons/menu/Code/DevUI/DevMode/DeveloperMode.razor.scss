@@ -42,7 +42,8 @@ DeveloperMode
 			{
 				@include platform-tile( 17px, 32px );
 				margin: 0;
-				font-family: "Material Icons";
+				font-family: "Material Symbols Outlined";
+				font-variation-settings: $menu-icon-filled;
 				font-size: 17px;
 				text-align: center;
 				line-height: 32px;

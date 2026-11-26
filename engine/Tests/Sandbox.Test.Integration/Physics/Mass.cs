@@ -6,6 +6,58 @@ namespace PhysicsTests;
 [TestClass]
 public class MassTest
 {
+	[DataTestMethod]
+	[DataRow( false )]
+	[DataRow( true )]
+	public void RotationLocksPreserveMassProperties( bool customInertia )
+	{
+		var world = new PhysicsWorld();
+		try
+		{
+			var body = new PhysicsBody( world ) { BodyType = PhysicsBodyType.Dynamic };
+			body.AddSphereShape( new Vector3( 10, 20, 0 ), 4 );
+			var autoMass = body.Mass;
+			var autoCenter = body.LocalMassCenter;
+			var autoInertia = body.Inertia;
+
+			body.Mass = 1500;
+			body.OverrideMassCenter = true;
+			body.LocalMassCenter = new Vector3( 3, 4, 0 );
+			body.ScaleInertia( 2 );
+			if ( customInertia )
+				body.SetInertiaTensor( new Vector3( 100, 200, 300 ), Rotation.Identity );
+			var inertia = body.Inertia;
+
+			for ( var i = 0; i < 2; i++ )
+			{
+				body.Locking = new PhysicsLock { Pitch = true, Yaw = true, Roll = true };
+				Assert.AreEqual( 1500f, body.Mass, 0.01f, "locking rotation must preserve the mass override" );
+				Assert.IsTrue( body.LocalMassCenter.Distance( new Vector3( 3, 4, 0 ) ) < 0.001f );
+				body.ApplyAngularImpulse( Vector3.Up * 300 );
+				Assert.IsTrue( body.AngularVelocity.Length < 0.001f );
+
+				body.Locking = default;
+				Assert.AreEqual( 1500f, body.Mass, 0.01f, "unlocking rotation must preserve the mass override" );
+				Assert.IsTrue( body.LocalMassCenter.Distance( new Vector3( 3, 4, 0 ) ) < 0.001f );
+				Assert.IsTrue( body.Inertia.Distance( inertia ) < inertia.Length * 0.001f, "unlocking must restore the authored inertia" );
+				body.ApplyImpulse( Vector3.Forward * 1500 );
+				Assert.AreEqual( i + 1f, body.Velocity.x, 0.001f );
+			}
+
+			body.ResetInertiaTensor();
+			body.ScaleInertia( 1 );
+			body.OverrideMassCenter = false;
+			body.Mass = 0;
+			Assert.AreEqual( autoMass, body.Mass, autoMass * 0.001f );
+			Assert.IsTrue( body.LocalMassCenter.Distance( autoCenter ) < 0.001f );
+			Assert.IsTrue( body.Inertia.Distance( autoInertia ) < autoInertia.Length * 0.001f );
+		}
+		finally
+		{
+			world.Delete();
+		}
+	}
+
 	[TestMethod]
 	public void TranslationLocksPreserveMassAndUnlockLinearResponse()
 	{

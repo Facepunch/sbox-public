@@ -315,12 +315,9 @@ public partial class GameObject : IJsonConvert, IComponentLister, BytePack.ISeri
 		Transform.ClearLocalInterpolation();
 
 		//
-		// Tags could have changed
+		// Tags could have changed: the inherited token caches here and below are stale, and components hear about it
 		//
-		foreach ( var c in Components.GetAll( FindMode.EnabledInSelfAndDescendants ) )
-		{
-			c.OnTagsUpdatedInternal();
-		}
+		Tags.MarkDirty();
 
 		//
 		// Network owner could have changed
@@ -725,7 +722,7 @@ public partial class GameObject : IJsonConvert, IComponentLister, BytePack.ISeri
 	{
 		BBox? result = null;
 
-		Components.ExecuteEnabledInSelfAndDescendants<Component.IHasBounds>( x =>
+		Components.ExecuteEnabledInSelfAndDescendants<Component.IHasBounds, BBox?>( ref result, static ( Component.IHasBounds x, ref BBox? boundsSoFar ) =>
 		{
 			var bounds = x is Component c
 				? x.LocalBounds.Transform( c.WorldTransform )
@@ -736,8 +733,8 @@ public partial class GameObject : IJsonConvert, IComponentLister, BytePack.ISeri
 			if ( !bounds.Size.IsFinite )
 				return;
 
-			result = result.HasValue
-				? result.Value.AddBBox( bounds )
+			boundsSoFar = boundsSoFar.HasValue
+				? boundsSoFar.Value.AddBBox( bounds )
 				: bounds;
 		} );
 

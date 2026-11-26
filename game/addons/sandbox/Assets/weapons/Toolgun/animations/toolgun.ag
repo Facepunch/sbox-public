@@ -1,0 +1,2579 @@
+{
+  "Version": 1,
+  "nodes": [
+    {
+      "_class": "PoseResultNode",
+      "Pose": {
+        "Identifier": "ea9ef1b4-88fd-45fb-9944-6f331dbdc7c1",
+        "Output": "Result"
+      },
+      "Identifier": "c844125e-0f27-4e86-9b04-311570e37f10",
+      "Position": "2000,0",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "AnimationPoseNode",
+      "Time": {
+        "Identifier": null,
+        "Output": null
+      },
+      "RemapRangeStart": 0,
+      "RemapRangeEnd": 1,
+      "FixedTime": 0,
+      "UseFramesAsInput": false,
+      "DefaultVariationData": {
+        "AnimationName": {
+          "Id": "f02be4e4-1583-427d-9cf6-c3a94fa62e00",
+          "Path": "weapons/toolgun/animations/idle.anim"
+        },
+        "TimeOverride": -1
+      },
+      "Overrides": [],
+      "Identifier": "701f1554-4d84-4317-a914-24a81dce9b52",
+      "Position": "0,0",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "FloatParameterNode",
+      "ParameterIdentifier": "6ae92c7f-cdc9-4f83-80d7-0ea7ed3fe42d",
+      "ParameterName": "joystick_x",
+      "Identifier": "dd8b05c9-cc1d-4961-accb-b5f1ccd915c0",
+      "Position": "0,390",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "FloatParameterNode",
+      "ParameterIdentifier": "56280616-ebc5-4ed0-a581-cf78883f31ce",
+      "ParameterName": "joystick_y",
+      "Identifier": "3c804330-e8d1-4aeb-baf2-8932f81d0b8a",
+      "Position": "0,500",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "Blend2DNode",
+      "X": {
+        "Identifier": "3c804330-e8d1-4aeb-baf2-8932f81d0b8a",
+        "Output": "Value"
+      },
+      "Y": {
+        "Identifier": "dd8b05c9-cc1d-4961-accb-b5f1ccd915c0",
+        "Output": "Value"
+      },
+      "Points": [
+        {
+          "Name": "NW",
+          "Position": "-0.709999979,0.709999979",
+          "Graph": {
+            "Version": 1,
+            "nodes": [
+              {
+                "_class": "AnimationPoseNode",
+                "Time": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "RemapRangeStart": 0,
+                "RemapRangeEnd": 1,
+                "FixedTime": 0,
+                "UseFramesAsInput": false,
+                "DefaultVariationData": {
+                  "AnimationName": {
+                    "Id": "8421914d-6955-40e8-a151-d7bc52ea43bc",
+                    "Path": "weapons/toolgun/animations/joystick.anim"
+                  },
+                  "TimeOverride": -1
+                },
+                "Overrides": [],
+                "Identifier": "60bebb0a-ca09-4b80-a624-be382d7a8ed5",
+                "Position": "0,0",
+                "HandleOffsets": {}
+              },
+              {
+                "_class": "PoseResultNode",
+                "Pose": {
+                  "Identifier": "60bebb0a-ca09-4b80-a624-be382d7a8ed5",
+                  "Output": "Result"
+                },
+                "Identifier": "b637c692-034d-43ec-95b0-a50c376a4b24",
+                "Position": "320,0",
+                "HandleOffsets": {}
+              }
+            ]
+          },
+          "Input": {
+            "Identifier": null,
+            "Output": null
+          }
+        },
+        {
+          "Name": "N",
+          "Position": "0,1",
+          "Graph": {
+            "Version": 1,
+            "nodes": [
+              {
+                "_class": "AnimationPoseNode",
+                "Time": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "RemapRangeStart": 0,
+                "RemapRangeEnd": 1,
+                "FixedTime": 0.125,
+                "UseFramesAsInput": false,
+                "DefaultVariationData": {
+                  "AnimationName": {
+                    "Id": "8421914d-6955-40e8-a151-d7bc52ea43bc",
+                    "Path": "weapons/toolgun/animations/joystick.anim"
+                  },
+                  "TimeOverride": -1
+                },
+                "Overrides": [],
+                "Identifier": "79211a4b-fd7b-4134-a858-8469bafb1321",
+                "Position": "0,0",
+                "HandleOffsets": {}
+              },
+              {
+                "_class": "PoseResultNode",
+                "Pose": {
+                  "Identifier": "79211a4b-fd7b-4134-a858-8469bafb1321",
+                  "Output": "Result"
+                },
+                "Identifier": "f0b1f8ff-1132-4766-a7b6-50e1662a743e",
+                "Position": "320,0",
+                "HandleOffsets": {}
+              }
+            ]
+          },
+          "Input": {
+            "Identifier": null,
+            "Output": null
+          }
+        },
+        {
+          "Name": "NE",
+          "Position": "0.709999979,0.709999979",
+          "Graph": {
+            "Version": 1,
+            "nodes": [
+              {
+                "_class": "AnimationPoseNode",
+                "Time": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "RemapRangeStart": 0,
+                "RemapRangeEnd": 1,
+                "FixedTime": 0.25,
+                "UseFramesAsInput": false,
+                "DefaultVariationData": {
+                  "AnimationName": {
+                    "Id": "8421914d-6955-40e8-a151-d7bc52ea43bc",
+                    "Path": "weapons/toolgun/animations/joystick.anim"
+                  },
+                  "TimeOverride": -1
+                },
+                "Overrides": [],
+                "Identifier": "29d68c34-52bf-4de1-8aa3-8caf9fad33e9",
+                "Position": "0,0",
+                "HandleOffsets": {}
+              },
+              {
+                "_class": "PoseResultNode",
+                "Pose": {
+                  "Identifier": "29d68c34-52bf-4de1-8aa3-8caf9fad33e9",
+                  "Output": "Result"
+                },
+                "Identifier": "735cfdd7-7792-4eca-b05f-11a4c81c3159",
+                "Position": "320,0",
+                "HandleOffsets": {}
+              }
+            ]
+          },
+          "Input": {
+            "Identifier": null,
+            "Output": null
+          }
+        },
+        {
+          "Name": "W",
+          "Position": "-1,0",
+          "Graph": {
+            "Version": 1,
+            "nodes": [
+              {
+                "_class": "AnimationPoseNode",
+                "Time": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "RemapRangeStart": 0,
+                "RemapRangeEnd": 1,
+                "FixedTime": 0.375,
+                "UseFramesAsInput": false,
+                "DefaultVariationData": {
+                  "AnimationName": {
+                    "Id": "8421914d-6955-40e8-a151-d7bc52ea43bc",
+                    "Path": "weapons/toolgun/animations/joystick.anim"
+                  },
+                  "TimeOverride": -1
+                },
+                "Overrides": [],
+                "Identifier": "42de0037-a7f0-4e26-9e8d-04a9d967e385",
+                "Position": "0,0",
+                "HandleOffsets": {}
+              },
+              {
+                "_class": "PoseResultNode",
+                "Pose": {
+                  "Identifier": "42de0037-a7f0-4e26-9e8d-04a9d967e385",
+                  "Output": "Result"
+                },
+                "Identifier": "9bf39914-dd5e-4ba2-b5be-686a78155574",
+                "Position": "320,0",
+                "HandleOffsets": {}
+              }
+            ]
+          },
+          "Input": {
+            "Identifier": null,
+            "Output": null
+          }
+        },
+        {
+          "Name": "Center",
+          "Position": "0,0",
+          "Graph": {
+            "Version": 1,
+            "nodes": [
+              {
+                "_class": "AnimationPoseNode",
+                "Time": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "RemapRangeStart": 0,
+                "RemapRangeEnd": 1,
+                "FixedTime": 0.5,
+                "UseFramesAsInput": false,
+                "DefaultVariationData": {
+                  "AnimationName": {
+                    "Id": "8421914d-6955-40e8-a151-d7bc52ea43bc",
+                    "Path": "weapons/toolgun/animations/joystick.anim"
+                  },
+                  "TimeOverride": -1
+                },
+                "Overrides": [],
+                "Identifier": "10a75a43-f7d4-4673-a93d-122e3b6b472e",
+                "Position": "0,0",
+                "HandleOffsets": {}
+              },
+              {
+                "_class": "PoseResultNode",
+                "Pose": {
+                  "Identifier": "10a75a43-f7d4-4673-a93d-122e3b6b472e",
+                  "Output": "Result"
+                },
+                "Identifier": "1d5ce067-4806-4943-a48e-78b93dd42e8c",
+                "Position": "320,0",
+                "HandleOffsets": {}
+              }
+            ]
+          },
+          "Input": {
+            "Identifier": null,
+            "Output": null
+          }
+        },
+        {
+          "Name": "E",
+          "Position": "1,0",
+          "Graph": {
+            "Version": 1,
+            "nodes": [
+              {
+                "_class": "AnimationPoseNode",
+                "Time": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "RemapRangeStart": 0,
+                "RemapRangeEnd": 1,
+                "FixedTime": 0.625,
+                "UseFramesAsInput": false,
+                "DefaultVariationData": {
+                  "AnimationName": {
+                    "Id": "8421914d-6955-40e8-a151-d7bc52ea43bc",
+                    "Path": "weapons/toolgun/animations/joystick.anim"
+                  },
+                  "TimeOverride": -1
+                },
+                "Overrides": [],
+                "Identifier": "37e86684-8a7e-42cd-aa61-c2514e4255a5",
+                "Position": "0,0",
+                "HandleOffsets": {}
+              },
+              {
+                "_class": "PoseResultNode",
+                "Pose": {
+                  "Identifier": "37e86684-8a7e-42cd-aa61-c2514e4255a5",
+                  "Output": "Result"
+                },
+                "Identifier": "360cd846-afc4-4987-a7a7-fa9b4ab4d090",
+                "Position": "320,0",
+                "HandleOffsets": {}
+              }
+            ]
+          },
+          "Input": {
+            "Identifier": null,
+            "Output": null
+          }
+        },
+        {
+          "Name": "SW",
+          "Position": "-0.709999979,-0.709999979",
+          "Graph": {
+            "Version": 1,
+            "nodes": [
+              {
+                "_class": "AnimationPoseNode",
+                "Time": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "RemapRangeStart": 0,
+                "RemapRangeEnd": 1,
+                "FixedTime": 0.75,
+                "UseFramesAsInput": false,
+                "DefaultVariationData": {
+                  "AnimationName": {
+                    "Id": "8421914d-6955-40e8-a151-d7bc52ea43bc",
+                    "Path": "weapons/toolgun/animations/joystick.anim"
+                  },
+                  "TimeOverride": -1
+                },
+                "Overrides": [],
+                "Identifier": "b10ff0fa-cf03-4cf9-a398-00c46d893ff5",
+                "Position": "0,0",
+                "HandleOffsets": {}
+              },
+              {
+                "_class": "PoseResultNode",
+                "Pose": {
+                  "Identifier": "b10ff0fa-cf03-4cf9-a398-00c46d893ff5",
+                  "Output": "Result"
+                },
+                "Identifier": "962eda7f-5185-4a58-934d-91e078a051e6",
+                "Position": "320,0",
+                "HandleOffsets": {}
+              }
+            ]
+          },
+          "Input": {
+            "Identifier": null,
+            "Output": null
+          }
+        },
+        {
+          "Name": "S",
+          "Position": "0,-1",
+          "Graph": {
+            "Version": 1,
+            "nodes": [
+              {
+                "_class": "AnimationPoseNode",
+                "Time": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "RemapRangeStart": 0,
+                "RemapRangeEnd": 1,
+                "FixedTime": 0.875,
+                "UseFramesAsInput": false,
+                "DefaultVariationData": {
+                  "AnimationName": {
+                    "Id": "8421914d-6955-40e8-a151-d7bc52ea43bc",
+                    "Path": "weapons/toolgun/animations/joystick.anim"
+                  },
+                  "TimeOverride": -1
+                },
+                "Overrides": [],
+                "Identifier": "faf44773-079c-44ef-bd3a-083682a69700",
+                "Position": "0,0",
+                "HandleOffsets": {}
+              },
+              {
+                "_class": "PoseResultNode",
+                "Pose": {
+                  "Identifier": "faf44773-079c-44ef-bd3a-083682a69700",
+                  "Output": "Result"
+                },
+                "Identifier": "2cbd27ca-eead-4bc7-8b72-8e4eddd6d022",
+                "Position": "320,0",
+                "HandleOffsets": {}
+              }
+            ]
+          },
+          "Input": {
+            "Identifier": null,
+            "Output": null
+          }
+        },
+        {
+          "Name": "SE",
+          "Position": "0.709999979,-0.709999979",
+          "Graph": {
+            "Version": 1,
+            "nodes": [
+              {
+                "_class": "AnimationPoseNode",
+                "Time": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "RemapRangeStart": 0,
+                "RemapRangeEnd": 1,
+                "FixedTime": 1,
+                "UseFramesAsInput": false,
+                "DefaultVariationData": {
+                  "AnimationName": {
+                    "Id": "8421914d-6955-40e8-a151-d7bc52ea43bc",
+                    "Path": "weapons/toolgun/animations/joystick.anim"
+                  },
+                  "TimeOverride": -1
+                },
+                "Overrides": [],
+                "Identifier": "03846ca7-6a7d-493d-883d-22a81dd228b9",
+                "Position": "0,0",
+                "HandleOffsets": {}
+              },
+              {
+                "_class": "PoseResultNode",
+                "Pose": {
+                  "Identifier": "03846ca7-6a7d-493d-883d-22a81dd228b9",
+                  "Output": "Result"
+                },
+                "Identifier": "d83bd2b3-bf82-43f9-8b5a-a01abb8dca2d",
+                "Position": "320,0",
+                "HandleOffsets": {}
+              }
+            ]
+          },
+          "Input": {
+            "Identifier": null,
+            "Output": null
+          }
+        }
+      ],
+      "Loop": true,
+      "Identifier": "c067fa00-4302-46da-a2b8-0127dc9029c8",
+      "Position": "320,390",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "BoolParameterNode",
+      "ParameterIdentifier": "c788caa7-f6c0-400e-a15a-f084c44a3984",
+      "ParameterName": "b_joystick",
+      "Identifier": "fc1b77ea-31da-4e58-b485-76b4c788cbef",
+      "Position": "0,540",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "FloatSwitchNode",
+      "Condition": {
+        "Identifier": "fc1b77ea-31da-4e58-b485-76b4c788cbef",
+        "Output": "Value"
+      },
+      "TrueValue": 1,
+      "FalseValue": 0,
+      "EaseTime": 0.12,
+      "Easing": "Linear",
+      "Identifier": "72882181-288a-48c6-a904-637eafe377af",
+      "Position": "320,540",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "BoneMaskNode",
+      "BoneName": "joystick_hand",
+      "DefaultWeight": 1,
+      "DefaultVariationData": {
+        "MaskOverride": ""
+      },
+      "Overrides": [],
+      "Identifier": "df60c20f-b6f5-4454-88fe-e80de01e14ac",
+      "Position": "320,640",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "LocalLayerNode",
+      "Input": {
+        "Identifier": "c067fa00-4302-46da-a2b8-0127dc9029c8",
+        "Output": "Result"
+      },
+      "Weight": {
+        "Identifier": "72882181-288a-48c6-a904-637eafe377af",
+        "Output": "Result"
+      },
+      "RootMotionWeight": {
+        "Identifier": null,
+        "Output": null
+      },
+      "BoneMask": {
+        "Identifier": "df60c20f-b6f5-4454-88fe-e80de01e14ac",
+        "Output": "Mask"
+      },
+      "BlendMode": "Additive",
+      "IsSynchronized": false,
+      "IgnoreEvents": false,
+      "Identifier": "03cb626a-e368-4a14-b136-de3d0a1fbca0",
+      "Position": "650,390",
+      "Title": "Joystick",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "StateMachineNode",
+      "States": [
+        {
+          "Name": "Center",
+          "IsExitState": false,
+          "Type": "BlendTree",
+          "Events": [],
+          "TimedEvents": [],
+          "UseActualElapsedTimeInStateForTimedEvents": false,
+          "TransitionOrder": [],
+          "Position": "0,0",
+          "Graph": {
+            "Version": 1,
+            "nodes": [
+              {
+                "_class": "ZeroPoseNode",
+                "Identifier": "cac19b8d-9c8d-4fca-a3b1-1b0b940122cc",
+                "Position": "0,0",
+                "HandleOffsets": {}
+              },
+              {
+                "_class": "PoseResultNode",
+                "Pose": {
+                  "Identifier": "cac19b8d-9c8d-4fca-a3b1-1b0b940122cc",
+                  "Output": "Result"
+                },
+                "Identifier": "f7df319a-34ee-4116-afaf-9814c6769647",
+                "Position": "320,0",
+                "HandleOffsets": {}
+              }
+            ]
+          },
+          "LayerGraph": {
+            "Version": 1,
+            "nodes": [
+              {
+                "_class": "StateLayerDataNode",
+                "LayerWeight": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "RootMotionWeight": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "BoneMask": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "Identifier": "6679b7fa-cb7c-4450-9683-7b61b77e38b7",
+                "Position": "400,0",
+                "HandleOffsets": {}
+              }
+            ],
+            "Kind": "LayerData"
+          }
+        },
+        {
+          "Name": "Down",
+          "IsExitState": false,
+          "Type": "BlendTree",
+          "Events": [],
+          "TimedEvents": [],
+          "UseActualElapsedTimeInStateForTimedEvents": false,
+          "TransitionOrder": [],
+          "Position": "300,0",
+          "Graph": {
+            "Version": 1,
+            "nodes": [
+              {
+                "_class": "AnimationClipNode",
+                "Loop": false,
+                "SampleRootMotion": false,
+                "GraphEvents": [],
+                "PlayInReverse": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "ResetTime": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "DefaultVariationData": {
+                  "AnimationName": {
+                    "Id": "789f9e69-d506-4475-8414-29b4d87cb533",
+                    "Path": "weapons/toolgun/animations/selector_down.anim"
+                  },
+                  "SpeedMultiplier": 1,
+                  "StartSyncEventOffset": 0
+                },
+                "Overrides": [],
+                "Identifier": "8e54f10b-325a-4885-9e83-3b2105d617a9",
+                "Position": "0,0",
+                "HandleOffsets": {}
+              },
+              {
+                "_class": "PoseResultNode",
+                "Pose": {
+                  "Identifier": "8e54f10b-325a-4885-9e83-3b2105d617a9",
+                  "Output": "Result"
+                },
+                "Identifier": "5acbcd0f-fabf-40ca-b210-3c651f26d63a",
+                "Position": "320,0",
+                "HandleOffsets": {}
+              }
+            ]
+          },
+          "LayerGraph": {
+            "Version": 1,
+            "nodes": [
+              {
+                "_class": "StateLayerDataNode",
+                "LayerWeight": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "RootMotionWeight": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "BoneMask": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "Identifier": "9003af67-97bf-459a-ae65-0549a2d4b7b9",
+                "Position": "400,0",
+                "HandleOffsets": {}
+              }
+            ],
+            "Kind": "LayerData"
+          }
+        },
+        {
+          "Name": "Return",
+          "IsExitState": false,
+          "Type": "BlendTree",
+          "Events": [],
+          "TimedEvents": [],
+          "UseActualElapsedTimeInStateForTimedEvents": false,
+          "TransitionOrder": [],
+          "Position": "600,0",
+          "Graph": {
+            "Version": 1,
+            "nodes": [
+              {
+                "_class": "AnimationClipNode",
+                "Loop": false,
+                "SampleRootMotion": false,
+                "GraphEvents": [],
+                "PlayInReverse": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "ResetTime": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "DefaultVariationData": {
+                  "AnimationName": {
+                    "Id": "f7024692-2cee-46ad-aab9-2c5cb77e2d46",
+                    "Path": "weapons/toolgun/animations/selector_center.anim"
+                  },
+                  "SpeedMultiplier": 1,
+                  "StartSyncEventOffset": 0
+                },
+                "Overrides": [],
+                "Identifier": "56e9d288-6fd7-4e50-8c2c-a649e1d01c18",
+                "Position": "0,0",
+                "HandleOffsets": {}
+              },
+              {
+                "_class": "PoseResultNode",
+                "Pose": {
+                  "Identifier": "56e9d288-6fd7-4e50-8c2c-a649e1d01c18",
+                  "Output": "Result"
+                },
+                "Identifier": "d4d7b95e-99be-4ba2-8b4d-edb9c4dc3613",
+                "Position": "320,0",
+                "HandleOffsets": {}
+              }
+            ]
+          },
+          "LayerGraph": {
+            "Version": 1,
+            "nodes": [
+              {
+                "_class": "StateLayerDataNode",
+                "LayerWeight": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "RootMotionWeight": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "BoneMask": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "Identifier": "e433b271-adc5-48b5-90d0-0feee6afceb0",
+                "Position": "400,0",
+                "HandleOffsets": {}
+              }
+            ],
+            "Kind": "LayerData"
+          }
+        }
+      ],
+      "Conduits": [
+        {
+          "From": "Center",
+          "To": "Down",
+          "Graph": {
+            "Version": 1,
+            "nodes": [
+              {
+                "_class": "BoolParameterNode",
+                "ParameterIdentifier": "00714d0f-0bd5-4ad1-acbc-357f6e66f4b5",
+                "ParameterName": "selector_down",
+                "Identifier": "90e8b88b-acab-4e00-94a9-92256a8d38ef",
+                "Position": "0,0",
+                "HandleOffsets": {}
+              },
+              {
+                "_class": "TransitionNode",
+                "Condition": {
+                  "Identifier": "90e8b88b-acab-4e00-94a9-92256a8d38ef",
+                  "Output": "Value"
+                },
+                "DurationOverride": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "TimeOffsetOverride": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "StartBoneMask": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "TargetSyncID": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "TransitionName": "Center to Down",
+                "Duration": 0.04,
+                "TimeMatch": "None",
+                "TimeOffset": 0,
+                "BlendWeightEasing": "Linear",
+                "RootMotionBlend": "Blend",
+                "ClampDurationToSource": false,
+                "CanBeForced": true,
+                "BoneMaskBlendInTimePercentage": 0.33,
+                "Identifier": "44099806-16fa-41c0-be08-7412a998958f",
+                "Position": "560,0",
+                "HandleOffsets": {}
+              }
+            ]
+          }
+        },
+        {
+          "From": "Down",
+          "To": "Return",
+          "Graph": {
+            "Version": 1,
+            "nodes": [
+              {
+                "_class": "BoolParameterNode",
+                "ParameterIdentifier": "00714d0f-0bd5-4ad1-acbc-357f6e66f4b5",
+                "ParameterName": "selector_down",
+                "Identifier": "bf86e045-55c5-4495-bde5-43b64cd9d28d",
+                "Position": "0,0",
+                "HandleOffsets": {}
+              },
+              {
+                "_class": "NotNode",
+                "Value": {
+                  "Identifier": "bf86e045-55c5-4495-bde5-43b64cd9d28d",
+                  "Output": "Value"
+                },
+                "Identifier": "1c80fd58-5074-4288-abd2-5bec2a27d23e",
+                "Position": "270,0",
+                "HandleOffsets": {}
+              },
+              {
+                "_class": "TransitionNode",
+                "Condition": {
+                  "Identifier": "1c80fd58-5074-4288-abd2-5bec2a27d23e",
+                  "Output": "Result"
+                },
+                "DurationOverride": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "TimeOffsetOverride": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "StartBoneMask": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "TargetSyncID": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "TransitionName": "Down to Return",
+                "Duration": 0.04,
+                "TimeMatch": "None",
+                "TimeOffset": 0,
+                "BlendWeightEasing": "Linear",
+                "RootMotionBlend": "Blend",
+                "ClampDurationToSource": false,
+                "CanBeForced": true,
+                "BoneMaskBlendInTimePercentage": 0.33,
+                "Identifier": "45aa70c7-b55c-446a-b034-08f9e7017d8a",
+                "Position": "560,0",
+                "HandleOffsets": {}
+              }
+            ]
+          }
+        },
+        {
+          "From": "Return",
+          "To": "Down",
+          "Graph": {
+            "Version": 1,
+            "nodes": [
+              {
+                "_class": "BoolParameterNode",
+                "ParameterIdentifier": "00714d0f-0bd5-4ad1-acbc-357f6e66f4b5",
+                "ParameterName": "selector_down",
+                "Identifier": "57dcb323-4423-445d-bfea-50a9929391db",
+                "Position": "0,0",
+                "HandleOffsets": {}
+              },
+              {
+                "_class": "TransitionNode",
+                "Condition": {
+                  "Identifier": "57dcb323-4423-445d-bfea-50a9929391db",
+                  "Output": "Value"
+                },
+                "DurationOverride": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "TimeOffsetOverride": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "StartBoneMask": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "TargetSyncID": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "TransitionName": "Return to Down",
+                "Duration": 0.04,
+                "TimeMatch": "None",
+                "TimeOffset": 0,
+                "BlendWeightEasing": "Linear",
+                "RootMotionBlend": "Blend",
+                "ClampDurationToSource": false,
+                "CanBeForced": true,
+                "BoneMaskBlendInTimePercentage": 0.33,
+                "Identifier": "51fbd0ad-9a06-4a87-9b06-b31c7772c34f",
+                "Position": "560,0",
+                "HandleOffsets": {}
+              }
+            ]
+          }
+        },
+        {
+          "From": "Return",
+          "To": "Center",
+          "Graph": {
+            "Version": 1,
+            "nodes": [
+              {
+                "_class": "StateCompletedConditionNode",
+                "AtClipEnd": false,
+                "Identifier": "45a692d2-c870-4fc4-9786-fc5e3737f11b",
+                "Position": "0,0",
+                "HandleOffsets": {}
+              },
+              {
+                "_class": "TransitionNode",
+                "Condition": {
+                  "Identifier": "45a692d2-c870-4fc4-9786-fc5e3737f11b",
+                  "Output": "Result"
+                },
+                "DurationOverride": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "TimeOffsetOverride": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "StartBoneMask": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "TargetSyncID": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "TransitionName": "Return to Center",
+                "Duration": 0.06,
+                "TimeMatch": "None",
+                "TimeOffset": 0,
+                "BlendWeightEasing": "Linear",
+                "RootMotionBlend": "Blend",
+                "ClampDurationToSource": false,
+                "CanBeForced": true,
+                "BoneMaskBlendInTimePercentage": 0.33,
+                "Identifier": "8d4e7a43-5e8a-414c-9d21-ee72e9dd7625",
+                "Position": "560,0",
+                "HandleOffsets": {}
+              }
+            ]
+          }
+        }
+      ],
+      "GlobalGraph": {
+        "Version": 1,
+        "nodes": [
+          {
+            "_class": "GlobalTransitionNode",
+            "StateName": "Center",
+            "Condition": {
+              "Identifier": null,
+              "Output": null
+            },
+            "DurationOverride": {
+              "Identifier": null,
+              "Output": null
+            },
+            "TimeOffsetOverride": {
+              "Identifier": null,
+              "Output": null
+            },
+            "StartBoneMask": {
+              "Identifier": null,
+              "Output": null
+            },
+            "TargetSyncID": {
+              "Identifier": null,
+              "Output": null
+            },
+            "TransitionName": "Transition",
+            "Duration": 0.2,
+            "TimeMatch": "None",
+            "TimeOffset": 0,
+            "BlendWeightEasing": "Linear",
+            "RootMotionBlend": "Blend",
+            "ClampDurationToSource": false,
+            "CanBeForced": false,
+            "BoneMaskBlendInTimePercentage": 0.33,
+            "Identifier": "0b3e9b80-c107-48ad-973d-b28a11885a9e",
+            "Position": "400,0",
+            "HandleOffsets": {}
+          },
+          {
+            "_class": "GlobalTransitionNode",
+            "StateName": "Down",
+            "Condition": {
+              "Identifier": null,
+              "Output": null
+            },
+            "DurationOverride": {
+              "Identifier": null,
+              "Output": null
+            },
+            "TimeOffsetOverride": {
+              "Identifier": null,
+              "Output": null
+            },
+            "StartBoneMask": {
+              "Identifier": null,
+              "Output": null
+            },
+            "TargetSyncID": {
+              "Identifier": null,
+              "Output": null
+            },
+            "TransitionName": "Transition",
+            "Duration": 0.2,
+            "TimeMatch": "None",
+            "TimeOffset": 0,
+            "BlendWeightEasing": "Linear",
+            "RootMotionBlend": "Blend",
+            "ClampDurationToSource": false,
+            "CanBeForced": false,
+            "BoneMaskBlendInTimePercentage": 0.33,
+            "Identifier": "3148ab93-fc01-4196-ae34-9153c0fff3a7",
+            "Position": "400,250",
+            "HandleOffsets": {}
+          },
+          {
+            "_class": "GlobalTransitionNode",
+            "StateName": "Return",
+            "Condition": {
+              "Identifier": null,
+              "Output": null
+            },
+            "DurationOverride": {
+              "Identifier": null,
+              "Output": null
+            },
+            "TimeOffsetOverride": {
+              "Identifier": null,
+              "Output": null
+            },
+            "StartBoneMask": {
+              "Identifier": null,
+              "Output": null
+            },
+            "TargetSyncID": {
+              "Identifier": null,
+              "Output": null
+            },
+            "TransitionName": "Transition",
+            "Duration": 0.2,
+            "TimeMatch": "None",
+            "TimeOffset": 0,
+            "BlendWeightEasing": "Linear",
+            "RootMotionBlend": "Blend",
+            "ClampDurationToSource": false,
+            "CanBeForced": false,
+            "BoneMaskBlendInTimePercentage": 0.33,
+            "Identifier": "bbd98b56-242f-486c-8fd2-4bcc97dba70c",
+            "Position": "400,500",
+            "HandleOffsets": {}
+          }
+        ],
+        "Kind": "GlobalTransitions"
+      },
+      "EntryGraph": {
+        "Version": 1,
+        "nodes": [
+          {
+            "_class": "EntryStateOverrideConditionsNode",
+            "States": [
+              "Center",
+              "Down",
+              "Return"
+            ],
+            "Conditions": [
+              {
+                "Identifier": null,
+                "Output": null
+              },
+              {
+                "Identifier": null,
+                "Output": null
+              },
+              {
+                "Identifier": null,
+                "Output": null
+              }
+            ],
+            "Identifier": "0780e74b-a4bd-4d87-b572-7760f8c711c5",
+            "Position": "400,0",
+            "HandleOffsets": {}
+          }
+        ],
+        "Kind": "EntryOverrides"
+      },
+      "DefaultState": "Center",
+      "DefaultStateIndex": 0,
+      "Identifier": "c5191ef0-09c9-4a74-ac6f-19214ca04561",
+      "Position": "0,780",
+      "Title": "Selector",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "StateMachineLayerNode",
+      "StateMachine": {
+        "Identifier": "c5191ef0-09c9-4a74-ac6f-19214ca04561",
+        "Output": "Result"
+      },
+      "BlendMode": "Additive",
+      "IsSynchronized": false,
+      "IgnoreEvents": false,
+      "Identifier": "05c74f99-c733-4538-9002-7ececb35e253",
+      "Position": "650,780",
+      "Title": "Mode switch",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "AnimationPoseNode",
+      "Time": {
+        "Identifier": null,
+        "Output": null
+      },
+      "RemapRangeStart": 0,
+      "RemapRangeEnd": 1,
+      "FixedTime": 0.5,
+      "UseFramesAsInput": false,
+      "DefaultVariationData": {
+        "AnimationName": {
+          "Id": "9649f1fc-17d2-4322-999f-8b77e7d66f8c",
+          "Path": "weapons/toolgun/animations/selector.anim"
+        },
+        "TimeOverride": -1
+      },
+      "Overrides": [],
+      "Identifier": "faf4f750-3ad6-41bd-bdf6-568ec89e217a",
+      "Position": "0,1170",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "BoolParameterNode",
+      "ParameterIdentifier": "00714d0f-0bd5-4ad1-acbc-357f6e66f4b5",
+      "ParameterName": "selector_down",
+      "Identifier": "b338d242-081d-45d9-8bd7-b7607c57b786",
+      "Position": "0,1320",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "FloatSwitchNode",
+      "Condition": {
+        "Identifier": "b338d242-081d-45d9-8bd7-b7607c57b786",
+        "Output": "Value"
+      },
+      "TrueValue": 1,
+      "FalseValue": 0,
+      "EaseTime": 0.12,
+      "Easing": "Linear",
+      "Identifier": "e4eeec90-a86c-4ceb-bece-b692f1747824",
+      "Position": "320,1320",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "LocalLayerNode",
+      "Input": {
+        "Identifier": "faf4f750-3ad6-41bd-bdf6-568ec89e217a",
+        "Output": "Result"
+      },
+      "Weight": {
+        "Identifier": "e4eeec90-a86c-4ceb-bece-b692f1747824",
+        "Output": "Result"
+      },
+      "RootMotionWeight": {
+        "Identifier": null,
+        "Output": null
+      },
+      "BoneMask": {
+        "Identifier": null,
+        "Output": null
+      },
+      "BlendMode": "Additive",
+      "IsSynchronized": false,
+      "IgnoreEvents": false,
+      "Identifier": "218ece1f-9620-4c23-9de5-02d2b1480cee",
+      "Position": "650,1170",
+      "Title": "Selector position",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "StateMachineNode",
+      "States": [
+        {
+          "Name": "Ready",
+          "IsExitState": false,
+          "Type": "BlendTree",
+          "Events": [],
+          "TimedEvents": [],
+          "UseActualElapsedTimeInStateForTimedEvents": false,
+          "TransitionOrder": [],
+          "Position": "0,0",
+          "Graph": {
+            "Version": 1,
+            "nodes": [
+              {
+                "_class": "ZeroPoseNode",
+                "Identifier": "ef8662d1-2074-4c7b-b0e2-f67d0c670c15",
+                "Position": "0,0",
+                "HandleOffsets": {}
+              },
+              {
+                "_class": "PoseResultNode",
+                "Pose": {
+                  "Identifier": "ef8662d1-2074-4c7b-b0e2-f67d0c670c15",
+                  "Output": "Result"
+                },
+                "Identifier": "25dce548-f058-496f-b02b-fd68a8c8e48a",
+                "Position": "320,0",
+                "HandleOffsets": {}
+              }
+            ]
+          },
+          "LayerGraph": {
+            "Version": 1,
+            "nodes": [
+              {
+                "_class": "StateLayerDataNode",
+                "LayerWeight": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "RootMotionWeight": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "BoneMask": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "Identifier": "752efa73-fd8a-4dc7-a569-8c8b9bb56a24",
+                "Position": "400,0",
+                "HandleOffsets": {}
+              }
+            ],
+            "Kind": "LayerData"
+          }
+        },
+        {
+          "Name": "Fire",
+          "IsExitState": false,
+          "Type": "BlendTree",
+          "Events": [],
+          "TimedEvents": [],
+          "UseActualElapsedTimeInStateForTimedEvents": false,
+          "TransitionOrder": [],
+          "Position": "300,0",
+          "Graph": {
+            "Version": 1,
+            "nodes": [
+              {
+                "_class": "BoolParameterNode",
+                "ParameterIdentifier": "d2a8c8a4-8cd0-45e4-a6ab-4c441100866b",
+                "ParameterName": "b_attack",
+                "Identifier": "fd9f5b85-86cc-44ea-9b6e-5b6d9bac51e8",
+                "Position": "0,0",
+                "HandleOffsets": {}
+              },
+              {
+                "_class": "AnimationClipNode",
+                "Loop": false,
+                "SampleRootMotion": false,
+                "GraphEvents": [],
+                "PlayInReverse": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "ResetTime": {
+                  "Identifier": "fd9f5b85-86cc-44ea-9b6e-5b6d9bac51e8",
+                  "Output": "Value"
+                },
+                "DefaultVariationData": {
+                  "AnimationName": {
+                    "Id": "62ceb7e7-cb4f-4de2-8471-8948535cacdd",
+                    "Path": "weapons/toolgun/animations/recoil.anim"
+                  },
+                  "SpeedMultiplier": 1,
+                  "StartSyncEventOffset": 0
+                },
+                "Overrides": [],
+                "Identifier": "66f8d801-5876-4bc1-9d0a-9d5d0c473a10",
+                "Position": "320,0",
+                "HandleOffsets": {}
+              },
+              {
+                "_class": "PoseResultNode",
+                "Pose": {
+                  "Identifier": "ab443b7d-15eb-4839-afb6-9bd634c35dd9",
+                  "Output": "Result"
+                },
+                "Identifier": "98f0c292-eea6-4bfd-9009-f45c204ebf61",
+                "Position": "1000,380",
+                "HandleOffsets": {}
+              },
+              {
+                "_class": "AnimationClipNode",
+                "Loop": false,
+                "SampleRootMotion": false,
+                "GraphEvents": [],
+                "PlayInReverse": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "ResetTime": {
+                  "Identifier": "fd9f5b85-86cc-44ea-9b6e-5b6d9bac51e8",
+                  "Output": "Value"
+                },
+                "DefaultVariationData": {
+                  "AnimationName": {
+                    "Id": "863757d4-6597-485f-b8d7-7f0970ad3835",
+                    "Path": "weapons/toolgun/animations/recoil_02.anim"
+                  },
+                  "SpeedMultiplier": 1,
+                  "StartSyncEventOffset": 0
+                },
+                "Overrides": [],
+                "Identifier": "36c60943-72cd-456f-a3db-6eee46fe4aae",
+                "Position": "320,150",
+                "HandleOffsets": {}
+              },
+              {
+                "_class": "AnimationClipNode",
+                "Loop": false,
+                "SampleRootMotion": false,
+                "GraphEvents": [],
+                "PlayInReverse": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "ResetTime": {
+                  "Identifier": "fd9f5b85-86cc-44ea-9b6e-5b6d9bac51e8",
+                  "Output": "Value"
+                },
+                "DefaultVariationData": {
+                  "AnimationName": {
+                    "Id": "18d7dfca-8013-4993-af80-5f9bf0d32675",
+                    "Path": "weapons/toolgun/animations/recoil_03.anim"
+                  },
+                  "SpeedMultiplier": 1,
+                  "StartSyncEventOffset": 0
+                },
+                "Overrides": [],
+                "Identifier": "aeca2709-925c-4457-888c-eba9389dc470",
+                "Position": "320,300",
+                "HandleOffsets": {}
+              },
+              {
+                "_class": "AnimationClipNode",
+                "Loop": false,
+                "SampleRootMotion": false,
+                "GraphEvents": [],
+                "PlayInReverse": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "ResetTime": {
+                  "Identifier": "fd9f5b85-86cc-44ea-9b6e-5b6d9bac51e8",
+                  "Output": "Value"
+                },
+                "DefaultVariationData": {
+                  "AnimationName": {
+                    "Id": "20b5e577-e7f8-4568-bd47-0e2dd805b583",
+                    "Path": "weapons/toolgun/animations/recoil_04.anim"
+                  },
+                  "SpeedMultiplier": 1,
+                  "StartSyncEventOffset": 0
+                },
+                "Overrides": [],
+                "Identifier": "0fb438e7-f127-4b4f-ad97-a3d9e64e6769",
+                "Position": "320,450",
+                "HandleOffsets": {}
+              },
+              {
+                "_class": "AnimationClipNode",
+                "Loop": false,
+                "SampleRootMotion": false,
+                "GraphEvents": [],
+                "PlayInReverse": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "ResetTime": {
+                  "Identifier": "fd9f5b85-86cc-44ea-9b6e-5b6d9bac51e8",
+                  "Output": "Value"
+                },
+                "DefaultVariationData": {
+                  "AnimationName": {
+                    "Id": "b0d33150-e3b7-4bbd-ba58-26a11a59d6d0",
+                    "Path": "weapons/toolgun/animations/recoil_05.anim"
+                  },
+                  "SpeedMultiplier": 1,
+                  "StartSyncEventOffset": 0
+                },
+                "Overrides": [],
+                "Identifier": "f6422ed2-d5db-4c51-ac27-ef24486677f4",
+                "Position": "320,600",
+                "HandleOffsets": {}
+              },
+              {
+                "_class": "AnimationClipNode",
+                "Loop": false,
+                "SampleRootMotion": false,
+                "GraphEvents": [],
+                "PlayInReverse": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "ResetTime": {
+                  "Identifier": "fd9f5b85-86cc-44ea-9b6e-5b6d9bac51e8",
+                  "Output": "Value"
+                },
+                "DefaultVariationData": {
+                  "AnimationName": {
+                    "Id": "3353e050-6fdf-46b7-ab55-02cd5f57a53a",
+                    "Path": "weapons/toolgun/animations/recoil_06.anim"
+                  },
+                  "SpeedMultiplier": 1,
+                  "StartSyncEventOffset": 0
+                },
+                "Overrides": [],
+                "Identifier": "73bda605-ecff-4ce3-b62b-4c4f41c19b01",
+                "Position": "320,750",
+                "HandleOffsets": {}
+              },
+              {
+                "_class": "AnimationClipNode",
+                "Loop": false,
+                "SampleRootMotion": false,
+                "GraphEvents": [],
+                "PlayInReverse": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "ResetTime": {
+                  "Identifier": "fd9f5b85-86cc-44ea-9b6e-5b6d9bac51e8",
+                  "Output": "Value"
+                },
+                "DefaultVariationData": {
+                  "AnimationName": {
+                    "Id": "fbabd46d-2ba7-4b91-947c-c8554c0a770a",
+                    "Path": "weapons/toolgun/animations/recoil_07.anim"
+                  },
+                  "SpeedMultiplier": 1,
+                  "StartSyncEventOffset": 0
+                },
+                "Overrides": [],
+                "Identifier": "635977ae-631f-46ba-83f9-bf065f796867",
+                "Position": "320,900",
+                "HandleOffsets": {}
+              },
+              {
+                "_class": "AnimationClipNode",
+                "Loop": false,
+                "SampleRootMotion": false,
+                "GraphEvents": [],
+                "PlayInReverse": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "ResetTime": {
+                  "Identifier": "fd9f5b85-86cc-44ea-9b6e-5b6d9bac51e8",
+                  "Output": "Value"
+                },
+                "DefaultVariationData": {
+                  "AnimationName": {
+                    "Id": "3e13a7be-0d97-43ac-8258-9abf25a457fa",
+                    "Path": "weapons/toolgun/animations/recoil_08.anim"
+                  },
+                  "SpeedMultiplier": 1,
+                  "StartSyncEventOffset": 0
+                },
+                "Overrides": [],
+                "Identifier": "81c20c19-ac0b-4142-b624-ab6d6c8fcec3",
+                "Position": "320,1050",
+                "HandleOffsets": {}
+              },
+              {
+                "_class": "AnimationClipNode",
+                "Loop": false,
+                "SampleRootMotion": false,
+                "GraphEvents": [],
+                "PlayInReverse": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "ResetTime": {
+                  "Identifier": "fd9f5b85-86cc-44ea-9b6e-5b6d9bac51e8",
+                  "Output": "Value"
+                },
+                "DefaultVariationData": {
+                  "AnimationName": {
+                    "Id": "9926d025-9119-42b9-8e64-f1d3b4c08367",
+                    "Path": "weapons/toolgun/animations/recoil_09.anim"
+                  },
+                  "SpeedMultiplier": 1,
+                  "StartSyncEventOffset": 0
+                },
+                "Overrides": [],
+                "Identifier": "849420b6-4acf-4ec9-80fe-fb8202dc0795",
+                "Position": "320,1200",
+                "HandleOffsets": {}
+              },
+              {
+                "_class": "AnimationClipNode",
+                "Loop": false,
+                "SampleRootMotion": false,
+                "GraphEvents": [],
+                "PlayInReverse": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "ResetTime": {
+                  "Identifier": "fd9f5b85-86cc-44ea-9b6e-5b6d9bac51e8",
+                  "Output": "Value"
+                },
+                "DefaultVariationData": {
+                  "AnimationName": {
+                    "Id": "baa6268f-06d6-4362-bb12-dd26f8a045bb",
+                    "Path": "weapons/toolgun/animations/recoil_10.anim"
+                  },
+                  "SpeedMultiplier": 1,
+                  "StartSyncEventOffset": 0
+                },
+                "Overrides": [],
+                "Identifier": "a78065bb-0f94-4a02-9e3a-dc44e8599cba",
+                "Position": "320,1350",
+                "HandleOffsets": {}
+              },
+              {
+                "_class": "RandomFloatNode",
+                "Min": 0,
+                "Max": 10,
+                "Identifier": "addd9a6d-06e8-4260-802d-2f11e3038f23",
+                "Position": "320,-180",
+                "HandleOffsets": {}
+              },
+              {
+                "_class": "ParameterizedAnimationClipSelectorNode",
+                "Parameter": {
+                  "Identifier": "addd9a6d-06e8-4260-802d-2f11e3038f23",
+                  "Output": "Result"
+                },
+                "Options": [
+                  {
+                    "Label": "Shot 1",
+                    "Pose": {
+                      "Identifier": "66f8d801-5876-4bc1-9d0a-9d5d0c473a10",
+                      "Output": "Result"
+                    }
+                  },
+                  {
+                    "Label": "Shot 2",
+                    "Pose": {
+                      "Identifier": "36c60943-72cd-456f-a3db-6eee46fe4aae",
+                      "Output": "Result"
+                    }
+                  },
+                  {
+                    "Label": "Shot 3",
+                    "Pose": {
+                      "Identifier": "aeca2709-925c-4457-888c-eba9389dc470",
+                      "Output": "Result"
+                    }
+                  },
+                  {
+                    "Label": "Shot 4",
+                    "Pose": {
+                      "Identifier": "0fb438e7-f127-4b4f-ad97-a3d9e64e6769",
+                      "Output": "Result"
+                    }
+                  },
+                  {
+                    "Label": "Shot 5",
+                    "Pose": {
+                      "Identifier": "f6422ed2-d5db-4c51-ac27-ef24486677f4",
+                      "Output": "Result"
+                    }
+                  },
+                  {
+                    "Label": "Shot 6",
+                    "Pose": {
+                      "Identifier": "73bda605-ecff-4ce3-b62b-4c4f41c19b01",
+                      "Output": "Result"
+                    }
+                  },
+                  {
+                    "Label": "Shot 7",
+                    "Pose": {
+                      "Identifier": "635977ae-631f-46ba-83f9-bf065f796867",
+                      "Output": "Result"
+                    }
+                  },
+                  {
+                    "Label": "Shot 8",
+                    "Pose": {
+                      "Identifier": "81c20c19-ac0b-4142-b624-ab6d6c8fcec3",
+                      "Output": "Result"
+                    }
+                  },
+                  {
+                    "Label": "Shot 9",
+                    "Pose": {
+                      "Identifier": "849420b6-4acf-4ec9-80fe-fb8202dc0795",
+                      "Output": "Result"
+                    }
+                  },
+                  {
+                    "Label": "Shot 10",
+                    "Pose": {
+                      "Identifier": "a78065bb-0f94-4a02-9e3a-dc44e8599cba",
+                      "Output": "Result"
+                    }
+                  }
+                ],
+                "IgnoreInvalidOptions": false,
+                "DefaultVariationData": {
+                  "OptionWeights": [
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1
+                  ]
+                },
+                "Overrides": [],
+                "Identifier": "ab443b7d-15eb-4839-afb6-9bd634c35dd9",
+                "Position": "640,380",
+                "HandleOffsets": {}
+              }
+            ]
+          },
+          "LayerGraph": {
+            "Version": 1,
+            "nodes": [
+              {
+                "_class": "StateLayerDataNode",
+                "LayerWeight": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "RootMotionWeight": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "BoneMask": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "Identifier": "e8b462c8-66f5-4e25-b3c1-f969983e58ad",
+                "Position": "400,0",
+                "HandleOffsets": {}
+              }
+            ],
+            "Kind": "LayerData"
+          }
+        }
+      ],
+      "Conduits": [
+        {
+          "From": "Ready",
+          "To": "Fire",
+          "Graph": {
+            "Version": 1,
+            "nodes": [
+              {
+                "_class": "BoolParameterNode",
+                "ParameterIdentifier": "d2a8c8a4-8cd0-45e4-a6ab-4c441100866b",
+                "ParameterName": "b_attack",
+                "Identifier": "49861604-10cf-44c7-83df-e03092d28acc",
+                "Position": "0,0",
+                "HandleOffsets": {}
+              },
+              {
+                "_class": "TransitionNode",
+                "Condition": {
+                  "Identifier": "49861604-10cf-44c7-83df-e03092d28acc",
+                  "Output": "Value"
+                },
+                "DurationOverride": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "TimeOffsetOverride": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "StartBoneMask": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "TargetSyncID": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "TransitionName": "Ready to Fire",
+                "Duration": 0.015,
+                "TimeMatch": "None",
+                "TimeOffset": 0,
+                "BlendWeightEasing": "Linear",
+                "RootMotionBlend": "Blend",
+                "ClampDurationToSource": false,
+                "CanBeForced": true,
+                "BoneMaskBlendInTimePercentage": 0.33,
+                "Identifier": "13e6f31f-5181-41ff-a57e-37e6e71537d8",
+                "Position": "560,0",
+                "HandleOffsets": {}
+              }
+            ]
+          }
+        },
+        {
+          "From": "Fire",
+          "To": "Ready",
+          "Graph": {
+            "Version": 1,
+            "nodes": [
+              {
+                "_class": "StateCompletedConditionNode",
+                "AtClipEnd": false,
+                "Identifier": "c9880057-9b31-44dd-9db2-1aa12bcd8500",
+                "Position": "0,0",
+                "HandleOffsets": {}
+              },
+              {
+                "_class": "TransitionNode",
+                "Condition": {
+                  "Identifier": "c9880057-9b31-44dd-9db2-1aa12bcd8500",
+                  "Output": "Result"
+                },
+                "DurationOverride": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "TimeOffsetOverride": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "StartBoneMask": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "TargetSyncID": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "TransitionName": "Fire to Ready",
+                "Duration": 0.045,
+                "TimeMatch": "None",
+                "TimeOffset": 0,
+                "BlendWeightEasing": "Linear",
+                "RootMotionBlend": "Blend",
+                "ClampDurationToSource": false,
+                "CanBeForced": true,
+                "BoneMaskBlendInTimePercentage": 0.33,
+                "Identifier": "8f6dbbb9-f249-436e-9df9-9ea1a08491e7",
+                "Position": "560,0",
+                "HandleOffsets": {}
+              }
+            ]
+          }
+        }
+      ],
+      "GlobalGraph": {
+        "Version": 1,
+        "nodes": [
+          {
+            "_class": "GlobalTransitionNode",
+            "StateName": "Ready",
+            "Condition": {
+              "Identifier": null,
+              "Output": null
+            },
+            "DurationOverride": {
+              "Identifier": null,
+              "Output": null
+            },
+            "TimeOffsetOverride": {
+              "Identifier": null,
+              "Output": null
+            },
+            "StartBoneMask": {
+              "Identifier": null,
+              "Output": null
+            },
+            "TargetSyncID": {
+              "Identifier": null,
+              "Output": null
+            },
+            "TransitionName": "Transition",
+            "Duration": 0.2,
+            "TimeMatch": "None",
+            "TimeOffset": 0,
+            "BlendWeightEasing": "Linear",
+            "RootMotionBlend": "Blend",
+            "ClampDurationToSource": false,
+            "CanBeForced": false,
+            "BoneMaskBlendInTimePercentage": 0.33,
+            "Identifier": "64a7f370-d516-4071-84e7-08b2b24d222a",
+            "Position": "400,0",
+            "HandleOffsets": {}
+          },
+          {
+            "_class": "GlobalTransitionNode",
+            "StateName": "Fire",
+            "Condition": {
+              "Identifier": null,
+              "Output": null
+            },
+            "DurationOverride": {
+              "Identifier": null,
+              "Output": null
+            },
+            "TimeOffsetOverride": {
+              "Identifier": null,
+              "Output": null
+            },
+            "StartBoneMask": {
+              "Identifier": null,
+              "Output": null
+            },
+            "TargetSyncID": {
+              "Identifier": null,
+              "Output": null
+            },
+            "TransitionName": "Transition",
+            "Duration": 0.2,
+            "TimeMatch": "None",
+            "TimeOffset": 0,
+            "BlendWeightEasing": "Linear",
+            "RootMotionBlend": "Blend",
+            "ClampDurationToSource": false,
+            "CanBeForced": false,
+            "BoneMaskBlendInTimePercentage": 0.33,
+            "Identifier": "0e094eb7-c4c2-4c00-9e94-fa71cda8ef7c",
+            "Position": "400,250",
+            "HandleOffsets": {}
+          }
+        ],
+        "Kind": "GlobalTransitions"
+      },
+      "EntryGraph": {
+        "Version": 1,
+        "nodes": [
+          {
+            "_class": "EntryStateOverrideConditionsNode",
+            "States": [
+              "Ready",
+              "Fire"
+            ],
+            "Conditions": [
+              {
+                "Identifier": null,
+                "Output": null
+              },
+              {
+                "Identifier": null,
+                "Output": null
+              }
+            ],
+            "Identifier": "0a3e4605-0d69-4d33-8f65-e808e6f4d2ee",
+            "Position": "400,0",
+            "HandleOffsets": {}
+          }
+        ],
+        "Kind": "EntryOverrides"
+      },
+      "DefaultState": "Ready",
+      "DefaultStateIndex": 0,
+      "Identifier": "f228f0c1-44bc-4249-94ce-046f4020dae9",
+      "Position": "0,1560",
+      "Title": "Shot",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "StateMachineLayerNode",
+      "StateMachine": {
+        "Identifier": "f228f0c1-44bc-4249-94ce-046f4020dae9",
+        "Output": "Result"
+      },
+      "BlendMode": "Additive",
+      "IsSynchronized": false,
+      "IgnoreEvents": false,
+      "Identifier": "667d5185-697d-4b3c-940e-005cc02b4a58",
+      "Position": "650,1560",
+      "Title": "Recoil",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "StateMachineNode",
+      "States": [
+        {
+          "Name": "Released",
+          "IsExitState": false,
+          "Type": "BlendTree",
+          "Events": [],
+          "TimedEvents": [],
+          "UseActualElapsedTimeInStateForTimedEvents": false,
+          "TransitionOrder": [],
+          "Position": "0,0",
+          "Graph": {
+            "Version": 1,
+            "nodes": [
+              {
+                "_class": "ZeroPoseNode",
+                "Identifier": "f02ae30d-f1bc-4809-8a5d-ceff28062084",
+                "Position": "0,0",
+                "HandleOffsets": {}
+              },
+              {
+                "_class": "PoseResultNode",
+                "Pose": {
+                  "Identifier": "f02ae30d-f1bc-4809-8a5d-ceff28062084",
+                  "Output": "Result"
+                },
+                "Identifier": "e4d4bd74-81cb-4ed5-8aef-dece04a43bc9",
+                "Position": "320,0",
+                "HandleOffsets": {}
+              }
+            ]
+          },
+          "LayerGraph": {
+            "Version": 1,
+            "nodes": [
+              {
+                "_class": "StateLayerDataNode",
+                "LayerWeight": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "RootMotionWeight": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "BoneMask": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "Identifier": "9000a2d7-a68a-461a-b81d-6b216005396f",
+                "Position": "400,0",
+                "HandleOffsets": {}
+              }
+            ],
+            "Kind": "LayerData"
+          }
+        },
+        {
+          "Name": "Press",
+          "IsExitState": false,
+          "Type": "BlendTree",
+          "Events": [],
+          "TimedEvents": [],
+          "UseActualElapsedTimeInStateForTimedEvents": false,
+          "TransitionOrder": [],
+          "Position": "300,0",
+          "Graph": {
+            "Version": 1,
+            "nodes": [
+              {
+                "_class": "BoolParameterNode",
+                "ParameterIdentifier": "d2a8c8a4-8cd0-45e4-a6ab-4c441100866b",
+                "ParameterName": "b_attack",
+                "Identifier": "59c03e7f-8af1-49c5-aad2-a8fa311ff179",
+                "Position": "0,0",
+                "HandleOffsets": {}
+              },
+              {
+                "_class": "AnimationClipNode",
+                "Loop": false,
+                "SampleRootMotion": false,
+                "GraphEvents": [],
+                "PlayInReverse": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "ResetTime": {
+                  "Identifier": "59c03e7f-8af1-49c5-aad2-a8fa311ff179",
+                  "Output": "Value"
+                },
+                "DefaultVariationData": {
+                  "AnimationName": {
+                    "Id": "e54344a3-bd0c-4f25-b5fa-d3640c58faf0",
+                    "Path": "weapons/toolgun/animations/trigger.anim"
+                  },
+                  "SpeedMultiplier": 1,
+                  "StartSyncEventOffset": 0
+                },
+                "Overrides": [],
+                "Identifier": "84e3fc6b-ace8-43a3-84d6-9c0a2492d5c1",
+                "Position": "320,0",
+                "HandleOffsets": {}
+              },
+              {
+                "_class": "PoseResultNode",
+                "Pose": {
+                  "Identifier": "84e3fc6b-ace8-43a3-84d6-9c0a2492d5c1",
+                  "Output": "Result"
+                },
+                "Identifier": "43577bb6-ae0a-4764-a769-48d3c14a68e9",
+                "Position": "320,0",
+                "HandleOffsets": {}
+              }
+            ]
+          },
+          "LayerGraph": {
+            "Version": 1,
+            "nodes": [
+              {
+                "_class": "StateLayerDataNode",
+                "LayerWeight": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "RootMotionWeight": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "BoneMask": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "Identifier": "ddebc285-15b0-4979-8e3f-32b262a28096",
+                "Position": "400,0",
+                "HandleOffsets": {}
+              }
+            ],
+            "Kind": "LayerData"
+          }
+        }
+      ],
+      "Conduits": [
+        {
+          "From": "Released",
+          "To": "Press",
+          "Graph": {
+            "Version": 1,
+            "nodes": [
+              {
+                "_class": "BoolParameterNode",
+                "ParameterIdentifier": "d2a8c8a4-8cd0-45e4-a6ab-4c441100866b",
+                "ParameterName": "b_attack",
+                "Identifier": "0f3be65b-175a-43ad-a256-b5f937b85dc9",
+                "Position": "0,0",
+                "HandleOffsets": {}
+              },
+              {
+                "_class": "TransitionNode",
+                "Condition": {
+                  "Identifier": "0f3be65b-175a-43ad-a256-b5f937b85dc9",
+                  "Output": "Value"
+                },
+                "DurationOverride": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "TimeOffsetOverride": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "StartBoneMask": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "TargetSyncID": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "TransitionName": "Released to Press",
+                "Duration": 0.015,
+                "TimeMatch": "None",
+                "TimeOffset": 0,
+                "BlendWeightEasing": "Linear",
+                "RootMotionBlend": "Blend",
+                "ClampDurationToSource": false,
+                "CanBeForced": true,
+                "BoneMaskBlendInTimePercentage": 0.33,
+                "Identifier": "09bccb2f-f850-46c9-ac00-3c5a31fb2edb",
+                "Position": "560,0",
+                "HandleOffsets": {}
+              }
+            ]
+          }
+        },
+        {
+          "From": "Press",
+          "To": "Released",
+          "Graph": {
+            "Version": 1,
+            "nodes": [
+              {
+                "_class": "StateCompletedConditionNode",
+                "AtClipEnd": false,
+                "Identifier": "71142c66-0701-4536-bf19-2bfd587c98f4",
+                "Position": "0,0",
+                "HandleOffsets": {}
+              },
+              {
+                "_class": "TransitionNode",
+                "Condition": {
+                  "Identifier": "71142c66-0701-4536-bf19-2bfd587c98f4",
+                  "Output": "Result"
+                },
+                "DurationOverride": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "TimeOffsetOverride": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "StartBoneMask": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "TargetSyncID": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "TransitionName": "Press to Released",
+                "Duration": 0.06,
+                "TimeMatch": "None",
+                "TimeOffset": 0,
+                "BlendWeightEasing": "Linear",
+                "RootMotionBlend": "Blend",
+                "ClampDurationToSource": false,
+                "CanBeForced": true,
+                "BoneMaskBlendInTimePercentage": 0.33,
+                "Identifier": "ce57dc80-2e3b-42f8-8dd8-390d7d63b55b",
+                "Position": "560,0",
+                "HandleOffsets": {}
+              }
+            ]
+          }
+        }
+      ],
+      "GlobalGraph": {
+        "Version": 1,
+        "nodes": [
+          {
+            "_class": "GlobalTransitionNode",
+            "StateName": "Released",
+            "Condition": {
+              "Identifier": null,
+              "Output": null
+            },
+            "DurationOverride": {
+              "Identifier": null,
+              "Output": null
+            },
+            "TimeOffsetOverride": {
+              "Identifier": null,
+              "Output": null
+            },
+            "StartBoneMask": {
+              "Identifier": null,
+              "Output": null
+            },
+            "TargetSyncID": {
+              "Identifier": null,
+              "Output": null
+            },
+            "TransitionName": "Transition",
+            "Duration": 0.2,
+            "TimeMatch": "None",
+            "TimeOffset": 0,
+            "BlendWeightEasing": "Linear",
+            "RootMotionBlend": "Blend",
+            "ClampDurationToSource": false,
+            "CanBeForced": false,
+            "BoneMaskBlendInTimePercentage": 0.33,
+            "Identifier": "f329d7fb-7770-41b8-b258-13587e451fd6",
+            "Position": "400,0",
+            "HandleOffsets": {}
+          },
+          {
+            "_class": "GlobalTransitionNode",
+            "StateName": "Press",
+            "Condition": {
+              "Identifier": null,
+              "Output": null
+            },
+            "DurationOverride": {
+              "Identifier": null,
+              "Output": null
+            },
+            "TimeOffsetOverride": {
+              "Identifier": null,
+              "Output": null
+            },
+            "StartBoneMask": {
+              "Identifier": null,
+              "Output": null
+            },
+            "TargetSyncID": {
+              "Identifier": null,
+              "Output": null
+            },
+            "TransitionName": "Transition",
+            "Duration": 0.2,
+            "TimeMatch": "None",
+            "TimeOffset": 0,
+            "BlendWeightEasing": "Linear",
+            "RootMotionBlend": "Blend",
+            "ClampDurationToSource": false,
+            "CanBeForced": false,
+            "BoneMaskBlendInTimePercentage": 0.33,
+            "Identifier": "583e3785-fc82-48a5-8089-8d83e3b7dc97",
+            "Position": "400,250",
+            "HandleOffsets": {}
+          }
+        ],
+        "Kind": "GlobalTransitions"
+      },
+      "EntryGraph": {
+        "Version": 1,
+        "nodes": [
+          {
+            "_class": "EntryStateOverrideConditionsNode",
+            "States": [
+              "Released",
+              "Press"
+            ],
+            "Conditions": [
+              {
+                "Identifier": null,
+                "Output": null
+              },
+              {
+                "Identifier": null,
+                "Output": null
+              }
+            ],
+            "Identifier": "9004567c-6bc8-43ba-852d-a973a60b4099",
+            "Position": "400,0",
+            "HandleOffsets": {}
+          }
+        ],
+        "Kind": "EntryOverrides"
+      },
+      "DefaultState": "Released",
+      "DefaultStateIndex": 0,
+      "Identifier": "c4da6993-700b-420e-991d-cbea2f8c0594",
+      "Position": "0,1950",
+      "Title": "Trigger",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "StateMachineLayerNode",
+      "StateMachine": {
+        "Identifier": "c4da6993-700b-420e-991d-cbea2f8c0594",
+        "Output": "Result"
+      },
+      "BlendMode": "Additive",
+      "IsSynchronized": false,
+      "IgnoreEvents": false,
+      "Identifier": "34ed8b53-27a8-43b6-a320-86b94ac4aab2",
+      "Position": "650,1950",
+      "Title": "Trigger",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "LayerBlendNode",
+      "Base": {
+        "Identifier": "701f1554-4d84-4317-a914-24a81dce9b52",
+        "Output": "Result"
+      },
+      "Layers": [
+        {
+          "Identifier": "e2e535e2-0de3-42e8-bad6-9553192bf42a",
+          "Output": "Layer"
+        },
+        {
+          "Identifier": "03cb626a-e368-4a14-b136-de3d0a1fbca0",
+          "Output": "Layer"
+        },
+        {
+          "Identifier": "05c74f99-c733-4538-9002-7ececb35e253",
+          "Output": "Layer"
+        },
+        {
+          "Identifier": "218ece1f-9620-4c23-9de5-02d2b1480cee",
+          "Output": "Layer"
+        },
+        {
+          "Identifier": "667d5185-697d-4b3c-940e-005cc02b4a58",
+          "Output": "Layer"
+        },
+        {
+          "Identifier": "34ed8b53-27a8-43b6-a320-86b94ac4aab2",
+          "Output": "Layer"
+        }
+      ],
+      "OnlySampleBaseRootMotion": true,
+      "Identifier": "e1f7c602-1aef-4fdf-9c77-e116965bbbbb",
+      "Position": "1000,0",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "ConstBoneTargetNode",
+      "Bone": "hand_R_to_weapon_ikrule",
+      "Identifier": "6fea941d-c7a3-410b-aef6-7a7ba318ce5d",
+      "Position": "1020,160",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "TwoBoneIKNode",
+      "Input": {
+        "Identifier": "e1f7c602-1aef-4fdf-9c77-e116965bbbbb",
+        "Output": "Result"
+      },
+      "EffectorTarget": {
+        "Identifier": "6fea941d-c7a3-410b-aef6-7a7ba318ce5d",
+        "Output": "Target"
+      },
+      "PoleTarget": {
+        "Identifier": null,
+        "Output": null
+      },
+      "Enable": {
+        "Identifier": null,
+        "Output": null
+      },
+      "Weight": {
+        "Identifier": null,
+        "Output": null
+      },
+      "BlendMode": "Effector",
+      "IsTargetInWorldSpace": false,
+      "SwivelMode": "Parent",
+      "SwivelOffset": 0,
+      "ReferencePoseTwistWeight": 0,
+      "DefaultVariationData": {
+        "EffectorBone": "hand_R",
+        "BlendTime": 0
+      },
+      "Overrides": [],
+      "Identifier": "b2497621-a92f-4cb1-963c-cba4fce4b004",
+      "Position": "1340,0",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "ConstBoneTargetNode",
+      "Bone": "hand_L_to_weapon_ikrule",
+      "Identifier": "4fb81e83-3423-4468-80c7-1059fa2c51f9",
+      "Position": "1340,160",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "TwoBoneIKNode",
+      "Input": {
+        "Identifier": "b2497621-a92f-4cb1-963c-cba4fce4b004",
+        "Output": "Result"
+      },
+      "EffectorTarget": {
+        "Identifier": "4fb81e83-3423-4468-80c7-1059fa2c51f9",
+        "Output": "Target"
+      },
+      "PoleTarget": {
+        "Identifier": null,
+        "Output": null
+      },
+      "Enable": {
+        "Identifier": null,
+        "Output": null
+      },
+      "Weight": {
+        "Identifier": null,
+        "Output": null
+      },
+      "BlendMode": "Effector",
+      "IsTargetInWorldSpace": false,
+      "SwivelMode": "Parent",
+      "SwivelOffset": 0,
+      "ReferencePoseTwistWeight": 0,
+      "DefaultVariationData": {
+        "EffectorBone": "hand_L",
+        "BlendTime": 0
+      },
+      "Overrides": [],
+      "Identifier": "ea9ef1b4-88fd-45fb-9944-6f331dbdc7c1",
+      "Position": "1660,0",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "AnimationClipNode",
+      "Loop": false,
+      "SampleRootMotion": false,
+      "GraphEvents": [],
+      "PlayInReverse": {
+        "Identifier": null,
+        "Output": null
+      },
+      "ResetTime": {
+        "Identifier": null,
+        "Output": null
+      },
+      "DefaultVariationData": {
+        "AnimationName": {
+          "Id": "fb97f667-33db-4611-9c10-92b6ff8b77b3",
+          "Path": "weapons/toolgun/animations/deploy.anim"
+        },
+        "SpeedMultiplier": 1,
+        "StartSyncEventOffset": 0
+      },
+      "Overrides": [],
+      "Identifier": "36e54210-63fc-444f-b843-baf0236020f5",
+      "Position": "0,165",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "LocalLayerNode",
+      "Input": {
+        "Identifier": "36e54210-63fc-444f-b843-baf0236020f5",
+        "Output": "Result"
+      },
+      "Weight": {
+        "Identifier": null,
+        "Output": null
+      },
+      "RootMotionWeight": {
+        "Identifier": null,
+        "Output": null
+      },
+      "BoneMask": {
+        "Identifier": null,
+        "Output": null
+      },
+      "BlendMode": "Additive",
+      "IsSynchronized": false,
+      "IgnoreEvents": false,
+      "Identifier": "e2e535e2-0de3-42e8-bad6-9553192bf42a",
+      "Position": "650,165",
+      "Title": "Deploy",
+      "HandleOffsets": {}
+    }
+  ],
+  "Model": {
+    "Id": "0f26ebe8-00fc-0000-be00-000000000000",
+    "Path": "weapons/toolgun/v_toolgun.vmdl"
+  },
+  "Skeleton": {
+    "Id": "8ddeabb7-c066-4c3b-8699-f242b7d59ab6",
+    "Path": "weapons/toolgun/animations/toolgun.skel"
+  },
+  "parameters": [
+    {
+      "Identifier": "d2a8c8a4-8cd0-45e4-a6ab-4c441100866b",
+      "Type": "Bool",
+      "Name": "b_attack",
+      "Group": "",
+      "RuntimeDefaultFloat": 0,
+      "RuntimeDefaultBool": false,
+      "RuntimeDefaultID": "",
+      "RuntimeDefaultVector": "0,0,0",
+      "DefaultFloat": 0,
+      "Min": 0,
+      "Max": 1,
+      "DefaultBool": false,
+      "DefaultID": "",
+      "EnumTypeName": "",
+      "ExpectedValues": [],
+      "ResolvedOptions": [],
+      "DefaultVector": "0,0,0",
+      "PreviewStartTargetIsSet": false,
+      "PreviewStartTargetIsBone": false,
+      "PreviewStartBone": ""
+    },
+    {
+      "Identifier": "c788caa7-f6c0-400e-a15a-f084c44a3984",
+      "Type": "Bool",
+      "Name": "b_joystick",
+      "Group": "",
+      "RuntimeDefaultFloat": 0,
+      "RuntimeDefaultBool": false,
+      "RuntimeDefaultID": "",
+      "RuntimeDefaultVector": "0,0,0",
+      "DefaultFloat": 0,
+      "Min": 0,
+      "Max": 1,
+      "DefaultBool": false,
+      "DefaultID": "",
+      "EnumTypeName": "",
+      "ExpectedValues": [],
+      "ResolvedOptions": [],
+      "DefaultVector": "0,0,0",
+      "PreviewStartTargetIsSet": false,
+      "PreviewStartTargetIsBone": false,
+      "PreviewStartBone": ""
+    },
+    {
+      "Identifier": "6ae92c7f-cdc9-4f83-80d7-0ea7ed3fe42d",
+      "Type": "Float",
+      "Name": "joystick_x",
+      "Group": "",
+      "RuntimeDefaultFloat": 0,
+      "RuntimeDefaultBool": false,
+      "RuntimeDefaultID": "",
+      "RuntimeDefaultVector": "0,0,0",
+      "DefaultFloat": 0,
+      "Min": -1,
+      "Max": 1,
+      "DefaultBool": false,
+      "DefaultID": "",
+      "EnumTypeName": "",
+      "ExpectedValues": [],
+      "ResolvedOptions": [],
+      "DefaultVector": "0,0,0",
+      "PreviewStartTargetIsSet": false,
+      "PreviewStartTargetIsBone": false,
+      "PreviewStartBone": ""
+    },
+    {
+      "Identifier": "56280616-ebc5-4ed0-a581-cf78883f31ce",
+      "Type": "Float",
+      "Name": "joystick_y",
+      "Group": "",
+      "RuntimeDefaultFloat": 0,
+      "RuntimeDefaultBool": false,
+      "RuntimeDefaultID": "",
+      "RuntimeDefaultVector": "0,0,0",
+      "DefaultFloat": 0,
+      "Min": -1,
+      "Max": 1,
+      "DefaultBool": false,
+      "DefaultID": "",
+      "EnumTypeName": "",
+      "ExpectedValues": [],
+      "ResolvedOptions": [],
+      "DefaultVector": "0,0,0",
+      "PreviewStartTargetIsSet": false,
+      "PreviewStartTargetIsBone": false,
+      "PreviewStartBone": ""
+    },
+    {
+      "Identifier": "00714d0f-0bd5-4ad1-acbc-357f6e66f4b5",
+      "Type": "Bool",
+      "Name": "selector_down",
+      "Group": "",
+      "RuntimeDefaultFloat": 0,
+      "RuntimeDefaultBool": false,
+      "RuntimeDefaultID": "",
+      "RuntimeDefaultVector": "0,0,0",
+      "DefaultFloat": 0,
+      "Min": 0,
+      "Max": 1,
+      "DefaultBool": false,
+      "DefaultID": "",
+      "EnumTypeName": "",
+      "ExpectedValues": [],
+      "ResolvedOptions": [],
+      "DefaultVector": "0,0,0",
+      "PreviewStartTargetIsSet": false,
+      "PreviewStartTargetIsBone": false,
+      "PreviewStartBone": ""
+    }
+  ],
+  "virtualParameters": []
+}

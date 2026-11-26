@@ -326,9 +326,16 @@ internal static class Description
 		node = AppendDescriptionAttribute( node, null, memberDoc.Summary, symbol, master );
 	}
 
+	/// <summary>
+	/// Script files are compiled by Breen, which accepts no attributes on enums or their members
+	/// and passes their summaries to the engine itself.
+	/// </summary>
+	private static bool IsScriptFile( SyntaxTree tree ) => tree?.FilePath?.EndsWith( ".csx", StringComparison.OrdinalIgnoreCase ) == true;
+
 	internal static void VisitEnumMember( ref EnumMemberDeclarationSyntax node, IFieldSymbol symbol, Worker master )
 	{
 		if ( !master.IsFullGeneration ) return;
+		if ( IsScriptFile( symbol?.DeclaringSyntaxReferences.FirstOrDefault()?.SyntaxTree ) ) return;
 
 		var memberDoc = MemberDocumentation.FromSymbol( symbol, master );
 		node = AppendDescriptionAttribute( node, null, memberDoc.Summary, symbol, master );
@@ -374,6 +381,7 @@ internal static class Description
 		where T : MemberDeclarationSyntax
 	{
 		if ( !master.IsFullGeneration ) return;
+		if ( original is EnumDeclarationSyntax && IsScriptFile( original.SyntaxTree ) ) return;
 
 		// All parts share the symbol's documentation. Emit once, on its first declaration,
 		// regardless of which file contains the summary or which worker runs first.
@@ -407,8 +415,13 @@ internal static class Description
 	{
 		if ( string.IsNullOrEmpty( description ) ) return node;
 
-		if ( symbol.GetAttribute( "DescriptionAttribute" ) != null )
+		if ( symbol.GetAttribute( "DescriptionAttribute" ) is { } existing )
 		{
+			// Localized UI descriptions have a phrase key alongside the source documentation.
+			if ( existing.ConstructorArguments.FirstOrDefault() is { Kind: TypedConstantKind.Primitive, Value: string value }
+				&& value.StartsWith( "#", StringComparison.Ordinal ) )
+				return node;
+
 			master.AddError( node.GetLocation(), new DiagnosticDescriptor( "SB2000", "Unneeded [Description]", $"Why are you using [Description] here? We'll automatically add one using the comment above.", "generator", DiagnosticSeverity.Warning, true ) );
 			return node;
 		}

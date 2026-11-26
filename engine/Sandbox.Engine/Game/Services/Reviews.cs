@@ -5,6 +5,7 @@ namespace Sandbox.Services;
 /// <summary>
 /// Package Reviews
 /// </summary>
+[Obsolete( "Written package reviews are no longer supported." )]
 public sealed class Review
 {
 	[Expose]
@@ -83,23 +84,12 @@ public sealed class Review
 	public NegativeTags Negatives { get; private set; }
 	public PositiveTags Positives { get; private set; }
 
-	public static async Task<Review[]> Fetch( string packageIdent, int take = 50, int skip = 0 )
-	{
-		take = take.Clamp( 1, 50 );
-		skip = skip.Clamp( 0, 5000 );
-
-		try
-		{
-			var posts = await Sandbox.Backend.Package.GetReviews( packageIdent, skip, take );
-			if ( posts is null || posts.Entries == null ) return Array.Empty<Review>();
-
-			return posts.Entries.Select( From ).ToArray();
-		}
-		catch
-		{
-			return default;
-		}
-	}
+	/// <summary>
+	/// Returns an empty array for legacy callers.
+	/// </summary>
+	[Obsolete( "Written package reviews are no longer supported." )]
+	public static Task<Review[]> Fetch( string packageIdent, int take = 50, int skip = 0 )
+		=> Task.FromResult( Array.Empty<Review>() );
 
 	public class ReviewPage
 	{
@@ -112,72 +102,19 @@ public sealed class Review
 		{
 			Posts = [];
 		}
-
-		internal ReviewPage( PackageReviewList posts )
-		{
-			Count = posts.Count;
-			Skip = posts.Skip;
-			Take = posts.Take;
-			Posts = posts.Entries.Select( From ).ToArray();
-		}
 	}
 
-	public static async Task<ReviewPage> FetchEx( string packageIdent, int take, int skip, ReviewScore? score = default, PositiveTags? positive = default, NegativeTags? negatives = default )
-	{
-		take = take.Clamp( 1, 50 );
-		skip = skip.Clamp( 0, 5000 );
+	/// <summary>
+	/// Returns an empty page for legacy callers.
+	/// </summary>
+	[Obsolete( "Written package reviews are no longer supported." )]
+	public static Task<ReviewPage> FetchEx( string packageIdent, int take, int skip, ReviewScore? score = default, PositiveTags? positive = default, NegativeTags? negatives = default )
+		=> Task.FromResult( new ReviewPage() );
 
-		try
-		{
-			var iScore = score.HasValue ? (int)score.Value : 0;
-			int iPositive = positive.HasValue ? (int)positive.Value : 0;
-			int iNegative = negatives.HasValue ? (int)negatives.Value : 0;
-
-			var posts = await Sandbox.Backend.Package.GetReviews( packageIdent, skip, take, iScore, iPositive, iNegative );
-			if ( posts is null || posts.Entries == null ) return new ReviewPage();
-
-			return new ReviewPage( posts );
-		}
-		catch
-		{
-			return default;
-		}
-	}
-
-	public static async Task<Review> Get( string packageIdent, SteamId steamid )
-	{
-		try
-		{
-			return From( await Sandbox.Backend.Package.GetReview( packageIdent, steamid ) );
-		}
-		catch
-		{
-			return default;
-		}
-	}
-
-	internal static async Task Post( string packageIdent, ReviewScore score, string content, PositiveTags positives = 0, NegativeTags negatives = 0 )
-	{
-		try
-		{
-			await Sandbox.Backend.Package.PostReview( packageIdent, content, (int)score, (int)positives, (int)negatives );
-		}
-		catch { }
-	}
-
-	internal static Review From( Sandbox.Services.PackageReviewDto p )
-	{
-		if ( p is null ) return default;
-
-		return new Review
-		{
-			Player = Sandbox.Services.Players.Profile.From( p.Player ),
-			Content = p.Content,
-			Score = (ReviewScore)p.Score,
-			PlayTime = TimeSpan.FromSeconds( p.SecondsPlayed ),
-			Updated = p.Updated,
-			Negatives = (NegativeTags)p.Negatives,
-			Positives = (PositiveTags)p.Positives
-		};
-	}
+	/// <summary>
+	/// Returns null for a legacy lookup of a player's review.
+	/// </summary>
+	[Obsolete( "Written package reviews are no longer supported." )]
+	public static Task<Review> Get( string packageIdent, SteamId steamid )
+		=> Task.FromResult<Review>( null );
 }

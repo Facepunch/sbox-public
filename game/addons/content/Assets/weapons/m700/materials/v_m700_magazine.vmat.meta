@@ -1,0 +1,28 @@
+{
+  "guid": "9f3c27c3-b300-47db-8caf-5816067fca5f",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "V M 700 Magazine",
+      "Type": "material",
+      "Org": "local",
+      "Ident": "v_m700_magazine",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [
+        "jase.carddebris_a_02#12112"
+      ],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "weapons/m700/materials/v_m700_magazine.vmat"
+      }
+    }
+  }
+}

@@ -36,7 +36,13 @@ menupanel
 
         .option .icon
         {
-            font-family: "Material Icons";
+            font-family: "Material Symbols Outlined";
+            font-variation-settings: $menu-icon-filled;
+
+            &.star_border, &.add_circle_outline, &.remove_circle_outline
+            {
+                font-variation-settings: $menu-icon-outlined;
+            }
         }
     }
 }

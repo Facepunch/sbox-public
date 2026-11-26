@@ -1,0 +1,5 @@
+{
+    "hint.openspawnmenu": "Podržte {input:SpawnMenu} pro otevření nabídky vytváření",
+    "hint.openinspectmenu": "Podržte {input:InspectMenu} pro otevření nabídky prohlížení",
+    "hint.openpausemenu": "Stiskněte ESC pro otevření nabídky pauzy a zobrazení ovládání"
+}

@@ -10,7 +10,7 @@ public partial class Bitmap
 	/// </summary>
 	public static Bitmap CreateFromSvgString( string svgContents, int? width, int? height, Vector2? scale = default, Vector2? offset = default, float? rotation = default )
 	{
-		var svgDocument = Svg.SvgDocument.FromSvg<Svg.SvgDocument>( svgContents.Trim() );
+		var svgDocument = SvgSanitizer.Parse( svgContents );
 
 		int nativeWidth = svgDocument.Width.Value.FloorToInt();
 		int nativeHeight = svgDocument.Height.Value.FloorToInt();

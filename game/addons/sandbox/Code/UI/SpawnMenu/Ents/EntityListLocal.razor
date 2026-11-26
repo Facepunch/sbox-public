@@ -1,0 +1,86 @@
+﻿@using Sandbox;
+@using Sandbox.UI;
+@inherits Panel
+@namespace Sandbox
+
+<SpawnMenuContent>
+    <Header>
+        <SpawnMenuToolbar>
+            <Left><SpawnMenuSearchEntry Value:bind=@Filter /></Left>
+        </SpawnMenuToolbar>
+    </Header>
+    <Body>
+        @if ( Entities.Count == 0 )
+        {
+            <SpawnMenuEmptyState Icon="search_off" Title="#spawnmenu.entity.no_results" Subtitle="#spawnmenu.empty.try_another_category" />
+        }
+        else
+        {
+            <VirtualGrid @key=IconSize Items=@Entities ItemSize=@IconSize.ItemSize() class=@($"{IconSize.CssClass()} labeled-grid")>
+                <Item Context="item">
+                    @if ( item is ScriptedEntity entry )
+                    {
+                        <SpawnMenuIcon Ident=@($"entity:{entry.ResourcePath}") Title=@entry.Title Developer=@entry.Developer HideText=@(IconSize == SpawnMenuIconSize.Small) Tooltip=@(IconSize == SpawnMenuIconSize.Small ? entry.Title : "") />
+                    }
+                </Item>
+            </VirtualGrid>
+        }
+    </Body>
+</SpawnMenuContent>
+
+@code
+{
+    /// <summary>
+    /// The category to list, or null for all categories.
+    /// </summary>
+    public string Category { get; set; }
+
+    /// <summary>
+    /// Include nested categories when filtering by category.
+    /// </summary>
+    public bool IncludeSubcategories { get; set; } = true;
+
+    /// <summary>
+    /// Only show entities this accepts, on top of <see cref="Category"/>.
+    /// </summary>
+    public Func<ScriptedEntity, bool> Where { get; set; }
+
+    List<ScriptedEntity> Entities = [];
+
+    SpawnMenuIconSize IconSize => SpawnMenuIconSizeExtensions.Current;
+
+    string Filter
+    {
+        get;
+        set { field = value; Rebuild(); }
+    }
+
+    protected override int BuildHash() => HashCode.Combine( Entities, IconSize );
+
+    protected override void OnParametersSet() => Rebuild();
+
+    /// <inheritdoc/>
+    public override void LanguageChanged()
+    {
+        base.LanguageChanged();
+        Rebuild();
+    }
+
+    void Rebuild()
+    {
+        var all = ResourceLibrary.GetAll<ScriptedEntity>()
+            .Where( e => !e.IsRemote && e.IsMountAvailable && ( !e.Developer || ServerSettings.ShowDeveloperEntities ) );
+
+        if ( Category is not null )
+            all = all.Where( e => SpawnMenuCategory.Matches( e.Category, Category, IncludeSubcategories ) );
+
+        if ( Where is not null )
+            all = all.Where( Where );
+
+        if ( !string.IsNullOrWhiteSpace( Filter ) )
+            all = all.Where( e => (LocalizedText.Resolve( e.Title ) ?? "").Contains( Filter, StringComparison.CurrentCultureIgnoreCase )
+                || e.ResourcePath.Contains( Filter, StringComparison.OrdinalIgnoreCase ) );
+
+        Entities = all.OrderBy( e => LocalizedText.Resolve( e.Title ), StringComparer.CurrentCultureIgnoreCase ).ToList();
+    }
+}

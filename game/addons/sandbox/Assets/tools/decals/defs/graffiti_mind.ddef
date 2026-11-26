@@ -1,0 +1,9 @@
+{
+  "Decal": {
+    "Id": "0b88d923-1784-4b6b-9653-51513a11a981",
+    "Path": "decals/graffiti/graffiti_mind.decal"
+  },
+  "Title": "#asset.decal.mind.title",
+  "__references": [],
+  "__version": 0
+}

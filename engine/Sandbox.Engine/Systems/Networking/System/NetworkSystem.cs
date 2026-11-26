@@ -122,9 +122,8 @@ internal partial class NetworkSystem
 		if ( !Networking.IsHost )
 			return;
 
-		var command = ConVarSystem.Find( msg.Command );
-		if ( command is null ) return;
-		if ( !command.IsUserInfo ) return;
+		if ( !Sandbox.Network.ConnectionInfo.IsValidUserData( msg.Command, msg.Value ) )
+			return;
 
 		source.SetUserData( msg.Command, msg.Value );
 	}
@@ -308,6 +307,8 @@ internal partial class NetworkSystem
 
 		TickHostMigration();
 
+		TickHostTimeout();
+
 		if ( timeSinceTick >= 1f )
 		{
 			timeSinceTick = 0f;
@@ -423,17 +424,18 @@ internal partial class NetworkSystem
 			return;
 
 		// Conna: if we're a dedicated server, we don't "join" the game.
-		if ( Application.IsDedicatedServer )
-			return;
+		// And when we're taking over a scene we already have a player in it.
+		if ( !Application.IsDedicatedServer && !_isBecomingHost )
+		{
+			//
+			// Trigger local join events, so that the new scene can do stuff like spawn a player prefab etc.
+			//
+			GameSystem?.OnJoined( Connection.Local );
+		}
 
-		// We already have a player in the scene we're taking over
-		if ( _isBecomingHost )
-			return;
-
-		//
-		// Trigger local join events, so that the new scene can do stuff like spawn a player prefab etc.
-		//
-		GameSystem?.OnJoined( Connection.Local );
+		// Clients are already waiting for a new host's snapshot
+		if ( !_isBecomingHost )
+			(GameSystem as SceneNetworkSystem)?.WarmSnapshot();
 	}
 }
 

@@ -84,9 +84,14 @@ public partial class BaseInventoryComponent
 			Switch( best );
 	}
 
+	// Every fixed update for every player, so the result set is reused
+	readonly HashSet<GameObject> _sweepResults = new();
+
 	void PickupSweep()
 	{
-		foreach ( var go in Scene.FindInPhysics( new Sphere( WorldPosition, PickupRadius ) ) )
+		_sweepResults.Clear();
+		Scene.FindInPhysics( new Sphere( WorldPosition, PickupRadius ), _sweepResults );
+		foreach ( var go in _sweepResults )
 		{
 			// The hit is the collider's object, which can be a child of the item.
 			if ( go.GetComponentInParent<BaseInventoryItem>() is not { } item )

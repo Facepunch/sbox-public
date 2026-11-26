@@ -14,7 +14,7 @@
     "ProjectTemplate": {
       "Icon": "toys",
       "Order": 2000,
-      "Description": "Create a custom entity for Sandbox Game"
+      "Description": "Create entities, spawnlists, npcs, effects and other stuff for Sandbox Mode"
     },
     "StartupScene": "scenes/testing_scene.scene",
     "ParentPackage": "facepunch.sandbox"

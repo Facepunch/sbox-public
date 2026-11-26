@@ -183,16 +183,18 @@ public static partial class Input
 	{
 		if ( Application.IsHeadless ) return name;
 
-		var action = InputActions?
-			.FirstOrDefault( x => string.Equals( x.Name, name, StringComparison.OrdinalIgnoreCase ) );
+		if ( string.IsNullOrWhiteSpace( name ) ) return null;
 
-		if ( action is null )
+		// HUDs ask every frame: warn once per missing action, like Down/Pressed
+		var index = GetActionIndex( name );
+		if ( index == -1 )
 		{
-			Log.Warning( $"Couldn't find Input Action called \"{name}\"" );
+			if ( MissingActions.Add( name ) )
+				Log.Warning( $"Couldn't find Input Action called \"{name}\"" );
 			return null;
 		}
 
-		return GetButtonOrigin( action, ignoreController );
+		return GetButtonOrigin( InputActions[index], ignoreController );
 	}
 
 	/// <summary>

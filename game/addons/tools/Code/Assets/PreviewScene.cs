@@ -3,12 +3,9 @@
 [AssetPreview( "scene" )]
 class PreviewScene : AssetPreview
 {
-	public override bool IsAnimatedPreview => true;
 	public override float PreviewWidgetCycleSpeed => 0.2f;
 
 	public override bool UsePixelEvaluatorForThumbs => true;
-
-	public override float VideoLength => 6.0f;
 
 	Rotation baseRotation;
 
@@ -95,16 +92,8 @@ class PreviewScene : AssetPreview
 
 		using ( Scene.Push() )
 		{
-			if ( IsRenderingVideo )
-			{
-				Camera.WorldPosition = SceneCenter + baseRotation.Right * (cycle).Remap( 0, 1, -1, 1 ) * 100;
-				Camera.WorldRotation = baseRotation;
-			}
-			else
-			{
-				Camera.WorldPosition = SceneCenter + baseRotation.Right * MathF.Sin( cycle * 2.0f ) * 100;
-				Camera.WorldRotation = baseRotation;
-			}
+			Camera.WorldPosition = SceneCenter + baseRotation.Right * MathF.Sin( cycle * 2.0f ) * 100;
+			Camera.WorldRotation = baseRotation;
 		}
 
 		base.UpdateScene( cycle, timeStep );

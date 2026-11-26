@@ -1,0 +1,9 @@
+{
+  "Prefab": "entities/sents/tv/tv.prefab",
+  "Title": "#asset.tv.title",
+  "Description": "#asset.tv.description",
+  "Category": "World",
+  "IncludeCode": false,
+  "__references": [],
+  "__version": 0
+}

@@ -3,7 +3,7 @@ namespace Sandbox;
 /// <summary>
 /// Non-destructive cable data + mesh generation.
 /// </summary>
-[Hide]
+[Hide, StripOnSceneCompile]
 [Title( "Cable Component" ), Icon( "cable" )]
 public sealed class CableComponent : Component, Component.ExecuteInEditor
 {
@@ -241,7 +241,7 @@ public sealed class CableComponent : Component, Component.ExecuteInEditor
 			var world = LocalToWorld( local );
 			var size = 3.0f * Gizmo.Camera.Position.Distance( world ) / 1000.0f;
 
-			using ( Gizmo.Scope( $"cable-point-select-{i}" ) )
+			using ( Gizmo.PushScope( $"cable-point-select-{i}" ) )
 			{
 				Gizmo.Object = nodeData[i].NodeObject;
 				Gizmo.Hitbox.DepthBias = 0.01f;
@@ -271,7 +271,7 @@ public sealed class CableComponent : Component, Component.ExecuteInEditor
 
 	bool IsCableOrNodeSelected( IReadOnlyList<CablePathSample> nodeData )
 	{
-		using ( Gizmo.ObjectScope( GameObject, new Transform( 0 ) ) )
+		using ( Gizmo.PushObjectScope( GameObject, new Transform( 0 ) ) )
 		{
 			if ( Gizmo.IsSelected )
 				return true;
@@ -283,7 +283,7 @@ public sealed class CableComponent : Component, Component.ExecuteInEditor
 			if ( !nodeObject.IsValid() )
 				continue;
 
-			using ( Gizmo.ObjectScope( nodeObject, new Transform( 0 ) ) )
+			using ( Gizmo.PushObjectScope( nodeObject, new Transform( 0 ) ) )
 			{
 				if ( Gizmo.IsSelected )
 					return true;

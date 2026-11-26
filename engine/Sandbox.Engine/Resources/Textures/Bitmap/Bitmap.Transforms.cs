@@ -25,7 +25,7 @@ public partial class Bitmap
 			canvas.Translate( rw / 2f, rh / 2f );
 			canvas.RotateDegrees( degrees );
 			canvas.Translate( -Width / 2f, -Height / 2f );
-			canvas.DrawBitmap( _bitmap, 0, 0 );
+			canvas.DrawBitmap( _bitmap, 0, 0, SKSamplingOptions.Default );
 		}
 
 		return new Bitmap( newBitmap );
@@ -63,7 +63,7 @@ public partial class Bitmap
 		{
 			canvas.Scale( 1, -1 ); // Flip vertically
 			canvas.Translate( 0, -_bitmap.Height ); // Adjust position
-			canvas.DrawBitmap( _bitmap, 0, 0 );
+			canvas.DrawBitmap( _bitmap, 0, 0, SKSamplingOptions.Default );
 		}
 
 		return new Bitmap( newBitmap );
@@ -81,7 +81,7 @@ public partial class Bitmap
 		{
 			canvas.Scale( -1, 1 ); // Flip horizontally
 			canvas.Translate( -_bitmap.Width, 0 ); // Adjust position
-			canvas.DrawBitmap( _bitmap, 0, 0 );
+			canvas.DrawBitmap( _bitmap, 0, 0, SKSamplingOptions.Default );
 		}
 
 		return new Bitmap( newBitmap );
@@ -100,7 +100,7 @@ public partial class Bitmap
 		{
 			var sourceRect = rect.ToSk();
 			var destRect = new SKRect( 0, 0, rect.Width, rect.Height );
-			canvas.DrawBitmap( _bitmap, sourceRect, destRect );
+			canvas.DrawBitmap( _bitmap, sourceRect, destRect, SKSamplingOptions.Default );
 		}
 
 		return new Bitmap( newBitmap );

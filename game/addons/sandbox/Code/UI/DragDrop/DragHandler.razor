@@ -1,0 +1,101 @@
+﻿@using Sandbox;
+@using Sandbox.UI;
+@inherits PanelComponent
+@namespace Sandbox
+
+<root>
+
+	@if ( Current is not null )
+	{
+		var mouse = Mouse.Position;
+		var left = mouse.x * Panel.ScaleFromScreen - 32;
+		var top = mouse.y * Panel.ScaleFromScreen - 32;
+		<div class="dragging" style="left: @(left)px; top: @(top)px;" @ref="DragVisual">
+			@if ( string.IsNullOrEmpty( Current.Icon ) )
+			{
+				<div class="drag-title">@Current.Title</div>
+			}
+			else
+			{
+				<div class="thumb" style="background-image: url( @Current.Icon )"></div>
+			}
+		</div>
+	}
+
+</root>
+
+@code
+{
+    public static DragHandler Instance { get; private set; }
+
+    /// <summary>
+    /// The data currently being dragged, or null.
+    /// </summary>
+    public static DragData Current { get; private set; }
+
+    /// <summary>
+    /// True if something is actively being dragged.
+    /// </summary>
+    public static bool IsDragging => Current is not null;
+
+    Panel DragVisual { get; set; }
+    private RootPanel _rootPanel;
+
+    protected override void OnStart()
+    {
+        Instance = this;
+    }
+
+    protected override void OnDestroy()
+    {
+        if ( Instance == this )
+            Instance = null;
+    }
+
+    /// <summary>
+    /// Start dragging with the given data.
+    /// </summary>
+    public static void StartDragging( DragData data )
+    {
+        Current = data;
+        data.Source.UserData = data;
+
+        Instance?.StateHasChanged();
+    }
+
+    /// <summary>
+    /// Stop dragging and clear all state.
+    /// </summary>
+    public static void StopDragging()
+    {
+        if (!IsDragging) return;
+
+        Current = null;
+        Instance?.StateHasChanged();
+    }
+
+    protected override void OnUpdate()
+    {
+        if ( !IsDragging ) return;
+
+        if ( !_rootPanel.WantsMouseInput() )
+        {
+            StopDragging();
+            return;
+        }
+
+        if ( DragVisual is not null )
+        {
+            var mouse = Mouse.Position;
+            DragVisual.Style.Left = Length.Pixels( mouse.x * Panel.ScaleFromScreen - 32 );
+            DragVisual.Style.Top = Length.Pixels( mouse.y * Panel.ScaleFromScreen - 32 );
+        }
+    }
+
+    protected override void OnTreeBuilt()
+    {
+        _rootPanel = Panel.FindRootPanel();
+    }
+
+	protected override int BuildHash() => HashCode.Combine( Current );
+}

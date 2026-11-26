@@ -1,0 +1,21 @@
+{
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "M Pipe Valve Leversmall",
+      "Type": "model",
+      "Org": "facepunch",
+      "Ident": "mpipevalveleversmall",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "IsWhitelistDisabled": false,
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/industrial/modular_pipe_kit/m_pipe_valve_leversmall.vmdl"
+      }
+    }
+  },
+  "guid": "041378e0-f847-42f3-84d6-0fae05794b5d"
+}

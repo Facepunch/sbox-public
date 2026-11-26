@@ -1,0 +1,28 @@
+{
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "Floor Drain a",
+      "Type": "material",
+      "Org": "facepunch",
+      "Ident": "floor_drain_a",
+      "Tags": null,
+      "Schema": 0,
+      "HasAssets": false,
+      "AssetsPath": null,
+      "Resources": null,
+      "MenuResources": null,
+      "HasCode": false,
+      "CodePath": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "Metadata": {
+        "SingleAssetSource": "materials/sbox/floor/floor_drain_a.vmat",
+        "Summary": "",
+        "Description": "",
+        "Public": true
+      }
+    }
+  },
+  "guid": "b4ad795f-983c-4e88-82f5-034d8519f78d"
+}

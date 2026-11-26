@@ -1,0 +1,7 @@
+{
+  "Prefab": "entities/button/basic.prefab",
+  "Title": "#asset.basic.title",
+  "Description": "#asset.button.basic.description",
+  "__references": [],
+  "__version": 0
+}

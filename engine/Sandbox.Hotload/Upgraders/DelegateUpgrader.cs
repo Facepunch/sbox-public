@@ -172,6 +172,25 @@ namespace Sandbox.Upgraders
 			};
 		}
 
+		private const string DroppedCallbackName = "__dropped_runtime_callback";
+
+		/// <summary>
+		/// A delegate the runtime runs on its own threads, where nothing catches an exception: the continuation of an
+		/// async method suspended at an await (its state machine box's MoveNext), or a timer or thread pool callback.
+		/// </summary>
+		private static bool IsRuntimeCallback( Delegate oldDelegate )
+		{
+			if ( oldDelegate.Method.Name == DroppedCallbackName && oldDelegate.Method.DeclaringType == null )
+				return true;
+
+			if ( oldDelegate is System.Threading.TimerCallback or System.Threading.WaitCallback or System.Threading.WaitOrTimerCallback )
+				return true;
+
+			return oldDelegate.Method.Name == nameof( System.Runtime.CompilerServices.IAsyncStateMachine.MoveNext )
+				&& oldDelegate.Method.ReturnType == typeof( void )
+				&& oldDelegate.Target?.GetType().GetInterface( "System.Runtime.CompilerServices.IAsyncStateMachineBox" ) != null;
+		}
+
 		private object CreateErrorDelegate( Delegate oldDelegate, ErrorDelegateMessage message )
 		{
 			const string errorDelegateNamePrefix = "__error_delegate";
@@ -192,17 +211,33 @@ namespace Sandbox.Upgraders
 			var oldMethod = oldDelegate.GetMethodInfo();
 			var messageText = GetErrorDelegateMessage( message );
 
+			var newDelegType = GetNewType( oldDelegate.GetType() );
+			if ( newDelegType is null ) return null;
+
+			// Open delegates take the receiver as an argument. Use the signature callers actually invoke.
+			var invoke = newDelegType.GetMethod( "Invoke" );
+			var newParamTypes = invoke.GetParameters().Select( parameter => parameter.ParameterType ).ToArray();
+			var newReturnType = invoke.ReturnType;
+
+			// A runtime callback can throw on a worker thread. A missing event handler can block the remaining handlers.
+			var removedAction = message == ErrorDelegateMessage.NoMatchLambda && newReturnType == typeof( void )
+				&& newParamTypes.All( type => !type.IsByRef );
+			if ( IsRuntimeCallback( oldDelegate ) || removedAction )
+			{
+				if ( oldMethod.Name != DroppedCallbackName )
+				{
+					Log( HotloadEntryType.Warning, $"Dropping a callback that can't call the new code: {messageText}", oldMethod );
+				}
+
+				var dropped = new DynamicMethod( DroppedCallbackName, newReturnType, newParamTypes );
+				dropped.GetILGenerator().Emit( OpCodes.Ret );
+				return dropped.CreateDelegate( newDelegType );
+			}
+
 			if ( !wasErrorDelegate )
 			{
 				Log( HotloadEntryType.Warning, $"{messageText}", oldMethod );
 			}
-
-			var newParamTypes = oldMethod.GetParameters()
-				.Select( x => GetNewType( x.ParameterType ) )
-				.ToArray();
-
-			var newReturnType = GetNewType( oldMethod.ReturnType );
-			var newDelegType = GetNewType( oldDelegate.GetType() );
 
 			var errorMethod = new DynamicMethod( $"{errorDelegateNamePrefix}<{message}>", newReturnType, newParamTypes );
 			var il = errorMethod.GetILGenerator();

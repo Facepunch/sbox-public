@@ -3,6 +3,7 @@ using Sandbox.ContentBuild;
 using Sandbox.Engine;
 using System;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Threading;
 
 namespace Editor;
@@ -14,8 +15,8 @@ namespace Editor;
 /// after files change (the asset system counts changes, the frame tick builds them), which rebuilds whatever a
 /// change affects, in order. The asset system compiles single assets itself (a load of a changed one, a tool's
 /// compile); their outputs record what they were built from, so the build takes them as they are rather than
-/// compiling them again. Compiles run in this process, as a content worker runs them in SboxBuild's builds: each on a
-/// thread of its own, the main thread doing what they need of it every frame (<see cref="ContentCompilerHost.RunJob"/>).
+/// compiling them again. Compiles run in this process, as a content worker runs them: each on a thread of its own, the
+/// main thread doing what they need of it every frame (<see cref="ContentCompilerHost.RunJob"/>).
 /// </summary>
 internal static class EditorContentBuild
 {
@@ -32,8 +33,6 @@ internal static class EditorContentBuild
 	static string compilerKey;
 	static Task incrementalBuild;
 	static CancellationTokenSource cancellation;
-	static RealTimeSince buildStarted;
-	static PopupToast progress;
 
 	/// <summary>
 	/// Changes usually come in bursts (a save writes several files, a checkout many)
@@ -46,11 +45,21 @@ internal static class EditorContentBuild
 	const float RetryDelay = 2.0f;
 
 	/// <summary>
-	/// Compiles at once while the editor is open. Startup, which waits for its build, runs as many as SboxBuild does.
+	/// Compiles at once while the editor is open. Startup, which waits for its build, runs up to as many as SboxBuild does.
 	/// </summary>
 	const int Jobs = 4;
 
+	/// <summary>
+	/// Memory left free beside the compiles: one that runs in the editor's process and fails to allocate ends the editor.
+	/// </summary>
+	const long MemoryReserve = 3L << 30;
+
 	public static bool IsBuilding => building;
+
+	/// <summary>
+	/// Lets the current editor build finish before a scene compiler writes to the same content roots.
+	/// </summary>
+	internal static Task WaitForCurrentBuild( CancellationToken cancel ) => incrementalBuild?.WaitAsync( cancel ) ?? Task.CompletedTask;
 
 	/// <summary>
 	/// Builds everything before the editor opens, waiting for any other build of the same roots.
@@ -87,6 +96,43 @@ internal static class EditorContentBuild
 	/// </summary>
 	public static bool IsOwned( string path ) => sharedOutputs.Contains( Path.GetFullPath( path ) );
 
+	/// <summary>
+	/// A single asset the user compiles needs the roots this build holds: the build stops once its running compiles are
+	/// published, doing what they need of the main thread meanwhile, and starts again by itself afterwards. False if no
+	/// build of this editor's holds them, or it can't end from here (called from inside the build's own work, or from an
+	/// async continuation, where the build's own can't run).
+	/// </summary>
+	internal static bool Yield()
+	{
+		if ( !ThreadSafe.IsMainThread || publishing || ContentCompilerHost.IsPumping || Sandbox.Tasks.ExpirableSynchronizationContext.IsProcessing ) return false;
+		if ( !building || incrementalBuild is not { IsCompleted: false } ) return false;
+
+		cancellation?.Cancel();
+		RealTimeSince waited = 0;
+		while ( building && waited < YieldTimeout )
+		{
+			ContentCompilerHost.Pump( 5 );
+			Sandbox.Tasks.SyncContext.MainThread?.ProcessQueue();
+		}
+
+		if ( building ) Log.Warning( $"The content build's running compiles didn't finish within {YieldTimeout}s, so the requested compile can't run yet" );
+		return !building;
+	}
+
+	const float YieldTimeout = 10.0f;
+
+	/// <summary>
+	/// Inside the running build's publication, which goes no further until it returns.
+	/// </summary>
+	static bool publishing;
+
+	static void Published( IReadOnlyList<string> paths )
+	{
+		publishing = true;
+		try { IAssetSystem.RegisterBuildOutputs( string.Join( "\n", paths ) ); }
+		finally { publishing = false; }
+	}
+
 	[EditorEvent.Frame]
 	static void Frame()
 	{
@@ -94,9 +140,6 @@ internal static class EditorContentBuild
 		if ( building )
 		{
 			ContentCompilerHost.Pump();
-			if ( incrementalBuild is { IsCompleted: false } && buildStarted > 1 )
-				progress ??= new PopupToast { Title = "Compiling assets", Icon = "build" };
-			if ( progress?.GetCancel().IsCancellationRequested == true ) cancellation?.Cancel();
 			return;
 		}
 
@@ -124,7 +167,6 @@ internal static class EditorContentBuild
 	static async Task Update( bool startup )
 	{
 		building = true;
-		buildStarted = 0;
 		cancellation = new CancellationTokenSource();
 		var generation = codeGeneration;
 		IAssetSystem.SuspendOnDemandCompiles( true );
@@ -155,8 +197,9 @@ internal static class EditorContentBuild
 				OutputFallbacks = project.Config.Ident == "menu" ? new Dictionary<string, string>() : new Dictionary<string, string> { ["transient"] = EngineFileSystem.Root.GetFullPath( "addons/menu/Transients" ) },
 
 				// What each job publishes is known before the next frame runs, so its file events aren't changes
-				Published = paths => IAssetSystem.RegisterBuildOutputs( string.Join( "\n", paths ) ),
-				MaxJobs = startup ? ResourceCompiler.DefaultMaxJobs : Jobs,
+				Published = Published,
+				MaxJobs = JobLimit( startup ? ResourceCompiler.DefaultMaxJobs : Jobs ),
+				CanStartJob = () => AvailableMemory().Commit > MemoryReserve,
 
 				// Only startup waits for another build, with the splash screen up; the editor never freezes on one
 				LockTimeout = startup ? TimeSpan.FromMinutes( 30 ) : TimeSpan.Zero,
@@ -166,11 +209,7 @@ internal static class EditorContentBuild
 					IToolsDll.Current?.Spin();
 				}
 				: null,
-				JobFinished = source =>
-				{
-					if ( startup ) EditorSplashScreen.SetMessage( $"Compiled {source}" );
-					else if ( progress is not null ) progress.Subtitle = $"Compiled {source}";
-				},
+				CompileProgress = startup ? progress => EditorSplashScreen.SetMessage( progress.Compiled is { } source ? $"Compiled {source} ({progress.Finished}/{progress.Total})" : $"Compiling assets ({progress.Finished}/{progress.Total})" ) : null,
 			};
 
 			var report = await ContentBuilder.BuildAsync( request, Compiler( request.Mounts ), cancellation.Token );
@@ -179,9 +218,8 @@ internal static class EditorContentBuild
 
 			if ( report.Error is not null || report.Cancelled )
 			{
-				// An explicit cancel waits for another edit; a lock conflict or hotload retries automatically.
-				if ( progress?.GetCancel().IsCancellationRequested == true && generation == codeGeneration ) builtEpoch = epoch;
-				else retryAfter = RetryDelay;
+				// A lock conflict or hotload retries automatically
+				retryAfter = RetryDelay;
 				return;
 			}
 
@@ -196,14 +234,41 @@ internal static class EditorContentBuild
 		}
 		finally
 		{
-			progress?.Dispose();
-			progress = null;
 			cancellation.Dispose();
 			cancellation = null;
 			IAssetSystem.SuspendOnDemandCompiles( false );
 			building = false;
 		}
 	}
+
+	/// <summary>
+	/// Compiles at once, up to a limit: one per 2 GB beyond the reserve of what is free now, after the editor's own use.
+	/// </summary>
+	static int JobLimit( int limit )
+	{
+		var (physical, commit) = AvailableMemory();
+		return (int)Math.Clamp( (Math.Min( physical, commit ) - MemoryReserve) / (2L << 30), 1, limit );
+	}
+
+	/// <summary>
+	/// Physical memory free system wide and commit this process can still make. Unknown, so unlimited, off Windows.
+	/// </summary>
+	static (long Physical, long Commit) AvailableMemory()
+	{
+		var status = new MemoryStatusEx { Length = (uint)Marshal.SizeOf<MemoryStatusEx>() };
+		if ( !OperatingSystem.IsWindows() || !GlobalMemoryStatusEx( ref status ) ) return (long.MaxValue, long.MaxValue);
+		return ((long)status.AvailPhys, (long)status.AvailPageFile);
+	}
+
+	[StructLayout( LayoutKind.Sequential )]
+	struct MemoryStatusEx
+	{
+		public uint Length, MemoryLoad;
+		public ulong TotalPhys, AvailPhys, TotalPageFile, AvailPageFile, TotalVirtual, AvailVirtual, AvailExtendedVirtual;
+	}
+
+	[DllImport( "kernel32.dll" )]
+	static extern bool GlobalMemoryStatusEx( ref MemoryStatusEx status );
 
 	static void Publish( BuildReport report, int epoch )
 	{
@@ -256,6 +321,7 @@ internal static class EditorContentBuild
 
 	/// <summary>
 	/// The compiler for these mounts and the code the editor has loaded now, which runs each job in this process.
+	/// Adopting what's built, and questions about the compilers, are answered here.
 	/// </summary>
 	static ResourceCompiler Compiler( IReadOnlyList<(string Mod, string Path)> mounts )
 	{
@@ -282,6 +348,13 @@ internal static class EditorContentBuild
 		if ( incrementalBuild is { IsCompleted: false } ) cancellation?.Cancel();
 	}
 
+	// The file watcher can start the build for a scene's outputs after the compile window reports completion.
+	[Event( "scene.compile.finished" )]
+	static void SceneCompileFinished( string name, string status, string detail )
+	{
+		sinceChange = 0;
+	}
+
 	[Event( "app.exit" )]
 	static void Shutdown()
 	{
@@ -291,7 +364,5 @@ internal static class EditorContentBuild
 		cancellation?.Cancel();
 		ContentCompilerHost.WaitForJobs();
 		incrementalBuild = null;
-		compiler = null;
-		compilerKey = null;
 	}
 }

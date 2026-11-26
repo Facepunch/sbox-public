@@ -1,0 +1,19 @@
+include "opus/opus.h"
+
+native class OpusDecoder as NativeEngine.OpusDecoder
+{
+	inline static OpusDecoder Open( int sampleRate, int channels )
+	{
+		return opus_decoder_create( sampleRate, channels, nullptr );
+	}
+
+	inline int Decode( void* packet, int bytes, void* samples, int maxFrames )
+	{
+		return opus_decode( self, (const unsigned char*)packet, bytes, (opus_int16*)samples, maxFrames, 0 );
+	}
+
+	inline void Close()
+	{
+		opus_decoder_destroy( self );
+	}
+}

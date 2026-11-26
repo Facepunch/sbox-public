@@ -1,4 +1,4 @@
-﻿
+
 using NativeEngine;
 using Sandbox.Engine;
 using Sandbox.Rendering;
@@ -248,7 +248,7 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 		if ( sceneCamera is null )
 			return;
 
-		using var scope = Gizmo.Scope( $"{GetHashCode()}" );
+		using var scope = Gizmo.PushScope( "camera" );
 
 		Gizmo.Transform = global::Transform.Zero;
 
@@ -430,6 +430,11 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 		{
 			camera.RenderTags.SetFrom( RenderTags );
 			camera.ExcludeTags.SetFrom( RenderExcludeTags );
+			if ( Scene.IsEditor && !IsSceneEditorCamera )
+			{
+				camera.ExcludeTags.Add( "editor_wireframe" );
+				camera.ExcludeTags.Add( "editor_overlay" );
+			}
 		}
 
 		// Merge our global Scene attributes into the camera
@@ -694,7 +699,7 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 	/// </summary>
 	public Rect BBoxToScreenPixels( BBox bounds, out bool isBehind )
 	{
-		Vector2[] corners = new Vector2[8];
+		Span<Vector2> corners = stackalloc Vector2[8];
 		Vector3 min = bounds.Mins;
 		Vector3 max = bounds.Maxs;
 

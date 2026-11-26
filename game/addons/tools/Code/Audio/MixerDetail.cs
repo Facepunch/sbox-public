@@ -17,7 +17,7 @@ public class MixerDetail : NavigationView
 		{
 			var headerLayout = Layout.Row();
 			var icon = headerLayout.Add( new Label( "settings_input_component" ) );
-			icon.SetStyles( "* { font-family: Material Icons; margin-right: 8px; }" );
+			icon.SetStyles( "* { font-family: Material Symbols Outlined; margin-right: 8px; }" );
 			headerLayout.Add( new Label( mixer.Name ) );
 			headerLayout.AddStretchCell( 1 );
 			MenuTop.Add( headerLayout );

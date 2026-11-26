@@ -54,7 +54,7 @@ internal static partial class DebugOverlay
 		// The panel the dev tools' UI inspector has picked
 		if ( Diagnostics.DevTools.IsShowing( "ui" ) ) Diagnostics.DevToolsUiTab.DrawHighlight( painter );
 
-		// Memory pressure warnings are visible even when the dev tools is closed.
-		VideoMemoryWarning.Draw( painter );
+		// Warning icons are visible even when the dev tools is closed.
+		Warnings.Draw( painter );
 	}
 }

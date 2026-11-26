@@ -17,6 +17,13 @@ namespace Sandbox.UI;
 /// </summary>
 internal partial class SurfaceWindow : IDisposable, IPanelWindow
 {
+	const string WindowStyles = """
+		:root
+		{
+			font-variation-settings: 'FILL' 1;
+		}
+		""";
+
 	static readonly List<SurfaceWindow> _all = new();
 
 	/// <summary>
@@ -786,6 +793,7 @@ internal partial class SurfaceWindow : IDisposable, IPanelWindow
 	internal void Attach( UISurface surface )
 	{
 		Surface = surface;
+		surface.Root.StyleSheet.AddInline( WindowStyles, "panel-window" );
 		if ( _camera is not null ) _camera.OnRenderUI = Surface.Render;
 		Surface.OnCursorChanged = x => _cursor = x;
 		Surface.Tooltips.Host = this;

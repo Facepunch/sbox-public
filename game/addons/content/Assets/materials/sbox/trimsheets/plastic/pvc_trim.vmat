@@ -1,0 +1,33 @@
+// THIS FILE IS AUTO-GENERATED
+
+Layer0
+{
+	shader "shaders/blendable.shader"
+
+	F_MULTIBLEND 1 // 2 Layers
+
+	//---- Fog ----
+	g_bFogEnabled "1"
+
+	//---- Material A ----
+	g_flTintColorA "[1.000000 1.000000 1.000000 0.000000]"
+	TextureAmbientOcclusionA "materials/default/default_ao.tga"
+	TextureBlendMaskA "materials/default/default_blend.tga"
+	TextureColorA "materials/sbox/trimsheets/plastic/pvc_trim_color.png"
+	TextureMetalnessA "materials/default/default_metal.tga"
+	TextureNormalA "materials/sbox/trimsheets/plastic/pvc_trim_normal.png"
+	TextureRoughnessA "materials/sbox/trimsheets/plastic/pvc_trim_rough.png"
+	TextureTintMaskA "materials/default/default.tga"
+
+	//---- Material B ----
+	g_flBlendSoftnessB "0.945"
+	g_flTintColorB "[1.000000 1.000000 1.000000 0.000000]"
+	g_vTexCoordScale2 "[1.000 1.000]"
+	TextureAmbientOcclusionB "materials/default/default_ao.tga"
+	TextureBlendMaskB "materials/default/default_blend.tga"
+	TextureColorB "materials/sbox/trimsheets/plastic/pvc_trim_2_color.png"
+	TextureMetalnessB "materials/default/default_metal.tga"
+	TextureNormalB "materials/sbox/trimsheets/plastic/pvc_trim_normal.png"
+	TextureRoughnessB "materials/sbox/trimsheets/plastic/pvc_trim_rough.png"
+	TextureTintMaskB "materials/default/default.tga"
+}

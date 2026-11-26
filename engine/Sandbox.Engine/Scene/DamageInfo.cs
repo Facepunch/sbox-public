@@ -39,6 +39,11 @@ public class DamageInfo
 	public Vector3 Position { get; set; }
 
 	/// <summary>
+	/// The surface normal at <see cref="Position"/>, facing whoever took the damage. Zero when the damage has no impact surface.
+	/// </summary>
+	public Vector3 Normal { get; set; }
+
+	/// <summary>
 	/// The physics shape that we hit (if any)
 	/// </summary>
 	public PhysicsShape Shape { get; set; }

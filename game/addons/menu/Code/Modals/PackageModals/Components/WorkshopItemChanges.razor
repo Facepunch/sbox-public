@@ -1,0 +1,258 @@
+@namespace MenuProject.Modals.PackageModalComponents
+@inherits Panel
+@using Sandbox;
+@using Sandbox.UI;
+@using SboxMenu;
+@using System;
+
+@* Only build Workshop notes near the screen. Placeholders keep the timeline and scrollbar steady. *@
+
+<root>
+
+    @if (!_loaded)
+    {
+        @* The shape of an update card while it loads - two of them *@
+        <div class="timeline loading">
+            @for (var i = 0; i < 2; i++)
+            {
+                <div class="update skeleton @(i == 0 ? "latest" : "")">
+                    <div class="rail">
+                        <div class="dot"></div>
+                        <div class="line"></div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-head">
+                            <div class="bone tile-bone"></div>
+                            <div class="head-words">
+                                <div class="bone title-bone"></div>
+                                <div class="bone pill-bone"></div>
+                            </div>
+                        </div>
+                        <div class="sections">
+                            <div class="bone-section">
+                                <div class="bone heading-bone"></div>
+                                <div class="bone line-bone"></div>
+                                <div class="bone line-bone short"></div>
+                                <div class="bone line-bone shorter"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+    else if (_notes.Count == 0)
+    {
+        <div class="state">@(_notesFailed ? "#menu.workshop.change_notes_failed" : "#menu.workshop.no_change_notes")</div>
+    }
+    else
+    {
+        <div class="timeline" @ref="Timeline">
+            @for (var i = 0; i < _notes.Count; i++)
+            {
+                var note = _notes[i];
+                var latest = i == 0;
+                var last = i == _notes.Count - 1 && !HasOlderNotes;
+                var dateText = note.Time.LocalDateTime.ToString("d MMMM yyyy");
+
+                <div class="update @(latest ? "latest" : "") @(last ? "last" : "")">
+
+                    @* The line down the left, a dot for each update on it *@
+                    <div class="rail">
+                        <div class="dot"></div>
+                        <div class="line"></div>
+                    </div>
+
+                    @if (!IsBuilt(i))
+                    {
+                        @* Off screen - just its room *@
+                        <div class="card placeholder" style="height: @HeightOf(i)px;"></div>
+                    }
+                    else
+                    {
+                        var lines = NoteLines( note.Text );
+                        <div class="card">
+                            <div class="card-head">
+                                <div class="tile"><i>@(latest ? "new_releases" : "history")</i></div>
+                                <div class="head-words">
+                                    <label class="update-name" tooltip="@dateText">@dateText</label>
+                                    <div class="meta-row">
+                                        <div class="ago" tooltip="@dateText"><i>schedule</i><label>@MenuHelpers.TimeAgo( note.Time )</label></div>
+                                    </div>
+                                </div>
+                                @if (latest)
+                                {
+                                    <label class="latest-pill">#menu.games.latest_update</label>
+                                }
+                            </div>
+
+                            <div class="sections">
+                                @if ( lines.Count == 0 )
+                                {
+                                    <label class="note-text empty">#menu.workshop.no_change_note</label>
+                                }
+                                else
+                                {
+                                    <div class="note">
+                                        @foreach ( var line in lines )
+                                        {
+                                            if ( line.Kind == NoteKind.Heading )
+                                            {
+                                                <label class="note-heading">@line.Text</label>
+                                            }
+                                            else if ( line.Kind == NoteKind.Bullet )
+                                            {
+                                                <div class="note-entry"><div class="bullet"></div><label class="text">@line.Text</label></div>
+                                            }
+                                            else
+                                            {
+                                                <label class="note-text">@line.Text</label>
+                                            }
+                                        }
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    }
+
+                </div>
+            }
+
+            @* Steam gives them a page at a time *@
+            @if (HasOlderNotes)
+            {
+                <div class="older">
+                    <Button Icon="expand_more" Text="#menu.workshop.show_older_changes" Disabled=@_loadingNotes onclick=@(() => _ = LoadNotes( _notesPage + 1 )) />
+                </div>
+            }
+        </div>
+    }
+</root>
+
+@code
+{
+    /// <summary>
+    /// The Steam Workshop item whose change notes are shown.
+    /// </summary>
+    [Parameter] public ulong WorkshopId { get; set; }
+
+    enum NoteKind { Text, Heading, Bullet }
+
+    record struct NoteLine( NoteKind Kind, string Text );
+
+    static readonly System.Text.RegularExpressions.Regex BBCode = new( @"\[/?[a-zA-Z0-9]+(=[^\]]*)?\]" );
+
+    /// <summary>
+    /// A Workshop change note in lines to lay out - its BBCode taken out, a list item or one starting with a dash as a
+    /// bullet, a heading tag or a short line ending in a colon as a heading, the rest as they are
+    /// </summary>
+    static List<NoteLine> NoteLines( string text )
+    {
+        var lines = new List<NoteLine>();
+        if ( string.IsNullOrWhiteSpace( text ) ) return lines;
+
+        foreach ( var raw in text.Split( '\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries ) )
+        {
+            var bullet = raw.StartsWith( "[*]" ) || raw.StartsWith( "- " ) || raw.StartsWith( "* " ) || raw.StartsWith( "•" );
+            var tagged = raw.StartsWith( "[h1]" ) || raw.StartsWith( "[h2]" ) || raw.StartsWith( "[h3]" );
+
+            var words = BBCode.Replace( raw, "" ).TrimStart( '-', '*', '•', ' ' ).Trim();
+            if ( words.Length == 0 ) continue;
+
+            var kind = bullet ? NoteKind.Bullet
+                : tagged || (words.EndsWith( ':' ) && words.Length <= 40) ? NoteKind.Heading
+                : NoteKind.Text;
+
+            lines.Add( new( kind, kind == NoteKind.Heading ? words.TrimEnd( ':' ) : words ) );
+        }
+
+        return lines;
+    }
+
+    readonly List<WorkshopChangeNote> _notes = new();
+    int _notesTotal;
+    int _notesPage;
+    bool _notesFailed;
+    bool _loadingNotes;
+
+    bool HasOlderNotes => _notes.Count < _notesTotal;
+    bool _loaded;
+
+    protected override int BuildHash() => HashCode.Combine( WorkshopId, _loaded, _notes.Count, _notesTotal, _notesFailed, _loadingNotes, Near.Hash );
+
+    //
+    // Only the cards near the screen, built - see the top
+    //
+
+    Panel Timeline;
+    readonly MenuProject.UI.NearScreen Near = new();
+
+    bool IsBuilt( int i ) => Near.IsBuilt( i );
+
+    string HeightOf( int i ) => Near.HeightOf( i, Estimate( _notes[i] ) );
+
+    /// <summary>
+    /// Near enough a change note's card height - its head, and a line for each of its lines (the long ones wrap)
+    /// </summary>
+    static float Estimate( WorkshopChangeNote note )
+    {
+        var lines = string.IsNullOrWhiteSpace( note.Text ) ? 1 : note.Text.Split( '\n' ).Sum( x => 1 + x.Length / 90 );
+        return 70 + lines * 22;
+    }
+
+    public override void Tick()
+    {
+        base.Tick();
+
+        if ( !_loaded ) return;
+
+        // Its card, once it's a real one rather than its room
+        if ( Near.Update( this, Timeline, _notes.Count, row => row.Children.LastOrDefault( x => !x.IsDeleting ) is { } card && card.HasClass( "card" ) && !card.HasClass( "placeholder" ) ? card : null ) )
+            StateHasChanged();
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _loaded = false;
+        _notes.Clear();
+        _notesTotal = 0;
+        _notesPage = 0;
+        _notesFailed = false;
+        Near.Reset();
+        StateHasChanged();
+
+        await LoadNotes( 1 );
+        _loaded = true;
+        StateHasChanged();
+    }
+
+    /// <summary>
+    /// Add this page of the workshop item's change notes to the end of the timeline
+    /// </summary>
+    async Task LoadNotes( int page )
+    {
+        if ( _loadingNotes ) return;
+
+        _loadingNotes = true;
+        var id = WorkshopId;
+        var notes = await MenuUtility.FetchWorkshopChangeNotesAsync( id, page );
+        _loadingNotes = false;
+
+        // Another item's by now
+        if ( !this.IsValid() || id != WorkshopId ) return;
+
+        if ( notes is null )
+        {
+            _notesFailed = _notes.Count == 0;
+        }
+        else
+        {
+            _notes.AddRange( notes.Notes );
+            _notesTotal = notes.Total;
+            _notesPage = page;
+        }
+
+        StateHasChanged();
+    }
+}

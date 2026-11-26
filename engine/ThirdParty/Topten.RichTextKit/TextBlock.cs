@@ -1342,8 +1342,9 @@ namespace Topten.RichTextKit
 			if ( length == 0 )
 				return;
 
-			// Get the typeface
+			// Match fallback fonts before applying low-level axis overrides to the selected faces.
 			var typeface = TypefaceFromStyle( style );
+			var primary = VariableTypeface.Resolve( typeface, style );
 
 			// Get the slice of code points
 			var codePointsSlice = _codePoints.SubSlice( start, length );
@@ -1351,7 +1352,8 @@ namespace Topten.RichTextKit
 			// Split into font fallback runs
 			foreach ( var fontRun in FontFallback.GetFontRuns( codePointsSlice, typeface, style.ReplacementCharacter ) )
 			{
-				AddFontRun( styleRun, start + fontRun.Start, fontRun.Length, direction, style, fontRun.Typeface, typeface );
+				var face = fontRun.Typeface == typeface ? primary : VariableTypeface.Resolve( fontRun.Typeface, style );
+				AddFontRun( styleRun, start + fontRun.Start, fontRun.Length, direction, style, face, primary );
 			}
 		}
 
@@ -1492,7 +1494,7 @@ namespace Topten.RichTextKit
 			fontRun.Descent = shaped.Descent;
 			fontRun.Leading = shaped.Leading;
 			fontRun.Width = shaped.EndXCoord.X;
-			fontRun.SpaceWidth = typeface.ToFont( fontRun.Style.FontSize ).MeasureText( spaceCharacter );
+			fontRun.SpaceWidth = shaper.GetSpaceWidth( style.FontSize );
 
 			return fontRun;
 		}
@@ -1685,7 +1687,7 @@ namespace Topten.RichTextKit
 					if ( fr.Direction != _resolvedBaseDirection )
 					{
 						// What is this a fallback for?
-						var asFallbackFor = TypefaceFromStyle( fr.Style, false );
+						var asFallbackFor = VariableTypeface.Resolve( TypefaceFromStyle( fr.Style ), fr.Style );
 
 						// Create a new font run over the same text span but using the base direction
 						_fontRuns[i] = CreateFontRun( fr.StyleRun, fr.CodePoints, _resolvedBaseDirection, fr.Style, fr.Typeface, asFallbackFor );
@@ -2122,8 +2124,6 @@ namespace Topten.RichTextKit
 		/// </summary>
 		static Utf32Buffer ellipsis = new Utf32Buffer( "…" );
 
-		static ushort[] spaceCharacter = { ' ' };
-
 		/// <summary>
 		/// Create a special font run containing the ellipsis character
 		/// based on an existing run
@@ -2137,9 +2137,11 @@ namespace Topten.RichTextKit
 
 			// Split into font fallback runs (there should only ever be just one)
 			var fontRun = FontFallback.GetFontRuns( ellipsis.AsSlice(), typeface ).Single();
+			var primary = VariableTypeface.Resolve( typeface, basedOn.Style );
+			var face = fontRun.Typeface == typeface ? primary : VariableTypeface.Resolve( fontRun.Typeface, basedOn.Style );
 
 			// Create the new run and mark is as a special run type for ellipsis
-			var fr = CreateFontRun( basedOn.StyleRun, ellipsis.SubSlice( fontRun.Start, fontRun.Length ), _resolvedBaseDirection, basedOn.Style, fontRun.Typeface, typeface );
+			var fr = CreateFontRun( basedOn.StyleRun, ellipsis.SubSlice( fontRun.Start, fontRun.Length ), _resolvedBaseDirection, basedOn.Style, face, primary );
 			fr.RunKind = FontRunKind.Ellipsis;
 
 			// Done

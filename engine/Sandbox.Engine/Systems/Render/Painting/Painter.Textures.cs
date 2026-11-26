@@ -53,6 +53,7 @@ public readonly ref partial struct Painter
 		var glyphs = context.TextInstances;
 		glyphs.Clear();
 		var options = GpuFontText.Options.For( style.CreateScope( text, context.ScaleToScreen ) );
+		options.TextColor = style.Color.WithAlpha( 1 );
 		GpuFontText.Build( block.Layout, textRect.Position + block.BlockOrigin, options, glyphs );
 		context.Batcher.AddText( glyphs, legacy ? context.InitialBlendMode : context.State.OverrideBlendMode, default,
 			legacy ? Matrix.Identity : DrawingTransform( context ), legacy ? -1 : context.State.ClipIndex,
@@ -127,8 +128,11 @@ public readonly ref partial struct Painter
 	TextRendering.TextBlock GetTextBlock( string text, Vector2 size, TextStyle style )
 	{
 		if ( string.IsNullOrEmpty( text ) ) return null;
-		// Keep RGB in the raster, including color glyphs; opacity belongs in the tint.
 		var scope = style.CreateScope( text, ActiveContext.ScaleToScreen );
+
+		// The colour is applied per glyph when drawing, so layouts are shared across colours. Animated colours
+		// (a pulsing warning, a damage flash) would otherwise lay the text out again every frame.
+		scope.TextColor = Color.White;
 		return TextRendering.GetOrCreateTextBlock( scope, style.Alignment, size == default ? new Vector2( 8096 ) : size );
 	}
 }

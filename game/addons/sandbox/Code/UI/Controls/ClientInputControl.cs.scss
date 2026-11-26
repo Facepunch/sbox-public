@@ -1,0 +1,48 @@
+@import "/UI/Theme.scss";
+
+@mixin component-theme
+{
+	ClientInputControl
+	{
+		@include ui-inspector-field;
+
+		&.capturing .bind-label
+		{
+			color: $ui-text-muted;
+		}
+
+		.preview
+		{
+			flex-shrink: 0;
+			align-items: center;
+			justify-content: center;
+
+			.hint
+			{
+				width: 100%;
+				height: 100%;
+				background-size: contain;
+				background-repeat: no-repeat;
+				background-position: center center;
+				background-tint: $ui-text-strong;
+
+				&.hidden { display: none; }
+			}
+
+			.fallback
+			{
+				font-size: 14px;
+				color: $ui-text-muted;
+
+				&.hidden { display: none; }
+			}
+		}
+
+		.bind-label
+		{
+			flex-grow: 1;
+		}
+	}
+}
+
+@import "/UI/Theme/Apply.scss";

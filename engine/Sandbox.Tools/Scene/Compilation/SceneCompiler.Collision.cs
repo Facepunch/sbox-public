@@ -14,39 +14,85 @@ partial class SceneCompiler
 {
 	internal sealed record ModelCollisionPart( Transform Transform, CollisionChunk[] Chunks, CollisionShape[] Shapes );
 
+	// Compile the complete face snapshot, including faces temporarily hidden in the editor.
+	static void AddMeshCollision( ModelBuilder builder, MeshComponent mesh, List<PolygonMesh.BakedSubmesh> submeshes, bool addTraceMesh )
+	{
+		if ( mesh.Collision == MeshComponent.CollisionType.None ) return;
+
+		var positions = new List<Vector3>();
+		var indices = new List<int>();
+		var triangleMaterials = new List<byte>();
+		var surfaces = new List<Surface>();
+		bool fitPerMaterial = mesh.Mesh.UsesPerMaterialCollision( mesh.Collision );
+
+		foreach ( var submesh in submeshes )
+		{
+			var surface = mesh.Surface ?? submesh.Material?.Surface;
+			byte material = mesh.Collision == MeshComponent.CollisionType.Mesh ? SurfaceIndex( surfaces, surface ) : (byte)0;
+			int offset = positions.Count;
+			foreach ( var vertex in submesh.Vertices )
+				positions.Add( vertex.Position );
+			foreach ( var index in submesh.Indices )
+				indices.Add( offset + index );
+
+			if ( fitPerMaterial )
+			{
+				MeshCollisionFitting.AddSurfaceShape( builder, mesh.Collision, positions, indices, material, surface, mesh.Mesh.TriangulationTransform.Value, mesh.Mesh.CollisionTolerance );
+				if ( addTraceMesh ) builder.AddTraceMesh( positions, indices );
+				positions.Clear();
+				indices.Clear();
+			}
+			else
+			{
+				for ( int i = 0; i < submesh.Indices.Length; i += 3 )
+					triangleMaterials.Add( material );
+			}
+		}
+
+		foreach ( var surface in surfaces )
+			builder.AddSurface( surface );
+		if ( fitPerMaterial ) return;
+
+		if ( mesh.Collision == MeshComponent.CollisionType.Hull && mesh.Surface is { } hullSurface )
+			builder.WithSurface( hullSurface.PhysicsName );
+		mesh.Mesh.AddCollision( builder, mesh.Collision, positions, indices, triangleMaterials );
+		if ( addTraceMesh && mesh.Collision == MeshComponent.CollisionType.Mesh )
+			builder.AddTraceMesh( positions, indices );
+	}
+
 	/// <summary>
-	/// Merge everything we compiled into vphys resources, one per tag set. Objects inherit
+	/// Merge everything we compiled into vphys resources, one per tag set and convex surface. Objects inherit
 	/// tags from their parents and compiled geometry leaves that hierarchy behind, so shapes can only
 	/// share a resource with shapes tagged the same.
 	/// </summary>
 	static async Task<List<(string Tags, PhysicsGroupDescription Physics)>> BuildCollision( CollisionChunk[] chunks, CollisionShape[] shapes,
 		SceneFolder folder, string outputFolder, Func<int, int, Task> step )
 	{
-		var groups = new Dictionary<string, CollisionGroup>();
+		var groups = new Dictionary<(string Tags, Surface Surface), CollisionGroup>();
 
 		foreach ( var chunk in chunks )
 		{
-			groups.GetOrCreate( chunk.Tags ).Add( chunk );
+			groups.GetOrCreate( (chunk.Tags, null) ).Add( chunk );
 		}
 
 		foreach ( var shape in shapes )
 		{
-			groups.GetOrCreate( shape.Tags ).Add( shape );
+			groups.GetOrCreate( (shape.Tags, shape.Surface) ).Add( shape );
 		}
 
 		var result = new List<(string, PhysicsGroupDescription)>( groups.Count );
 		var built = 0;
 
-		foreach ( var (tags, group) in groups )
+		foreach ( var (key, group) in groups )
 		{
-			if ( group.Build() is { } data )
+			if ( group.Build( key.Surface ) is { } data )
 			{
 				var index = result.Count;
 				var physics = PhysicsGroupDescription.Load( Write( folder, $"{outputFolder}/collision_{index}.vphys_c", data ) );
 				if ( physics is null )
 					throw new InvalidOperationException( $"Could not load compiled collision resource {index}." );
 
-				result.Add( (tags, physics) );
+				result.Add( (key.Tags, physics) );
 			}
 
 			await step( ++built, groups.Count );
@@ -60,12 +106,11 @@ partial class SceneCompiler
 	/// shape - render vertices are split wherever normals or texcoords differ, and every chunk
 	/// starts its own set, so we index them by position. Triangles that share an edge have to share
 	/// their vertices for box3d to find the concave edges ( RnMesh_t::m_TriangleFlags ), or
-	/// everything snags on the seams. Convex shapes stay whole, one body each, because a body is
-	/// what carries a surface.
+	/// everything snags on the seams. Convex shapes with the same surface share a static body.
 	/// </summary>
 	sealed class CollisionGroup
 	{
-		readonly List<PhysicsBodyBuilder> _bodies = [];
+		readonly PhysicsBodyBuilder _body = new() { BindPose = Transform.Zero };
 		readonly List<Surface> _surfaces = [];
 
 		readonly List<Vector3> _vertices = [];
@@ -75,11 +120,7 @@ partial class SceneCompiler
 
 		public void Add( CollisionShape shape )
 		{
-			var body = new PhysicsBodyBuilder { BindPose = Transform.Zero, Surface = shape.Surface };
-
-			shape.AddTo( body );
-
-			_bodies.Add( body );
+			shape.AddTo( _body );
 		}
 
 		public void Add( CollisionChunk chunk )
@@ -123,15 +164,16 @@ partial class SceneCompiler
 			}
 		}
 
-		public byte[] Build()
+		public byte[] Build( Surface surface )
 		{
 			if ( _indices.Count >= 3 )
 			{
-				_bodies.Add( new PhysicsBodyBuilder { BindPose = Transform.Zero }
-					.AddMesh( CollectionsMarshal.AsSpan( _vertices ), CollectionsMarshal.AsSpan( _indices ), CollectionsMarshal.AsSpan( _triangleSurfaces ) ) );
+				_body.AddMesh( CollectionsMarshal.AsSpan( _vertices ), CollectionsMarshal.AsSpan( _indices ), CollectionsMarshal.AsSpan( _triangleSurfaces ) );
 			}
 
-			return _bodies.Count == 0 ? null : VPhysWriter.Write( _bodies, _surfaces );
+			_body.Surface = surface;
+			return _body.Meshes.Count == 0 && _body.Hulls.Count == 0 && _body.Spheres.Count == 0 && _body.Capsules.Count == 0
+				? null : VPhysWriter.Write( [_body], _surfaces );
 		}
 	}
 
@@ -150,6 +192,11 @@ partial class SceneCompiler
 			cache[model] = local;
 		}
 
+		AddCollisionParts( chunks, shapes, local, world, surface, tags );
+	}
+
+	static void AddCollisionParts( List<CollisionChunk> chunks, List<CollisionShape> shapes, ModelCollisionPart[] local, in Transform world, Surface surface, string tags )
+	{
 		foreach ( var part in local )
 		{
 			var transform = world.ToWorld( part.Transform );

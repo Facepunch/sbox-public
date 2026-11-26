@@ -1,0 +1,28 @@
+{
+  "UI": false,
+  "Volume": "1",
+  "Pitch": "1",
+  "Decibels": 78,
+  "SelectionMode": "Random",
+  "Sounds": [
+    "sounds/npc/darren/scared/scared_01.vsnd",
+    "sounds/npc/darren/scared/scared_02.vsnd",
+    "sounds/npc/darren/scared/scared_03.vsnd",
+    "sounds/npc/darren/scared/scared_04.vsnd",
+    "sounds/npc/darren/scared/scared_05.vsnd",
+    "sounds/npc/darren/scared/scared_06.vsnd"
+  ],
+  "Occlusion": true,
+  "AirAbsorption": true,
+  "Transmission": true,
+  "OcclusionRadius": 64,
+  "DistanceAttenuation": true,
+  "Distance": 2000,
+  "Falloff": [
+    { "x": 0, "y": 1, "in": 0, "out": -1.8, "mode": "Mirrored" },
+    { "x": 0.4, "y": 0.4, "in": -0.5, "out": -0.5, "mode": "Mirrored" },
+    { "x": 1, "y": 0, "in": 0, "out": 0, "mode": "Mirrored" }
+  ],
+  "__references": [],
+  "__version": 1
+}

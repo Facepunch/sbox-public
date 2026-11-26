@@ -53,6 +53,50 @@ public class SkinnedRendererTest
 	}
 
 	/// <summary>
+	/// Destroying a preview scene from another object's destroy callback must finish
+	/// disabling its renderer while the preview's animation system is still available.
+	/// </summary>
+	[TestMethod]
+	[DataRow( false )]
+	[DataRow( true )]
+	public void DestroyPreviewSceneFromDestroyCallback( bool disableRendererFirst )
+	{
+		var scene = new Scene();
+		var preview = new Scene();
+
+		try
+		{
+			var renderer = preview.CreateObject().AddComponent<SkinnedModelRenderer>();
+			var disabledWithAnimationSystem = false;
+			renderer.OnComponentDisabled = () => disabledWithAnimationSystem = renderer.Scene?.GetSystem<SceneAnimationSystem>() is not null;
+
+			var owner = scene.CreateObject().AddComponent<ModelRenderer>();
+			var rendererDestroyed = false;
+			owner.OnComponentDestroy = () =>
+			{
+				if ( disableRendererFirst )
+				{
+					renderer.Enabled = false;
+				}
+
+				preview.Destroy();
+				rendererDestroyed = renderer.GameObject is null;
+			};
+
+			owner.GameObject.DestroyImmediate();
+
+			Assert.IsTrue( disabledWithAnimationSystem );
+			Assert.IsTrue( rendererDestroyed );
+			Assert.IsNull( renderer.SceneModel );
+		}
+		finally
+		{
+			if ( preview.IsValid ) preview.Destroy();
+			scene.Destroy();
+		}
+	}
+
+	/// <summary>
 	/// Enabling a SkinnedModelRenderer creates a SceneModel scene object carrying the
 	/// assigned model, with the embedded human animgraph live and the component defaults
 	/// (UseAnimGraph on, PlaybackRate 1) pushed through. Disabling deletes the scene object
@@ -503,6 +547,14 @@ public class SkinnedRendererTest
 		var local = smr.GetAttachment( "hand_R", false );
 		Assert.IsTrue( local.HasValue );
 		Assert.IsTrue( local.Value.Position.Length < 200.0f, "Local-space attachments stay relative to the scene object" );
+
+		go.WorldRotation = Rotation.FromYaw( 90 );
+		scene.GameTick();
+		var world = smr.GetAttachment( "HAND_r" );
+		Assert.IsTrue( world.HasValue, "Attachment names are case insensitive" );
+		var fromLocal = go.WorldTransform.ToWorld( smr.GetAttachment( "hand_R", false ).Value );
+		Assert.IsTrue( world.Value.Position.Distance( fromLocal.Position ) < 0.01f, "World space is the local attachment moved by the object's transform" );
+		Assert.IsTrue( world.Value.Rotation.Distance( fromLocal.Rotation ) < 0.01f );
 
 		smr.Enabled = false;
 

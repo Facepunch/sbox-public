@@ -27,8 +27,6 @@ class PreviewImage : AssetPreview
 	readonly Dictionary<(int Mip, TextureChannel Channel), Texture> _channelTextures = new();
 	const float QuadSize = 16f;
 
-	public override bool IsAnimatedPreview => false;
-
 	public int MipCount => _mipTextures.Length;
 
 	public int PreviewMip

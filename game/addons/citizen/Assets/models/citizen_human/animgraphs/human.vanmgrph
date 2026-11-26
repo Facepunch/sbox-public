@@ -3029,8 +3029,6 @@
 	}
 	m_previewModels = 
 	[
-		"models/citizen_human/citizen_human_male.vmdl",
-		"models/citizen_human/citizen_human_female.vmdl",
 		"models/citizen_human/human.vmdl",
 	]
 	m_boneMergeModels = 

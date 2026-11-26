@@ -32,6 +32,11 @@ internal static partial class Workshop
 		/// The most played, all time - Steam counts the time it's been played for
 		/// </summary>
 		Playtime,
+
+		/// <summary>
+		/// Just what the creators the user follows published, newest first
+		/// </summary>
+		Followed,
 	}
 
 	/// <summary>
@@ -189,6 +194,7 @@ internal static partial class Workshop
 				SortOrder.Subscriptions => Storage.SortOrder.RankedByTotalUniqueSubscriptions,
 				SortOrder.Playtime => Storage.SortOrder.RankedByTotalPlaytime,
 				SortOrder.Popular => Storage.SortOrder.RankedByVote,
+				SortOrder.Followed => Storage.SortOrder.CreatedByFollowedUsersRankedByPublicationDate,
 				_ => search is null ? Storage.SortOrder.RankedByVote : Storage.SortOrder.RankedByTextSearch
 			})
 		};
@@ -213,7 +219,7 @@ internal static partial class Workshop
 		{
 			SortOrder.Popular or SortOrder.Trending or SortOrder.Playtime => items.OrderByDescending( x => x.Score ),
 			SortOrder.Votes => items.OrderByDescending( x => x.VotesUp ),
-			SortOrder.Newest => items.OrderByDescending( x => x.Created ),
+			SortOrder.Newest or SortOrder.Followed => items.OrderByDescending( x => x.Created ),
 			SortOrder.Updated => items.OrderByDescending( x => x.Updated ),
 			SortOrder.Subscriptions => items.OrderByDescending( x => x.Subscriptions ),
 

@@ -11,7 +11,7 @@ public sealed partial class Project
 {
 	bool AddonTypeUsesCode()
 	{
-		if ( Config.Type == "game" ) return true;
+		if ( Config.Type is "game" or "menu" ) return true;
 		if ( Config.Type == "tool" ) return true;
 		if ( Config.Type == "library" ) return true;
 		if ( Config.Type == "addon" ) return true;
@@ -53,7 +53,7 @@ public sealed partial class Project
 			//
 			var compilerSettings = Config.GetCompileSettings();
 
-			if ( Config.Type == "game" )
+			if ( Config.Type is "game" or "menu" )
 			{
 				compilerSettings.IgnoreFolders.Add( "editor" );
 				compilerSettings.IgnoreFolders.Add( "unittest" );
@@ -100,13 +100,13 @@ public sealed partial class Project
 				if ( Config.Ident != "toolbase" )
 					project.PackageReferences.Add( "local.toolbase" );
 			}
-			else if ( Config.Type == "game" || Config.Type == "library" || Config.Type == "addon" )
+			else if ( Config.Type is "game" or "menu" or "library" or "addon" )
 			{
 				project.AddAspComponentsGlobalUsing();
 				project.AddGameNamespaceGlobalStatic();
 			}
 
-			if ( (Config.Type == "game" || Config.Type == "addon") && !IsBuiltIn )
+			if ( Config.Type is "game" or "addon" )
 			{
 				AddLibrariesToProject( project );
 			}
@@ -117,12 +117,14 @@ public sealed partial class Project
 			}
 		}
 
-		if ( Config.Type == "game" || Config.Type == "library" || Config.Type == "addon" )
+		ProjectInfo editorProject = null;
+
+		if ( Config.Type is "game" or "menu" or "library" or "addon" )
 		{
 			//
 			// Editor project
 			//
-			var editorProject = AddEditorProjectFrom( projectName, generator );
+			editorProject = AddEditorProjectFrom( projectName, generator );
 			if ( editorProject is not null )
 			{
 				editorProject.Folder = projectFolder;
@@ -131,21 +133,21 @@ public sealed partial class Project
 				if ( project is not null )
 					editorProject.PackageReferences.Add( project.Name );
 			}
+		}
 
-			//
-			// Unit test project
-			//
-			var testProject = AddUnitTestProjectFrom( projectName, generator );
-			if ( testProject is not null )
-			{
-				testProject.Folder = projectFolder;
+		//
+		// Unit test project, for tools too
+		//
+		var testProject = AddUnitTestProjectFrom( projectName, generator );
+		if ( testProject is not null )
+		{
+			testProject.Folder = projectFolder;
 
-				if ( project is not null )
-					testProject.PackageReferences.Add( project.Name );
+			if ( project is not null )
+				testProject.PackageReferences.Add( project.Name );
 
-				if ( editorProject is not null )
-					testProject.PackageReferences.Add( editorProject.Name );
-			}
+			if ( editorProject is not null )
+				testProject.PackageReferences.Add( editorProject.Name );
 		}
 	}
 
@@ -153,7 +155,7 @@ public sealed partial class Project
 	{
 		foreach ( var library in Project.Libraries.Where( x => x.HasCodePath() ) )
 		{
-			project.PackageReferences.Add( library.Package.GetIdent( false, false ) );
+			project.PackageReferences.Add( library.Package.FullIdent );
 		}
 	}
 
@@ -225,10 +227,10 @@ public sealed partial class Project
 		if ( string.IsNullOrWhiteSpace( parentPackage ) )
 			return;
 
-		if ( !Package.TryParseIdent( parentPackage, out var parentParts ) )
+		if ( !Package.TryParseIdentParts( parentPackage, out var parentParts ) )
 			return;
 
-		var parentAp = PackageManager.Find( parentPackage, true, false );
+		var parentAp = PackageManager.Find( parentPackage );
 		if ( parentAp?.AssemblyFileSystem is null )
 			return;
 
@@ -262,12 +264,12 @@ public sealed partial class Project
 			project.References.Add( $"{reference}.dll" );
 		}
 
-		if ( (Config.Type == "game" || Config.Type == "addon") && !IsBuiltIn )
+		if ( Config.Type is "game" or "addon" )
 		{
 			// editor libraries
 			foreach ( var library in Libraries.Where( x => x.HasEditorPath() ) )
 			{
-				project.PackageReferences.Add( $"{library.Package.GetIdent( false, false )}.editor" );
+				project.PackageReferences.Add( $"{library.Package.FullIdent}.editor" );
 			}
 		}
 

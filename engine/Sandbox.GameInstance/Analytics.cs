@@ -9,10 +9,7 @@ internal static class Analytics
 	static string gameIdent;
 	static string gameVersion;
 	static string mapIdent;
-	static string[] contentIdent;
 	static object net;
-
-	static int lastHash;
 
 	static RealTimeUntil timeUntilThink;
 
@@ -32,44 +29,24 @@ internal static class Analytics
 			&& (!Networking.IsActive || Networking.IsHost || Connection.Local?.State == Connection.ChannelState.Connected);
 		var nextGame = ready ? Application.GameIdent : null;
 		var gameChanged = gameIdent != nextGame;
+		var nextMap = Application.Map?.Text ?? "";
+		var mapChanged = mapIdent != nextMap;
 		gameIdent = nextGame;
 		gameVersion = Application.GamePackage?.Revision?.VersionId.ToString() ?? "";
-		mapIdent = Application.MapPackage?.FullIdent ?? "";
-
-		// get a list of installed packages
-		contentIdent = PackageManager.ActivePackages
-								.Where( x => x.Package is RemotePackage )
-								.Select( x => x.Package.FullIdent )
-								.ToArray();
+		mapIdent = nextMap;
 
 		net = SampleNetwork();
 
 		// Steam counts the workshop items' playtime from what the backend's told - games and maps alike
 		if ( ready && !Application.IsEditor && !Application.IsDedicatedServer )
-			Workshop.SetPlaying( Application.GamePackage?.WorkshopId ?? 0, Application.MapPackage?.WorkshopId ?? 0 );
+			Workshop.SetPlaying( Application.GamePackage?.WorkshopId ?? 0, Application.Map?.WorkshopId ?? 0 );
 		else
 			Workshop.SetPlaying();
 
-		CheckHash();
 		if ( gameChanged ) timeUntilNextUpdate = 0;
+		else if ( mapChanged ) timeUntilNextUpdate = 1.0f;
+
 		TryUpdateActivity();
-	}
-
-	static void CheckHash()
-	{
-		var hc = new HashCode();
-
-		hc.Add( gameIdent );
-		hc.Add( mapIdent );
-
-		for ( int i = 0; i < contentIdent.Length; i++ )
-			hc.Add( contentIdent[i] );
-
-		if ( lastHash == hc.ToHashCode() )
-			return;
-
-		lastHash = hc.ToHashCode();
-		timeUntilNextUpdate = 1.0f; // debounce
 	}
 
 	internal static void TryUpdateActivity()
@@ -79,7 +56,11 @@ internal static class Analytics
 
 		timeUntilNextUpdate = 60.0f * 1.0f;
 
-		Api.Activity.QueueUpdate( gameIdent, gameVersion, mapIdent, contentIdent, net );
+		var serverAddons = Application.IsDedicatedServer
+			? PackageManager.ActivePackages.Where( x => x.Package is RemotePackage ).Select( x => x.Package.FullIdent ).ToArray()
+			: null;
+
+		Api.Activity.QueueUpdate( gameIdent, gameVersion, mapIdent, serverAddons, net );
 	}
 
 	internal static void GameClosed()

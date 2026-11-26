@@ -1,0 +1,9 @@
+{
+  "Decal": {
+    "Id": "95454247-04ec-4ac1-aafa-e33d28ed7733",
+    "Path": "decals/graffiti/graffiti_smilie.decal"
+  },
+  "Title": "#asset.decal.smilie.title",
+  "__references": [],
+  "__version": 0
+}

@@ -142,7 +142,7 @@ public class Preview : Widget
 		}
 
 		var overlay = Scene.GetSystem<DebugOverlaySystem>();
-		overlay.Text( Renderer.WorldPosition.WithX( 50 ), new TextRendering.Scope( "add", Color.White, 28, "Material Icons" )
+		overlay.Text( Renderer.WorldPosition.WithX( 50 ), new TextRendering.Scope( "add", Color.White, 28, "Material Symbols Outlined" )
 		{
 			FilterMode = Sandbox.Rendering.FilterMode.Point,
 		} );

@@ -4,27 +4,31 @@ namespace Sandbox;
 
 public sealed partial class ScriptSystem
 {
-	private bool _hotloadFailed;
-
 	/// <summary>
 	/// Rebuilds declarations against incoming C# dependencies and queues both assemblies for the same migration.
 	/// Existing startup statements are not executed again.
 	/// </summary>
-	internal AssemblyHotload PrepareHotload( IReadOnlyList<Assembly> incoming, Action<Assembly, Assembly> replace )
+	internal IDisposable PrepareHotload( IReadOnlyList<Assembly> incoming, HotloadManager manager )
 	{
-		CheckAccess();
-		// Drain optional compilation before the hotloader walks its closures and CLR metadata,
-		// including native updates that do not replace this module's declaration assembly.
-		Module.StopWarmup();
-		if ( _assembly is null || !incoming.Any( assembly => _assembly.GetReferencedAssemblies()
-			.Any( reference => reference.Name == assembly.GetName().Name ) ) )
+		var bindings = new Sandbox.Utility.DisposeAction( () =>
 		{
-			return null;
-		}
+			manager.Hotload.RetainedAssembly = null;
+			_resolver.IncomingAssemblies = [];
+			_runtime.InvalidateBindings();
+		} );
 
-		var hotload = new AssemblyHotload( this );
+		Assembly rebuilt;
 		try
 		{
+			CheckContextAccess();
+			// Finish background compilation before migration walks its closures and CLR metadata.
+			Module.StopWarmup();
+			if ( _assembly is null || !incoming.Any( assembly => _assembly.GetReferencedAssemblies()
+				.Any( reference => reference.Name == assembly.GetName().Name ) ) )
+			{
+				return null;
+			}
+
 			_resolver.IncomingAssemblies = incoming;
 			_runtime.InvalidateBindings();
 			// Retain file ownership and captured state while rebuilding against incoming C# types.
@@ -42,54 +46,35 @@ public sealed partial class ScriptSystem
 			}
 
 			Module.Publish( update );
-			var previous = _assembly;
-			foreach ( var library in _libraries )
+			rebuilt = update.Assembly;
+		}
+		catch ( Exception e ) when ( e is not OutOfMemoryException )
+		{
+			// A live script can still use its old C# base until a compatible edit lets us rebuild it.
+			manager.Hotload.RetainedAssembly = _assembly;
+			Log.Warning( e, "Couldn't rebuild scripts against the incoming package. Keeping the previous script types." );
+			return bindings;
+		}
+
+		var previous = _assembly;
+		_assembly = rebuilt;
+		manager.Replace( _watchedAssembly, rebuilt );
+		_watchedAssembly = rebuilt;
+
+		// Publish to each catalog before migration runs script static initializers.
+		foreach ( var library in _libraries )
+		{
+			try
 			{
 				library.RemoveAssembly( previous );
+				library.AddAssembly( rebuilt, true );
 			}
-			_assembly = update.Assembly;
-			replace( previous, _assembly );
-			return hotload;
-		}
-		catch
-		{
-			hotload.Dispose();
-			throw;
-		}
-	}
-
-	/// <summary>
-	/// Keeps incoming CLR bindings available during migration, then restores ordinary catalog lookup.
-	/// A failed dependency update requires a context reset because the C# assemblies have already been replaced.
-	/// </summary>
-	internal sealed class AssemblyHotload( ScriptSystem owner ) : IDisposable
-	{
-		private bool _complete;
-
-		/// <summary>
-		/// Registers the replacement script assembly before scene and editor hotload notifications.
-		/// </summary>
-		internal void Register()
-		{
-			foreach ( var library in owner._libraries )
+			catch ( Exception e ) when ( e is not OutOfMemoryException )
 			{
-				library.AddAssembly( owner._assembly, true );
+				Log.Warning( e, "Some rebuilt script types could not be registered." );
 			}
 		}
 
-		/// <summary>
-		/// Records that reference migration and all registration callbacks completed successfully.
-		/// </summary>
-		internal void Complete() => _complete = true;
-
-		/// <summary>
-		/// Clears preparation bindings and prevents further execution after a failed dependency update.
-		/// </summary>
-		public void Dispose()
-		{
-			owner._resolver.IncomingAssemblies = [];
-			owner._runtime.InvalidateBindings();
-			owner._hotloadFailed |= !_complete;
-		}
+		return bindings;
 	}
 }

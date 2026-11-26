@@ -34,7 +34,7 @@ public static partial class Hammer
 			//
 			// Collect all packages our assets use and save them as metadata, so we can make sure we have them downloaded before opening
 			//
-			var packages = mapAsset.GetReferences( false ).Where( a => a.Package != null ).Select( a => $"{a.Package.FullIdent}#{a.Package.Revision.VersionId}" ).Distinct();
+			var packages = mapAsset.GetReferences( false ).Where( a => a.Package != null ).Select( a => a.Package.GetVersionedIdent() ).Distinct();
 			mapAsset.Publishing.ProjectConfig.EditorReferences.AddRange( packages.ToList() );
 
 			//

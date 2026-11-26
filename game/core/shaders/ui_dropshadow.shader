@@ -40,6 +40,8 @@ PS
 	// Texture Samplers ---------------------------------------------------------------------------------------------------------------------------------------
 	Texture2D g_tColor < Attribute( "Texture" ); SrgbRead( true ); Default( 1.0 ); >;
 	float4 g_vInvTextureDim < Source( InvTextureDim ); SourceArg( g_tColor ); >;
+	// Layer targets are rounded up in size; the content covers this much of them, from the top left
+	float2 LayerUVScale < Default2( 1.0f, 1.0f ); Attribute( "LayerUVScale" ); >;
 
 	//
 	// Drop-shadow specifics
@@ -69,7 +71,7 @@ PS
 		// filter: drop-shadow( x y blur color ) - the layer's alpha, offset and blurred. Unlike box-shadow, the blur
 		// value here is the gaussian's standard deviation itself, so a drop-shadow reads softer than the same box-shadow.
 		// The layer is padded by the offset and the blur's reach, so the quad and the layer line up one to one.
-		float2 vShadowUv = i.vTexCoord.xy - FilterDropShadowOffset * g_vInvTextureDim.xy;
+		float2 vShadowUv = i.vTexCoord.xy * LayerUVScale - FilterDropShadowOffset * g_vInvTextureDim.xy;
 		float4 vShadowColor = FilterDropShadowColor;
 		vShadowColor.rgb = SrgbGammaToLinear( vShadowColor.rgb );
 		vShadowColor.a *= GaussianBlurTexture( g_tColor, g_sTrilinearBorder, vShadowUv, FilterDropShadowBlur, g_vInvTextureDim.xy ).a;

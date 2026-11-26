@@ -26,7 +26,7 @@ public class MapSettings
 	public bool ShowChangeMap { get; set; }
 
 	/// <summary>
-	/// The map package selected by default, e.g. facepunch.flatgrass. Leave empty to make players choose.
+	/// The default map's Workshop item ID, package ident or asset path. Leave empty to make players choose.
 	/// </summary>
 	public string DefaultMap { get; set; }
 

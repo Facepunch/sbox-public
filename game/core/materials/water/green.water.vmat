@@ -1,0 +1,44 @@
+// THIS FILE IS AUTO-GENERATED
+
+Layer0
+{
+	shader "shaders/water.shader"
+
+	//---- Caustics ----
+	F_CAUSTICS 1
+
+	//---- Caustics ----
+	Caustics "textures/water/caustics1.png"
+	CausticsBrightness "1.000"
+	CausticsContrast "1.000"
+	CausticsIntensity "1.000"
+	CausticsScale "1.000"
+
+	//---- Detail ----
+	DetailNormal "textures/water/waternormals01.png"
+	DetailScale "622.923"
+	DetailSpeed "1.775"
+	DetailStrength "1.349"
+
+	//---- Fog ----
+	g_bFogEnabled "1"
+
+	//---- Refraction ----
+	RefractionStrength "1.000"
+
+	//---- Surface ----
+	g_fRoughness "0.000"
+	Opacity "0.919"
+	SurfaceColor "[0.027451 0.047059 0.019608 0.000000]"
+
+	//---- Through-Surface Fog ----
+	WaterFogAttenuationDistance "128.000"
+	WaterFogColor "[0.054902 0.160784 0.086275 0.000000]"
+	WaterFogDepthCurve "0.500"
+	WaterFogDepthRange "[0.000 96.000]"
+	WaterFogDistance "0"
+
+	//---- Underside ----
+	UndersideColor "[0.054902 0.160784 0.086275 0.000000]"
+	UndersideOpacity "0.156"
+}

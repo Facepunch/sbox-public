@@ -279,7 +279,7 @@
           "OnComponentFixedUpdate": null,
           "OnComponentStart": null,
           "OnComponentUpdate": null,
-          "Priority": 5,
+          "Priority": 15,
           "Speed": 1
         },
         {

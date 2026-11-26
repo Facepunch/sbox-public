@@ -1,0 +1,21 @@
+{
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "Python Insert Shells",
+      "Type": "vsnd",
+      "Org": "rust",
+      "Ident": "pythoninsertshells",
+      "Schema": 0,
+      "IncludeSourceFiles": true,
+      "Resources": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "IsWhitelistDisabled": false,
+      "Metadata": {
+        "SingleAssetSource": "weapons/magnum/sounds/python-insert-shells.wav"
+      }
+    }
+  },
+  "guid": "05acff87-c10a-44fc-b4fa-08f2643a6455"
+}

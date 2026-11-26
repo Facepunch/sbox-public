@@ -314,6 +314,7 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 			if ( !_frustum.IsValid )
 			{
 				_frustum = CFrustum.Create();
+				FrustumDirty = true;
 			}
 
 			if ( FrustumDirty )
@@ -392,6 +393,7 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 		get => _transform.Position;
 		set
 		{
+			if ( _transform.Position.Equals( value ) ) return;
 			_transform.Position = value;
 			FrustumDirty = true;
 		}
@@ -405,6 +407,7 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 		get => _transform.Rotation;
 		set
 		{
+			if ( _transform.Rotation.Equals( value ) ) return;
 			_transform.Rotation = value;
 			FrustumDirty = true;
 		}
@@ -419,8 +422,7 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 
 		set
 		{
-			_transform.Rotation = value;
-			FrustumDirty = true;
+			Rotation = value;
 		}
 	}
 
@@ -434,6 +436,7 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 		get => _fov;
 		set
 		{
+			if ( _fov == value ) return;
 			_fov = value;
 			FrustumDirty = true;
 		}
@@ -452,6 +455,7 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 		get => _zfar;
 		set
 		{
+			if ( _zfar == value ) return;
 			_zfar = value;
 			FrustumDirty = true;
 		}
@@ -469,6 +473,7 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 		get => _znear;
 		set
 		{
+			if ( _znear == value ) return;
 			_znear = value;
 			FrustumDirty = true;
 		}
@@ -484,6 +489,7 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 		get => _ortho;
 		set
 		{
+			if ( _ortho == value ) return;
 			_ortho = value;
 			FrustumDirty = true;
 		}
@@ -497,6 +503,7 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 		get => Attributes.GetFloat( "cam.orthoHeight" );
 		set
 		{
+			if ( OrthoHeight == value ) return;
 			Attributes.Set( "cam.orthoHeight", value );
 			FrustumDirty = true;
 		}
@@ -1032,9 +1039,28 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 		using var setup = new CameraRenderer( "RenderToBitmap", _cameraId );
 		setup.Configure( this, config );
 
+		// Game code can free the bitmap while we render, so render into memory we own
+		var width = bitmap.Width;
+		var height = bitmap.Height;
+		var bytesPerPixel = bitmap.BytesPerPixel;
+		var length = bitmap.GetBuffer().Length;
+
 		unsafe
 		{
-			setup.Native.RenderToBitmap( (IntPtr)bitmap.GetPointer(), bitmap.Width, bitmap.Height, bitmap.BytesPerPixel );
+			var pixels = System.Runtime.InteropServices.NativeMemory.AllocZeroed( (nuint)length );
+			try
+			{
+				setup.Native.RenderToBitmap( (IntPtr)pixels, width, height, bytesPerPixel );
+
+				if ( !bitmap.IsValid() || bitmap.Width != width || bitmap.Height != height || bitmap.BytesPerPixel != bytesPerPixel )
+					return;
+
+				new ReadOnlySpan<byte>( pixels, length ).CopyTo( bitmap.GetBuffer() );
+			}
+			finally
+			{
+				System.Runtime.InteropServices.NativeMemory.Free( pixels );
+			}
 		}
 	}
 
@@ -1081,7 +1107,7 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 			if ( ownsBatch )
 			{
 				CSceneSystem.FinishRenderingViews();
-				CSceneSystem.WaitForRenderingToComplete();
+				Graphics.WaitForRenderingToComplete();
 			}
 		}
 	}

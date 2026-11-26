@@ -85,5 +85,5 @@ public class AiQueryResponse
 	/// <summary>
 	/// Account balance after this request. Null means unavailable; retain the last known balance.
 	/// </summary>
-	public ServiceApi.CreditBalance? Credits { get; set; }
+	public AiCreditBalance? Credits { get; set; }
 }

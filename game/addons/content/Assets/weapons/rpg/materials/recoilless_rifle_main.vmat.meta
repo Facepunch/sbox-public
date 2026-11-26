@@ -1,0 +1,28 @@
+{
+  "guid": "f41693a2-4e48-40ab-8b07-162d57bb6bb8",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "Recoilless Rifle Main",
+      "Type": "material",
+      "Org": "local",
+      "Ident": "recoilless_rifle_main",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [
+        "jase.carddebris_a_02#12112"
+      ],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "weapons/rpg/materials/recoilless_rifle_main.vmat"
+      }
+    }
+  }
+}

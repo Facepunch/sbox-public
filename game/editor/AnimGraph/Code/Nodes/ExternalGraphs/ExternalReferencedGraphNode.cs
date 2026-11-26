@@ -23,7 +23,7 @@ public class ExternalReferencedGraphNode : Node
 	[JsonIgnore]
 	public object Result => default;
 
-	public override DisplayInfo DisplayInfo
+	protected override DisplayInfo DefaultDisplayInfo
 	{
 		get
 		{

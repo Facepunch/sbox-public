@@ -239,7 +239,7 @@ internal static class Avatar
 		var icon = AvatarIcons[rng.Next( AvatarIcons.Length )];
 		var iconColor = (Color)new ColorHsv( rng.Float( 0f, 360f ), rng.Float( 0f, 0.25f ), rng.Float( 0.9f, 1f ) );
 
-		bitmap.DrawText( new TextRendering.Scope( icon, iconColor, size * 0.5f, "Material Icons" ), bitmap.Rect, TextFlag.Center | TextFlag.DontClip );
+		bitmap.DrawText( new TextRendering.Scope( icon, iconColor, size * 0.5f, "Material Symbols Outlined" ), bitmap.Rect, TextFlag.Center | TextFlag.DontClip );
 
 		return bitmap.ToTexture();
 	}

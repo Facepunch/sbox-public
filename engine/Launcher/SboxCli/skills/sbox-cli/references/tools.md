@@ -31,7 +31,8 @@ Found through search, but always present:
 Don't open the dev tools and screenshot it. Times are ms, memory MiB.
 `perf_overview` (start here: frame stats, what limits the frame rate, hitches, flagged issues,
 top CPU and GPU costs), `perf_frames`, `perf_cpu`, `perf_gpu`, `perf_memory` (`allocationSeconds`
-tracks allocations by type), `perf_rendering`, `perf_network` (`seconds` records messages),
+tracks allocations by type), `perf_vram` (the GPU allocator's blocks, emptiest first, and what
+holds the nearly empty ones), `perf_rendering`, `perf_network` (`seconds` records messages),
 `perf_ui`. The first GPU read takes about a second while timings warm up.
 
 ## Editor toolsets

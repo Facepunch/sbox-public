@@ -17,16 +17,23 @@ public static class EditorScene
 	}
 
 	public static Gizmo.SceneSettings GizmoSettings { get; private set; } = new Gizmo.SceneSettings();
+	static CookieContainer _settingsCookie;
 
 	public static SelectionSystem Selection => SceneEditorSession.Active?.Selection;
 
 	public static void RestoreState()
 	{
-		var package = Project.Current.Package;
+		_settingsCookie = ProjectCookie;
 		if ( ProjectCookie?.Get<Gizmo.SceneSettings>( $"gizmo.settings", null ) is Gizmo.SceneSettings savedSettings )
 		{
 			GizmoSettings = savedSettings;
 		}
+	}
+
+	internal static void SaveState()
+	{
+		if ( ReferenceEquals( _settingsCookie, ProjectCookie ) )
+			_settingsCookie.Set( "gizmo.settings", GizmoSettings );
 	}
 
 	[Shortcut( "editor.new", "CTRL+N" )]
@@ -237,6 +244,24 @@ public static class EditorScene
 
 	public static void Play( SceneEditorSession session = null ) => Play( PlayMode, session );
 
+	static Transform? _playFromHere;
+	public static void PlayFromHere( Transform spawn, SceneEditorSession session = null )
+	{
+		if ( Game.IsPlaying )
+			Stop();
+
+		_playFromHere = spawn;
+
+		try
+		{
+			Play( false, session );
+		}
+		finally
+		{
+			_playFromHere = null;
+		}
+	}
+
 	public static void Play( bool playMode, SceneEditorSession playableSession = null )
 	{
 		playableSession ??= FindPlayableSession();
@@ -299,6 +324,19 @@ public static class EditorScene
 				LoadingScreen.IsVisible = false;
 				OnPlayRestore();
 				return;
+			}
+
+			if ( _playFromHere is { } spawn )
+			{
+				using var scope = Game.ActiveScene.Push();
+
+				var go = new GameObject();
+				go.Name = "Play From Here";
+				go.Flags |= GameObjectFlags.NotSaved | GameObjectFlags.NotNetworked;
+				go.WorldTransform = spawn.WithScale( 1 );
+
+				var spawnPoint = go.Components.Create<SpawnPoint>();
+				spawnPoint.Priority = int.MaxValue;
 			}
 
 			Game.ActiveScene.RunEvent<ISceneStartup>( x => x.OnHostInitialize() );
@@ -486,7 +524,7 @@ public static class EditorScene
 		var options = new GameObject.SerializeOptions();
 		var serializedObjects = selection.Select( x => x.Serialize( options ) ).ToArray();
 
-		EditorUtility.Clipboard.Copy( Json.Serialize( serializedObjects ) );
+		EditorUtility.Clipboard.Copy( SceneInstanceClipboard.Write( session.Scene, selection, serializedObjects ) );
 
 		using ( session.UndoScope( "Cut" ).WithGameObjectDestructions( selection ).Push() )
 		{
@@ -534,7 +572,7 @@ public static class EditorScene
 			return s;
 		} );
 
-		EditorUtility.Clipboard.Copy( Json.Serialize( serialized ) );
+		EditorUtility.Clipboard.Copy( SceneInstanceClipboard.Write( SceneEditorSession.Active.Scene, selection, serialized ) );
 	}
 
 	[Shortcut( "editor.paste", "CTRL+V" )]
@@ -609,50 +647,43 @@ public static class EditorScene
 		// Deserialize can fail if the clipboards contents area ambigous / partally invalid
 		try
 		{
-			if ( Json.Deserialize<IEnumerable<JsonObject>>( text ) is IEnumerable<JsonObject> serializedObjects )
+			var session = SceneEditorSession.Resolve( targets.FirstOrDefault() );
+			var (serializedObjects, instances) = SceneInstanceClipboard.Read( session.Scene, text );
+			var objCount = serializedObjects.Length;
+			if ( objCount == 0 ) return;
+
+			using var scene = session.Scene.Push();
+			using ( session.UndoScope( $"Paste {objCount} Objects" ).WithGameObjectCreations().Push() )
 			{
-				var objCount = serializedObjects.Count();
-				if ( objCount == 0 ) return;
+				Selection.Clear();
 
-				var session = SceneEditorSession.Resolve( targets.FirstOrDefault() );
-				using var scene = session.Scene.Push();
-				using ( session.UndoScope( $"Paste {objCount} Objects" ).WithGameObjectCreations().Push() )
+				foreach ( var target in targets )
 				{
-					Selection.Clear();
-
-					foreach ( var target in targets )
+					foreach ( var jso in serializedObjects )
 					{
-						foreach ( var jso in serializedObjects )
+						var go = SceneInstanceClipboard.Paste( session.Scene, jso, instances );
+
+						if ( target.IsValid() )
 						{
-							var go = SceneEditorSession.Active.Scene.CreateObject();
-							// avoids some warnings
-							SceneUtility.MakeIdGuidsUnique( jso );
-
-							using var blobs = BlobDataSerializer.LoadFrom( jso );
-							go.Deserialize( jso );
-
-							if ( target.IsValid() )
+							if ( asChild )
 							{
-								if ( asChild )
-								{
-									go.SetParent( target );
-								}
-								else
-								{
-									target.AddSibling( go, false );
-								}
+								go.SetParent( target );
 							}
-
-							go.MakeNameUnique();
-
-							Selection.Add( go );
+							else
+							{
+								target.AddSibling( go, false );
+							}
 						}
-					}
 
-					if ( tr is { } trace )
-					{
-						PlaceBoundsOnSurface( Selection.OfType<GameObject>(), trace.HitPosition, trace.Normal );
+						go.MakeNameUnique();
+
+						Selection.Add( go );
 					}
+				}
+
+				if ( tr is { } trace )
+				{
+					PlaceBoundsOnSurface( Selection.OfType<GameObject>(), trace.HitPosition, trace.Normal );
 				}
 			}
 		}

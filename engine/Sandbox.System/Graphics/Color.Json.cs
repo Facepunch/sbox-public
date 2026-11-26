@@ -57,7 +57,9 @@ namespace Sandbox.Internal.JsonConvert
 
 		public override void Write( Utf8JsonWriter writer, Color val, JsonSerializerOptions options )
 		{
-			writer.WriteStringValue( $"{val.r:0.#####},{val.g:0.#####},{val.b:0.#####},{val.a:0.#####}" );
+			// Read back with the invariant culture, a comma decimal separator would split every component in two
+			Span<char> text = stackalloc char[128];
+			writer.WriteStringValue( text.TryWrite( System.Globalization.CultureInfo.InvariantCulture, $"{val.r:0.#####},{val.g:0.#####},{val.b:0.#####},{val.a:0.#####}", out var written ) ? text[..written] : string.Create( System.Globalization.CultureInfo.InvariantCulture, $"{val.r:0.#####},{val.g:0.#####},{val.b:0.#####},{val.a:0.#####}" ) );
 		}
 	}
 }

@@ -248,6 +248,8 @@ public class BindCollection
 			return ButtonList?.Contains( button ) ?? false;
 		}
 
+		internal bool Matches( IReadOnlyList<string> buttons ) => ButtonList?.SetEquals( buttons ) == true;
+
 		internal void Set( string buttonString )
 		{
 			buttonString = buttonString ?? "";

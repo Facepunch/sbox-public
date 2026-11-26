@@ -26,6 +26,7 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 	internal SceneNetworkSystem( Internal.TypeLibrary typeLibrary, NetworkSystem system )
 	{
 		Instance = this;
+		Input.ResetNetworkInput();
 		DeltaSnapshots = new( this );
 
 		Library = typeLibrary;
@@ -157,6 +158,13 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 
 	private void SendNetworkSpawnBatch()
 	{
+		// Late joiners get the current scene snapshot, not these transient spawn messages.
+		if ( BatchSpawnList.Count == 0 || !HasBroadcastRecipients() )
+		{
+			BatchSpawnList.Clear();
+			return;
+		}
+
 		// If we only have one, just send a normal message.
 		if ( BatchSpawnList.Count == 1 )
 		{
@@ -216,7 +224,7 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 	internal void NetworkSpawnBroadcast( NetworkObject networkObject )
 	{
 		// We're not supposed to send spawn messages right now.
-		if ( IsSuppressingSpawnMessages )
+		if ( IsSuppressingSpawnMessages || !HasBroadcastRecipients() )
 			return;
 
 		if ( IsBatchNetworkSpawning )
@@ -267,6 +275,9 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 	/// </summary>
 	private async Task OnLoadSceneSnapshotMsg( LoadSceneSnapshotMsg msg, Connection connection, Guid msgId )
 	{
+		if ( !connection.IsHost )
+			return;
+
 		NetworkDebugSystem.Current?.Record( NetworkDebugSystem.MessageType.Snapshot, msg );
 		Diagnostics.DevTools.NetworkLog.Message( Diagnostics.DevTools.NetworkLog.Kind.Snapshot, "SceneSnapshot", msg, false, connection );
 
@@ -274,7 +285,7 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		// loading. Mount the final list before the snapshot creates objects that use files in them.
 		// Mount before releasing the old list, so a VPK in both stays mounted.
 		var previousVPKs = MountedVPKs;
-		MountedVPKs = await MountMaps( msg.MountedVPKs );
+		MountedVPKs = MountMaps( msg.MountedVPKs );
 		previousVPKs?.Dispose();
 
 		await SetSnapshotAsync( msg.Snapshot );
@@ -328,8 +339,11 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 	/// <summary>
 	/// Called when the host has told us to load a new scene.
 	/// </summary>
-	private async Task OnLoadSceneMsg( LoadSceneBeginMsg msg, Connection connection, Guid msgId )
+	private void OnLoadSceneMsg( LoadSceneBeginMsg msg, Connection connection, Guid msgId )
 	{
+		if ( !connection.IsHost )
+			return;
+
 		// Always show the loading screen on clients when the host changes scene,
 		// so they see feedback immediately instead of a frozen frame.
 		if ( !Game.IsEditor )
@@ -346,7 +360,7 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		}
 
 		MountedVPKs?.Dispose();
-		MountedVPKs = await MountMaps( msg.MountedVPKs );
+		MountedVPKs = MountMaps( msg.MountedVPKs );
 
 		// Let them know we would like a snapshot now.
 		var loadedMsg = new LoadSceneRequestSnapshotMsg { SceneId = msg.SceneId, Id = msg.Id };
@@ -386,22 +400,49 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 
 	private static List<string> GetMapNames()
 	{
-		return Game.ActiveScene.GetAllComponents<MapInstance>().Select( x => x.MapName ).ToList();
+		return Game.ActiveScene.GetAllComponents<MapInstance>().Select( x => x.LoadedVpkPath ).Where( path => path is not null ).ToList();
 	}
 
 	/// <summary>
-	/// Asynchronously load and mount any VPKs from the provided server response.
+	/// Mount the VPKs from the provided server response.
 	/// </summary>
-	public override async Task MountVPKs( Connection source, MountedVPKsResponse msg )
+	public override Task MountVPKs( Connection source, MountedVPKsResponse msg )
 	{
 		// Mount any vpks early because snapshotted or networked objects can use resources within
 		// This removes it's refcount at the end because the MapInstance should take over
 		MountedVPKs?.Dispose();
-		MountedVPKs = await MountMaps( msg.MountedVPKs );
+		MountedVPKs = MountMaps( msg.MountedVPKs );
+		return Task.CompletedTask;
 	}
 
 	private static readonly GameObject.SerializeOptions _snapshotSerializeOptions = new() { SceneForNetwork = true, SkipNulls = true };
 	private static readonly GameObject.SerializeOptions _handoffSerializeOptions = new() { SceneForNetwork = true, SkipNulls = true, IncludeLocalObjects = true };
+
+	static bool _snapshotWarmed;
+
+	/// <summary>
+	/// The first snapshot a host takes JITs the scene serialization path and fills its reflection caches: ~230 ms with
+	/// a few thousand objects, on the frame the first player joins. Take one that's thrown away while the first scene loads instead.
+	/// </summary>
+	internal void WarmSnapshot()
+	{
+		if ( _snapshotWarmed ) return;
+
+		var scene = Game.ActiveScene;
+		if ( !scene.IsValid() ) return;
+
+		_snapshotWarmed = true;
+
+		try
+		{
+			using var blobs = BlobDataSerializer.Capture();
+			scene.Serialize( _snapshotSerializeOptions ).ToJsonString();
+		}
+		catch ( Exception e )
+		{
+			Log.Warning( e, $"Couldn't serialize the scene for network snapshots: {e.Message}" );
+		}
+	}
 
 	/// <summary>
 	/// A client has joined and wants a snapshot of the world.
@@ -555,43 +596,15 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 	}
 
 	private IDisposable MountedVPKs { get; set; }
-	private async Task<IDisposable> MountMaps( List<string> maps )
+	private static IDisposable MountMaps( List<string> maps )
 	{
-		List<string> vpks = [];
-
-		// Some safety here in-case the input list if null
-		if ( maps is not null )
-		{
-			// Let's see if any are cloud maps and mount those first
-			foreach ( var map in maps )
-			{
-				// Ignore any entries that are null or empty
-				if ( string.IsNullOrEmpty( map ) )
-					continue;
-
-				if ( map.EndsWith( ".vpk" ) )
-				{
-					vpks.Add( map );
-					continue;
-				}
-
-				if ( !Package.TryParseIdent( map, out var parts ) )
-					continue;
-
-				var package = await Package.Fetch( map, false );
-				if ( package is null )
-					continue;
-
-				var fs = await package.MountAsync();
-				if ( fs is null ) continue;
-
-				var mapFileName = package.PrimaryAsset;
-				vpks.Add( mapFileName );
-			}
-		}
+		var vpks = (maps ?? [])
+			.Where( path => MapReference.IsAssetPath( path ) && !path.EndsWith( ".scene", StringComparison.OrdinalIgnoreCase ) )
+			.Select( path => Path.ChangeExtension( path, ".vpk" ) )
+			.ToArray();
 
 		foreach ( var vpk in vpks )
-			g_pWorldRendererMgr.MountWorldVPK( Path.GetFileNameWithoutExtension( vpk ), Path.ChangeExtension( vpk, ".vpk" ) );
+			g_pWorldRendererMgr.MountWorldVPK( Path.GetFileNameWithoutExtension( vpk ), vpk );
 
 		return new DisposeAction( () =>
 		{
@@ -977,6 +990,7 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		}
 
 		DeltaSnapshots?.Reset();
+		Input.ResetNetworkInput();
 		UserCommand.Reset();
 	}
 
@@ -1572,7 +1586,7 @@ struct ObjectDestroyDescendantMsg
 [Expose]
 struct ObjectRefreshDescendantMsg
 {
-	public string JsonData { get; set; }
+	public byte[] JsonData { get; set; }
 	public byte[] BlobData { get; set; }
 	public byte[] TableData { get; set; }
 	public byte[] Snapshot { get; set; }
@@ -1587,7 +1601,7 @@ struct ObjectRefreshDescendantMsg
 [Expose]
 struct ObjectRefreshComponentMsg
 {
-	public string JsonData { get; set; }
+	public byte[] JsonData { get; set; }
 	public byte[] BlobData { get; set; }
 	public byte[] TableData { get; set; }
 	public byte[] Snapshot { get; set; }
@@ -1602,7 +1616,7 @@ struct ObjectRefreshComponentMsg
 [Expose]
 struct ObjectRefreshMsg
 {
-	public string JsonData { get; set; }
+	public byte[] JsonData { get; set; }
 	public byte[] BlobData { get; set; }
 	public byte[] TableData { get; set; }
 	public byte[] Snapshot { get; set; }
@@ -1652,7 +1666,7 @@ struct ObjectCreateBatchMsg
 struct ObjectCreateMsg
 {
 	public ushort SnapshotVersion { get; set; }
-	public string JsonData { get; set; }
+	public byte[] JsonData { get; set; }
 	public byte[] BlobData { get; set; }
 	public Transform Transform { get; set; }
 	public Guid Guid { get; set; }

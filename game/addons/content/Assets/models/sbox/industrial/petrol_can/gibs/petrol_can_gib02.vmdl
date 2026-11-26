@@ -1,0 +1,175 @@
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:modeldoc30:version{8c2d7a91-9c42-4bf0-883a-5a3b1762d4f1} -->
+{
+	rootNode =
+	{
+		_class = "RootNode"
+		children =
+		[
+			{
+				_class = "MaterialGroupList"
+				children =
+				[
+					{
+						_class = "DefaultMaterialGroup"
+						remaps =
+						[
+							{
+								from = "petrol_can.vmat"
+								to = "models/sbox/industrial/petrol_can/materials/petrol_can.vmat"
+							},
+							{
+								from = "models/sbox/industrial/petrol_can/petrol_can.vmat"
+								to = "models/sbox/industrial/petrol_can/materials/petrol_can.vmat"
+							},
+						]
+						use_global_default = false
+						global_default_material = ""
+					},
+				]
+			},
+			{
+				_class = "PhysicsShapeList"
+				children =
+				[
+					{
+						_class = "PhysicsHullFromRender"
+						parent_bone = ""
+						surface_prop = "metal.sheet"
+						collision_tags = "solid"
+						faceMergeAngle = 20.0
+						maxHullVertices = 32
+						hull_mode = "SingleHull"
+					},
+				]
+			},
+			{
+				_class = "RenderMeshList"
+				children =
+				[
+					{
+						_class = "RenderMeshFile"
+						name = "gib"
+						filename = "models/sbox/industrial/petrol_can/petrol_can.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter =
+						{
+							exclude_by_default = false
+							exception_list =
+							[
+								"petrol_can_lod1",
+								"petrol_can_lod3",
+								"petrol_can_lod2",
+								"petrol_can_gib_03",
+								"petrol_can_lod0",
+								"petrol_can_gib_01",
+								"petrol_can_phys",
+							]
+						}
+					},
+				]
+			},
+			{
+				_class = "PhysicsBodyMarkupList"
+				children =
+				[
+					{
+						_class = "PhysicsBodyMarkup"
+						target_body = ""
+						mass_override = 2.0
+						inertia_scale = 1.0
+						linear_damping = 0.08
+						angular_damping = 0.3
+						use_mass_center_override = false
+						mass_center_override = [ 0.0, 0.0, 0.0 ]
+						gravity_scale = 1.0
+					},
+				]
+			},
+			{
+				_class = "LODGroupList"
+				children =
+				[
+					{
+						_class = "LODGroup"
+						switch_threshold = 0.0
+						auto_simplify_mode = 0
+						auto_reduction = 0.5
+						auto_max_error = 0.0
+						auto_lock_border_vertices = true
+						auto_permissive_simplification = false
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						auto_strip_vertex_color = false
+						auto_material_culling_enabled = false
+						meshes =
+						[
+							"gib",
+						]
+						material_culls = [  ]
+					},
+					{
+						_class = "LODGroup"
+						switch_threshold = 5.0
+						auto_simplify_mode = 1
+						auto_reduction = 0.4154
+						auto_max_error = 0.0
+						auto_lock_border_vertices = true
+						auto_permissive_simplification = true
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = true
+						auto_strip_vertex_color = false
+						auto_material_culling_enabled = false
+						meshes = [  ]
+						material_culls = [  ]
+					},
+					{
+						_class = "LODGroup"
+						switch_threshold = 25.0
+						auto_simplify_mode = 1
+						auto_reduction = 0.4154
+						auto_max_error = 0.0
+						auto_lock_border_vertices = true
+						auto_permissive_simplification = true
+						auto_protect_uv_seams = false
+						auto_regularize = 1
+						auto_prune_isolated_components = true
+						auto_strip_vertex_color = false
+						auto_material_culling_enabled = false
+						meshes = [  ]
+						material_culls = [  ]
+					},
+					{
+						_class = "LODGroup"
+						switch_threshold = 40.0
+						auto_simplify_mode = 1
+						auto_reduction = 0.2939
+						auto_max_error = 0.0
+						auto_lock_border_vertices = true
+						auto_permissive_simplification = true
+						auto_protect_uv_seams = false
+						auto_regularize = 1
+						auto_prune_isolated_components = true
+						auto_strip_vertex_color = false
+						auto_material_culling_enabled = false
+						meshes = [  ]
+						material_culls = [  ]
+					},
+				]
+			},
+		]
+		model_archetype = ""
+		primary_associated_entity = ""
+		anim_graph_name = ""
+		animation_graph_name = resource:""
+		skeleton_name = resource:""
+		base_model_name = ""
+	}
+}

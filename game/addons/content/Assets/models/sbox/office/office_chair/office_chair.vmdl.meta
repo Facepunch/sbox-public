@@ -1,0 +1,27 @@
+{
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "Office Chair",
+      "Type": "model",
+      "Org": "facepunch",
+      "Ident": "office_chair",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "Metadata": {
+        "SingleAssetSource": "models/sbox_props/office_chair/office_chair.vmdl",
+        "Summary": "",
+        "Description": "standard office chair",
+        "Public": true,
+        "ReplaceTags": "office chair furniture interior breakable",
+        "AssetLicense": "CC0"
+      }
+    }
+  },
+  "guid": "020800b8-0000-0000-f0e3-3213fc000000"
+}

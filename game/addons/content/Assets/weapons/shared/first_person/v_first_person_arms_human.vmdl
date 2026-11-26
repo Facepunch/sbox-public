@@ -1,0 +1,218 @@
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:modeldoc30:version{8c2d7a91-9c42-4bf0-883a-5a3b1762d4f1} -->
+{
+	rootNode = 
+	{
+		_class = "RootNode"
+		children = 
+		[
+			{
+				_class = "AnimConstraintList"
+				note = "The bones driven by the TiltTwist constraints are called \"twistctrl*\". They are the parent of their respective \"twist_*\" bone, and these are the ones that actually are skinning the mesh. This way, they can be animated separately on top of the TiltTwist constraint. The sum of the weights of the constraints in either forearm twist chain should add up to 1."
+				children = 
+				[
+					{
+						_class = "Prefab"
+						target_file = "weapons/shared/first_person/prefabs/v_first_person_arms_animconstraintlist.vmdl_prefab"
+					},
+				]
+			},
+			{
+				_class = "MaterialGroupList"
+				children = 
+				[
+					{
+						_class = "Prefab"
+						target_file = "weapons/shared/first_person/prefabs/v_first_person_arms_defaultmaterialgroup.vmdl_prefab"
+					},
+				]
+			},
+			{
+				_class = "RenderMeshList"
+				children = 
+				[
+					{
+						_class = "Prefab"
+						target_file = "weapons/shared/first_person/prefabs/v_first_person_arms_rendermeshlist.vmdl_prefab"
+					},
+				]
+			},
+			{
+				_class = "AnimationList"
+				children = 
+				[
+					{
+						_class = "AnimFile"
+						name = "bindPose"
+						note = "There\'s a little bit of inaccuracy in the bone orientations unless compression is disabled. This is probably fine insofar as it should match up whatever inaccuracy is introduced in all other animations. bindPose_internal is, however, perfect."
+						activity_name = ""
+						activity_weight = 1
+						weight_list_name = ""
+						fade_in_time = 0.2
+						fade_out_time = 0.2
+						looping = false
+						delta = false
+						worldSpace = false
+						hidden = false
+						anim_markup_ordered = false
+						disable_compression = true
+						disable_interpolation = false
+						enable_scale = false
+						source_filename = "weapons/shared/first_person/v_first_person_arms_human.fbx"
+						start_frame = -1
+						end_frame = 30
+						framerate = -1.0
+						take = 0
+						reverse = false
+					},
+					{
+						_class = "AnimFile"
+						name = "bindPose_delta"
+						children = 
+						[
+							{
+								_class = "AnimSubtract"
+								anim_name = "bindPose_delta"
+								frame = 0
+							},
+						]
+						activity_name = ""
+						activity_weight = 1
+						weight_list_name = ""
+						fade_in_time = 0.2
+						fade_out_time = 0.2
+						looping = false
+						delta = false
+						worldSpace = false
+						hidden = false
+						anim_markup_ordered = false
+						disable_compression = true
+						disable_interpolation = false
+						enable_scale = false
+						source_filename = "weapons/shared/first_person/v_first_person_arms_human.fbx"
+						start_frame = -1
+						end_frame = 30
+						framerate = -1.0
+						take = 0
+						reverse = false
+					},
+					{
+						_class = "AnimFile"
+						name = "Punching_Pose"
+						activity_name = ""
+						activity_weight = 1
+						weight_list_name = ""
+						fade_in_time = 0.2
+						fade_out_time = 0.2
+						looping = true
+						delta = false
+						worldSpace = false
+						hidden = false
+						anim_markup_ordered = false
+						disable_compression = false
+						enable_scale = false
+						source_filename = "weapons/shared/first_person/animations/FPArms@Punching_Pose.fbx"
+						start_frame = 0
+						end_frame = -1
+						framerate = -1.0
+						take = 0
+						reverse = false
+						anim_hold_list =
+						[
+							{
+								frame = 0
+								frame_count = 30
+							},
+						]
+					},
+					{
+						_class = "Prefab"
+						target_file = "weapons/shared/first_person/prefabs/v_first_person_arms_animationlist_debug.vmdl_prefab"
+					},
+				]
+				default_root_bone_name = ""
+			},
+			{
+				_class = "BoneMarkupList"
+				children = 
+				[
+					{
+						_class = "Prefab"
+						target_file = "weapons/shared/first_person/prefabs/v_first_person_arms_bonemarkuplist.vmdl_prefab"
+					},
+				]
+				bone_cull_type = "Leaf Only"
+			},
+			{
+				_class = "HitboxSetList"
+				children = 
+				[
+					{
+						_class = "Prefab"
+						target_file = "weapons/shared/first_person/prefabs/v_first_person_arms_hitboxsetlist.vmdl_prefab"
+					},
+				]
+			},
+			{
+				_class = "GameDataList"
+				children = 
+				[
+					{
+						_class = "Prefab"
+						target_file = "weapons/shared/first_person/prefabs/v_first_person_arms_gamedatalist.vmdl_prefab"
+					},
+				]
+			},
+			{
+				_class = "ModelModifierList"
+				children = 
+				[
+					{
+						_class = "ModelModifier_ScaleAndMirror"
+						note = "Converting from centimeters to inches."
+						scale = 0.3937
+						mirror_x = false
+						mirror_y = false
+						mirror_z = false
+						flip_bone_forward = false
+						swap_left_and_right_bones = false
+					},
+				]
+			},
+			{
+				_class = "WeightListList"
+				note = "Remember: constrained bones don\'t like it when they get operated on by compositing in AnimGraph. This is why those bones are explicitly excluded from weightlists."
+				children = 
+				[
+					{
+						_class = "Prefab"
+						target_file = "weapons/shared/first_person/prefabs/v_first_person_arms_weightlistlist.vmdl_prefab"
+					},
+				]
+			},
+			{
+				_class = "IKData"
+				children = 
+				[
+					{
+						_class = "Prefab"
+						target_file = "weapons/shared/first_person/prefabs/v_first_person_arms_ikdata.vmdl_prefab"
+					},
+				]
+			},
+			{
+				_class = "BodyGroupList"
+				children = 
+				[
+					{
+						_class = "Prefab"
+						target_file = "weapons/shared/first_person/prefabs/v_first_person_arms_bodygrouplist.vmdl_prefab"
+					},
+				]
+			},
+		]
+		model_archetype = ""
+		primary_associated_entity = ""
+		anim_graph_name = ""
+		base_model_name = ""
+	}
+}

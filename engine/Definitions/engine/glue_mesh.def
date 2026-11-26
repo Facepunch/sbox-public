@@ -24,6 +24,7 @@ native class CBuilderHitBox
 	void SetBox( Vector3 mins, Vector3 maxs );
 	void SetSphere( Vector3 center, float radius );
 	void SetCapsule( Vector3 start, Vector3 end, float radius );
+	void SetHull( CastTo[Vector*] void* points, int count );
 }
 
 native class CAnimationGroupBuilder

@@ -1,0 +1,27 @@
+{
+  "guid": "00000000-0000-0000-7e00-000000000000",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "Radiator Clean",
+      "Type": "material",
+      "Org": "local",
+      "Ident": "radiatorclean",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/home/radiator/materials/radiator_clean.vmat"
+      }
+    },
+    "HammerAutoPackageReferences": null
+  }
+}

@@ -1,0 +1,374 @@
+@using Sandbox;
+@using Sandbox.UI;
+@inherits PanelComponent
+@implements Local.IPlayerEvents
+@namespace Sandbox
+
+<root @onmousedown=@OnMenuClicked @onfocus=@OnMenuFocus>
+
+    <div class="menu-wrapper">
+        <div class="menu-backdrop"></div>
+        <div class="menu-slide">
+            <PanelSwitcher @ref="PanelSwitcher"></PanelSwitcher>
+        </div>
+        <div class="modal-layer" @ref="modalLayer"></div>
+    </div>
+
+</root>
+
+@code
+{
+    bool stickOpen;
+    bool lastState;
+    string _lastMode = "SpawnMenu";
+
+    /// <summary>
+    /// Whether the menu is currently up (held or pinned), in any mode.
+    /// </summary>
+    public static bool IsOpen { get; private set; }
+
+    PanelSwitcher PanelSwitcher = default;
+    Sandbox.UI.Panel modalLayer = default;
+
+    /// <summary>
+    /// Where <see cref="UIModal"/> windows go. They are inside the menu, so it stays up while one has focus.
+    /// </summary>
+    public static Sandbox.UI.Panel ModalLayer => Game.ActiveScene?.Get<SpawnMenuHost>()?.modalLayer;
+
+    protected override void OnTreeFirstBuilt()
+    {
+        base.OnTreeFirstBuilt();
+
+        // tooltips and menu lists are styled from the root panel, not from the panel that opened them
+        var root = Panel.FindRootPanel();
+        root?.StyleSheet.Load( "/UI/Tooltip.scss" );
+        root?.StyleSheet.Load( "/UI/ContextMenu.scss" );
+        root?.StyleSheet.Load( "/UI/Widgets/UIDropdownList.cs.scss" );
+    }
+
+    protected override void OnUpdate()
+    {
+        _selectedObjects.RemoveWhere( o => !o.IsValid() );
+        UpdateSelectionOutline();
+        Panel?.FindRootPanel()?.SetClass( "sandbox-light", GamePreferences.Theme == InterfaceTheme.Light );
+        UpdateSpawnMenuState();
+        ScanForNewModes();
+
+        base.OnUpdate();
+    }
+
+    // popups are children of the popup layer, so there is no need to look any deeper than that
+    bool IsHeldOpenByPopup()
+    {
+        var layer = Panel.FindPopupPanel();
+        if ( !layer.IsValid() ) return false;
+
+        for ( int i = 0; layer.ChildrenCount > i; i++ )
+        {
+            var child = layer.GetChild( i );
+            if ( child is IKeepsMenuOpen { KeepsMenuOpen: true } && child.IsValid() && !child.IsDeleting )
+                return true;
+        }
+
+        return false;
+    }
+
+    // when toggle key is enabled from settings
+    string toggledKey;
+
+    readonly HashSet<GameObject> _selectedObjects = new();
+    internal IReadOnlyCollection<GameObject> SelectedObjects => _selectedObjects;
+    HighlightOutline _selectionOutline;
+
+    void UpdateSelectionOutline()
+    {
+        if ( _selectedObjects.Count == 0 || InspectCursor.ActiveSelectTool is null )
+        {
+            _selectionOutline.Hide();
+            return;
+        }
+
+        _selectionOutline ??= ObjectHighlight.Create( GameObject );
+        _selectionOutline.Show( _selectedObjects, HighlightStyle.Selected );
+    }
+
+    protected override void OnDisabled()
+    {
+        _selectionOutline?.Destroy();
+        _selectionOutline = null;
+        base.OnDisabled();
+    }
+
+    internal void SelectObject( GameObject target )
+    {
+        if ( !Input.Down( "run" ) || !target.IsValid() )
+            _selectedObjects.Clear();
+
+        if ( target.IsValid() )
+            _selectedObjects.Add( target );
+    }
+
+    bool IsPinned => stickOpen || toggledKey is not null;
+
+    internal void TogglePin()
+    {
+        stickOpen = !IsPinned;
+        toggledKey = null;
+
+        if ( !stickOpen )
+        {
+            Sandbox.UI.InputFocus.Clear();
+            Popup.CloseAll();
+        }
+    }
+
+    void UpdateSpawnMenuState()
+    {
+        var pressed = Input.Pressed( "spawnmenu" ) ? "spawnmenu" : Input.Pressed( "inspectmenu" ) ? "inspectmenu" : null;
+        bool held = Input.Down( "spawnmenu" ) || Input.Down( "inspectmenu" );
+
+        if ( GamePreferences.ToggleMenus )
+        {
+            if ( pressed is not null )
+                toggledKey = toggledKey == pressed ? null : pressed;
+
+            // Unpinning can leave a key holding the menu open. Toggling it closed takes effect on press.
+            held = held && lastState && pressed is null;
+        }
+        else
+        {
+            toggledKey = null;
+        }
+
+        if ( pressed is not null )
+            stickOpen = false;
+
+        bool state = IsPinned || held || IsHeldOpenByPopup();
+
+        if ( ToolsMenu.IsValid() )
+            ToolsMenu.SetPinned( IsPinned );
+
+        SetClass("open", state);
+        IsOpen = state;
+
+        if (lastState != state )
+        {
+            // closed
+            if (!state)
+            {
+                SetClass( "switching-modes", false );
+                Popup.CloseAll();
+
+                if ( modalLayer.IsValid() )
+                {
+                    foreach ( var modal in modalLayer.Children.OfType<UIModal>().ToList() )
+                        modal.Close();
+                }
+            }
+
+            // opened
+            if (state)
+            {
+                // a mouse button held into the menu can be let go while the UI has the cursor, and the weapon never hears it
+                Input.ReleaseAction( "attack1" );
+                Input.ReleaseAction( "attack2" );
+
+                if (Input.Pressed("inspectmenu"))
+                {
+                    Hints.Current.Cancel("openinspectmenu");
+                    SwitchMode("ContextMenuHost", false);
+                }
+
+                if (Input.Pressed("spawnmenu"))
+                {
+                    Hints.Current.Cancel("openspawnmenu");
+                    SwitchMode(_lastMode, false);
+                    Sandbox.Services.Stats.Increment( "menu.spawnmenu.open", 1 );
+                }
+            }
+        }
+        else if ( state )
+        {
+            // menu stays open — switch modes if the other key is pressed
+            if (Input.Pressed("inspectmenu"))
+            {
+                SwitchMode("ContextMenuHost", false);
+            }
+            else if (Input.Pressed("spawnmenu"))
+            {
+                SwitchMode(_lastMode, false);
+            }
+        }
+        // The toolgun takes clicks and scrolls over the world through its normal input bindings.
+        var worldToolInput = state && PanelSwitcher?.ActivePanel is ContextMenuHost && InspectCursor.ActiveWeapon is Toolgun;
+        if ( Panel.HasClass( "world-tool-input" ) && !worldToolInput )
+        {
+            Input.ReleaseAction( "attack1" );
+            Input.ReleaseAction( "attack2" );
+        }
+
+        SetClass( "world-tool-input", worldToolInput );
+        lastState = state;
+    }
+
+    /// <summary>
+    /// Opening the menu with a controller uses the same stick input as movement, so block movement
+    /// while the open button is held (mouse/keyboard players can move and open the menu at once).
+    /// </summary>
+    void Local.IPlayerEvents.OnMove( ref bool allowMovement )
+    {
+        if ( Input.UsingController && (Input.Down( "spawnmenu" ) || Input.Down( "inspectmenu" )) )
+            allowMovement = false;
+    }
+
+    // When clicking anywhere in the spawn menu, blur any focused text inputs
+    // so we can close the menu by pressing the spawnmenu key.
+    void OnMenuClicked()
+    {
+        Sandbox.UI.InputFocus.Clear();
+    }
+
+    void OnMenuFocus( PanelEvent e )
+    {
+        if ( e.Target is TextEntry )
+            stickOpen = true;
+    }
+
+    void ScanForNewModes()
+    {
+        if ( PanelSwitcher == null )
+            return;
+
+        var modes = Game.TypeLibrary.GetTypesWithAttribute<SpawnMenuMode>();
+
+        _modeChildren.Clear();
+        for ( int i = 0; PanelSwitcher.ChildrenCount > i; i++ )
+        {
+            var child = PanelSwitcher.GetChild( i );
+            if ( child is not null ) _modeChildren.Add( child );
+        }
+
+        // Remove panels whose condition is no longer met
+        foreach ( var child in _modeChildren )
+        {
+            var childType = child.GetType();
+            SpawnMenuMode attribute = null;
+            for ( int i = 0; modes.Count > i; i++ )
+            {
+                if ( modes[i].Type.TargetType == childType )
+                {
+                    attribute = modes[i].Attribute;
+                    break;
+                }
+            }
+
+            if ( attribute != null && !attribute.CheckCondition() )
+            {
+                if ( PanelSwitcher.ActivePanel == child )
+                    SwitchMode( "SpawnMenu" );
+                child.Delete();
+            }
+        }
+
+        _modeChildren.Clear();
+
+        // Create panels for modes whose condition is met, SpawnMenu first
+        for ( int pass = 0; 2 > pass; pass++ )
+        {
+            for ( int i = 0; modes.Count > i; i++ )
+            {
+                var type = modes[i];
+                if ( (type.Type.Name == "SpawnMenu") != (pass == 0) ) continue;
+                if ( !type.Attribute.CheckCondition() ) continue;
+                if ( HasModeChild( type.Type.TargetType ) ) continue;
+
+                var panel = type.Type.Create<Panel>();
+                if ( panel == null ) continue;
+
+                PanelSwitcher.AddChild( panel );
+            }
+        }
+    }
+
+    readonly List<Panel> _modeChildren = new();
+
+    bool HasModeChild( System.Type type )
+    {
+        for ( int i = 0; PanelSwitcher.ChildrenCount > i; i++ )
+        {
+            var child = PanelSwitcher.GetChild( i );
+            if ( child is not null && child.GetType() == type )
+                return true;
+        }
+
+        return false;
+    }
+
+    internal ToolsMenu ToolsMenu { get; private set; }
+
+    // Called on a mode switch and when Razor has built the destination panel for the first time.
+    internal void MoveToolsMenu()
+    {
+        var parent = PanelSwitcher?.ActivePanel switch
+        {
+            SpawnMenu spawn => spawn.ToolsParent,
+            ContextMenuHost context => context.ToolsParent,
+            _ => null
+        };
+
+        if ( !parent.IsValid() ) return;
+
+        if ( !ToolsMenu.IsValid() )
+            ToolsMenu = new ToolsMenu();
+
+        ToolsMenu.Parent = parent;
+    }
+
+    public static void SwitchMode( string modeName, bool remember = true )
+    {
+        var host = Game.ActiveScene.Get<SpawnMenuHost>();
+        if (host?.PanelSwitcher == null) return;
+
+        if (remember) host._lastMode = modeName;
+
+        foreach ( var child in host.PanelSwitcher.Children )
+        {
+            if ( child.GetType().Name == modeName )
+            {
+                if ( child != host.PanelSwitcher.ActivePanel )
+                    host.SetClass( "switching-modes", host.lastState && IsOpen );
+
+                host.PanelSwitcher.SwitchToPanel(child);
+                host.MoveToolsMenu();
+                return;
+            }
+        }
+    }
+
+    public static Panel GetActiveMode()
+    {
+        var host = Game.ActiveScene.Get<SpawnMenuHost>();
+        if (host?.PanelSwitcher == null) return null;
+        return host.PanelSwitcher.ActivePanel;
+    }
+
+    public interface ISpawnMenuCondition
+    {
+        static abstract bool IsVisible();
+    }
+
+    public class SpawnMenuMode : System.Attribute
+    {
+        public virtual bool CheckCondition() => true;
+    }
+
+    public class SpawnMenuMode<T> : SpawnMenuMode where T : ISpawnMenuCondition
+    {
+        public override bool CheckCondition() => T.IsVisible();
+    }
+
+    public class HostOnly : ISpawnMenuCondition
+    {
+        public static bool IsVisible() => Networking.IsHost;
+    }
+}

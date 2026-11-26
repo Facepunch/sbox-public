@@ -12,9 +12,6 @@ namespace Editor;
 /// </summary>
 internal static partial class SceneCompiler
 {
-	static readonly object GenerationGate = new();
-	static readonly HashSet<string> ActiveGenerations = new( StringComparer.OrdinalIgnoreCase );
-
 	/// <summary>
 	/// What a compile is going to work on, worked out up front so it can be shown before anything
 	/// is built.
@@ -48,9 +45,16 @@ internal static partial class SceneCompiler
 		var hasCompileGeometry = sources.Any( x => x.NeedsCompilation );
 		var asset = scene.Source is null ? null : AssetSystem.FindByPath( scene.Source.ResourcePath );
 
+		// Recompile after the last mesh is removed so the old outputs get cleaned up.
+		if ( !hasCompileGeometry && asset?.GetSourceFile( true ) is { Length: > 0 } sourcePath )
+		{
+			var folder = SceneResourceCompiler.GetCompiledFolder( sourcePath );
+			hasCompileGeometry = Directory.Exists( folder ) && Directory.EnumerateFileSystemEntries( folder ).Any();
+		}
+
 		if ( hasCompileGeometry && (scene.Editor is null || scene.Editor.HasUnsavedChanges) )
 		{
-			error = "Save the scene, then use Scene > Compile Scene. Unsaved changes cannot be compiled.";
+			error = "Save the scene before running Scene Compiler.";
 		}
 		else if ( hasCompileGeometry && asset is null )
 		{
@@ -77,10 +81,29 @@ internal static partial class SceneCompiler
 		};
 	}
 
+	internal const string Group = "Geometry and collision";
+
+	internal static SceneCompileWork GetWork( Sources sources, SceneCompilerSettings settings, SceneCompileSession session, SceneCompileOutputs outputs, bool clean )
+	{
+		var canRun = sources.HasCompileGeometry || clean;
+		var runtimePath = sources.Asset.GetCompiledFile( true );
+		return new( Group, "Compile geometry and collision", canRun ? RunGeometry : null )
+		{
+			Outputs = GetOutputFiles( sources.Asset.GetSourceFile( true ) ),
+			Clear = canRun || File.Exists( runtimePath ) ? _ => outputs.QueueRuntimeSceneDeletion( sources.Asset ) : null
+		};
+
+		async Task RunGeometry( ICompileContext context )
+		{
+			context.Log( $"{sources.Report.MeshCount} meshes, {sources.Report.PropCount} props to compile" );
+			session.Summary = await Compile( sources, settings, session );
+		}
+	}
+
 	/// <summary>
 	/// Compile geometry in the editor, yielding between steps while preserving native thread affinity.
 	/// </summary>
-	internal static async Task<string[]> Compile( Sources sources, SceneCompilerSettings settings, SceneCompileSession session )
+	static async Task<string[]> Compile( Sources sources, SceneCompilerSettings settings, SceneCompileSession session )
 	{
 		ArgumentNullException.ThrowIfNull( settings );
 		settings.Validate();
@@ -97,7 +120,7 @@ internal static partial class SceneCompiler
 				throw new InvalidOperationException( "Stop playing and open a scene rather than a prefab before compiling." );
 
 			if ( scene.Editor is not SceneEditorSession editor || editor.HasUnsavedChanges )
-				throw new InvalidOperationException( "Save the scene, then use Scene > Compile Scene. Unsaved changes cannot be compiled." );
+				throw new InvalidOperationException( "Save the scene before running Scene Compiler." );
 
 			session.Cancel.ThrowIfCancellationRequested();
 			var sceneFolder = scene.Editor.GetSceneFolder()
@@ -115,7 +138,8 @@ internal static partial class SceneCompiler
 					throw new InvalidOperationException( "Could not load the editable scene for compilation." );
 			}
 
-			return await Run( sources.Asset, sceneFolder, compiled, sourceFile.Id, sourcePath, editor, sourceRevision, settings, session );
+			var output = new GeometryOutputFolder( sceneFolder, sourcePath );
+			return await Run( sources.Asset, output, compiled, sourceFile.Id, sourcePath, editor, sourceRevision, settings, session );
 		}
 		finally
 		{
@@ -126,39 +150,8 @@ internal static partial class SceneCompiler
 	static async Task<string[]> Run( Asset sourceAsset, SceneFolder sceneFolder, Scene compiled, Guid sceneId, string sourcePath,
 		SceneEditorSession editor, SourceRevision sourceRevision, SceneCompilerSettings settings, SceneCompileSession session )
 	{
-		var generation = Guid.NewGuid().ToString( "N" );
-		var outputFolder = $"/compiled/{generation}";
-		var generationPath = GetGenerationPath( sourceAsset, generation );
-
-		lock ( GenerationGate )
-			ActiveGenerations.Add( generationPath );
-
-		var published = false;
-		try
-		{
-			var result = await RunGeneration( sourceAsset, sceneFolder, compiled, sceneId, sourcePath, editor, sourceRevision, outputFolder, settings, session );
-			published = true;
-			CleanupPreviousGenerations( generationPath, GenerationGate, ActiveGenerations );
-			settings.SaveDefaults();
-			return result;
-		}
-		catch
-		{
-			if ( !published )
-				CleanupGeneration( generationPath );
-			throw;
-		}
-		finally
-		{
-			lock ( GenerationGate )
-				ActiveGenerations.Remove( generationPath );
-		}
-	}
-
-	static async Task<string[]> RunGeneration( Asset sourceAsset, SceneFolder sceneFolder, Scene compiled, Guid sceneId, string sourcePath,
-		SceneEditorSession editor, SourceRevision sourceRevision, string outputFolder, SceneCompilerSettings settings, SceneCompileSession session )
-	{
-		var resourceFolder = $"{System.IO.Path.ChangeExtension( sourceAsset.Path, null )}_scene_data{outputFolder}";
+		const string outputFolder = "/compiled";
+		var resourceFolder = $"{Path.ChangeExtension( sourceAsset.Path, null )}_scene_data{outputFolder}";
 		var discovered = DiscoverSources( compiled ).ToArray();
 		var meshes = Gather<MeshComponent>( discovered ).ToArray();
 		var props = Gather<ModelRenderer>( discovered ).ToArray();
@@ -232,6 +225,20 @@ internal static partial class SceneCompiler
 
 		using ( compiled.Push() )
 		{
+			var stripByType = new Dictionary<Type, bool>();
+			foreach ( var component in compiled.Components.GetAll( FindMode.EverythingInSelfAndDescendants ) )
+			{
+				var type = component.GetType();
+				if ( !stripByType.TryGetValue( type, out var strip ) )
+				{
+					strip = Game.TypeLibrary.HasAttribute<StripOnSceneCompileAttribute>( type );
+					stripByType.Add( type, strip );
+				}
+
+				if ( strip )
+					processed.Add( component.Id );
+			}
+
 			// Unlink affected prefabs before stripping their source
 			// components so those components cannot return when the prefab expands again.
 			foreach ( var go in compiled.Children.ToArray() )
@@ -301,8 +308,16 @@ internal static partial class SceneCompiler
 				throw new InvalidOperationException( $"Cannot compile the scene: mesh '{remainingMesh.GameObject.Name}' was not converted. Compiled scenes cannot contain MeshComponents." );
 
 			file = new SceneFile();
+			// Compiled scenes keep the expanded objects, not their authoring links.
+			compiled.InstanceState = SceneInstanceState.Empty;
 			compiled.ToSceneFile( file );
 			file.Id = sceneId;
+		}
+
+		if ( EditorContentBuild.IsBuilding )
+		{
+			session.Phase( "Waiting for asset compilation" );
+			await EditorContentBuild.WaitForCurrentBuild( session.Cancel );
 		}
 
 		session.Phase( "Writing runtime scene" );
@@ -316,11 +331,11 @@ internal static partial class SceneCompiler
 		if ( converted > 0 ) summary.Add( $"{converted:n0} converted {(converted == 1 ? "mesh" : "meshes")}" );
 		if ( collision.Count > 0 ) summary.Add( $"{collision.Count:n0} collision {(collision.Count == 1 ? "group" : "groups")}" );
 
-		var result = summary.ToArray();
-		WriteScene( sourceAsset, sourcePath, editor, sourceRevision, file, settings );
+		WriteScene( sourceAsset, sourcePath, editor, sourceRevision, file, settings, plans.Length, converted, collision.Count );
+		CleanupCompiledFiles( SceneResourceCompiler.GetCompiledFolder( sourcePath ), plans.Length, converted, collision.Count );
 		session.Statistics = statistics;
 
-		return result;
+		return summary.ToArray();
 	}
 
 	/// <summary>
@@ -329,9 +344,6 @@ internal static partial class SceneCompiler
 	static string Write( SceneFolder folder, string path, byte[] data )
 	{
 		var written = folder.WriteFile( path, data );
-
-		if ( AssetSystem.RegisterFile( FileSystem.Mounted.GetFullPath( written ) ) is null )
-			throw new InvalidOperationException( $"Could not register compiled scene resource '{written}'." );
 
 		// The resource system wants the source name, not the compiled one.
 		var name = written.EndsWith( "_c" ) ? written[..^2] : written;

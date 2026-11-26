@@ -1,0 +1,8 @@
+{
+  "Prefab": "entity/pet_melon.prefab",
+  "Title": "Pet Melon",
+  "Description": "A melon that follows people! Its logic is in PetMelon.csx.",
+  "Category": "Npc",
+  "__references": [],
+  "__version": 0
+}

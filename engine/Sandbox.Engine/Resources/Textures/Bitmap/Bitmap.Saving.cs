@@ -51,8 +51,7 @@ public partial class Bitmap
 	/// <returns>A byte array containing the image data.</returns>
 	private byte[] Encode( SKEncodedImageFormat format, int quality )
 	{
-		using var image = SKImage.FromBitmap( _bitmap );
-		using var data = image.Encode( format, quality );
+		using var data = _bitmap.Encode( format, quality );
 		return data.ToArray();
 	}
 

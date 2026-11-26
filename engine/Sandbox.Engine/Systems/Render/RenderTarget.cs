@@ -19,6 +19,11 @@ public sealed partial class RenderTarget : IDisposable
 	internal int FramesSinceUsed { get; set; }
 
 	/// <summary>
+	/// Pooled apart from public requests, which can't be handed what the menu UI or a screenshot last drew
+	/// </summary>
+	internal bool EngineOwned { get; init; }
+
+	/// <summary>
 	/// The hash of the parameters used to create this
 	/// </summary>
 	internal int CreationHash

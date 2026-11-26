@@ -58,6 +58,47 @@ public partial class PanelTransitionTest
 	}
 
 	/// <summary>
+	/// Moving and fading a panel preserves its layout, updates its children's hit-test transforms
+	/// and applies both ordinary and explicitly inherited opacity.
+	/// </summary>
+	[TestMethod]
+	public void PaintTransitionKeepsLayoutAndUpdatesDescendants()
+	{
+		var (root, target) = Create( """
+			.box { width: 100px; height: 50px; opacity: 1; transform: translateX(0px); transition: opacity 1s linear, transform 1s linear; }
+			.box.moved { opacity: 0.2; transform: translateX(100px); }
+			""" );
+		var child = target.Add.Panel();
+		child.Style.Opacity = 0.5f;
+		var grandchild = child.Add.Panel();
+		var inherits = target.Add.Panel();
+		inherits.Style.Set( "opacity", "inherit" );
+		root.Layout();
+
+		target.AddClass( "moved" );
+		root.Layout();
+		var updates = target.LayoutTree.StyleUpdateCount;
+		var originalBox = target.Box.Rect;
+
+		PanelRealTime.TimeNow = 0.5;
+		root.Layout();
+
+		Assert.AreEqual( updates, target.LayoutTree.StyleUpdateCount );
+		Assert.AreEqual( originalBox, target.Box.Rect );
+		Assert.AreEqual( 0.3f, grandchild.Opacity, 0.001f );
+		Assert.AreEqual( 0.36f, inherits.Opacity, 0.001f );
+		Assert.AreEqual( -50f, grandchild.GlobalMatrix.Value.Transform( Vector3.Zero ).x, 0.01f );
+
+		PanelRealTime.TimeNow = 2;
+		root.Layout();
+
+		Assert.AreEqual( updates, target.LayoutTree.StyleUpdateCount );
+		Assert.AreEqual( 0.1f, grandchild.Opacity, 0.001f );
+		Assert.AreEqual( 0.04f, inherits.Opacity, 0.001f );
+		Assert.AreEqual( -100f, grandchild.GlobalMatrix.Value.Transform( Vector3.Zero ).x, 0.01f );
+	}
+
+	/// <summary>
 	/// A width transition is fed through layout every frame, so halfway through the transition
 	/// the laid-out box is halfway between the old and new widths.
 	/// </summary>

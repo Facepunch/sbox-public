@@ -1,0 +1,52 @@
+@keyframes cloud-load-spin
+{
+	from { transform: rotate( 0deg ); }
+	to { transform: rotate( 360deg ); }
+}
+
+CloudLoadRing
+{
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	justify-content: center;
+	align-items: center;
+	z-index: 1000;
+
+	.ring
+	{
+		position: relative;
+		width: 24px;
+		height: 24px;
+		opacity: 0;
+		transform: scale( 0.8 );
+		transition: opacity 0.2s ease-out, transform 0.2s ease-out;
+	}
+
+	&.visible
+	{
+		.ring
+		{
+			opacity: 1;
+			transform: scale( 1 );
+		}
+	}
+
+	.ring > div
+	{
+		position: absolute;
+		top: 0;
+		left: 0;
+		width: 24px;
+		height: 24px;
+		border-radius: 50%;
+		border: 2px solid transparent;
+	}
+
+	.spinner
+	{
+		animation: cloud-load-spin 0.8s linear infinite;
+	}
+}

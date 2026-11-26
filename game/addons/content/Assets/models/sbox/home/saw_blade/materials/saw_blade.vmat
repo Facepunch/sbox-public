@@ -1,0 +1,42 @@
+// THIS FILE IS AUTO-GENERATED
+
+Layer0
+{
+	shader "shaders/complex.shader"
+
+	//---- PBR ----
+	F_METALNESS_TEXTURE 1
+
+	//---- Ambient Occlusion ----
+	g_flAmbientOcclusionDirectDiffuse "0.887"
+	g_flAmbientOcclusionDirectSpecular "0.728"
+	TextureAmbientOcclusion "[1.000000 1.000000 1.000000 0.000000]"
+
+	//---- Color ----
+	g_flModelTintAmount "1.000"
+	g_vColorTint "[1.000000 1.000000 1.000000 0.000000]"
+	TextureColor "models/sbox/home/saw_blade/materials/saw_blade_color.png"
+
+	//---- Fade ----
+	g_flFadeExponent "1.000"
+
+	//---- Fog ----
+	g_bFogEnabled "1"
+
+	//---- Metalness ----
+	TextureMetalness "models/sbox/home/saw_blade/materials/saw_blade_metal.png"
+
+	//---- Normal ----
+	g_flLightRangeForSelfShadowNormals "0.707"
+	g_flNormalMapScaleFactor "1.000"
+	TextureNormal "models/sbox/home/saw_blade/materials/saw_blade_normal.png"
+
+	//---- Roughness ----
+	g_flRoughnessScaleFactor "1.000"
+	TextureRoughness "models/sbox/home/saw_blade/materials/saw_blade_rough.png"
+
+	//---- Texture Coordinates ----
+	g_vTexCoordOffset "[0.000 0.000]"
+	g_vTexCoordScale "[1.000 1.000]"
+	g_vTexCoordScrollSpeed "[0.000 0.000]"
+}

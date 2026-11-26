@@ -1,0 +1,139 @@
+@using Sandbox.UI
+@namespace Sandbox
+@inherits Panel
+
+<root>
+    <SpawnMenuContent>
+        <Header>
+            <SpawnMenuToolbar>
+                <Left><SpawnMenuSearchEntry Placeholder="Search building props" Value:bind=@Filter /></Left>
+                <Right>
+                    <UIButton class="material-picker" Text="Material…" IconTexture=@MaterialThumbnail Tooltip=@MaterialStatus @onclick=@PickMaterial />
+                    <UIButton Text="Reset" @onclick=@(() => SelectMaterial( BuilderCatalog.DefaultMaterial )) />
+                </Right>
+            </SpawnMenuToolbar>
+        </Header>
+        <Body>
+            @if ( Entries.Count == 0 )
+            {
+                <SpawnMenuEmptyState Icon="search_off" Subtitle="No matching building props" />
+            }
+            else
+            {
+                <VirtualGrid Items=@Entries ItemSize=@(new Vector2( 140, 140 ))>
+                    <Item Context="item">
+                        @if ( item is BuilderCatalog.Piece piece )
+                        {
+                            <SpawnMenuIcon Ident=@($"builder:{BuilderSpawner.MakeData( piece.Id, MaterialPath )}") Title=@piece.Id PreviewMaterial=@SelectedMaterial />
+                        }
+                    </Item>
+                </VirtualGrid>
+            }
+        </Body>
+    </SpawnMenuContent>
+</root>
+
+@code
+{
+    public string Category { get; set; } = "All";
+    string Filter { get; set { field = value; Rebuild(); } }
+    List<BuilderCatalog.Piece> Entries = new();
+    // Sidebar categories are cached panels. Share the selection so returning to an
+    // already-open category doesn't silently restore its previous material.
+    static string MaterialPath = BuilderCatalog.DefaultMaterial;
+    static Material SelectedMaterial;
+    static string MaterialStatus = "Generic tiles";
+    static Texture MaterialThumbnail = Texture.Load( $"thumb:{BuilderCatalog.DefaultMaterial}" );
+    static int materialRequest;
+    static int materialRevision;
+    int seenMaterialRevision;
+
+    protected override void OnParametersSet() => Rebuild();
+    protected override void OnAfterTreeRender( bool firstTime )
+    {
+        if ( firstTime && SelectedMaterial is null )
+        {
+            var saved = Game.Cookies.Get( "builder.material", BuilderCatalog.DefaultMaterial );
+            SelectMaterial( MigrateMaterial( saved ) );
+        }
+    }
+    public override void OnHotloaded()
+    {
+        base.OnHotloaded();
+        Rebuild();
+        SelectMaterial( MigrateMaterial( MaterialPath ) );
+    }
+    // Old defaults that were saved to the cookie before generic tiles became the default.
+    static string MigrateMaterial( string path ) => path is "materials/default/white.vmat" or "materials/dev/gray_grid_8.vmat" ? BuilderCatalog.DefaultMaterial : path;
+    public override void Tick()
+    {
+        base.Tick();
+        if ( seenMaterialRevision == materialRevision ) return;
+        seenMaterialRevision = materialRevision;
+        StateHasChanged();
+    }
+    void Rebuild()
+    {
+        Entries = BuilderCatalog.All.Where( x => (Category == "All" || x.Category == Category)
+            && (string.IsNullOrWhiteSpace( Filter ) || x.Id.Contains( Filter, StringComparison.OrdinalIgnoreCase )) )
+            .OrderBy( x => Array.IndexOf( BuilderCatalog.Categories, x.Category ) )
+            .ThenBy( x => x.Kind )
+            .ThenBy( x => x.Size.x )
+            .ThenBy( x => x.Size.y )
+            .ThenBy( x => x.Size.z )
+            .ThenBy( x => x.Angle )
+            .ThenBy( x => x.Id, StringComparer.Ordinal )
+            .ToList();
+        StateHasChanged();
+    }
+    void PickMaterial() => ResourceSelectPopup.Open( this, "material", MaterialPath, SelectMaterial, allowPackages: true );
+    async void SelectMaterial( string path )
+    {
+        path = string.IsNullOrWhiteSpace( path ) ? BuilderCatalog.DefaultMaterial : path;
+        int request = ++materialRequest;
+        MaterialStatus = "Loading material…";
+        materialRevision++;
+        StateHasChanged();
+        var material = await BuilderSpawner.LoadMaterial( path );
+        if ( request != materialRequest ) return;
+        if ( material is null || material.IsError )
+        {
+            MaterialStatus = "Couldn't load material — previous selection kept";
+        }
+        else
+        {
+            var thumbnail = await LoadMaterialThumbnail( path, material );
+            if ( request != materialRequest ) return;
+            MaterialPath = path;
+            SelectedMaterial = material;
+            MaterialStatus = path == BuilderCatalog.DefaultMaterial ? "Generic tiles" : material.ResourceName;
+            MaterialThumbnail = thumbnail;
+            Game.Cookies.Set( "builder.material", path );
+        }
+        materialRevision++;
+        if ( IsValid ) StateHasChanged();
+    }
+
+    static async Task<Texture> LoadMaterialThumbnail( string path, Material material )
+    {
+        // Cloud materials are selected by package ident. Their published thumbnail
+        // lives on the package, not at the installed material's resource path.
+        if ( !path.Contains( '/' ) && Package.TryParseIdentParts( path, out _ ) )
+        {
+            try
+            {
+                if ( !Package.TryGetCached( path, out var package, false ) )
+                    package = await Package.FetchAsync( path, true );
+
+                if ( !string.IsNullOrWhiteSpace( package?.Thumb ) )
+                    return await Texture.LoadAsync( package.Thumb );
+            }
+            catch ( Exception e )
+            {
+                Log.Warning( $"Couldn't load building material thumbnail '{path}': {e.Message}" );
+            }
+        }
+
+        return Texture.Load( $"thumb:{material.ResourcePath}" );
+    }
+}

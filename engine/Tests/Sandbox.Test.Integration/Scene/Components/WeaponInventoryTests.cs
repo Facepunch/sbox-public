@@ -48,9 +48,18 @@ public sealed class TestInventory : BaseInventoryComponent
 {
 	public bool AllowAdd = true;
 	public bool AllowMove = true;
+	public bool AllowSwitch = true;
+	public BaseInventoryItem Dropped;
+	public BaseInventoryComponent DroppedInventory;
 
 	protected override bool OnAdding( BaseInventoryItem item, int slot ) => AllowAdd;
 	protected override bool OnMovingSlot( int fromSlot, int toSlot ) => AllowMove;
+	protected override bool OnSwitching( BaseInventoryItem item ) => AllowSwitch;
+	protected override void OnItemDropped( BaseInventoryItem item )
+	{
+		Dropped = item;
+		DroppedInventory = item.Inventory;
+	}
 }
 
 /// <summary>
@@ -61,6 +70,33 @@ public sealed class TestInventory : BaseInventoryComponent
 [TestClass]
 public class InventoryComponentTest
 {
+	[TestMethod]
+	public void InventorySwitchGateAppliesToDirectAndAutomaticSelection()
+	{
+		var scene = new Scene();
+		using var scope = scene.Push();
+		var inventory = scene.CreateObject().Components.Create<TestInventory>();
+		var first = CreateItem( scene );
+		var second = CreateItem( scene );
+		inventory.Add( first );
+		inventory.Add( second );
+		inventory.Switch( first );
+		inventory.AllowSwitch = false;
+		inventory.ForceHolster();
+		inventory.Switch( second );
+		Assert.IsNull( inventory.ActiveItem );
+		Assert.IsNull( inventory.GetBestItem() );
+
+		inventory.Drop( first );
+		Assert.IsNull( inventory.ActiveItem );
+		Assert.AreEqual( first, inventory.Dropped );
+		Assert.IsNull( inventory.DroppedInventory );
+
+		inventory.AllowSwitch = true;
+		inventory.SwitchToBest();
+		Assert.AreEqual( second, inventory.ActiveItem );
+	}
+
 	Connection _previousLocalConnection;
 	NetworkSystem _previousNetworkSystem;
 

@@ -35,7 +35,7 @@
   "TintDefault": 0.5,
   "SteamItemDefinitionId": 445303,
   "Icon": {
-    "Path": "models/citizen_clothes/makeup/traditional_face_tattoos/traditional_face_tattoos.clothing.png",
+    "Path": "models/citizen_clothes/makeup/traditional_face_tattoos/traditional_face_tattoos.clothing.vtex",
     "Mode": "Head",
     "PositionOffset": "8.700002,0,0",
     "UsePositionOffset": false

@@ -80,54 +80,6 @@
 				children = 
 				[
 					{
-						_class = "PhysicsShapeHull"
-						name = "thin_frame_stile.001_0"
-						parent_bone = ""
-						surface_prop = "wood"
-						collision_tags = "solid"
-						recenter_on_parent_bone = false
-						offset_origin = [ 0.0, 0.0, 0.0 ]
-						offset_angles = [ 0.0, 0.0, 0.0 ]
-						align_origin_x_type = "None"
-						align_origin_y_type = "None"
-						align_origin_z_type = "None"
-						hull_vertices = 
-						[
-							[ -2.782502, 6.0705, 18.166079 ],
-							[ -2.782502, 6.820786, 18.166079 ],
-							[ -1.928525, 6.0705, 18.166079 ],
-							[ -1.928525, 6.820786, 18.166079 ],
-							[ 2.127861, 6.0705, -0.023959 ],
-							[ 2.127861, 6.820786, -0.023959 ],
-							[ 2.981837, 6.0705, -0.023959 ],
-							[ 2.981837, 6.820786, -0.023959 ],
-						]
-					},
-					{
-						_class = "PhysicsShapeHull"
-						name = "thin_frame_rail.001_0"
-						parent_bone = ""
-						surface_prop = "wood"
-						collision_tags = "solid"
-						recenter_on_parent_bone = false
-						offset_origin = [ 0.0, 0.0, 0.0 ]
-						offset_angles = [ 0.0, 0.0, 0.0 ]
-						align_origin_x_type = "None"
-						align_origin_y_type = "None"
-						align_origin_z_type = "None"
-						hull_vertices = 
-						[
-							[ -2.782503, -6.070499, 18.166079 ],
-							[ -2.782502, 6.070499, 18.166079 ],
-							[ -2.579965, -6.070499, 17.415792 ],
-							[ -2.579963, 6.070499, 17.415792 ],
-							[ -1.928527, -6.070499, 18.166079 ],
-							[ -1.928525, 6.070499, 18.166079 ],
-							[ -1.725988, -6.070499, 17.415792 ],
-							[ -1.725987, 6.070499, 17.415792 ],
-						]
-					},
-					{
 						_class = "PhysicsHullFile"
 						name = "picture_frame_03_gibs"
 						parent_bone = ""

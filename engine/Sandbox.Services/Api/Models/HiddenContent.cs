@@ -1,8 +1,7 @@
 namespace Sandbox.Services;
 
 /// <summary>
-/// A player's explicit discovery and search exclusions. Hiding an organization doesn't add its packages
-/// to <see cref="Packages"/> - a package whose organization is hidden is hidden too.
+/// A player's explicit discovery and search exclusions. Organizations are not expanded into packages.
 /// </summary>
 public class HiddenContent
 {

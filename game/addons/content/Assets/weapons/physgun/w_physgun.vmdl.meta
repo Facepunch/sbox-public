@@ -1,0 +1,22 @@
+{
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "Physgun",
+      "Type": "model",
+      "Org": "facepunch",
+      "Ident": "w_physgun",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "Metadata": {
+        "SingleAssetSource": "weapons/physgun/w_physgun.vmdl"
+      }
+    }
+  },
+  "guid": "d16f4726-eead-49d6-a71c-df566483b89b"
+}

@@ -18,15 +18,19 @@
             <div class="tier">
                 @if ( !IsDedicatedServerOnly )
                 {
-                    <div class="item @(WhyNot is null ? "" : "disabled")" tooltip="@(WhyNot ?? "")" onclick=@Play><label>@PlayText</label></div>
+                    <label class="item @(WhyNot is null ? "" : "disabled")" tooltip="@(WhyNot ?? "")" onclick=@Play>@PlayText</label>
                 }
 
                 @if ( IsMultiplayer && !IsQuickPlay )
                 {
-                    <div class="item" onclick=@FindMultiplayer><label>@(IsDedicatedServerOnly ? "Find a Server" : "Find Multiplayer Game")</label></div>
+                    <label class="item" onclick=@FindMultiplayer>@(IsDedicatedServerOnly ? "Find a Server" : "Find Multiplayer Game")</label>
                 }
 
-                <div class="item" onclick=@( () => ModalSystem.Instance?.Settings() )><label>Options</label></div>
+                @if ( PlatformMenu.AllowsAddons )
+                {
+                    <label class="item" onclick=@( () => FrontPages.Of( this )?.Navigate( FrontPages.Addons ) )>Addons</label>
+                }
+                <label class="item" onclick=@( () => ModalSystem.Instance?.Settings() )>Settings</label>
             </div>
         </div>
     }

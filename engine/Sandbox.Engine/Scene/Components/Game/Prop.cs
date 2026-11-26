@@ -120,8 +120,7 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 			if ( GameObject.IsDeserializing )
 				return;
 
-			ClearProcedurals();
-			UpdateComponents();
+			RebuildProcedurals();
 		}
 	}
 
@@ -168,6 +167,51 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 		ModelRenderer = null;
 	}
 
+	/// <summary>
+	/// Create the components the model needs, reusing procedural ones that are still wanted (a cloned or
+	/// deserialized prop already has them) and destroying the rest.
+	/// </summary>
+	void RebuildProcedurals()
+	{
+		var previous = ProceduralComponents;
+		ProceduralComponents = null;
+		ModelRenderer = null;
+
+		// GetOrCreate would pick up a renderer of the wrong kind, so it goes first. Inside a callback batch a
+		// destroyed component stays valid, so it leaves the list rather than being destroyed again below.
+		if ( previous is not null && Model is not null )
+		{
+			var skinned = Model.BoneCount > 0;
+			for ( var i = previous.Count - 1; i >= 0; i-- )
+			{
+				if ( previous[i] is ModelRenderer renderer && (renderer is SkinnedModelRenderer) != skinned )
+				{
+					DestroyProcedural( renderer );
+					previous.RemoveAt( i );
+				}
+			}
+		}
+
+		UpdateComponents();
+
+		if ( previous is null )
+			return;
+
+		foreach ( var p in previous )
+		{
+			if ( ProceduralComponents?.Contains( p ) != true )
+				DestroyProcedural( p );
+		}
+	}
+
+	void DestroyProcedural( Component p )
+	{
+		if ( !p.IsValid() ) return;
+
+		p.Destroy();
+		Network?.Refresh( p );
+	}
+
 	void AddProcedural( Component p )
 	{
 		Assert.AreNotEqual( p, this );
@@ -188,8 +232,7 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 
 		if ( !IsProxy )
 		{
-			ClearProcedurals();
-			UpdateComponents();
+			RebuildProcedurals();
 		}
 	}
 
@@ -216,8 +259,7 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 
 		if ( Active )
 		{
-			ClearProcedurals();
-			UpdateComponents();
+			RebuildProcedurals();
 		}
 	}
 
@@ -301,29 +343,16 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 			rb.MassCenterOverride = part.MassCenterOverride;
 			rb.GravityScale = part.GravityScale;
 
-			if ( StartAsleep )
+			// A reused rigidbody may carry these from another model, so set them either way
+			rb.StartAsleep = StartAsleep;
+			if ( StartAsleep && rb.PhysicsBody.IsValid() )
 			{
-				rb.StartAsleep = true;
-
-				if ( rb.PhysicsBody.IsValid() )
-				{
-					rb.PhysicsBody.Sleeping = true;
-				}
+				rb.PhysicsBody.Sleeping = true;
 			}
 
-			// Evaluate parameters from model data
-			if ( Model.Data is not null )
-			{
-				if ( Model.Data.ImpactDamage > -1 )
-				{
-					rb.ImpactDamage = Model.Data.ImpactDamage;
-				}
-
-				if ( Model.Data.MinImpactDamageSpeed > -1 )
-				{
-					rb.MinImpactDamageSpeed = Model.Data.MinImpactDamageSpeed;
-				}
-			}
+			// Evaluate parameters from model data, the rigidbody's defaults otherwise
+			rb.ImpactDamage = Model.Data is { ImpactDamage: > -1 } ? Model.Data.ImpactDamage : 0f;
+			rb.MinImpactDamageSpeed = Model.Data is { MinImpactDamageSpeed: > -1 } ? Model.Data.MinImpactDamageSpeed : 500f;
 
 			AddProcedural( rb );
 
@@ -482,7 +511,11 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 		PlayBreakSound();
 
 		var wasImpact = damage?.Tags.Contains( "impact" ) ?? false;
-		NetworkCreateGibs( wasImpact );
+
+		if ( GameObject.HasFlagOrParent( GameObjectFlags.NotNetworked ) )
+			CreateGibs( wasImpact );
+		else
+			NetworkCreateGibs( wasImpact );
 
 		CreateExplosion();
 	}
@@ -653,6 +686,7 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 				if ( breakModel.IsClientOnly )
 				{
 					gib.Tags.Add( "debris", "clientside" ); // no physics interactions
+					gib.Flags |= GameObjectFlags.NotNetworked; // every peer makes its own, keep them out of snapshots
 				}
 				else if ( Networking.IsHost )
 				{
@@ -715,8 +749,7 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 		if ( !Active )
 		{
 			// If we're not active, we want to restore the procedural components again
-			ClearProcedurals();
-			UpdateComponents();
+			RebuildProcedurals();
 		}
 
 		if ( ProceduralComponents is null )

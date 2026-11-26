@@ -15,6 +15,8 @@ public partial class Package
 	/// </summary>
 	internal const int MaxParallelDownloads = 64;
 
+	internal bool IsRemoteMap => IsRemote && string.Equals( TypeName, "map", StringComparison.OrdinalIgnoreCase );
+
 	struct FileDownloadEntry
 	{
 		public ManifestSchema.File File;
@@ -85,8 +87,10 @@ public partial class Package
 	/// <summary>
 	/// Download a package to a temporary location and return a filesystem with its contents
 	/// </summary>
-	internal async Task<PackageFileSystem> Download( CancellationToken token = default, PackageLoadOptions options = default )
+	internal async Task<BaseFileSystem> Download( CancellationToken token = default, PackageLoadOptions options = default )
 	{
+		if ( InstallsFromWorkshop ) return await DownloadWorkshopFiles( token, options );
+
 		var fs = new PackageFileSystem();
 		return await DownloadFiles( fs, token, options ) ? fs : null;
 	}
@@ -99,6 +103,8 @@ public partial class Package
 	/// </summary>
 	internal Task<bool> Prefetch( CancellationToken token, PackageLoadOptions options = default )
 	{
+		if ( InstallsFromWorkshop ) return PrefetchWorkshopFiles( token, options );
+
 		return DownloadFiles( null, token, options );
 	}
 
@@ -109,16 +115,8 @@ public partial class Package
 	{
 		// TODO - if we have a download in progress then return, or wait for it (?)
 		// The filesystem is technically immutable other than disposing and adding more shit to it
-		if ( Revision == null )
-			return false;
-
-		var rev = Revision;
-		if ( rev == null ) return false;
+		if ( Revision is not { } rev ) return false;
 		using var textureDownload = TextureWebStreaming.BeginDownload();
-
-		// The files are in a workshop item, the backend just has a manifest of them
-		if ( InstallsFromWorkshop )
-			return await DownloadFromWorkshop( fs, token, options );
 
 		options.Loading?.LoadingProgress( LoadingProgress.Create( $"Fetching '{Title}' Information" ) );
 
@@ -480,22 +478,4 @@ public partial class Package
 		}
 	}
 
-	/// <summary>
-	/// Download and mount this package. If withCode is true we'll try to load the assembly if it exists.
-	/// </summary>
-	public async Task<BaseFileSystem> MountAsync( bool withCode = false )
-	{
-		SentrySdk.AddBreadcrumb( $"Mounting {this.FullIdent}", "package.mount" );
-
-		int? version = Revision?.VersionId > 0 ? (int)Revision.VersionId : null;
-		var fs = await ServerPackages.DownloadAndMount( FormatIdent( Org.Ident, Ident, version, !IsRemote ) );
-		if ( fs is null ) return default;
-
-		if ( withCode )
-		{
-			await IGameInstanceDll.Current?.LoadPackageAssembliesAsync( this );
-		}
-
-		return fs;
-	}
 }

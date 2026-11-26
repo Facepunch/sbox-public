@@ -34,27 +34,29 @@ public class LanguageContainer
 	}
 
 	string _previousLanguage;
+	Localization.PhraseCollection _previousFallback;
+	static Localization.PhraseCollection GameFallback => Game.IsMenu ? GlobalContext.Game.Language?.lang : null;
 
 	internal void Tick()
 	{
-		var language = Application.LanguageCode;
+		var language = (SelectedCode ?? "en").ToLower();
+		var fallback = GameFallback;
 
-		language ??= "en";
-		language = language.ToLower();
+		if ( _previousLanguage != language )
+		{
+			_previousLanguage = language;
 
-		if ( _previousLanguage == language )
+			lang = new Localization.PhraseCollection();
+			AddFromPath( "en" );
+			AddFromPath( language );
+		}
+		else if ( _previousFallback == fallback )
+		{
 			return;
+		}
 
-		_previousLanguage = language;
-
-		// Add english first for fallbacks
-		lang = new Localization.PhraseCollection();
-		AddFromPath( "en" );
-
-		// Switch to new language
-		AddFromPath( language );
-
-		// Notify UI system so we can update text if needed
+		// A game catalog reload or unload also invalidates translated menu labels.
+		_previousFallback = fallback;
 		GlobalContext.Current.UISystem.OnLanguageChanged();
 	}
 
@@ -117,6 +119,12 @@ public class LanguageContainer
 
 		return lang.GetPhrase( textToken, data );
 	}
+
+	/// <summary>
+	/// Resolves a UI token in the current catalog, with game phrases available to the menu on a miss.
+	/// </summary>
+	internal static string GetUiPhrase( string token )
+		=> Language.DisplayKeys ? token : Localization.PhraseCollection.Resolve( token, Game.Language?.lang, GameFallback );
 
 	internal void Shutdown()
 	{

@@ -193,19 +193,13 @@ internal static partial class InputRouter
 
 		foreach ( var action in Sandbox.Input.InputActions.Where( x => x.GamepadCode != GamepadCode.None && x.GamepadCode == code ) )
 		{
-			var i = Sandbox.Input.GetActionIndex( action );
-
 			if ( controller?.InputContext is not { } controllerContext )
 				continue;
 
+			var mask = 1UL << Sandbox.Input.GetActionIndex( action );
+			controllerContext.AccumulateAction( mask, down );
 			if ( down )
-			{
-				controllerContext.AccumActionsPressed |= 1UL << i;
-			}
-			else
-			{
-				controllerContext.AccumActionsReleased |= 1UL << i;
-			}
+				controllerContext.PendingNetworkActions |= mask;
 		}
 	}
 

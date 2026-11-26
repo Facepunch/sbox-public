@@ -123,7 +123,14 @@ namespace Sandbox.Upgraders.SpecialCases
 				{
 					for ( var i = 0; i < oldList.Count; i++ )
 					{
-						newList[i] = GetNewInstance( newList[i] );
+						var item = oldList[i];
+						var upgraded = GetNewInstance( item );
+
+						// Writing the same reference back invalidates active list enumerators.
+						if ( oldElemType.IsValueType || !ReferenceEquals( item, upgraded ) )
+						{
+							newList[i] = upgraded;
+						}
 					}
 				}
 				else

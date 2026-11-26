@@ -1,0 +1,116 @@
+@import "/UI/Theme.scss";
+
+@mixin component-theme
+{
+    FacePoseEditor
+    {
+        flex-direction: column;
+        gap: 2px;
+        width: 100%;
+
+        .pose-actions
+        {
+            flex-wrap: wrap;
+            flex-shrink: 0;
+            gap: 6px;
+            padding: 4px 0;
+        }
+
+        FacePosePreview
+        {
+            position: relative;
+            width: 100%;
+            height: 260px;
+            flex-shrink: 0;
+            border-radius: 8px;
+            overflow: hidden;
+            pointer-events: all;
+            cursor: grab;
+
+            .face-handle
+            {
+                position: absolute;
+                width: 18px;
+                height: 18px;
+                margin: -9px 0 0 -9px;
+                align-items: center;
+                justify-content: center;
+                cursor: ns-resize;
+
+                .dot
+                {
+                    width: 7px;
+                    height: 7px;
+                    border-radius: 50%;
+                    border: 1px solid #c7d6de;
+                    background-color: #263946;
+                    pointer-events: none;
+                }
+
+                &.posed .dot
+                {
+                    background-color: #65cec4;
+                }
+
+                &:hover .dot
+                {
+                    background-color: white;
+                }
+            }
+
+            .expressions
+            {
+                position: absolute;
+                bottom: 0;
+                width: 100%;
+                justify-content: center;
+                background-color: #1e2932;
+                gap: 3px;
+                padding: 3px;
+
+                .expression
+                {
+                    width: 40px;
+                    height: 30px;
+                    align-items: center;
+                    justify-content: center;
+                    font-size: 22px;
+                    border-radius: 5px;
+                    cursor: pointer;
+
+                    &:hover
+                    {
+                        background-color: rgba(199, 214, 222, 0.15);
+                    }
+                }
+            }
+        }
+    }
+
+    FacePoseEditor .group-header
+    {
+        @include ui-section-header;
+        flex-shrink: 0;
+    }
+
+    FacePoseEditor .morph-columns
+    {
+        flex-direction: row;
+        align-items: center;
+        padding: 2px 6px;
+        gap: 12px;
+        flex-shrink: 0;
+        font-size: 11px;
+        font-weight: 700;
+        color: $ui-text-muted;
+
+        > label
+        {
+            flex-grow: 1;
+            flex-basis: 0px;
+            justify-content: center;
+        }
+    }
+}
+
+@import "/UI/Theme/Apply.scss";

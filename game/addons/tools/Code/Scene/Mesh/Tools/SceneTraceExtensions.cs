@@ -3,7 +3,7 @@ namespace Editor.MeshEditor;
 
 static class SceneTraceMeshExtensions
 {
-	static Vector2 RayScreenPosition => SceneViewportWidget.MousePosition;
+	static Vector2 RayScreenPosition => Gizmo.Camera.ToScreen( Gizmo.Hitbox.Ray.Project( 100 ) );
 
 	public static MeshVertex GetClosestVertex( this SceneTrace trace, int radius ) => GetClosestVertex( trace, radius, out _ );
 
@@ -42,7 +42,7 @@ static class SceneTraceMeshExtensions
 	{
 		var point = RayScreenPosition;
 		bestFace = TraceFace( trace, out var bestHitDistance, out _ );
-		hitPosition = Gizmo.CurrentRay.Project( bestHitDistance );
+		hitPosition = Gizmo.Hitbox.Ray.Project( bestHitDistance );
 		var bestEdge = bestFace.GetClosestEdge( hitPosition, point, radius );
 
 		if ( bestFace.IsValid() && bestEdge.IsValid() )
@@ -53,7 +53,7 @@ static class SceneTraceMeshExtensions
 		{
 			var face = result.MeshFace;
 			var hitDistance = result.Distance;
-			hitPosition = Gizmo.CurrentRay.Project( hitDistance );
+			hitPosition = Gizmo.Hitbox.Ray.Project( hitDistance );
 
 			var edge = face.GetClosestEdge( hitPosition, point, radius );
 			if ( !edge.IsValid() )
@@ -109,7 +109,7 @@ static class SceneTraceMeshExtensions
 
 	static List<MeshFaceTraceResult> TraceFaces( this SceneTrace trace, int radius, Vector2 point )
 	{
-		var rays = new List<Ray> { Gizmo.CurrentRay };
+		var rays = new List<Ray> { Gizmo.Hitbox.Ray };
 		for ( var ring = 1; ring < radius; ring++ )
 		{
 			rays.Add( Gizmo.Camera.GetRay( point + new Vector2( 0, ring ) ) );
@@ -159,7 +159,7 @@ static class SceneTraceMeshExtensions
 			closestPoint = result.HitPosition;
 		}
 
-		TestRay( Gizmo.CurrentRay );
+		TestRay( Gizmo.Hitbox.Ray );
 
 		for ( var ring = 1; ring < radius; ring++ )
 		{

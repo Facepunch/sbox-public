@@ -43,6 +43,35 @@ public class BitmapPixelTests
 		Assert.AreEqual( bitmap.GetPixel( 13, 1 ), clone.GetPixel( 13, 1 ) );
 	}
 
+	/// <summary>
+	/// Padding keeps the same half-float pixels as drawing a copy into the smaller rectangle.
+	/// </summary>
+	[TestMethod]
+	public void PaddingPreservesTranslucentHdrPixels()
+	{
+		using var bitmap = new Bitmap( 4, 4, true );
+		var translucent = new Color( 0.1f, 0.2f, 2.94f, 0.47f );
+		bitmap.SetPixels( Enumerable.Repeat( translucent, 16 ).ToArray() );
+
+		using var copy = bitmap.Clone();
+		using var expected = new Bitmap( 4, 4, true );
+		expected.DrawBitmap( copy, new Rect( 1, 1, 2, 2 ) );
+		bitmap.InsertPadding( new Sandbox.UI.Margin( 1 ) );
+
+		CollectionAssert.AreEqual( expected.GetBuffer().ToArray(), bitmap.GetBuffer().ToArray() );
+	}
+
+	/// <summary>
+	/// Bulk RGBA writes clear RGB when alpha rounds to zero and keep the straight color at nonzero alpha.
+	/// </summary>
+	[TestMethod]
+	public void BulkWritesPreserveSkiaAlphaRounding()
+	{
+		using var bitmap = new Bitmap( 3, 1 );
+		bitmap.SetPixels( [new Color( 1, 0, 1, 0 ), new Color( 1, 0, 1, 0.001f ), new Color32( 213, 31, 84, 1 )] );
+		CollectionAssert.AreEqual( new Color32[] { default, default, new( 213, 31, 84, 1 ) }, bitmap.GetPixels32() );
+	}
+
 	[TestMethod]
 	public void InvalidNativeStorageIsRejected()
 	{

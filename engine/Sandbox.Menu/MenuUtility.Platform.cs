@@ -5,13 +5,6 @@ namespace Sandbox;
 public static partial class MenuUtility
 {
 	/// <summary>
-	/// The platform menu - s&amp;box opens on a game's own menu, with a dock to switch games - instead of the main menu.
-	/// Changed, the menu restarts onto the other one (MenuDll).
-	/// </summary>
-	[MenuConVar( "menu_platform", Help = "Use the platform menu - games open on their own menu, with a dock to switch games. Switches straight away.", Saved = true )]
-	public static bool PlatformMenu { get; set; }
-
-	/// <summary>
 	/// The part of the screen that's the game's (<see cref="Screen.SafeArea"/>) - what the platform menu leaves clear,
 	/// its dock over a game's own menu. Null gives it the whole screen again.
 	/// </summary>
@@ -34,9 +27,29 @@ public static partial class MenuUtility
 	}
 
 	/// <summary>
-	/// The game the platform menu opens on before anything's been picked - Sandbox
+	/// Games registered in the shared project list, including projects from addon paths.
 	/// </summary>
-	public static Task<Package> FetchDefaultGameAsync() => Package.FetchAsync( "facepunch.sandbox", false );
+	public static Package[] FindInstalledGames() => FindInstalledProjects( "game" );
+
+	/// <summary>
+	/// Map packages available to the chooser from registered local projects.
+	/// </summary>
+	public static Package[] FindInstalledMaps() => FindInstalledProjects( "map" );
+
+	static Package[] FindInstalledProjects( string type ) => Project.All
+		.Where( x => x.Config.Type == type && !x.Broken )
+		.OrderBy( x => x.Config.Title, StringComparer.OrdinalIgnoreCase )
+		.Select( x => x.Package ).ToArray();
+
+	/// <summary>
+	/// The game the platform menu opens on before anything's been picked - the installed Sandbox addon.
+	/// </summary>
+	public static Package GetDefaultGame() => Project.FindByIdent( DefaultGameIdent ) is { Broken: false, Config.Type: "game" } project ? project.Package : null;
+
+	/// <summary>
+	/// The package the platform menu opens at startup.
+	/// </summary>
+	public const string DefaultGameIdent = "facepunch.sandbox";
 
 	/// <summary>
 	/// The game published as this Workshop item, to play. Null if there isn't one.
@@ -53,8 +66,7 @@ public static partial class MenuUtility
 	}
 
 	/// <summary>
-	/// The first couple of dozen games on the Workshop in <paramref name="sort"/>'s order - just the ones that can be
-	/// played here, through <see cref="FetchWorkshopGameAsync"/>
+	/// The first couple of dozen games on the Workshop in <paramref name="sort"/>'s order.
 	/// </summary>
 	public static async Task<WorkshopItemDetails[]> FindWorkshopGamesAsync( Sandbox.Storage.SortOrder sort )
 	{
@@ -73,7 +85,7 @@ public static partial class MenuUtility
 	/// Games on the Workshop, a page at a time - for a list that loads more as it's
 	/// scrolled. With <paramref name="mine"/>, just what you've published - friends only and private too.
 	/// </summary>
-	public static WorkshopGameSearch SearchWorkshopGames( string search = null, Sandbox.Storage.SortOrder? sort = null, IEnumerable<string> tags = null, bool mine = false )
+	public static WorkshopItemSearch SearchWorkshopGames( string search = null, Sandbox.Storage.SortOrder? sort = null, IEnumerable<string> tags = null, bool mine = false )
 	{
 		var query = new Workshop.Query( search ).WithType( Workshop.ItemType.Game );
 
@@ -86,7 +98,7 @@ public static partial class MenuUtility
 		if ( sort is { } order )
 			query.WithSort( WorkshopSort( order ) );
 
-		return new WorkshopGameSearch( query );
+		return new WorkshopItemSearch( query );
 	}
 
 	static Workshop.SortOrder WorkshopSort( Sandbox.Storage.SortOrder sort ) => sort switch
@@ -104,7 +116,7 @@ public static partial class MenuUtility
 	/// Maps on the Workshop, a page at a time - for a list that loads more as it's scrolled. With
 	/// <paramref name="subscribed"/>, just the ones you're subscribed to.
 	/// </summary>
-	public static WorkshopGameSearch SearchWorkshopMaps( string search = null, Sandbox.Storage.SortOrder? sort = null, bool subscribed = false )
+	public static WorkshopItemSearch SearchWorkshopMaps( string search = null, Sandbox.Storage.SortOrder? sort = null, bool subscribed = false )
 	{
 		var query = new Workshop.Query( search ).WithType( Workshop.ItemType.Map );
 
@@ -114,14 +126,48 @@ public static partial class MenuUtility
 		if ( sort is { } order )
 			query.WithSort( WorkshopSort( order ) );
 
-		return new WorkshopGameSearch( query );
+		return new WorkshopItemSearch( query );
 	}
 
 	/// <summary>
-	/// What a game's loaded with to start on this Workshop map (<see cref="LaunchArguments.Map"/>). Null if it can't
-	/// be.
+	/// The Workshop item ID the map chooser passes to <see cref="LaunchArguments.Map"/>. Null for a missing item.
 	/// </summary>
-	public static string LaunchMapOf( WorkshopItemDetails map ) => map?.KeyValues.GetValueOrDefault( "package" );
+	public static string LaunchMapOf( WorkshopItemDetails map ) => map is { Id: > 0 } ? map.Id.ToString() : null;
+
+	/// <summary>
+	/// Swaps a map's package ident for the Workshop item ID it's published as. Anything else comes back as it is.
+	/// </summary>
+	public static async Task<string> ResolveMapAsync( string map ) => (await MapReference.ResolveAsync( map )).Text;
+
+	/// <summary>
+	/// A map's name and picture, from its local project, its Workshop item or the mounted game it's in. The picture is
+	/// a URL or a texture. Looking up these details does not install the map.
+	/// </summary>
+	public static async Task<(string Title, string Thumb, Texture Thumbnail)> FetchMapDetailsAsync( string map )
+	{
+		var details = await LookupMapAsync( map );
+		return (details.Title, details.Thumb, details.Thumbnail);
+	}
+
+	/// <summary>
+	/// Resolve a menu selection and get its display details without installing it.
+	/// </summary>
+	public static async Task<(string Map, string Title, string Thumb, Texture Thumbnail)> LookupMapAsync( string map )
+	{
+		var reference = await MapReference.ResolveAsync( map );
+		var info = await reference.GetInfoAsync();
+		return (reference.Text, info.Title, info.Thumb, info.Thumbnail);
+	}
+
+	/// <summary>
+	/// The registered map project a map loads from, or null. It's found by the Workshop item it's published as, or by its identifier.
+	/// </summary>
+	public static Package FindMapProject( string map ) => new MapReference( map ).LocalProject;
+
+	/// <summary>
+	/// The Workshop item a map string names, or 0 if it isn't one.
+	/// </summary>
+	public static ulong GetMapWorkshopId( string map ) => ulong.TryParse( map, out var id ) ? id : 0;
 
 	/// <summary>
 	/// The tags a game can be found by - what it is, as its publisher picked
@@ -136,33 +182,34 @@ public static partial class MenuUtility
 	/// <summary>
 	/// The games sbox.game features, in its order, as the Workshop has them
 	/// </summary>
+	[Obsolete( "The Featured menu page has been retired. Use SearchWorkshopGames to browse games." )]
 	public static async Task<WorkshopItemDetails[]> FindFeaturedWorkshopGamesAsync( int count = 24 )
 	{
 		var featured = await Package.FindAsync( "type:game in:facepunch.featured-games", count );
 		var ids = await Task.WhenAll( (featured?.Packages ?? []).Select( GetWorkshopIdAsync ) );
 
-		return await DetailsOfGamesAsync( await FetchWorkshopItemsInOrderAsync( ids.Where( x => x != 0 ).Distinct().ToArray() ) );
+		return await DetailsOfItemsAsync( await FetchWorkshopItemsInOrderAsync( ids.Where( x => x != 0 ).Distinct().ToArray() ) );
 	}
 
 	/// <summary>
 	/// Your Workshop games - the ones in <paramref name="recent"/> first, in that order, then everything else installed
-	/// here. Just the ones that can be played here, through <see cref="FetchWorkshopGameAsync"/>.
+	/// here.
 	/// </summary>
 	public static async Task<WorkshopItemDetails[]> FindYourWorkshopGamesAsync( IReadOnlyCollection<ulong> recent )
 	{
 		var played = await FetchWorkshopItemsInOrderAsync( recent );
 		var installed = await new Workshop.Query().WithType( Workshop.ItemType.Game ).WithInstalled().RunAsync();
 
-		return await DetailsOfGamesAsync( played.Concat( installed?.Items ?? [] ) );
+		return await DetailsOfItemsAsync( played.Concat( installed?.Items ?? [] ) );
 	}
 
 	/// <summary>
-	/// The games you've favourited on the Workshop - just the ones that can be played here
+	/// The games you've favourited on the Workshop.
 	/// </summary>
 	public static async Task<WorkshopItemDetails[]> FindFavouriteWorkshopGamesAsync()
 	{
 		var favourites = await new Workshop.Query().WithType( Workshop.ItemType.Game ).WithFavourited().RunAsync();
-		return await DetailsOfGamesAsync( favourites?.Items ?? [] );
+		return await DetailsOfItemsAsync( favourites?.Items ?? [] );
 	}
 
 	/// <summary>
@@ -177,13 +224,13 @@ public static partial class MenuUtility
 	}
 
 	/// <summary>
-	/// The details of the ones of these that are games that can be played here, once each - who made them asked of Steam
+	/// The details of Workshop items, once each, with their creators' names requested from Steam.
 	/// </summary>
-	internal static async Task<WorkshopItemDetails[]> DetailsOfGamesAsync( IEnumerable<Workshop.Item> items )
+	internal static async Task<WorkshopItemDetails[]> DetailsOfItemsAsync( IEnumerable<Workshop.Item> items )
 	{
-		var games = items.Where( x => x?.PackageIdent is not null ).DistinctBy( x => x.Id ).ToArray();
+		var uniqueItems = items.Where( x => x is not null ).DistinctBy( x => x.Id ).ToArray();
 
-		await RequestOwnerNamesAsync( games );
-		return games.Select( WorkshopItemDetails.From ).ToArray();
+		await RequestOwnerNamesAsync( uniqueItems );
+		return uniqueItems.Select( WorkshopItemDetails.From ).ToArray();
 	}
 }

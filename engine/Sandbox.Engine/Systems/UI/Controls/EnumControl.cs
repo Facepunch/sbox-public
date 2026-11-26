@@ -96,15 +96,32 @@ public partial class EnumControl : BaseControl
 
 	public override bool SupportsMultiEdit => true;
 
-	public EnumControl()
-	{
+	ButtonGroup _buttons;
+	DropDown _dropdown;
 
+	/// <summary>
+	/// Show buttons for exactly this many options. By default, enums with up to four options use buttons.
+	/// </summary>
+	[Parameter]
+	public int? ButtonGroupOptionCount
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+
+			field = value;
+			Rebuild();
+		}
 	}
 
 	public override void Rebuild()
 	{
-		if ( Property == null ) return;
-		if ( !Property.PropertyType.IsEnum ) return;
+		DeleteChildren( true );
+		_buttons = null;
+		_dropdown = null;
+
+		if ( Property?.PropertyType?.IsEnum != true ) return;
 
 		var options = GlobalContext.Current.TypeLibrary.GetEnumDescription( Property.PropertyType );
 		if ( options == null )
@@ -113,9 +130,8 @@ public partial class EnumControl : BaseControl
 			return;
 		}
 
-		bool useButtonGroup = options.Count() <= 4;
-
-		// TODO - add ButtonGroupAttribute to override this?
+		var count = options.Count();
+		bool useButtonGroup = ButtonGroupOptionCount is int exact ? count == exact : count <= 4;
 
 		if ( useButtonGroup )
 		{
@@ -129,32 +145,63 @@ public partial class EnumControl : BaseControl
 
 	void CreateDropdown( EnumDescription options )
 	{
-		var dd = AddChild( new DropDown() );
+		_dropdown = AddChild<DropDown>();
 
 		foreach ( var o in options )
 		{
-			dd.Options.Add( new Option( o.Title, o.Icon, o.ObjectValue ) );
+			_dropdown.Options.Add( new Option( o.Title, o.Icon, o.ObjectValue ) );
 		}
 
-		// Show what the property is already set to, the same as the button group does
-		dd.Value = Property.GetValue<object>();
-
-		dd.ValueChanged = ( val ) => Property.SetValue( val );
+		_dropdown.Value = Property.GetValue<object>();
+		_dropdown.ValueChanged = _ => Property.SetValue( _dropdown.Selected.Value );
 	}
 
 	void CreateButtonGroup( EnumDescription options )
 	{
-		var group = AddChild( new ButtonGroup() );
-		group.Value = Property.GetValue<object>();
+		_buttons = AddChild<ButtonGroup>();
 
 		foreach ( var o in options )
 		{
-			var button = group.AddChild( new Button() );
+			var button = _buttons.AddChild<Button>();
 			button.Text = o.Title;
 			button.Icon = o.Icon;
 			button.Value = o.ObjectValue;
 		}
 
-		group.ValueChanged = ( val ) => Property.SetValue( group.Value );
+		SyncButtons( Property.GetValue<object>() );
+		_buttons.ValueChanged = value =>
+		{
+			if ( !Equals( Property.GetValue<object>(), value ) )
+				Property.SetValue( value );
+		};
+	}
+
+	void SyncButtons( object value )
+	{
+		_buttons.SelectedButton = _buttons.ChildrenOfType<Button>().FirstOrDefault( button => Equals( button.Value, value ) );
+		if ( !Equals( _buttons.Value, value ) )
+			_buttons.Value = value;
+	}
+
+	/// <inheritdoc/>
+	public override void Tick()
+	{
+		base.Tick();
+
+		if ( Property is null ) return;
+
+		var value = Property.GetValue<object>();
+		if ( _buttons is not null && !Equals( _buttons.Value, value ) )
+			SyncButtons( value );
+
+		if ( _dropdown is not null && !Equals( _dropdown.Value, value ) )
+		{
+			_dropdown.Value = value;
+			if ( _dropdown.Selected is null )
+			{
+				_dropdown.Text = null;
+				_dropdown.Icon = null;
+			}
+		}
 	}
 }

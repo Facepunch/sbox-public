@@ -1,6 +1,5 @@
 ﻿namespace Editor;
 
-using Editor.Wizards;
 using Sandbox;
 using Sandbox.Utility;
 using System;
@@ -485,10 +484,6 @@ file class AssetRow : Widget
 			await RefreshStatus();
 			return;
 		}
-
-		Status = "Video";
-
-		await PublishWizard.UploadMediaPage.CreateAndUploadVideo( Asset, s => Status = s );
 
 		Status = "Completed";
 

@@ -68,7 +68,7 @@ public class TimeControlledAnimationClipNode : VariationDataNode<TimeControlledA
 
 	public override Color PrimaryColor => Theme.Green;
 
-	public override DisplayInfo DisplayInfo
+	protected override DisplayInfo DefaultDisplayInfo
 	{
 		get
 		{

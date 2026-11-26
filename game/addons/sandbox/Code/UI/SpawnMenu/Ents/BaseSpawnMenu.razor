@@ -1,0 +1,19 @@
+@using Sandbox;
+@using Sandbox.UI;
+@inherits Panel
+@implements ISpawnMenuTab
+@namespace Sandbox
+
+<SpawnMenuPage>
+    <Left>
+        <div class="sidebar-controls menu-header" @ref=MenuHeader></div>
+
+        <div class="tree" @ref=TreeContainer></div>
+
+        <div class="sidebar-controls menu-footer" @ref=MenuFooter></div>
+    </Left>
+
+    <Body>
+        <PanelSwitcher @ref="Switcher"></PanelSwitcher>
+    </Body>
+</SpawnMenuPage>

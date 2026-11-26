@@ -1,0 +1,29 @@
+@import "/UI/Theme.scss";
+
+SpawnMenuContent
+{
+	width: 100%;
+	height: 100%;
+	flex-direction: column;
+	position: relative;
+}
+
+@mixin component-theme
+{
+	SpawnMenuContent > .header
+	{
+		flex-direction: column;
+		flex-shrink: 0;
+		padding: 10px $spawn-menu-content-inset;
+		border-bottom: 1px solid $ui-separator;
+	}
+}
+
+SpawnMenuContent > .body
+{
+	position: relative;
+	flex-grow: 1;
+	min-height: 0px;
+}
+
+@import "/UI/Theme/Apply.scss";

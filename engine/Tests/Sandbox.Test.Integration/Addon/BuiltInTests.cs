@@ -12,6 +12,15 @@ namespace AddonTests
 		public async Task NoWarnings()
 		{
 			await Project.InitializeBuiltIn( false );
+
+			// Configs in the two addon paths must retain all the engine's automatic projects.
+			foreach ( var ident in new[] { "local.menu", "local.toolbase", "local.actiongraph", "local.shadergraph", "local.moviemaker", "local.hammer", "local.dooeditor", "local.animgraph" } )
+			{
+				var project = Project.FindByIdent( ident );
+				Assert.IsNotNull( project, $"Built-in project {ident} wasn't discovered" );
+				Assert.IsTrue( project.IsBuiltIn && project.Active, $"Built-in project {ident} wasn't activated" );
+			}
+
 			await Project.CompileAsync();
 
 			var warnings = Project.All
@@ -25,7 +34,7 @@ namespace AddonTests
 					string.Join( $"{Environment.NewLine}  ", warnings.Select( x => x.ToString() ) ) );
 
 			// The menu builds to one assembly, its editor code only builds when the menu project is open.
-			// Headless runs don't load the menu.
+			// The environment-rule tests cover headless game startup separately.
 			if ( !Application.IsHeadless )
 			{
 				var menu = Project.All.FirstOrDefault( x => x.Config.Ident == "menu" );

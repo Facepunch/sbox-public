@@ -15,15 +15,12 @@ partial class AvatarShelf
 		BodyOpen = true;
 	}
 
-	static Clothing WornSkin => Draft.Container.Clothing.Select( x => x.Clothing ).FirstOrDefault( x => x is { HasHumanSkin: true } );
+	static Clothing WornSkin => Draft.Container.Clothing.Select( x => x.Clothing ).FirstOrDefault( x => x?.ReplacesBody == true );
 
 	/// <summary>
-	/// Skins - one block for each body, as the avatar editor has them: male, female, then the rest
+	/// Available player models, shown together in catalog order.
 	/// </summary>
-	static IEnumerable<IGrouping<int, Clothing>> SkinGroups => AvatarCatalog.All
-		.Where( x => x.HasHumanSkin )
-		.GroupBy( x => x.HumanSkinTags is not { } tags ? 2 : tags.Has( "male" ) ? 0 : tags.Has( "female" ) ? 1 : 2 )
-		.OrderBy( x => x.Key );
+	static IEnumerable<Clothing> PlayerModels => AvatarCatalog.All.Where( x => x.ReplacesBody );
 
 	static bool IsEyes( AvatarClothingCategory.Category category ) => category?.Name == "eyes";
 

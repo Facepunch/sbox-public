@@ -10,6 +10,61 @@ namespace ScriptingTests;
 public partial class ScriptLoadingTests
 {
 	/// <summary>
+	/// Addons loaded after the game scan run once, override mounted content, and become ready after their scripts publish.
+	/// </summary>
+	[TestMethod]
+	public void AddonResourcesLoadOnceAfterGameResources()
+	{
+		var previousSystem = Networking.System;
+		var previousPackages = ServerPackages.Current;
+		var downloadsField = typeof( ServerPackages ).GetField( "Downloads", BindingFlags.Static | BindingFlags.NonPublic );
+		var previousDownloads = downloadsField.GetValue( null );
+		var mounted = new AggregateFileSystem();
+		var addon = new MemoryFileSystem();
+		try
+		{
+			Networking.System = null;
+			var packages = new ServerPackages();
+			var scripts = new StringTable( "Scripts", true );
+			Game.Scripting.InitializeNetworking( scripts, isClient: false );
+			files.WriteAllText( "game.csx", "[Global] int GameStarts = 0; GameStarts++;" );
+			files.WriteAllText( "content.txt", "game" );
+			mounted.Mount( files );
+			context.FileMount = mounted;
+			ResourceLoader.LoadAllGameResource( mounted );
+
+			addon.WriteAllText( "addon.csx", "[Global] int AddonStarts = 0; AddonStarts++; class AddonMarker {}" );
+			addon.WriteAllText( "content.txt", "addon" );
+			mounted.Mount( addon );
+			const string ident = "test.addon";
+			var activePackage = CreateNetworkTestPackage();
+			typeof( PackageManager.ActivePackage ).GetProperty( nameof( activePackage.FileSystem ) ).SetValue( activePackage, addon );
+			typeof( PackageManager.ActivePackage ).GetProperty( nameof( activePackage.Package ) ).SetValue( activePackage, new RemotePackage { TypeName = "addon" } );
+			var downloads = (IDictionary<string, ServerPackages.PackageDownload>)downloadsField.GetValue( null );
+			downloads.Add( ident, new ServerPackages.PackageDownload { ident = ident, activePackage = activePackage } );
+			AsyncPump.RunSynchronously( async () =>
+			{
+				await ServerPackages.DownloadAndMount( ident );
+				Assert.IsTrue( packages.StringTable.Entries[ident].Read<ServerPackages.PackageInfo>().ResourcesReady );
+				Assert.IsTrue( scripts.Entries.ContainsKey( "addon.csx" ) );
+				await ServerPackages.DownloadAndMount( ident );
+			} );
+			Assert.AreEqual( 1, Game.Scripting.Globals.Get<int>( "GameStarts" ) );
+			Assert.AreEqual( 1, Game.Scripting.Globals.Get<int>( "AddonStarts" ) );
+			Assert.AreEqual( "addon", mounted.ReadAllText( "content.txt" ) );
+		}
+		finally
+		{
+			context.FileMount = files;
+			mounted.Dispose();
+			addon.Dispose();
+			Networking.System = previousSystem;
+			downloadsField.SetValue( null, previousDownloads );
+			typeof( ServerPackages ).GetProperty( nameof( ServerPackages.Current ) ).SetValue( null, previousPackages );
+		}
+	}
+
+	/// <summary>
 	/// Promotion finishes pending packages before releasing resources, including downloads spanning the handoff.
 	/// Failed installs disappear from the requirements instead of leaving future joiners waiting indefinitely.
 	/// </summary>

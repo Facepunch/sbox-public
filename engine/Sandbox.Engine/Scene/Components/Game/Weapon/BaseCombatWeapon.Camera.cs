@@ -23,7 +23,7 @@ public partial class BaseCombatWeapon : ICameraModifier
 	// Only the local player's deployed weapon drives the main camera.
 	bool IsDrivingCamera( CameraComponent camera )
 	{
-		return !IsProxy && IsHeld && IsActive && camera == Scene.Camera;
+		return !IsProxy && Holder is PlayerController && IsActive && camera == Scene.Camera;
 	}
 
 	/// <summary>

@@ -236,7 +236,7 @@ class NetworkModeControlWidget : Widget
 
 		var iconLabel = new Label( "linear_scale" );
 		iconLabel.Color = Theme.Text.WithAlpha( menu.Enabled ? 1 : 0.5f );
-		iconLabel.SetStyles( "font-family: Material Icons; font-size: 16px;" );
+		iconLabel.SetStyles( "font-family: Material Symbols Outlined; font-size: 16px;" );
 		iconLabel.HorizontalSizeMode = SizeMode.CanShrink;
 		content.Layout.Add( iconLabel );
 		content.Layout.AddSpacingCell( 4 );
@@ -279,7 +279,7 @@ class NetworkModeControlWidget : Widget
 
 		var iconLabel = new Label( "linear_scale" );
 		iconLabel.Color = Theme.Text.WithAlpha( menu.Enabled ? 1 : 0.5f );
-		iconLabel.SetStyles( "font-family: Material Icons; font-size: 16px;" );
+		iconLabel.SetStyles( "font-family: Material Symbols Outlined; font-size: 16px;" );
 		iconLabel.HorizontalSizeMode = SizeMode.CanShrink;
 		content.Layout.Add( iconLabel );
 		content.Layout.AddSpacingCell( 4 );

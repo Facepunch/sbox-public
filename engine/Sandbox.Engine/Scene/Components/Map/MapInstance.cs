@@ -17,11 +17,20 @@ namespace Sandbox;
 [Alias( "MapComponent" )]
 public partial class MapInstance : Component, Component.ExecuteInEditor
 {
+	/// <summary>
+	/// The Workshop map item ID, map package ident, relative map asset path, or mounted scene URI.
+	/// </summary>
 	[Property, Title( "Map" ), MapAssetPath]
 	public string MapName { get; set; }
 
+	/// <summary>
+	/// Try the launch map first, falling back to the configured map if it cannot load.
+	/// </summary>
 	[Property] public bool UseMapFromLaunch { get; set; }
 
+	/// <summary>
+	/// Create collision bodies for the loaded Hammer world.
+	/// </summary>
 	[Property]
 	public bool EnableCollision
 	{
@@ -41,7 +50,7 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 	public bool IsLoaded { get; set; }
 
 	readonly SemaphoreSlim mapLoadSemaphore = new( 1 );
-	readonly HashSet<CancellationTokenSource> tokenSources = new();
+	CancellationTokenSource pendingLoad;
 
 	/// <summary>
 	/// Called when the map has successfully loaded
@@ -56,11 +65,18 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 	SceneMap loadedMap;
 	GameObject _mapPhysics;
 	string loadedMapName;
-	Package loadedMapPkg;
-	string sceneMapScenePath;
+	Action releaseMapRequirement;
 	IDisposable _systemOverridesScope;
 
-	public MapInstance() : base()
+	/// <summary>
+	/// The VPK joining clients mount before applying the scene snapshot.
+	/// </summary>
+	internal string LoadedVpkPath { get; private set; }
+
+	/// <summary>
+	/// Refresh reflection probes when the map changes.
+	/// </summary>
+	public MapInstance()
 	{
 		OnMapLoaded += UpdateDirtyReflections;
 		OnMapUnloaded += UpdateDirtyReflections;
@@ -69,16 +85,7 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 	/// <summary>
 	/// Get the world bounds of the map
 	/// </summary>
-	public BBox Bounds
-	{
-		get
-		{
-			if ( !loadedMap.IsValid() )
-				return default;
-
-			return loadedMap.Bounds;
-		}
-	}
+	public BBox Bounds => loadedMap?.Bounds ?? default;
 
 	internal override void OnEnabledInternal()
 	{
@@ -94,11 +101,11 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 		Transform.OnTransformChanged -= OnTransformChanged;
 
 		UnloadMap();
-		CancelLoading();
 	}
 
 	internal override void OnDestroyInternal()
 	{
+		pendingLoad?.Cancel();
 		SceneMap.OnMapUpdated -= OnMapUpdated;
 
 		base.OnDestroyInternal();
@@ -112,7 +119,7 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 		var transform = new Transform( WorldPosition );
 		WorldTransform = transform;
 
-		if ( loadedMap is not null && loadedMap.IsValid() )
+		if ( loadedMap.IsValid() )
 		{
 			loadedMap.WorldOrigin = transform.Position;
 		}
@@ -126,27 +133,19 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 		}
 	}
 
-	protected override Task OnLoad( LoadingContext context )
-	{
-		if ( !Active )
-			return Task.CompletedTask;
-
-		return LoadMapAsync( context );
-	}
+	protected override Task OnLoad( LoadingContext context ) => Active ? LoadMapAsync( context ) : Task.CompletedTask;
 
 	/// <summary>
 	/// Unload the current map.
 	/// </summary>
 	public void UnloadMap()
 	{
-		if ( loadedMapPkg is not null )
-		{
-			ServerPackages.Current?.RemoveRequirement( loadedMapPkg );
-		}
+		pendingLoad?.Cancel();
+		releaseMapRequirement?.Invoke();
 
 		loadedMapName = null;
-		loadedMapPkg = null;
-		sceneMapScenePath = null;
+		releaseMapRequirement = null;
+		LoadedVpkPath = null;
 
 		bool hadMap = loadedMap is not null;
 
@@ -199,217 +198,139 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 		}
 	}
 
-	void CancelLoading()
-	{
-		foreach ( var ts in tokenSources )
-		{
-			ts.Cancel();
-		}
-
-		tokenSources.Clear();
-	}
-
 	async Task<bool> LoadMapAsync( LoadingContext context )
 	{
-		if ( UseMapFromLaunch && !string.IsNullOrWhiteSpace( LaunchArguments.Map ) )
+		var launch = LaunchArguments.Map;
+		if ( UseMapFromLaunch && !ContentComesFromSnapshot && !string.IsNullOrWhiteSpace( launch ) && await LoadMapAsync( launch, context ) )
 		{
-			if ( await LoadMapAsync( LaunchArguments.Map, context ) )
-			{
-				MapName = LaunchArguments.Map;
-				return true;
-			}
+			MapName = launch;
+			return true;
 		}
 
-		if ( string.IsNullOrWhiteSpace( MapName ) )
-			return false;
-
-		return await LoadMapAsync( MapName, context );
+		return Active && !string.IsNullOrWhiteSpace( MapName ) && await LoadMapAsync( MapName, context );
 	}
 
 	async Task<bool> LoadMapAsync( string mapName, LoadingContext context )
 	{
 		if ( loadedMapName == mapName )
-			return true;
+			return IsLoaded || string.IsNullOrWhiteSpace( mapName );
 
 		SentrySdk.AddBreadcrumb( $"LoadMapAsync {mapName}", "map.load" );
 
 		context?.Title = "Loading Map";
 
 		UnloadMap();
-		CancelLoading();
 		loadedMapName = mapName;
 
-		if ( string.IsNullOrWhiteSpace( mapName ) )
-		{
-			UnloadMap();
-			return true;
-		}
+		if ( string.IsNullOrWhiteSpace( mapName ) ) return true;
 
-		CancellationTokenSource tokenSource = new CancellationTokenSource();
-		tokenSources.Add( tokenSource );
-		var token = tokenSource.Token;
+		using var request = new CancellationTokenSource();
+		pendingLoad = request;
+		var token = request.Token;
 		var snapshotContent = Networking.IsClient || (Scene?.IsLoadingSnapshot ?? false);
-		var acquired = false;
+		Action release = null;
+		bool acquired = false;
 
 		try
 		{
-			// wait for access
 			await mapLoadSemaphore.WaitAsync( token );
 			acquired = true;
 			_loadingSnapshotContent = snapshotContent;
 			GameObject.Flags |= GameObjectFlags.Loading;
 
+			var map = await MapReference.ResolveAsync( mapName );
+			token.ThrowIfCancellationRequested();
+			var opened = await map.OpenAsync( token );
+			release = opened.Release;
+			if ( opened.Asset is null || !IsValid ) return false;
+
+			await Task.Yield();
 			token.ThrowIfCancellationRequested();
 
-			var mapFileName = mapName;
-
-			if ( mapFileName.EndsWith( ".vmap" ) )
-				mapFileName = System.IO.Path.ChangeExtension( mapFileName, ".vpk" );
-
-			if ( mapFileName.EndsWith( ".scene" ) || mapFileName.EndsWith( ".vpk" ) )
+			using var scope = Scene.Push();
+			if ( opened.Asset.EndsWith( ".scene", StringComparison.OrdinalIgnoreCase ) )
 			{
-				// can just load these directly
-			}
-			else if ( Package.TryParseIdent( mapName, out var parts ) )
-			{
-				// If this looks like a package ident, then download it
-
-				var package = await Package.Fetch( mapName, false );
-				if ( package is null || !IsValid )
+				if ( !LoadMapSceneGameObjects( mapName, opened.Asset + "_c" ) )
 				{
-					Log.Warning( $"No package found: {mapName}" );
+					Log.Warning( $"Failed to load scenemap: {opened.Asset}" );
 					return false;
-				}
-
-				if ( package.TypeName != "map" )
-				{
-					Log.Warning( $"Package {package.FullIdent} is not a map - it's a {package.TypeName}" );
-					return false;
-				}
-
-				token.ThrowIfCancellationRequested();
-
-				context?.Title = $"Loading Map - {package.Title}";
-
-				var fs = await package.MountAsync();
-
-				if ( !IsValid || fs is null )
-					return false;
-
-				loadedMapPkg = package;
-				mapFileName = package.PrimaryAsset;
-
-				if ( mapFileName.EndsWith( ".vmap" ) )
-					mapFileName = System.IO.Path.ChangeExtension( mapFileName, ".vpk" );
-
-				if ( string.IsNullOrWhiteSpace( mapFileName ) )
-				{
-					var maps = fs.FindFile( "/", "*.vpk", true ).ToArray();
-					if ( maps.Length == 0 )
-					{
-						Log.Warning( $"Package '{mapName}' had no map!" );
-						return false;
-					}
-
-					// use shortest name, just trying to avoid loading the skybox vpk
-					mapFileName = maps.OrderBy( x => x.Length ).First();
 				}
 			}
-
-			if ( mapFileName.EndsWith( ".scene" ) )
+			else
 			{
-				// Scene maps can be loaded, but we need to do some special work with the GameObjects.
-				sceneMapScenePath = mapFileName;
+				var vpk = System.IO.Path.ChangeExtension( opened.Asset, ".vpk" );
+				if ( !LoadWorld( vpk ) ) return false;
+
+				LoadMapSceneGameObjects( mapName, $"{loadedMap.MapFolder}/world.scene_c" );
+				LoadedVpkPath = vpk;
 			}
 
 			token.ThrowIfCancellationRequested();
-
-			try
-			{
-				loadedMapName = mapName;
-				SentrySdk.AddBreadcrumb( $"Map Name is {loadedMapName}, filename is {mapFileName}", "map.load" );
-
-				await Task.Yield();
-				token.ThrowIfCancellationRequested();
-
-				using var scope = Scene.Push();
-
-				if ( mapFileName.EndsWith( ".vpk" ) )
-				{
-					var loader = new MapComponentMapLoader( this, NoOrigin ? 0 : WorldPosition );
-					loadedMap = new SceneMap( loader.World, mapFileName, loader );
-
-					if ( loadedMap.IsValid() )
-					{
-						var vphysPath = $"{loadedMap.MapFolder}/world_physics.vphys";
-						Physics = PhysicsGroupDescription.Load( vphysPath );
-						if ( Physics is not null )
-						{
-							var objectKey = $"{mapFileName}.World Physics";
-							var go = new GameObject();
-
-							//
-							// We don't network this, because it'll be loaded on the client.. but we want the
-							// ID to match between all clients - so we set it deterministically.
-							//
-							go.SetDeterministicId( objectKey.ToGuid() );
-							go.Flags |= GameObjectFlags.NotSaved | GameObjectFlags.NotNetworked;
-							go.Name = "World Physics";
-							go.Tags.Add( "world" );
-							go.SetParent( GameObject, NoOrigin );
-							Collider = go.Components.Create<MapCollider>();
-							Collider.SetDeterministicId( $"{objectKey}.MapCollider".ToGuid() );
-							_mapPhysics = go;
-
-							AddCollision();
-						}
-						else
-						{
-							Log.Warning( $"Couldn't find map physics: '{vphysPath}'" );
-							SentrySdk.AddBreadcrumb( $"Couldn't find map physics: '{vphysPath}'", "map.load" );
-						}
-					}
-				}
-
-				if ( !LoadMapSceneGameObjects( mapName ) )
-				{
-					if ( !string.IsNullOrWhiteSpace( sceneMapScenePath ) )
-					{
-						// we're explictly trying to load a scenemap, and we couldn't - so this whole thing has failed
-						Log.Warning( $"Failed to load scenemap: {sceneMapScenePath}" );
-						return false;
-					}
-				}
-			}
-			catch ( Exception e )
-			{
-				SentrySdk.AddBreadcrumb( $"Couldn't load map ({e.Message})", "map.load" );
-				Log.Warning( e, $"Couldn't load map ({e.Message})" );
-				return false;
-			}
-
-			OnMapLoaded?.InvokeWithWarning();
+			releaseMapRequirement = release;
+			release = null;
 			IsLoaded = true;
+			OnMapLoaded?.InvokeWithWarning();
+			return true;
+		}
+		catch ( OperationCanceledException ) when ( token.IsCancellationRequested )
+		{
+			return false;
+		}
+		catch ( Exception e )
+		{
+			Log.Warning( e, $"Couldn't load map '{mapName}'" );
+			return false;
 		}
 		finally
 		{
+			release?.Invoke();
+
 			if ( acquired )
 			{
 				_loadingSnapshotContent = false;
+				if ( GameObject.IsValid() ) GameObject.Flags &= ~GameObjectFlags.Loading;
 				mapLoadSemaphore.Release();
 			}
 
-			if ( GameObject.IsValid() )
+			if ( pendingLoad == request )
 			{
-				GameObject.Flags &= ~GameObjectFlags.Loading;
+				pendingLoad = null;
+				if ( IsValid && !token.IsCancellationRequested ) SceneMap.OnMapUpdated += OnMapUpdated;
 			}
+		}
+	}
 
-			// static event, so never subscribe twice and never pin a destroyed component (and its scene)
-			SceneMap.OnMapUpdated -= OnMapUpdated;
-			if ( IsValid ) SceneMap.OnMapUpdated += OnMapUpdated;
+	bool LoadWorld( string vpk )
+	{
+		var loader = new MapComponentMapLoader( this, NoOrigin ? 0 : WorldPosition );
+		loadedMap = new SceneMap( loader.World, vpk, loader );
+		if ( !loadedMap.IsValid() )
+		{
+			loadedMap.Delete();
+			loadedMap = null;
+			Log.Warning( $"Couldn't load map: '{vpk}'" );
+			return false;
 		}
 
-		tokenSources.Remove( tokenSource );
+		var path = $"{loadedMap.MapFolder}/world_physics.vphys";
+		Physics = PhysicsGroupDescription.Load( path );
+		if ( Physics is null )
+		{
+			Log.Warning( $"Couldn't find map physics: '{path}'" );
+			return true;
+		}
+
+		// Each client builds the world physics locally with the same object and component IDs.
+		var key = $"{vpk}.World Physics";
+		_mapPhysics = new GameObject();
+		_mapPhysics.SetDeterministicId( key.ToGuid() );
+		_mapPhysics.Flags |= GameObjectFlags.NotSaved | GameObjectFlags.NotNetworked;
+		_mapPhysics.Name = "World Physics";
+		_mapPhysics.Tags.Add( "world" );
+		_mapPhysics.SetParent( GameObject, NoOrigin );
+		Collider = _mapPhysics.Components.Create<MapCollider>();
+		Collider.SetDeterministicId( $"{key}.MapCollider".ToGuid() );
+		AddCollision();
 		return true;
 	}
 
@@ -431,21 +352,10 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 		}
 	}
 
-	private bool LoadMapSceneGameObjects( string mapName )
+	private bool LoadMapSceneGameObjects( string mapName, string path )
 	{
-		// If this is being loaded from a vpk, load scene contents from world.scene_c.
-		// If this is from an actual scene, just use that.
-		var path = string.IsNullOrWhiteSpace( sceneMapScenePath ) ? $"{loadedMap?.MapFolder}/world.scene_c" : sceneMapScenePath + "_c";
-		var sceneFile = SceneFile.Load( path );
-		sceneFile ??= Game.Resources.LoadRawGameResource( path ) as SceneFile;
-
-		if ( sceneFile is null )
-			return false;
-
-		// Wouldn't this be nice? Doesn't make sense within a MapInstance, but when we switch away
-		// SceneLoadOptions options = new() { IsAdditive = true };
-		// options.SetScene( sceneFile );
-		// Scene.Load( options );
+		var sceneFile = SceneFile.Load( path ) ?? Game.Resources.LoadRawGameResource( path ) as SceneFile;
+		if ( sceneFile is null ) return false;
 
 		using var optionsScope = ActionGraph.PushSerializationOptions( sceneFile.SerializationOptions with { ForceUpdateCached = Scene.IsEditor } );
 		using var sceneScope = Scene.Push();
@@ -479,9 +389,7 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 		}
 
 		// Apply scene-level GameObjectSystems data (e.g. painted clutter) to the host scene.
-		if ( sceneFile.SceneProperties is not null
-			&& sceneFile.SceneProperties.TryGetPropertyValue( "GameObjectSystems", out var systemsNode )
-			&& systemsNode is not null )
+		if ( sceneFile.SceneProperties?["GameObjectSystems"] is { } systemsNode )
 		{
 			_systemOverridesScope = Scene.ApplyTransientGameObjectSystemOverrides( systemsNode );
 
@@ -507,13 +415,8 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 	private bool ShouldIgnoreGameObject( JsonObject json )
 	{
 		// Don't load another MapInstance if this scene already has one.
-		if ( json["Components"] is JsonArray components )
-		{
-			if ( components.Any( comp => comp["__type"]?.ToString() == "Sandbox.MapInstance" ) )
-			{
-				return true;
-			}
-		}
+		if ( json["Components"] is JsonArray components && components.Any( comp => comp["__type"]?.ToString() == "Sandbox.MapInstance" ) )
+			return true;
 
 		if ( !ContentComesFromSnapshot || !json.TryGetPropertyValue( JsonKeys.Id, out var id ) )
 			return false;
@@ -557,9 +460,13 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 
 	}
 
+	/// <summary>
+	/// Load map objects in world space. Older maps use this to preserve their original placement.
+	/// </summary>
 	[Property, Hide]
 	public bool NoOrigin { get; set; }
 
+	/// <inheritdoc/>
 	public override int ComponentVersion => 1;
 
 	[Expose, JsonUpgrader( typeof( MapInstance ), 1 )]
@@ -574,16 +481,9 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 	internal IPVS GetNetworkPvs() => loadedMap?.PVS ?? default;
 }
 
-file class MapComponentMapLoader : SceneMapLoader
+file class MapComponentMapLoader( MapInstance map, Vector3 origin ) : SceneMapLoader( map.Scene.SceneWorld, map.Scene.PhysicsWorld, origin )
 {
-	private readonly MapInstance Map;
 	private readonly Dictionary<string, GameObject> MapObjects = new();
-
-	public MapComponentMapLoader( MapInstance mapComponent, Vector3 origin ) :
-		base( mapComponent.Scene.SceneWorld, mapComponent.Scene.PhysicsWorld, origin )
-	{
-		Map = mapComponent;
-	}
 
 	//
 	// Install a function that will create the SceneObjects from SceneMapLoader when enabled
@@ -606,48 +506,35 @@ file class MapComponentMapLoader : SceneMapLoader
 		};
 	}
 
-	void CreateStaticModel( GameObject go, ObjectEntry kv )
+	void CreateBrush( GameObject go, ObjectEntry kv )
 	{
-		bool isFuncBrush = kv.TypeName == "func_brush";
-		//bool solidBsp = kv.GetValue<bool>( "solidbsp", true );
-		int BrushSolidities_e = kv.GetValue<int>( "Solidity", 0 );
-		int SolidType_t = kv.GetValue<int>( "solid", 0 );
+		var model = kv.GetResource<Model>( "model" );
+		var renderer = go.Components.Create<ModelRenderer>();
+		renderer.Model = model;
+		renderer.Tint = kv.GetValue<Color>( "rendercolor", Color.White );
 
-		// Renderer
-		{
-			var renderer = go.Components.Create<ModelRenderer>();
-			renderer.Model = kv.GetResource<Model>( "model" );
-			renderer.Tint = kv.GetValue<Color>( "rendercolor", Color.White );
-		}
+		if ( kv.GetValue<int>( "solid" ) <= 0 || kv.GetValue<int>( "Solidity" ) == 1 ) return;
 
-		if ( isFuncBrush )
-		{
-			bool makeSolid = SolidType_t > 0 && BrushSolidities_e != 1;
-
-			if ( makeSolid )
-			{
-				var collider = go.Components.Create<ModelCollider>();
-				collider.Static = true; // I think func_brush is always static?
-				collider.Model = kv.GetResource<Model>( "model" );
-			}
-		}
+		var collider = go.Components.Create<ModelCollider>();
+		collider.Static = true;
+		collider.Model = model;
 	}
 
-	void CreateSoundScapeBox( GameObject go, ObjectEntry kv )
+	void CreateSoundscape( GameObject go, ObjectEntry kv )
 	{
 		var soundscape = go.Components.Create<SoundscapeTrigger>();
 		soundscape.Soundscape = GameResource.Load<Soundscape>( kv.GetString( "Soundscape" ) );
-		soundscape.BoxSize = kv.GetValue<Vector3>( "Extents" ) * 0.5f;
-		soundscape.Type = SoundscapeTrigger.TriggerType.Box;
-		soundscape.Enabled = kv.GetValue<bool>( "Enabled" );
-	}
+		if ( kv.TypeName == "snd_soundscape_box" )
+		{
+			soundscape.Type = SoundscapeTrigger.TriggerType.Box;
+			soundscape.BoxSize = kv.GetValue<Vector3>( "Extents" ) * 0.5f;
+		}
+		else
+		{
+			soundscape.Type = SoundscapeTrigger.TriggerType.Sphere;
+			soundscape.Radius = kv.GetValue<float>( "radius" );
+		}
 
-	void CreateSoundScape( GameObject go, ObjectEntry kv )
-	{
-		var soundscape = go.Components.Create<SoundscapeTrigger>();
-		soundscape.Soundscape = GameResource.Load<Soundscape>( kv.GetString( "Soundscape" ) );
-		soundscape.Radius = kv.GetValue<float>( "radius" );
-		soundscape.Type = SoundscapeTrigger.TriggerType.Sphere;
 		soundscape.Enabled = kv.GetValue<bool>( "Enabled" );
 	}
 
@@ -688,19 +575,15 @@ file class MapComponentMapLoader : SceneMapLoader
 
 		bool isAnimated = kv.TypeName == "prop_dynamic" || kv.TypeName == "prop_animated";
 		bool isStatic = isAnimated || kv.GetValue<bool>( "static" );
-		bool isNetworked = !isStatic;
 
-		// Don't spawn networked props, because they will be spawned by
-		// the network!
-		if ( isNetworked && Map.ContentComesFromSnapshot )
+		// The snapshot supplies networked props.
+		if ( !isStatic && map.ContentComesFromSnapshot )
 		{
 			go.Destroy();
 			return;
 		}
 
-		Prop prop;
-
-		prop = go.Components.Create<Prop>();
+		var prop = go.Components.Create<Prop>();
 
 		if ( prop.IsValid() )
 		{
@@ -798,13 +681,10 @@ file class MapComponentMapLoader : SceneMapLoader
 
 	protected override void CreateObject( ObjectEntry kv )
 	{
-		var parent = Map.GameObject;
+		var parent = map.GameObject;
 
-		if ( !string.IsNullOrWhiteSpace( kv.ParentName ) )
-		{
-			if ( MapObjects.TryGetValue( kv.ParentName, out var outParent ) )
-				parent = outParent;
-		}
+		if ( !string.IsNullOrWhiteSpace( kv.ParentName ) && MapObjects.TryGetValue( kv.ParentName, out var mapParent ) )
+			parent = mapParent;
 
 		var targetName = kv.TargetName;
 		var prefix = "[PR#]";
@@ -824,112 +704,76 @@ file class MapComponentMapLoader : SceneMapLoader
 		switch ( kv.TypeName )
 		{
 			case "func_brush":
-				{
-					CreateStaticModel( go, kv );
-					break;
-				}
+				CreateBrush( go, kv );
+				break;
 			case "info_player_start":
-				{
-					go.Components.Create<SpawnPoint>();
-					break;
-				}
+				go.Components.Create<SpawnPoint>();
+				break;
 
 			// Lights that have a matching component become a GameObject + Light component.
 			// Rect/Capsule/Ortho have no component yet, so they fall through to the raw path.
 			case "light_environment":
 			case "light_directional":
-				{
-					CreateLightComponent( go, kv, LightType.Directional );
-					break;
-				}
+				CreateLightComponent( go, kv, LightType.Directional );
+				break;
 			case "light_spot":
-				{
-					CreateLightComponent( go, kv, LightType.Spot );
-					break;
-				}
+				CreateLightComponent( go, kv, LightType.Spot );
+				break;
 			case "light_omni":
-				{
-					CreateLightComponent( go, kv, LightType.Omni );
-					break;
-				}
+				CreateLightComponent( go, kv, LightType.Omni );
+				break;
 
 			case "prop_dynamic":
 			case "prop_animated":
 			case "prop_physics":
-				{
-					CreateProp( go, kv );
-					break;
-				}
+				CreateProp( go, kv );
+				break;
 
 			case "env_sky":
-				{
-					SkyBox2D.InitializeFromLegacy( go, kv );
-					break;
-				}
+				SkyBox2D.InitializeFromLegacy( go, kv );
+				break;
 
 			case "skybox_reference":
-				{
-					MapSkybox3D.InitializeFromLegacy( go, kv );
-					break;
-				}
+				MapSkybox3D.InitializeFromLegacy( go, kv );
+				break;
 
 			case "env_volumetric_fog_volume":
-				{
-					VolumetricFogVolume.InitializeFromLegacy( go, kv );
-					break;
-				}
+				VolumetricFogVolume.InitializeFromLegacy( go, kv );
+				break;
 			case "env_volumetric_fog_controller":
-				{
-					// We only take the baked fog texture from the legacy component
-					VolumetricFogController.InitializeFromLegacy( go, kv );
-					break;
-				}
+				// We only take the baked fog texture from the legacy component
+				VolumetricFogController.InitializeFromLegacy( go, kv );
+				break;
 			case "env_cubemap":
 			case "env_cubemap_box":
-				{
-					EnvmapProbe.InitializeFromLegacy( go, kv );
-					break;
-				}
+				EnvmapProbe.InitializeFromLegacy( go, kv );
+				break;
 
 			// Never network probe volumes. Their textures live in the map VPK, so a snapshot copy can
 			// arrive before the VPK is mounted and render black. Every client builds them from the VPK.
 			case "env_light_probe_volume":
-				{
-					go.NetworkMode = NetworkMode.Never;
-					LightProbeVolume.InitializeFromLegacy( go, kv );
-					break;
-				}
+				go.NetworkMode = NetworkMode.Never;
+				LightProbeVolume.InitializeFromLegacy( go, kv );
+				break;
 			case "env_combined_light_probe_volume":
-				{
-					go.NetworkMode = NetworkMode.Never;
-					EnvmapProbe.InitializeFromLegacy( go, kv ); // create an envmap component
-					LightProbeVolume.InitializeFromLegacy( go, kv );
-					break;
-				}
+				go.NetworkMode = NetworkMode.Never;
+				EnvmapProbe.InitializeFromLegacy( go, kv ); // create an envmap component
+				LightProbeVolume.InitializeFromLegacy( go, kv );
+				break;
 			case "snd_soundscape_box":
-				{
-					CreateSoundScapeBox( go, kv );
-					break;
-				}
 			case "snd_soundscape":
-				{
-					CreateSoundScape( go, kv );
-					break;
-				}
+				CreateSoundscape( go, kv );
+				break;
 			case "env_gradient_fog":
-				{
-					CreateGradientFog( go, kv );
-					break;
-				}
+				CreateGradientFog( go, kv );
+				break;
 			case "env_cubemap_fog":
-				{
-					CreateCubemapFog( go, kv );
-					break;
-				}
+				CreateCubemapFog( go, kv );
+				break;
 		}
 
 		// Give users a chance to override functionality
-		Map.OnCreateObjectInternal( go, kv );
+		map.OnCreateObjectInternal( go, kv );
 
 		// If no components were added, add our default MapObjectComponent
 		if ( go.Components.Count == 0 )

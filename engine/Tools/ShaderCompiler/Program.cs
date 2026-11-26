@@ -42,6 +42,10 @@ public static partial class Program
 			return Recompile( args, options );
 		}
 
+		// Optional path to mount and process the shaders from instead of the ones under game/. Its shaders include each other through that path.
+		var assetsIndex = Array.IndexOf( args, "-assets" );
+		string assetsPath = assetsIndex >= 0 && assetsIndex + 1 < args.Length ? System.IO.Path.GetFullPath( args[assetsIndex + 1] ) : null;
+
 		List<ProcessList> failedList = new();
 
 		HashSet<string> files = new();
@@ -49,7 +53,7 @@ public static partial class Program
 		for ( int i = 0; i < args.Length; i++ )
 		{
 			var arg = args[i];
-			if ( arg == "--dump-spirv" || arg == "-j" ) { i++; continue; }
+			if ( arg == "--dump-spirv" || arg == "-j" || arg == "-assets" ) { i++; continue; }
 			if ( arg.StartsWith( "-" ) ) continue;
 
 			files.Add( arg );
@@ -66,6 +70,18 @@ public static partial class Program
 			List<ProcessList> compileList = new();
 
 			var wd = System.IO.Directory.GetCurrentDirectory();
+
+			if ( assetsPath is not null )
+			{
+				if ( !System.IO.Directory.Exists( assetsPath ) )
+				{
+					Console.Error.WriteLine( $"Assets folder not found: {assetsPath}" );
+					return 1;
+				}
+
+				EngineFileSystem.AddAssetPath( "assets", assetsPath );
+				wd = assetsPath;
+			}
 
 			foreach ( var s in System.IO.Directory.EnumerateFiles( wd, "*.shader", new System.IO.EnumerationOptions { RecurseSubdirectories = true } ) )
 			{

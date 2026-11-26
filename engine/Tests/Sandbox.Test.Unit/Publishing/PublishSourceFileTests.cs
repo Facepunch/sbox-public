@@ -88,7 +88,7 @@ public class PublishSourceFileTests
 		var folder = selection == "folder" ? "Resources" : "levels";
 		var assetsPath = Path.Combine( directory, "Assets" );
 		Directory.CreateDirectory( Path.Combine( assetsPath, folder ) );
-		var all = (Dictionary<ulong, Asset>)typeof( AssetSystem ).GetField( "allAssets", BindingFlags.Static | BindingFlags.NonPublic ).GetValue( null );
+		var all = (IDictionary<ulong, Asset>)typeof( AssetSystem ).GetField( "allAssets", BindingFlags.Static | BindingFlags.NonPublic ).GetValue( null );
 		var byPath = (ConcurrentDictionary<string, Asset>)typeof( AssetSystem ).GetField( "assetsByPath", BindingFlags.Static | BindingFlags.NonPublic ).GetValue( null );
 		var scene = new PublishAsset( assetsPath, $"{folder}/rounds.scene", $"{folder}/rounds.scene_c" );
 		var sounds = new[] { "wav", "ogg", "mp3" }.Select( extension => new PublishAsset( assetsPath,

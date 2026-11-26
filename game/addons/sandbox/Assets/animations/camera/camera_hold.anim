@@ -1,0 +1,11 @@
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:generic:version{7412167c-06e9-4698-aff2-e63eb59037e7} -->
+{
+ _class = "CClipDocument"
+ m_sourceFilename = "animations/camera/camera_hold.fbx"
+ m_animationSkeletonName = "models/citizen_human/animgraphs/human.skel"
+ m_nStartFrame = 0
+ m_nEndFrame = 68
+ m_flImportScale = 1
+ m_additiveType = "None"
+ m_bExtractMotion = false
+}

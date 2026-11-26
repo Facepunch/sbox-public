@@ -12,6 +12,37 @@ public static partial class ModelDoc
 
 	public static Asset ModelAsset => Open ? AssetSystem.FindByPath( App?.GetSessionModel() ) : null;
 
+	public static List<string> GetMorphChannels( string filename )
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace( filename );
+		ThreadSafe.AssertIsMainThread();
+		if ( !g_pToolFramework2.InitEngineTool( "modeldoc_editor" ) )
+			throw new InvalidOperationException( "Cannot read morph channels: ModelDoc could not be initialized." );
+
+		using var names = NativeEngine.ModelDoc.GetMorphChannels( filename, out var success );
+		if ( success == 0 )
+			throw new InvalidOperationException( $"Cannot read morph channels from '{filename}'. See the console for details." );
+
+		return names.ToList();
+	}
+
+	public static List<string> GetMorphChannels( string filename, Sandbox.Animation.Skeleton skeleton )
+	{
+		ArgumentNullException.ThrowIfNull( skeleton );
+		var names = GetMorphChannels( filename );
+		var bones = Enumerable.Range( 0, skeleton.native.GetNumBones() )
+			.Select( skeleton.native.GetBoneName ).ToHashSet( StringComparer.OrdinalIgnoreCase );
+		names.RemoveAll( name =>
+		{
+			if ( !bones.Contains( name ) )
+				return false;
+
+			Log.Warning( $"Skipping morph channel '{name}' from '{filename}' because it has the same name as a skeleton bone." );
+			return true;
+		} );
+		return names;
+	}
+
 	public static List<string> GetAnimationTakes( string filename )
 		=> GetAnimationTakes( filename, 0, out _ );
 

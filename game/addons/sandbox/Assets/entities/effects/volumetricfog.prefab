@@ -1,0 +1,220 @@
+{
+  "RootObject": {
+    "__guid": "94e4927a-3ecd-40fa-b4ca-1c4d6f47ad47",
+    "__version": 1,
+    "Flags": 0,
+    "Name": "volumetricfog",
+    "Position": "0,0,0",
+    "Rotation": "0,0,0,1",
+    "Scale": "1,1,1",
+    "Tags": "",
+    "Enabled": true,
+    "NetworkMode": 2,
+    "NetworkInterpolation": true,
+    "NetworkOrphaned": 0,
+    "NetworkTransmit": true,
+    "OwnerTransfer": 1,
+    "Components": [
+      {
+        "__type": "Sandbox.VolumetricFogVolume",
+        "__guid": "0ec53c01-60ed-48ca-a82d-7251e89fff44",
+        "__enabled": true,
+        "Flags": 0,
+        "Bounds": {
+          "Mins": "-15000,-15000,-15000",
+          "Maxs": "15000,15000,15000"
+        },
+        "FalloffExponent": 1,
+        "OnComponentDestroy": null,
+        "OnComponentDisabled": null,
+        "OnComponentEnabled": null,
+        "OnComponentFixedUpdate": null,
+        "OnComponentStart": null,
+        "OnComponentUpdate": null,
+        "Strength": 1
+      },
+      {
+        "__type": "Sandbox.Rigidbody",
+        "__guid": "48de8400-2c27-4168-9531-1d723d6cdc48",
+        "__enabled": true,
+        "Flags": 0,
+        "AngularDamping": 0,
+        "EnableImpactDamage": true,
+        "EnhancedCcd": false,
+        "Gravity": true,
+        "GravityScale": 1,
+        "ImpactDamage": 0,
+        "LinearDamping": 0,
+        "Locking": {
+          "X": false,
+          "Y": false,
+          "Z": false,
+          "Pitch": false,
+          "Yaw": false,
+          "Roll": false
+        },
+        "MassCenterOverride": "0,0,0",
+        "MassOverride": 0,
+        "MinImpactDamageSpeed": 500,
+        "MotionEnabled": true,
+        "OnComponentDestroy": null,
+        "OnComponentDisabled": null,
+        "OnComponentEnabled": null,
+        "OnComponentFixedUpdate": null,
+        "OnComponentStart": null,
+        "OnComponentUpdate": null,
+        "OverrideMassCenter": false,
+        "RigidbodyFlags": 0,
+        "StartAsleep": false
+      },
+      {
+        "__type": "Sandbox.BoxCollider",
+        "__guid": "f5f10cd2-369e-462f-9001-e0013c413184",
+        "__enabled": true,
+        "Flags": 0,
+        "Center": "0,0,0",
+        "ColliderFlags": 0,
+        "Elasticity": null,
+        "Friction": null,
+        "IsTrigger": false,
+        "OnComponentDestroy": null,
+        "OnComponentDisabled": null,
+        "OnComponentEnabled": null,
+        "OnComponentFixedUpdate": null,
+        "OnComponentStart": null,
+        "OnComponentUpdate": null,
+        "OnObjectTriggerEnter": null,
+        "OnObjectTriggerExit": null,
+        "OnTriggerEnter": null,
+        "OnTriggerExit": null,
+        "RollingResistance": null,
+        "Scale": "16,16,16",
+        "Static": false,
+        "Surface": null,
+        "SurfaceVelocity": "0,0,0"
+      }
+    ],
+    "Children": [
+      {
+        "__guid": "a53ad78f-5311-4ff7-bad6-49bb23dbbd7d",
+        "__version": 1,
+        "Flags": 0,
+        "Name": "Sprite",
+        "Position": "0,0,0",
+        "Rotation": "0,0,0,1",
+        "Scale": "1,1,1",
+        "Tags": "",
+        "Enabled": true,
+        "NetworkMode": 2,
+        "NetworkInterpolation": true,
+        "NetworkOrphaned": 0,
+        "NetworkTransmit": true,
+        "OwnerTransfer": 1,
+        "Components": [
+          {
+            "__type": "Sandbox.SpriteRenderer",
+            "__guid": "484087b8-44d2-4352-add4-316fde4b7fe5",
+            "__enabled": true,
+            "Flags": 0,
+            "__version": 2,
+            "Additive": false,
+            "Billboard": "YOnly",
+            "Color": "1,1,1,1",
+            "DepthFeather": 1,
+            "FlipHorizontal": false,
+            "FlipVertical": false,
+            "FogStrength": 1,
+            "IsSorted": false,
+            "Lighting": false,
+            "OnAnimationEnd": null,
+            "OnAnimationStart": null,
+            "OnBroadcastMessage": null,
+            "OnComponentDestroy": null,
+            "OnComponentDisabled": null,
+            "OnComponentEnabled": null,
+            "OnComponentFixedUpdate": null,
+            "OnComponentStart": null,
+            "OnComponentUpdate": null,
+            "Opaque": true,
+            "OverlayColor": "1,1,1,0",
+            "PlaybackSpeed": 1,
+            "RenderOptions": {
+              "GameLayer": true,
+              "OverlayLayer": false,
+              "BloomLayer": false,
+              "AfterUILayer": false
+            },
+            "Shadows": true,
+            "Size": "10,10",
+            "Sprite": {
+              "$compiler": "embed",
+              "$source": null,
+              "data": {
+                "Animations": [
+                  {
+                    "Name": "Default",
+                    "FrameRate": 15,
+                    "Origin": "0.5,0.5",
+                    "LoopMode": "Loop",
+                    "Frames": [
+                      {
+                        "Texture": {
+                          "$compiler": "texture",
+                          "$source": "svgsource",
+                          "data": {
+                            "Size": "256,256",
+                            "Source": "<?xml version=\"1.0\" encoding=\"utf-8\"?><!-- Uploaded to: SVG Repo, www.svgrepo.com, Generator: SVG Repo Mixer Tools -->\n<svg width=\"800px\" height=\"800px\" viewBox=\"0 0 36 36\" xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" aria-hidden=\"true\" role=\"img\" class=\"iconify iconify--twemoji\" preserveAspectRatio=\"xMidYMid meet\"><path fill=\"#F5F8FA\" d=\"M32 0H4a4 4 0 0 0-4 4v6h36V4a4 4 0 0 0-4-4z\"></path><path fill=\"#E1E8ED\" d=\"M36 16.368V9.257a4.148 4.148 0 0 0-2.188-.632c-1.325 0-2.491.627-3.259 1.588A4.466 4.466 0 0 0 27.5 9c-.721 0-1.392.185-1.996.486C24.763 8.018 23.257 7 21.5 7c-.607 0-1.184.124-1.712.342a3.49 3.49 0 0 0-6.189-.8A4.443 4.443 0 0 0 11.5 6c-1.641 0-3.062.887-3.848 2.198A4.99 4.99 0 0 0 3 5a4.955 4.955 0 0 0-3 1.022v7.955C.838 14.611 24.5 18 24.5 18s10.862-1.238 11.5-1.632z\"></path><path fill=\"#CCD6DD\" d=\"M36 14.771C35.157 13.7 33.864 13 32.396 13c-1.997 0-3.681 1.279-4.318 3.059A3.35 3.35 0 0 0 27.5 16c-.82 0-1.565.294-2.162.767A3.964 3.964 0 0 0 23 16c-.353 0-.689.06-1.015.146c.002-.049.015-.096.015-.146a4 4 0 0 0-4-4a3.974 3.974 0 0 0-3.024 1.409A4.989 4.989 0 0 0 13 13c-.18 0-.35.034-.525.053A6.998 6.998 0 0 0 6 8.709a6.989 6.989 0 0 0-6 3.408v13.544l32.396-1.452s2.761-1.343 3.604-2.966v-6.472z\"></path><path fill=\"#E1E8ED\" d=\"M36 30.499V20.422A4.979 4.979 0 0 0 34 20a4.99 4.99 0 0 0-4.652 3.198C28.562 21.887 27.141 21 25.5 21c-.763 0-1.47.207-2.099.542a3.49 3.49 0 0 0-6.189.8A4.474 4.474 0 0 0 15.5 22c-1.757 0-3.263 1.018-4.004 2.486A4.453 4.453 0 0 0 9.5 24a4.47 4.47 0 0 0-3.054 1.213c-.768-.961-1.934-1.588-3.259-1.588c-1.284 0-2.419.591-3.188 1.501v5.373H36z\"></path><path fill=\"#F5F8FA\" d=\"M25 25c-.821 0-1.582.249-2.217.673a4.355 4.355 0 0 0-4.534-2.863a4.349 4.349 0 0 0-3.777 3.298a3.258 3.258 0 0 0-.55 0a3.289 3.289 0 0 0-1.965.93a3.76 3.76 0 0 0-2.278-.498a3.708 3.708 0 0 0-.942.236c-.003-.047.004-.093 0-.139a3.79 3.79 0 0 0-4.155-3.387a3.767 3.767 0 0 0-2.716 1.619A4.699 4.699 0 0 0 0 24.672V32c0 .773.23 1.489.61 2.101C.715 34.098 29 31.209 29 29s-1.791-4-4-4z\"></path><path fill=\"#CCD6DD\" d=\"M32 36a4 4 0 0 0 4-4v-7.608a6.962 6.962 0 0 0-3-.683a6.998 6.998 0 0 0-6.475 4.344C26.35 28.034 26.18 28 26 28c-.702 0-1.369.147-1.976.409A3.974 3.974 0 0 0 21 27a4 4 0 0 0-4 4c0 .05.013.097.015.146A3.956 3.956 0 0 0 16 31c-.876 0-1.679.289-2.338.767A3.468 3.468 0 0 0 11.5 31a3.33 3.33 0 0 0-.577.059C10.286 29.279 8.602 28 6.604 28c-1.987 0-3.665 1.266-4.31 3.03C2.195 31.022 2.101 31 2 31c-.732 0-1.41.211-2 .555V32a4 4 0 0 0 4 4h28z\"></path></svg>",
+                            "Colorize": false,
+                            "TargetColor": "1,1,1,1",
+                            "Scale": 1,
+                            "Offset": "0,0",
+                            "Rotate": 0,
+                            "FlipVertical": false,
+                            "FlipHorizontal": false
+                          },
+                          "compiled": null
+                        },
+                        "BroadcastMessages": []
+                      }
+                    ]
+                  }
+                ],
+                "__references": null
+              },
+              "compiled": null
+            },
+            "StartingAnimationName": "Default",
+            "TextureFilter": "Bilinear"
+          }
+        ],
+        "Children": []
+      }
+    ],
+    "__properties": {
+      "NetworkInterpolation": true,
+      "TimeScale": 1,
+      "WantsSystemScene": true,
+      "Metadata": {},
+      "NavMesh": {
+        "Enabled": false,
+        "IncludeStaticBodies": true,
+        "IncludeKeyframedBodies": true,
+        "EditorAutoUpdate": true,
+        "AgentHeight": 64,
+        "AgentRadius": 16,
+        "AgentStepSize": 18,
+        "AgentMaxSlope": 40,
+        "ExcludedBodies": "",
+        "IncludedBodies": ""
+      }
+    },
+    "__variables": []
+  },
+  "ResourceVersion": 2,
+  "ShowInMenu": false,
+  "MenuPath": null,
+  "MenuIcon": null,
+  "DontBreakAsTemplate": false,
+  "__references": [],
+  "__version": 2
+}

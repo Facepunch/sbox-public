@@ -1,0 +1,72 @@
+@using Sandbox;
+@using Sandbox.UI;
+@inherits PanelComponent
+
+<root>
+    <div class="board">
+        <div class="heading">
+            <label class="hostname">@HostName</label>
+
+            @if ( !string.IsNullOrEmpty( _mapTitle ) )
+            {
+                <label class="map">@Game.Language.GetPhrase( "ui.scoreboard.playing_on", new() { { "map", _mapTitle } } )</label>
+            }
+        </div>
+
+        <div class="section">
+            <div class="title-bar">
+                <div class="avatar-column"></div>
+                <div class="name"></div>
+                <label class="stat">#ui.scoreboard.kills</label>
+                <label class="stat">#ui.scoreboard.deaths</label>
+                <label class="stat">#ui.scoreboard.ping</label>
+                <div class="mute-column"></div>
+            </div>
+
+            <div class="rows">
+                @foreach ( var connection in Connection.All.OrderByDescending( x => PlayerData.For( x )?.Kills ?? 0 ).ThenBy( x => x.DisplayName ) )
+                {
+                    <ScoreboardRow Connection="@connection" />
+                }
+            </div>
+        </div>
+    </div>
+</root>
+
+@code
+{
+    string _mapTitle = null;
+
+    static string HostName => string.IsNullOrEmpty( Networking.ServerName ) ? "Sandbox" : Networking.ServerName;
+
+    protected override void OnTreeFirstBuilt()
+    {
+        base.OnTreeFirstBuilt();
+        FetchMap();
+    }
+
+    async void FetchMap()
+    {
+        if ( !ulong.TryParse( Networking.MapName, out var id ) || id == 0 )
+            return;
+
+        var result = await new Storage.Query { FileIds = [id] }.Run();
+        _mapTitle = result?.Items?.FirstOrDefault()?.Title;
+    }
+
+    protected override void OnUpdate()
+    {
+	    var host = Game.ActiveScene.Get<SpawnMenuHost>();
+	    if ( host?.Panel?.HasClass( "open" ) ?? false )
+	    {
+		    Input.Clear( "Score" );
+	    }
+
+	    SetClass( "visible", Input.Down( "Score" ) && Hud.IsVisible( HudElement.Scoreboard ) );
+    }
+
+    /// <summary>
+    /// update every second
+    /// </summary>
+    protected override int BuildHash() => System.HashCode.Combine( RealTime.Now.CeilToInt(), HostName, _mapTitle );
+}

@@ -19,8 +19,9 @@ public sealed partial class ScriptSystem
 	private readonly Breen.ScriptSystem _runtime;
 	private readonly TypeLibraryScriptResolver _resolver;
 	private bool _disposed;
+	private bool _restoreOnTick;
 	private int _depth;
-	private Breen.ScriptModule Module { get; }
+	private Breen.ScriptModule Module { get; set; }
 
 	/// <summary>
 	/// Runtime values shared by all scripts in this game context.
@@ -33,7 +34,7 @@ public sealed partial class ScriptSystem
 	public Script.ScriptError LastError => _fileLoadError ?? _fileStartupErrors.Values.FirstOrDefault() ?? Module.LastError?.ToEngineError();
 
 	/// <summary>
-	/// Whether publication or hotload failed after commitment and this context must be restarted.
+	/// Whether publication was interrupted. The next game tick tries to restore the last accepted files.
 	/// This remains readable when execution is blocked, as do the retained diagnostics.
 	/// </summary>
 	public bool RequiresReload
@@ -41,7 +42,7 @@ public sealed partial class ScriptSystem
 		get
 		{
 			CheckContextAccess();
-			return Module.IsFaulted || _hotloadFailed;
+			return Module.IsFaulted;
 		}
 	}
 
@@ -83,20 +84,39 @@ public sealed partial class ScriptSystem
 		{
 			Resolver = _resolver,
 			CacheCapacity = CacheCapacity,
-			GlobalStaticTypes = [typeof( Internal.GlobalGameNamespace )]
+			GlobalStaticTypes = [typeof( Internal.GlobalGameNamespace )],
+			ExtensionTypes = [typeof( SandboxSystemExtensions ), typeof( Enumerable ), typeof( MathX ), typeof( SandboxGameExtensions )]
 		} );
 		Globals = new( this );
 		_runtime.SetStore( "global", Globals.Instance );
-		Module = new( _runtime, InstructionLimit, CheckAccess, assemblyOptions: new()
+		Module = CreateModule();
+	}
+
+	private Breen.ScriptModule CreateModule()
+	{
+		return new( _runtime, InstructionLimit, CheckAccess, assemblyOptions: new()
 		{
 			Name = "Sandbox.Game.Scripts",
 			ReuseUnchangedAssembly = true,
+			CanReuseAssembly = CanReuseAssembly,
 			DeclarationAttributes = DeclarationAttributes,
-			DeclarationAttributesKey = metadata => (metadata.FilePath, metadata.Line, metadata.Summary),
+			DeclarationAttributesKey = declaration => DeclarationAttributesKey( declaration ),
 			FieldInitializerAttribute = typeof( Upgraders.InitializedByAttribute ).GetConstructor( [typeof( string )] ),
 			ValidateTypes = ValidateTypes,
 			AssemblyChanged = ReplaceAssembly
 		} );
+	}
+
+	private void RecoverFaultedModule()
+	{
+		if ( !Module.IsFaulted ) return;
+
+		Module.StopWarmup();
+		Module.Dispose();
+		Module = CreateModule();
+		// Keep the authored sources and global store. The fresh module needs every named file compiled again.
+		_compiledFiles = null;
+		_fileStartupErrors.Clear();
 	}
 
 	/// <summary>
@@ -117,11 +137,14 @@ public sealed partial class ScriptSystem
 			throw new InvalidOperationException( "This context owns named script files. Use LoadFiles for updates or CreateScript for temporary commands." );
 		}
 		_fileLoadError = null;
+		RecoverFaultedModule();
 		Module.StopWarmup();
 		Module.SetStartupStore( "local", new() );
 		var result = Module.Execute( source, filePath );
+		_restoreOnTick = Module.IsFaulted;
 		if ( !Module.IsFaulted )
 		{
+			if ( result.Success && Module.Assembly is null ) UnregisterAssembly();
 			WarmMethods();
 		}
 		return result.Success;
@@ -181,7 +204,7 @@ public sealed partial class ScriptSystem
 	internal void CheckAccess()
 	{
 		CheckContextAccess();
-		if ( Module.IsFaulted || _hotloadFailed ) throw new InvalidOperationException( "Script assembly hotload failed. Restart the game context before running scripts." );
+		if ( Module.IsFaulted ) throw new InvalidOperationException( "Script publication was interrupted. Reload the source to rebuild the script module." );
 	}
 
 	private void CheckContextAccess()
@@ -224,8 +247,23 @@ public sealed partial class ScriptSystem
 	/// </summary>
 	internal void Tick()
 	{
-		if ( _disposed || Module.IsFaulted || _hotloadFailed ) return;
+		if ( _disposed ) return;
+		if ( _restoreOnTick )
+		{
+			// A host callback interrupted publication. Restore the last accepted files once.
+			// If the host is still failing, the next source edit can try again.
+			_restoreOnTick = false;
+			var error = LastError;
+			var restored = ApplyFiles( _namedFiles, null );
+			if ( !restored.Success )
+			{
+				Log.Warning( $"Couldn't restore scripts after hotload: {LastError}" );
+				return;
+			}
+			_fileLoadError = error;
+		}
 
+		if ( Module.IsFaulted ) return;
 		CheckAccess();
 		_runtime.PumpAsync( maxContinuations: 100, instructionLimit: InstructionLimit );
 	}
@@ -238,18 +276,7 @@ public sealed partial class ScriptSystem
 		}
 		Module.StopWarmup();
 		Module.Dispose();
-		foreach ( var library in _libraries )
-		{
-			if ( _assembly is not null )
-			{
-				library.RemoveAssembly( _assembly );
-			}
-		}
-		if ( _assembly is not null )
-		{
-			_context.ReplaceScriptAssembly( _assembly, null, () => { } );
-		}
-		_assembly = null;
+		UnregisterAssembly();
 		_libraries.Clear();
 		_disposed = true;
 		_runtime.ClearCaches();

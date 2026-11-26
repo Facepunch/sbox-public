@@ -50,7 +50,7 @@ public class CloudLocations : TreeView, IFilterHost
 			// Cloud
 			//
 			{
-				var browse = new AssetFilterNode( "search", "Browse", "type:model,material,map,sound,collection,prefab,sprite,decal" );
+				var browse = new AssetFilterNode( "search", "Browse", "type:model,material,sound,collection,prefab,sprite,decal" );
 				AddItem( browse );
 
 				if ( parent.FilterAssetTypes is null )

@@ -1,0 +1,98 @@
+﻿@using Sandbox;
+@using Sandbox.UI;
+@using Sandbox.Mounting;
+@inherits Panel
+@namespace Sandbox
+
+<SpawnMenuContent>
+
+    <Header>
+        <WorkshopToolbar Filter:bind=@Filter SortOrder:bind=@SortOrder />
+    </Header>
+
+    <Body>
+        @if ( Items.Count == 0 && Loading )
+        {
+            <UILoadingState />
+        }
+        else if ( Items.Count == 0 )
+        {
+            <SpawnMenuEmptyState Icon="search_off" Subtitle="#spawnmenu.empty.try_another_category" />
+        }
+        else
+        {
+            <VirtualGrid Items=@Items ItemSize=@(new Vector2( 240, 180 )) OnLastCell="@LoadMore">
+                <Item Context="context">
+
+                    @if (context is Storage.QueryItem item)
+                    {
+                        <WorkshopIcon Item="@item" @onclick=@( () => _ = DuplicatorTool.FromWorkshop( item ) )></WorkshopIcon>
+                    }
+
+                </Item>
+            </VirtualGrid>
+        }
+    </Body>
+
+</SpawnMenuContent>
+
+@code
+{
+    internal const string ProtocolVersion = "1";
+
+    string _filter;
+    public string Filter
+    {
+        get => _filter;
+        set
+        {
+            if ( _filter == value ) return;
+            _filter = value;
+            Rebuild();
+        }
+    }
+
+    WorkshopSortMode _sortOrder = WorkshopSortMode.Newest;
+    public WorkshopSortMode SortOrder
+    {
+        get => _sortOrder;
+        set
+        {
+            if ( _sortOrder == value ) return;
+            _sortOrder = value;
+            Rebuild();
+        }
+    }
+
+    public string Category { get; set; }
+
+    protected override Task OnParametersSetAsync() => Pager.Restart();
+
+    WorkshopPager<Storage.QueryItem> _pager;
+    WorkshopPager<Storage.QueryItem> Pager => _pager ??= new( CreateQuery, item => item, StateHasChanged );
+
+    List<Storage.QueryItem> Items => Pager.Items;
+    bool Loading => Pager.Loading;
+
+    // the first load comes from OnParametersSetAsync, initializers shouldn't start one too
+    void Rebuild()
+    {
+        if ( Pager.Started ) _ = Pager.Restart();
+    }
+
+    void LoadMore() => Pager.LoadMore();
+
+    Storage.Query CreateQuery()
+    {
+        var query = new Storage.Query();
+        query.KeyValues["package"] = "facepunch.sandbox";
+        query.KeyValues["type"] = "dupe";
+        query.KeyValues["protocol"] = ProtocolVersion;
+        query.SortOrder = SortOrder.ToSortOrder();
+
+        if ( !string.IsNullOrWhiteSpace( Filter ) ) query.SearchText = Filter;
+        if ( Category != null ) query.KeyValues["Category"] = Category;
+
+        return query;
+    }
+}

@@ -1,0 +1,591 @@
+{
+  "Title": "Solid Steel",
+  "Description": "",
+  "Icon": "construction",
+  "RequiredMount": "gmod",
+  "Parent": {
+    "Id": "881eeef9-7802-4ab2-b0a8-7a4335c15b87",
+    "Path": "spawnlists/garrysmod/garrys_mod/builder.spawn"
+  },
+  "Order": 9,
+  "Items": [
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Beams",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/box_beam_4.mdl",
+      "Title": "box_beam_4",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/box_beam_8.mdl",
+      "Title": "box_beam_8",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/box_beam_12.mdl",
+      "Title": "box_beam_12",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/box_beam_16.mdl",
+      "Title": "box_beam_16",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/box_beam_24.mdl",
+      "Title": "box_beam_24",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/box_beam_32.mdl",
+      "Title": "box_beam_32",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/box_beam_48.mdl",
+      "Title": "box_beam_48",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/crossbeam_4.mdl",
+      "Title": "crossbeam_4",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/crossbeam_8.mdl",
+      "Title": "crossbeam_8",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/crossbeam_12.mdl",
+      "Title": "crossbeam_12",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/crossbeam_16.mdl",
+      "Title": "crossbeam_16",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/i_beam_4.mdl",
+      "Title": "i_beam_4",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/i_beam_16.mdl",
+      "Title": "i_beam_16",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/i_beam_32.mdl",
+      "Title": "i_beam_32",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/i_beam_48.mdl",
+      "Title": "i_beam_48",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/i_beam_64.mdl",
+      "Title": "i_beam_64",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/i_beam_96.mdl",
+      "Title": "i_beam_96",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/i_beam_16_2d.mdl",
+      "Title": "i_beam_16_2d",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/i_beam_16_3d.mdl",
+      "Title": "i_beam_16_3d",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/i_beam2_4.mdl",
+      "Title": "i_beam2_4",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/i_beam2_8.mdl",
+      "Title": "i_beam2_8",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/i_beam2_16.mdl",
+      "Title": "i_beam2_16",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/i_beam2_32.mdl",
+      "Title": "i_beam2_32",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/i_beam2_48.mdl",
+      "Title": "i_beam2_48",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/i_beam2_60.mdl",
+      "Title": "i_beam2_60",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/i_beam2_96.mdl",
+      "Title": "i_beam2_96",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/l_beam_4.mdl",
+      "Title": "l_beam_4",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/i_beam_8.mdl",
+      "Title": "i_beam_8",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/l-beam__16.mdl",
+      "Title": "l-beam__16",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/l-beam__24.mdl",
+      "Title": "l-beam__24",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/l-beam__32.mdl",
+      "Title": "l-beam__32",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/l-beam__48.mdl",
+      "Title": "l-beam__48",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/u_beam_8.mdl",
+      "Title": "u_beam_8",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/u_beam_12.mdl",
+      "Title": "u_beam_12",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/u_beam_16.mdl",
+      "Title": "u_beam_16",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/u_beam_24.mdl",
+      "Title": "u_beam_24",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/u_beam_32.mdl",
+      "Title": "u_beam_32",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/u_beam_48.mdl",
+      "Title": "u_beam_48",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/misc/iron_beam1.mdl",
+      "Title": "iron_beam1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/misc/iron_beam2.mdl",
+      "Title": "iron_beam2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/misc/iron_beam3.mdl",
+      "Title": "iron_beam3",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/misc/iron_beam4.mdl",
+      "Title": "iron_beam4",
+      "Icon": null
+    },
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Sliders",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xeon133/slider/slider_12x12x12.mdl",
+      "Title": "slider_12x12x12",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xeon133/slider/slider_12x12x24.mdl",
+      "Title": "slider_12x12x24",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xeon133/slider/slider_12x12x48.mdl",
+      "Title": "slider_12x12x48",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xeon133/slider/slider_12x12x96.mdl",
+      "Title": "slider_12x12x96",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xeon133/slider/slider_bar_10x10x96.mdl",
+      "Title": "slider_bar_10x10x96",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xeon133/slider/slider_bar_10x10x144.mdl",
+      "Title": "slider_bar_10x10x144",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xeon133/slider/slider_bar_10x10x192.mdl",
+      "Title": "slider_bar_10x10x192",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xeon133/slider/slider_bar_10x10x240.mdl",
+      "Title": "slider_bar_10x10x240",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xeon133/slider/slider_bar_10x10x288.mdl",
+      "Title": "slider_bar_10x10x288",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xeon133/slider/slider_bar_10x10x336.mdl",
+      "Title": "slider_bar_10x10x336",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xeon133/slider/slider_bar_10x10x384.mdl",
+      "Title": "slider_bar_10x10x384",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xeon133/slider/slider_bar_10x10x768.mdl",
+      "Title": "slider_bar_10x10x768",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xeon133/slider/slider_bar_10x10x1152.mdl",
+      "Title": "slider_bar_10x10x1152",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xeon133/slider/slider_bar_10x10x1536.mdl",
+      "Title": "slider_bar_10x10x1536",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xeon133/slider/slider_stand_12x12x24.mdl",
+      "Title": "slider_stand_12x12x24",
+      "Icon": null
+    },
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Corner Beams",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/steel_beam45_3.mdl",
+      "Title": "steel_beam45_3",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/steel_beam45_4.mdl",
+      "Title": "steel_beam45_4",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/steel_beam45_8.mdl",
+      "Title": "steel_beam45_8",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/steel_beam45_12.mdl",
+      "Title": "steel_beam45_12",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/steel_beam45_16.mdl",
+      "Title": "steel_beam45_16",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/steel_beam_4.mdl",
+      "Title": "steel_beam_4",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/steel_beam_8.mdl",
+      "Title": "steel_beam_8",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/steel_beam_12.mdl",
+      "Title": "steel_beam_12",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/steel_beam_24.mdl",
+      "Title": "steel_beam_24",
+      "Icon": null
+    },
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Supports",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/step_beam_16.mdl",
+      "Title": "step_beam_16",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/step_beam_32.mdl",
+      "Title": "step_beam_32",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/step_beam_48.mdl",
+      "Title": "step_beam_48",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/step_beam_64.mdl",
+      "Title": "step_beam_64",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/step_beam_96.mdl",
+      "Title": "step_beam_96",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/steel_support_24_4.mdl",
+      "Title": "steel_support_24_4",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/truss_48.mdl",
+      "Title": "truss_48",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/truss_96.mdl",
+      "Title": "truss_96",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/truss_144.mdl",
+      "Title": "truss_144",
+      "Icon": null
+    },
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Misc",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/plank_4.mdl",
+      "Title": "plank_4",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/plank_8.mdl",
+      "Title": "plank_8",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/plank_16.mdl",
+      "Title": "plank_16",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/plank_24.mdl",
+      "Title": "plank_24",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/plank_48.mdl",
+      "Title": "plank_48",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/sheetmetal_90_4.mdl",
+      "Title": "sheetmetal_90_4",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/sheetmetal_box_4.mdl",
+      "Title": "sheetmetal_box_4",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/sheetmetal_box90_4.mdl",
+      "Title": "sheetmetal_box90_4",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/sheetmetal_h90_4.mdl",
+      "Title": "sheetmetal_h90_4",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/sheetmetal_h_4.mdl",
+      "Title": "sheetmetal_h_4",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/sheetmetal_i_4.mdl",
+      "Title": "sheetmetal_i_4",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/sheetmetal_plus_4.mdl",
+      "Title": "sheetmetal_plus_4",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/sheetmetal_plusb_4.mdl",
+      "Title": "sheetmetal_plusb_4",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/sheetmetal_t_4.mdl",
+      "Title": "sheetmetal_t_4",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/sheetmetal_u_4.mdl",
+      "Title": "sheetmetal_u_4",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/sheetmetal_y_8.mdl",
+      "Title": "sheetmetal_y_8",
+      "Icon": null
+    }
+  ],
+  "__references": [],
+  "__version": 0
+}

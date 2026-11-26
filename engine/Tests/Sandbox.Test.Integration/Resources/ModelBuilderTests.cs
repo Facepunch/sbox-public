@@ -883,8 +883,16 @@ public class ModelBuilderTests
 		set.AddSphere( "head_sphere", "head", new Sphere( Vector3.Zero, 4 ) );
 		set.AddCapsule( "neck", "head", new Capsule( new Vector3( 0, 0, -8 ), Vector3.Zero, 2 ) );
 
+		Vector3[] points = [Vector3.Zero, Vector3.Forward, Vector3.Right, Vector3.Up];
+		set.AddHull( "head_hull", "head", points ).WithSurface( "flesh" ).AddTag( "head" );
+
 		var hitboxes = builder.Create().HitboxSet.All;
-		Assert.AreEqual( 3, hitboxes.Count );
+		Assert.AreEqual( 4, hitboxes.Count );
+		var hull = hitboxes.Single( h => h.Name == "head_hull" );
+		CollectionAssert.AreEqual( points, ((HitboxSet.Hull)hull.Shape).Points.ToArray() );
+		Assert.AreEqual( "head", hull.Bone?.Name );
+		Assert.AreEqual( "flesh", hull.SurfaceName );
+		Assert.IsTrue( hull.Tags.Has( "head" ) );
 
 		var box = hitboxes.Single( h => h.Name == "head_box" );
 		Assert.IsInstanceOfType<BBox>( box.Shape );
@@ -897,6 +905,109 @@ public class ModelBuilderTests
 
 		var capsule = hitboxes.Single( h => h.Name == "neck" );
 		Assert.AreEqual( 2f, ((Capsule)capsule.Shape).Radius );
+	}
+
+	[TestMethod]
+	public void ConvexHitboxRequiresVolume()
+	{
+		var builder = Model.Builder;
+		builder.AddBone( "head", Vector3.Zero, Rotation.Identity );
+		var set = builder.AddHitboxSet();
+		var a = new Vector3( 1, 2, 3 );
+		var b = new Vector3( 2, -1, 1 );
+
+		Assert.ThrowsException<ArgumentException>( () => set.AddHull( "triangle", "head", [a, b, Vector3.Zero] ) );
+		set.AddHull( "duplicate", "head", [a, a, a, a] );
+		set.AddHull( "line", "head", [a, a * 2, a * 3, a * 4] );
+		set.AddHull( "plane", "head", [a, a + b, a * 2, a * 2 + b] );
+		set.AddHull( "invalid", "head", [a, b, Vector3.Zero, new( float.NaN, 0, 0 )] );
+		set.AddHull( "thin", "head", [new( 10, 10, 10 ), Vector3.Zero, new( 0.00008f, 0, 0 ), new( 0, 0.00008f, 0 )] );
+
+		set.AddHull( "valid", "head", [a, a, a * 2, a * 3, b, Vector3.Up] );
+		Assert.AreEqual( "valid", builder.Create().HitboxSet.All.Single().Name );
+	}
+
+	[TestMethod]
+	public void ConvexHitboxSamplesFaceInteriors()
+	{
+		var builder = Model.Builder;
+		builder.AddBone( "head", Vector3.Zero, Rotation.Identity );
+		builder.AddHitboxSet().AddHull( "tetrahedron", "head", [Vector3.Zero, Vector3.Forward, Vector3.Left, Vector3.Up] );
+		var box = builder.Create().HitboxSet.All.Single();
+		bool sampledFaceInterior = false;
+		for ( int i = 0; i < 64; i++ )
+		{
+			var point = box.RandomPointOnEdge;
+			float[] weights = [point.x, point.y, point.z, 1 - point.x - point.y - point.z];
+			Assert.IsTrue( weights.All( w => w >= -0.0001f ) );
+			int faceCount = weights.Count( w => MathF.Abs( w ) < 0.0001f );
+			Assert.IsTrue( faceCount >= 1 );
+			sampledFaceInterior |= faceCount == 1;
+		}
+		Assert.IsTrue( sampledFaceInterior );
+	}
+
+	[TestMethod]
+	public void ConvexHitboxInteriorSamplesCoverTheVolume()
+	{
+		var builder = Model.Builder;
+		builder.AddBone( "head", Vector3.Zero, Rotation.Identity );
+		Vector3[] points = [Vector3.Zero, Vector3.Forward, Vector3.Left, Vector3.Up, .. Enumerable.Repeat( Vector3.Up, 32 )];
+		builder.AddHitboxSet().AddHull( "head", "head", points );
+		var box = builder.Create().HitboxSet.All.Single();
+
+		var mean = Vector3.Zero;
+		const int samples = 1024;
+		for ( int i = 0; i < samples; i++ )
+		{
+			var p = box.RandomPointInside;
+			Assert.IsTrue( p.x >= 0 && p.y >= 0 && p.z >= 0 && p.x + p.y + p.z <= 1.00001f );
+			mean += p / samples;
+		}
+
+		Assert.IsTrue( mean.AlmostEqual( new Vector3( 0.25f ), 0.05f ) );
+	}
+
+	[TestMethod]
+	public void ConvexHitboxFollowsBone()
+	{
+		var builder = Model.Builder.AddMesh( CreateBoundsMesh() );
+		builder.AddBone( "spine", Vector3.Zero, Rotation.Identity );
+		builder.AddBone( "head", Vector3.Zero, Rotation.Identity, "spine" );
+		var set = builder.AddHitboxSet();
+		set.AddHull( "flat", "spine", [Vector3.Zero, Vector3.Forward, Vector3.Left, Vector3.Forward + Vector3.Left] );
+		set.AddHull( "head_hull", "head", [Vector3.Zero, new( 12, 0, 0 ), new( 0, 12, 0 ), new( 0, 0, 12 )] );
+		var scene = new Scene();
+		try
+		{
+			using var scope = scene.Push();
+			var go = scene.CreateObject();
+			var renderer = go.AddComponent<SkinnedModelRenderer>( false );
+			renderer.Model = builder.Create();
+			var nativeSet = renderer.Model.native.GetHitboxSetByIndex( 0, 0 );
+			Assert.AreEqual( 1, nativeSet.numhitboxes() );
+			Assert.AreEqual( (ushort)1, nativeSet.pHitbox( 0 ).m_nHitBoxIndex );
+			renderer.Enabled = true;
+			var bone = renderer.Model.Bones.GetBone( "head" );
+			renderer.SceneModel.UpdateToBindPose();
+			var hitboxes = go.AddComponent<ModelHitboxes>();
+			hitboxes.Renderer = renderer;
+
+			SceneTraceResult Trace( float x, float y ) =>
+				scene.Trace.Ray( new Vector3( x, y, 20 ), new Vector3( x, y, -20 ) ).UseHitboxes().Run();
+
+			Assert.AreSame( bone, Trace( 2, 2 ).Hitbox?.Bone );
+			Assert.IsFalse( Trace( 10, 10 ).Hit ); // Inside the bounds but outside the tetrahedron.
+
+			renderer.SceneModel.UpdateToBindPose( () => renderer.SceneModel.SetParentSpaceBone( bone.Index, new Transform( new Vector3( 32, 0, 0 ) ) ) );
+			hitboxes.UpdatePositions();
+			Assert.IsFalse( Trace( 2, 2 ).Hit );
+			Assert.AreSame( bone, Trace( 34, 2 ).Hitbox?.Bone );
+		}
+		finally
+		{
+			scene.Destroy();
+		}
 	}
 
 	[TestMethod]

@@ -1,0 +1,61 @@
+// THIS FILE IS AUTO-GENERATED
+
+Layer0
+{
+	shader "shaders/complex.shader"
+
+	//---- Detail Texture ----
+	F_DETAIL_TEXTURE 4 // Overlay and Normals
+
+	//---- PBR ----
+	F_METALNESS_TEXTURE 1
+
+	//---- Ambient Occlusion ----
+	g_flAmbientOcclusionDirectDiffuse "0.000"
+	g_flAmbientOcclusionDirectSpecular "0.000"
+	TextureAmbientOcclusion "models/sbox/industrial/petrol_can/materials/petrol_can_ao.png"
+
+	//---- Color ----
+	g_flModelTintAmount "1.000"
+	g_vColorTint "[1.000000 1.000000 1.000000 0.000000]"
+	TextureColor "models/sbox/industrial/petrol_can/materials/petrol_can_color.png"
+
+	//---- Detail Texture ----
+	g_flDetailBlendFactor "1.000"
+	g_flDetailBlendToFull "0.000"
+	g_flDetailNormalStrength "1.000"
+	g_flDetailTexCoordRotation "0.000"
+	g_vDetailTexCoordOffset "[0.000 0.000]"
+	g_vDetailTexCoordScale "[6.000 6.000]"
+	TextureDetail "textures/detail/paint_cracked_detail_color.png"
+	TextureDetailMask "models/sbox/industrial/petrol_can/materials/petrol_can_ao.png"
+	TextureNormalDetail "textures/detail/paint_cracked_detail_normal.png"
+
+	//---- Fade ----
+	g_flFadeExponent "1.000"
+
+	//---- Fog ----
+	g_bFogEnabled "1"
+
+	//---- Metalness ----
+	TextureMetalness "models/sbox/industrial/petrol_can/materials/petrol_can_metal.png"
+
+	//---- Normal ----
+	g_flLightRangeForSelfShadowNormals "0.707"
+	g_flNormalMapScaleFactor "1.000"
+	TextureNormal "models/sbox/industrial/petrol_can/materials/petrol_can_normal.png"
+
+	//---- Roughness ----
+	g_flRoughnessScaleFactor "1.000"
+	TextureRoughness "models/sbox/industrial/petrol_can/materials/petrol_can_rough.png"
+
+	//---- Texture Coordinates ----
+	g_vTexCoordOffset "[0.000 0.000]"
+	g_vTexCoordScale "[1.000 1.000]"
+	g_vTexCoordScrollSpeed "[0.000 0.000]"
+
+	SystemAttributes
+	{
+		PhysicsSurfaceProperties "metal.sheet"
+	}
+}

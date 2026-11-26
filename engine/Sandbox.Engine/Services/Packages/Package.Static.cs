@@ -3,6 +3,7 @@ using Sandbox.Internal;
 using Sandbox.Protobuf;
 using System.Collections.Concurrent;
 using System.Net.Http;
+using System.Runtime.CompilerServices;
 using System.Threading;
 
 namespace Sandbox;
@@ -44,7 +45,7 @@ public partial class Package
 	///  If package version isn't specified version will be null
 	/// 
 	/// </summary>
-	public static bool TryParseIdent( string ident, out (string org, string package, int? version, bool local) parsed )
+	public static bool TryParseIdentParts( string ident, out (string org, string package, int? version) parsed )
 	{
 		parsed = default;
 
@@ -85,18 +86,9 @@ public partial class Package
 
 			ident = parts[0];
 
-			if ( parts[1] == "local" )
-			{
-				parsed.local = true;
-			}
-			else if ( int.TryParse( parts[1], out var version ) )
-			{
-				parsed.version = version;
-			}
-			else
-			{
-				return false;
-			}
+			if ( !int.TryParse( parts[1], out var version ) ) return false;
+
+			parsed.version = version;
 		}
 
 		//
@@ -121,40 +113,66 @@ public partial class Package
 	}
 
 	/// <summary>
-	/// Produces a package ident of the form <c><paramref name="org"/>.<paramref name="package"/>[#<paramref name="local"/>|#<paramref name="version"/>]</c>.
+	/// Parses a package identifier. The legacy local flag is always false.
 	/// </summary>
-	public static string FormatIdent( string org, string package, int? version = null, bool local = false )
+	[Obsolete( "Use TryParseIdentParts instead." )]
+	public static bool TryParseIdent( string ident, out (string org, string package, int? version, bool local) parsed )
 	{
-		return $"{org}.{package}{(local ? "#local" : version is { } v ? $"#{v}" : "")}";
+		var success = TryParseIdentParts( ident, out var parts );
+		parsed = (parts.org, parts.package, parts.version, false);
+		return success;
 	}
 
 	/// <summary>
-	/// Find package information
+	/// Formats a package identifier with an optional published revision.
+	/// </summary>
+	[OverloadResolutionPriority( 1 )]
+	public static string FormatIdent( string org, string package, int? version = null )
+	{
+		return version is null ? $"{org}.{package}" : $"{org}.{package}#{version}";
+	}
+
+	/// <summary>
+	/// Formats an unversioned package identifier. The legacy local flag is ignored.
+	/// </summary>
+	[Obsolete( "Use FormatIdent without the local argument." )]
+	public static string FormatIdent( string org, string package, bool local )
+	{
+		return FormatIdent( org, package );
+	}
+
+	/// <summary>
+	/// Formats a package identifier. The legacy local flag is ignored.
+	/// </summary>
+	[Obsolete( "Use FormatIdent without the local argument." )]
+	public static string FormatIdent( string org, string package, int? version, bool local )
+	{
+		return FormatIdent( org, package, version );
+	}
+
+	/// <summary>
+	/// Find package information, preferring registered local projects on disk.
 	/// </summary>
 	public static async Task<Package> FetchAsync( string identString, bool partial ) => await FetchAsync( identString, partial, true );
 
 	/// <summary>
-	/// Find package information
+	/// Find package information, preferring registered local projects even when bypassing the remote cache.
 	/// </summary>
 	public static async Task<Package> FetchAsync( string identString, bool partial, bool useCache )
 	{
 		// split ident into parts
-		if ( !TryParseIdent( identString, out var ident ) && !ident.local )
+		if ( !TryParseIdentParts( identString, out var ident ) )
 		{
 			Log.Warning( $"Unable to fetch package info for {identString}: invalid ident." );
 			return null;
 		}
 
-		Package package = default;
+		if ( Project.FindByIdent( ident.org, ident.package ) is { } project )
+			return project.Package;
 
-		if ( useCache && TryGetCached( identString, out package, partial ) )
-			return package;
-
-		// GetCached should have returned the local mock package
-		if ( ident.local || string.Compare( "local", ident.org, StringComparison.OrdinalIgnoreCase ) == 0 )
-		{
-			return null;
-		}
+		var packageIdent = FormatIdent( ident.org, ident.package, ident.version );
+		if ( useCache && TryGetCachedRemote( packageIdent, out var cached, partial ) )
+			return cached;
 
 		if ( Backend.Package is null )
 		{
@@ -165,14 +183,12 @@ public partial class Package
 			return null;
 		}
 
-		var packageIdent = $"{ident.org}.{ident.package}";
-		if ( ident.version is not null ) packageIdent += $"#{ident.version}";
-
 		// A fetch already in flight for this ident answers everyone who asks meanwhile
-		var fetch = Fetching.GetOrAdd( packageIdent, _ => FetchFromBackendAsync( identString, packageIdent, ident.version, package ) );
+		var fetch = Fetching.GetOrAdd( packageIdent, _ => FetchFromBackendAsync( identString, packageIdent, ident.version ) );
 		try
 		{
-			return await fetch;
+			var remote = await fetch;
+			return Project.FindByIdent( ident.org, ident.package )?.Package ?? remote;
 		}
 		finally
 		{
@@ -180,22 +196,31 @@ public partial class Package
 		}
 	}
 
+	/// <summary>
+	/// The package as the backend has it, even when a local project has its ident - what's published, for a
+	/// publish to go by. Null if it's never been published.
+	/// </summary>
+	internal static async Task<Package> FetchPublishedAsync( string identString )
+	{
+		if ( Backend.Package is null || !TryParseIdentParts( identString, out var ident ) )
+			return null;
+
+		return await FetchFromBackendAsync( identString, FormatIdent( ident.org, ident.package ), null ) as RemotePackage;
+	}
+
 	static readonly ConcurrentDictionary<string, Task<Package>> Fetching = new( StringComparer.OrdinalIgnoreCase );
 
-	static async Task<Package> FetchFromBackendAsync( string identString, string packageIdent, int? version, Package package )
+	static async Task<Package> FetchFromBackendAsync( string identString, string packageIdent, int? version )
 	{
 		try
 		{
 			var result = await Backend.Package.Get( packageIdent );
 			if ( result is null ) return null;
 
-
-			if ( package is not RemotePackage )
-			{
-				package = new RemotePackage();
-			}
-
-			(package as RemotePackage).UpdateFromDto( result );
+			var package = new RemotePackage();
+			package.UpdateFromDto( result );
+			Cache( package, false, version );
+			return package;
 		}
 		catch ( Exception e ) when ( e is HttpRequestException or TaskCanceledException )
 		{
@@ -220,17 +245,6 @@ public partial class Package
 			Log.Warning( e, $"Failed to fetch package info for {identString}: {e.Message}" );
 			return null;
 		}
-
-		if ( package is not null )
-		{
-			Cache( package, false, version );
-		}
-		else
-		{
-			Log.Warning( $"Failed to fetch package info for {identString}." );
-		}
-
-		return package;
 	}
 
 	/// <summary>
@@ -240,8 +254,7 @@ public partial class Package
 	public static async Task<Package> MountAsync( string identString, bool partial )
 	{
 		var pack = await FetchAsync( identString, partial, false );
-		await pack.MountAsync();
-		return pack;
+		return pack is not null && await pack.MountAsync() is not null ? pack : null;
 	}
 
 	/// <summary>
@@ -250,24 +263,20 @@ public partial class Package
 	public static bool TryGetCached( string identString, out Package package, bool allowPartial = true )
 	{
 		package = null;
+		if ( !TryParseIdentParts( identString, out var ident ) ) return false;
 
-		// split ident into parts
-		if ( !TryParseIdent( identString, out var ident ) )
-			return false;
+		package = Project.FindByIdent( ident.org, ident.package )?.Package;
+		if ( package is not null ) return true;
 
 		var fullIdent = FormatIdent( ident.org, ident.package, ident.version );
+		return TryGetCachedRemote( fullIdent, out package, allowPartial );
+	}
 
-		// if it starts with local, then it's local - skip search anywhere else
-		if ( ident.local )
-		{
-			package = GetMockPackages().FirstOrDefault( x => string.Equals( x.Ident, ident.package, StringComparison.OrdinalIgnoreCase ) && string.Equals( x.Org.Ident, ident.org, StringComparison.OrdinalIgnoreCase ) );
-
-			// if this is a local package we need to say this is it
-			// whether we found it or not. We don't want it to look up
-			// the real package because that gets confusing.
-			return true;
-		}
-
+	/// <summary>
+	/// Find cached published metadata by its normalized ident, without resolving local projects.
+	/// </summary>
+	internal static bool TryGetCachedRemote( string fullIdent, out Package package, bool allowPartial = true )
+	{
 		if ( Packages.TryGetValue( fullIdent, out package ) )
 			return true;
 
@@ -276,7 +285,6 @@ public partial class Package
 
 		return false;
 	}
-
 
 	/// <summary>
 	/// Find package information
@@ -291,7 +299,7 @@ public partial class Package
 	/// </summary>
 	public static string GetCachedTitle( string ident )
 	{
-		if ( PartialPackages.TryGetValue( ident, out var package ) )
+		if ( TryGetCached( ident, out var package ) )
 			return package.Title;
 
 		return ident;
@@ -365,16 +373,10 @@ public partial class Package
 	}
 
 	/// <summary>
-	/// Retrieve a list of packages, organised into groups, for discovery
+	/// Returns an empty discovery list for legacy callers.
 	/// </summary>
-	public static async Task<ListResult> ListAsync( string id, CancellationToken token = default )
-	{
-		var result = await Backend.Package.GetList( id );
-		if ( result.Groupings is null )
-			return null;
-
-		return ListResult.From( result );
-	}
+	[Obsolete( "Grouped discovery lists have been retired. Use Package.FindAsync for package search." )]
+	public static Task<ListResult> ListAsync( string id, CancellationToken token = default ) => Task.FromResult( new ListResult { Groupings = [] } );
 
 	/// <summary>
 	/// Sort the given list of packages so that referenced packages are ordered before the packages that reference them.
@@ -515,10 +517,12 @@ public partial class Package
 	public static async Task<List<IRevision>> FetchVersions( string identString, CancellationToken token = default )
 	{
 		// split ident into parts
-		if ( !TryParseIdent( identString, out var ident ) || ident.local )
+		if ( !TryParseIdentParts( identString, out var ident ) )
 			return null;
 
-		var result = await Backend.Version.GetList( $"{ident.org}.{ident.package}" );
+		if ( Backend.Version is not { } versions ) return null;
+
+		var result = await versions.GetList( FormatIdent( ident.org, ident.package ) ).WaitAsync( token );
 		if ( result is null )
 			return null;
 

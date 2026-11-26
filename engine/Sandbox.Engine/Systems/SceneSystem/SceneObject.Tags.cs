@@ -51,6 +51,29 @@ namespace Sandbox
 				return Enumerable.Range( 0, count ).Select( SceneObject.native.GetTagAt ).ToFrozenSet();
 			}
 
+			public override void SetFrom( ITagSet set )
+			{
+				// Renderers copy their GameObject's tags every frame and they rarely change, so compare the cached
+				// tokens first instead of walking the tag strings
+				if ( set is GameTags or TagSet or TokenBasedTagSet && SceneObject.native.IsValid && Matches( set.GetTokens() ) )
+					return;
+
+				base.SetFrom( set );
+			}
+
+			bool Matches( IReadOnlySet<uint> tokens )
+			{
+				var count = SceneObject.native.GetTagCount();
+				if ( count != tokens.Count ) return false;
+
+				for ( var i = 0; i < count; i++ )
+				{
+					if ( !tokens.Contains( SceneObject.native.GetTagAt( i ) ) ) return false;
+				}
+
+				return true;
+			}
+
 			public override bool Has( string tag )
 			{
 				if ( !SceneObject.native.IsValid ) return false;

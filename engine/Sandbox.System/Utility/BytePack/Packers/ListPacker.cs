@@ -54,13 +54,16 @@ internal partial class BytePack
 
 		public override object Read( ref ByteStream bs, int depth )
 		{
-			var len = bs.Read<int>();
+			var len = ReadCount( ref bs );
 			var type = bs.Read<byte>();
 
 			// List<int> etc - value type - easy mode
 			if ( type == 0 )
 			{
 				var handler = GetHandlerFor( ref bs );
+				if ( (long)len * handler.TargetType.GetManagedSize() > bs.ReadRemaining )
+					throw new System.IO.InvalidDataException( $"List of {len} {handler.TargetType} doesn't fit in {bs.ReadRemaining} bytes" );
+
 				var array = Array.CreateInstance( handler.TargetType, len );
 				bs.ReadValueArray( array );
 
@@ -74,7 +77,9 @@ internal partial class BytePack
 
 				for ( int i = 0; i < len; i++ )
 				{
+					var position = bs.Position;
 					list.Add( Deserialize( ref bs, depth + 1 ) );
+					AssertAdvanced( ref bs, position );
 				}
 
 				return list;
@@ -89,7 +94,9 @@ internal partial class BytePack
 
 				for ( int i = 0; i < len; i++ )
 				{
+					var position = bs.Position;
 					list.Add( handler.Deserialize( ref bs, depth + 1 ) );
+					AssertAdvanced( ref bs, position );
 				}
 
 				return list;

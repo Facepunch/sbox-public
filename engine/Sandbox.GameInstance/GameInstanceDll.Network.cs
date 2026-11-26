@@ -8,7 +8,10 @@ namespace Sandbox;
 
 internal partial class GameInstanceDll
 {
-	readonly StringTable CodeArchiveTable = new( "CodeArchive", true );
+	/// <summary>
+	/// The host's game code. Joining clients resolve these archives before loading the scene.
+	/// </summary>
+	public readonly CodeArchiveTable CodeArchiveTable = new();
 
 	// Keep the table across scripting resets: a restarted handshake reuses the network system's registrations.
 	readonly StringTable ScriptTable = new( "Scripts", true );
@@ -19,6 +22,7 @@ internal partial class GameInstanceDll
 	private bool NetworkScriptsReady;
 
 	internal readonly ServerPackages ServerPackages = new();
+	internal readonly WorkshopItems WorkshopItems = new();
 
 	/// <summary>
 	/// The config table is used to send config (like physics config, input config) to the client.
@@ -61,6 +65,7 @@ internal partial class GameInstanceDll
 		NetworkScriptsReady = false;
 		// Downloads continue in the background; joining clients wait for their readiness updates.
 		_ = ServerPackages.OnBecameHost();
+		_ = WorkshopItems.OnBecameHost();
 		ReplicatedConvars.OnBecameHost();
 	}
 
@@ -203,13 +208,17 @@ internal partial class GameInstanceDll
 	/// <summary>
 	/// This is used to compile code archives that come in from the network.
 	/// </summary>
-	CompileGroup compileGroup;
+	internal CompileGroup NetworkCompileGroup { get; private set; }
 
 	/// <summary>
 	/// Registers the session's replicated tables and their live update handlers.
 	/// </summary>
 	public void InstallNetworkTables( NetworkSystem system )
 	{
+		// Buffer live changes in the table until the join snapshot has been resolved.
+		CodeArchiveTable.OnChangeOrAdd = null;
+		CodeArchiveTable.PostNetworkUpdate = null;
+		system.AddHandler<RequestCodeArchive>( CodeArchiveTable.OnRequest );
 		system.InstallTable( CodeArchiveTable );
 		system.InstallTable( ServerPackages.StringTable );
 		ServerPackages.StringTable.OnChangeOrAdd = entry =>
@@ -224,6 +233,18 @@ internal partial class GameInstanceDll
 				_ = ServerPackages.ClientInstallPackage( entry, reloadResources: false );
 			}
 		};
+		system.InstallTable( WorkshopItems.StringTable );
+		WorkshopItems.StringTable.OnChangeOrAdd = entry =>
+		{
+			if ( NetworkScriptsReady && entry.Read<WorkshopItems.ItemInfo>().ResourcesReady )
+			{
+				SyncContext.RunBlocking( WorkshopItems.InstallAsync( entry, loadResources: true ) );
+			}
+			else
+			{
+				_ = WorkshopItems.InstallAsync( entry );
+			}
+		};
 		Game.Scripting.InitializeNetworking( ScriptTable, system.IsClient );
 		system.InstallTable( ScriptTable );
 		ScriptTable.PostNetworkUpdate = () =>
@@ -233,6 +254,7 @@ internal partial class GameInstanceDll
 				// As with code archives, later scene messages must wait for the declarations they use.
 				// Package downloads can still finish through the async and Steam callbacks pumped here.
 				SyncContext.RunBlocking( ServerPackages.WaitForDownloads() );
+				SyncContext.RunBlocking( WorkshopItems.WaitForDownloadsAsync() );
 				LoadNetworkScripts();
 			}
 		};
@@ -242,15 +264,6 @@ internal partial class GameInstanceDll
 		system.InstallTable( NetworkedLargeFiles.StringTable );
 		system.InstallTable( ReplicatedConvars.StringTable );
 
-		CodeArchiveTable.OnChangeOrAdd = ( entry ) =>
-		{
-			var codeArchive = new CodeArchive( entry.Data );
-			var compiler = compileGroup.GetOrCreateCompiler( codeArchive.CompilerName );
-			compiler.UpdateFromArchive( codeArchive );
-		};
-
-		CodeArchiveTable.PostNetworkUpdate = () => FinishLoadingCodeArchives();
-
 		//
 		// Config
 		//
@@ -258,9 +271,26 @@ internal partial class GameInstanceDll
 		ConfigTable.PostNetworkUpdate = UpdateConfigFromNetworkTable;
 	}
 
+	void QueueCodeArchive( StringTable.Entry entry, LoadedAssembly[] installed = null )
+	{
+		var archive = new CodeArchive( entry.Data );
+		var compiler = NetworkCompileGroup.GetOrCreateCompiler( archive.CompilerName );
+		var local = installed?.FirstOrDefault( a => a.Name == compiler.AssemblyName && a.CodeArchiveBytes.AsSpan().SequenceEqual( entry.Data ) );
+		var project = (local?.Package as LocalPackage)?.Compiler;
+		if ( local?.CompiledAssemblyBytes is { } bytes
+			&& (project is null || project.Output is { Successful: true, Archive.Configuration.Whitelist: true } build && build.Version == local.Version)
+			&& !PackageManager.ActivePackages.Any( p => PackageManager.ActivePackage.IsUncheckedLocalAssembly( p, local.Name ) ) )
+		{
+			compiler.UseCompiledArchive( archive, bytes, project );
+			return;
+		}
+
+		compiler.UpdateFromArchive( archive );
+	}
+
 	bool FinishLoadingCodeArchives()
 	{
-		if ( !compileGroup.NeedsBuild )
+		if ( !NetworkCompileGroup.NeedsBuild )
 		{
 			FinishLoadingAssemblies();
 			return true;
@@ -270,17 +300,18 @@ internal partial class GameInstanceDll
 		// network shit coming in, that was created using the new assemblies
 		// and us not being able to understand because we don't have the
 		// new code compiled and loaded yet!
-		SyncContext.RunBlocking( compileGroup.BuildAsync() );
-		if ( !compileGroup.BuildResult.Success )
+		SyncContext.RunBlocking( NetworkCompileGroup.BuildAsync() );
+		if ( !NetworkCompileGroup.BuildResult.Success )
 			return false;
 
 		//
 		// Get the new assemblies and update them
 		//
-		foreach ( var assm in compileGroup.BuildResult.Output )
+		foreach ( var assm in NetworkCompileGroup.BuildResult.Output )
 		{
 			using var stream = new MemoryStream( assm.AssemblyData );
-			AssemblyEnroller.LoadAssemblyFromStream( assm.Compiler.AssemblyName, stream );
+			if ( !AssemblyEnroller.LoadAssemblyFromStream( assm.Compiler.AssemblyName, stream ) )
+				return false;
 		}
 
 		//
@@ -296,18 +327,25 @@ internal partial class GameInstanceDll
 	/// </summary>
 	public async Task<bool> LoadNetworkTables( NetworkSystem system )
 	{
-		compileGroup = new CompileGroup( "server" );
+		NetworkCompileGroup = new CompileGroup( "server" );
 
 		// Don't hotload while we're downloading stuff!
 		using var pauseAsmLoadScope = PauseLoadingAssemblies();
 
-		// Any assemblies come our way? 
-		foreach ( var entry in CodeArchiveTable.Entries )
+		var loaded = AssemblyEnroller?.GetLoadedAssemblies() ?? [];
+		if ( !await CodeArchiveTable.ResolveAsync( system.HostConnection, loaded, _loadGameCts?.Token ?? default ) )
 		{
-			var codeArchive = new CodeArchive( entry.Value.Data );
-			var compiler = compileGroup.GetOrCreateCompiler( codeArchive.CompilerName );
-			compiler.UpdateFromArchive( codeArchive );
+			Disconnect( "Failed to download code archive." );
+			return false;
 		}
+
+		foreach ( var entry in CodeArchiveTable.Entries.Values )
+		{
+			QueueCodeArchive( entry, loaded );
+		}
+
+		CodeArchiveTable.OnChangeOrAdd = entry => QueueCodeArchive( entry );
+		CodeArchiveTable.PostNetworkUpdate = () => FinishLoadingCodeArchives();
 
 		// We might have loaded new assemblies, here's a safe time to
 		// hotload before we start downloading again.
@@ -320,7 +358,17 @@ internal partial class GameInstanceDll
 		// Load configs from network tables
 		UpdateConfigFromNetworkTable();
 
-		await ServerPackages.InstallAll();
+		if ( !await ServerPackages.InstallAll() )
+		{
+			Disconnect( "Failed to download or load a required server package. Check the log for details." );
+			return false;
+		}
+
+		if ( !await WorkshopItems.InstallAllAsync() )
+		{
+			Disconnect( "Failed to download or load a required Workshop item. Check the log for details." );
+			return false;
+		}
 
 		// Prevent a blank title between the last package install and the download queue start.
 		if ( string.IsNullOrWhiteSpace( LoadingScreen.Title ) )
@@ -330,8 +378,8 @@ internal partial class GameInstanceDll
 
 		// Requirements can arrive during either download above. Their entry callbacks start installation;
 		// wait for both ends to finish before applying the latest script snapshot without another yield.
-		while ( ServerPackages.StringTable.Entries.Values.Any( entry =>
-			!entry.Read<ServerPackages.PackageInfo>().ResourcesReady || ServerPackages.Get( entry.Name )?.IsDownloading == true ) )
+		while ( ServerPackages.ClientRequirements.Any( entry =>
+			!entry.Read<ServerPackages.PackageInfo>().ResourcesReady || ServerPackages.Get( entry.Name )?.IsDownloading == true ) || WorkshopItems.HasPending )
 		{
 			if ( system.IsDisconnected )
 				return false;
@@ -339,10 +387,15 @@ internal partial class GameInstanceDll
 			await Task.Delay( 20 );
 		}
 
-		if ( ServerPackages.StringTable.Entries.Values.Any( entry =>
-			!entry.Name.StartsWith( "local." ) && ServerPackages.Get( entry.Name )?.IsMounted != true ) )
+		if ( ServerPackages.ClientRequirements.Any( entry => ServerPackages.Get( entry.Name )?.IsMounted != true ) )
 		{
 			Disconnect( "Failed to install server packages. Check log for details." );
+			return false;
+		}
+
+		if ( WorkshopItems.HasFailures )
+		{
+			Disconnect( "Failed to install Workshop items. Check the log for details." );
 			return false;
 		}
 
@@ -350,7 +403,13 @@ internal partial class GameInstanceDll
 		var mismatched = ServerPackages.GetMismatchedWorkshopItems();
 		if ( mismatched.Count > 0 )
 		{
-			Disconnect( ServerPackages.MismatchMessage( mismatched ) );
+			Disconnect( Workshop.GetVersionMismatchMessage( mismatched.Select( item => item.Title ?? $"Workshop item {item.Id}" ) ) );
+			return false;
+		}
+
+		if ( WorkshopItems.GetVersionMismatch() is { } workshopMismatch )
+		{
+			Disconnect( workshopMismatch );
 			return false;
 		}
 
@@ -359,6 +418,7 @@ internal partial class GameInstanceDll
 		if ( NetworkScriptsReady )
 		{
 			await ServerPackages.LoadResources();
+			await WorkshopItems.LoadResourcesAsync();
 		}
 
 		return NetworkScriptsReady;
@@ -532,7 +592,7 @@ internal partial class GameInstanceDll
 
 		foreach ( var library in libraries )
 		{
-			if ( PackageManager.Find( library.Package.FullIdent, true ) is not { } libraryPackage )
+			if ( PackageManager.Find( library.Package.FullIdent ) is not { } libraryPackage )
 				continue;
 
 			fs.Mount( libraryPackage.FileSystem );

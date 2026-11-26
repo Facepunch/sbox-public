@@ -138,6 +138,43 @@ public partial class PlayerControllerTest
 		}
 	}
 
+	/// <summary>
+	/// The first-person camera follows the crouch curve even when the player's body is visible.
+	/// </summary>
+	[TestMethod]
+	public void FirstPersonCameraFollowsCrouchHeight()
+	{
+		var scene = new Scene();
+		using var scope = scene.Push();
+		CreateFloor( scene );
+		var pc = CreatePlayer( scene, Vector3.Up );
+		var camera = scene.CreateObject().Components.Create<CameraComponent>();
+		pc.ThirdPerson = false;
+		pc.HideBodyInFirstPerson = false;
+		pc.BodyHeight = 72f;
+		pc.DuckedHeight = 36f;
+		pc.EyeDistanceFromTop = 8f;
+		pc.DuckedEyeDistanceFromTop = 8f;
+		pc.DuckDuration = pc.UnduckDuration = 0.1f;
+		TickUntilGrounded( scene, pc );
+
+		foreach ( var crouch in new[] { true, false } )
+		{
+			for ( int tick = 0; tick <= 11; tick++ )
+			{
+				using var time = Time.Scope( (crouch ? 0 : 1) + tick * 0.01, 0.01f );
+				pc.UpdateDuckInput( crouch );
+				var view = new CameraView();
+				((ICameraModifier)pc).ModifyCamera( camera, ref view );
+
+				var t = MathF.Min( tick / 10f, 1f );
+				var eased = t * t * (3f - 2f * t);
+				var expected = crouch ? 64f - 36f * eased : 28f + 36f * eased;
+				Assert.AreEqual( expected, view.Position.z - pc.WorldPosition.z, 0.001f );
+			}
+		}
+	}
+
 	static void CreateCurvedSurfBank( Scene scene )
 	{
 		const int segments = 96;

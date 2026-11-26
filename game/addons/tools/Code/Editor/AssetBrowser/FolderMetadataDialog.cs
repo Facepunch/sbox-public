@@ -23,7 +23,7 @@ public class FolderMetadataDialog : Dialog
 
 			FolderIcon = header.Add( new Label( this ) );
 			FolderIcon.Text = "folder";
-			FolderIcon.SetStyles( $"font-family: Material Icons; font-size: 42px; color: {metadata.Color.Hex};" );
+			FolderIcon.SetStyles( $"font-family: Material Symbols Outlined; font-size: 42px; color: {metadata.Color.Hex};" );
 			FolderIcon.OnPaintOverride = () =>
 			{
 				Paint.ClearBrush();
@@ -84,7 +84,7 @@ public class FolderMetadataDialog : Dialog
 			serialized.OnPropertyChanged += ( prop ) =>
 			{
 				if ( prop.Name == "Color" )
-					FolderIcon.SetStyles( $"font-family: Material Icons; font-size: 42px; color: {prop.GetValue<Color>().Hex};" );
+					FolderIcon.SetStyles( $"font-family: Material Symbols Outlined; font-size: 42px; color: {prop.GetValue<Color>().Hex};" );
 				else if ( prop.Name == "Icon" )
 					FolderIcon.Update();
 			};

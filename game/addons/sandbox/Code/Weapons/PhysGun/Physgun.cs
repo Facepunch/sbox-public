@@ -1,0 +1,939 @@
+using Sandbox.Movement;
+using Sandbox.Physics;
+using Sandbox.Rendering;
+
+[Title( "#weapon.name.physgun" )]
+public partial class Physgun : Local.IPlayerEvents
+{
+	public Physgun()
+	{
+		// Tools don't use ammo (the engine default is on, which would show an ammo indicator).
+		UsesAmmo = false;
+	}
+
+	[Property, RequireComponent] public HighlightOutline BeamHighlight { get; set; }
+
+	[Property, Group( "Sound" )] SoundEvent ReleasedSound { get; set; }
+	[Property, Group( "Sound" )] SoundEvent ButtonInSound { get; set; }
+	[Property, Group( "Sound" )] SoundEvent ButtonOutSound { get; set; }
+	[Property, Group( "Sound" )] SoundEvent GravityDrySound { get; set; }
+	[Property, Group( "Sound" )] SoundEvent GravityLaunchSound { get; set; }
+	[Property, Group( "Sound" )] SoundEvent GravityDropSound { get; set; }
+	[Property, Group( "Sound" )] SoundEvent GravityPullSound { get; set; }
+	[Property, Group( "Sound" )] SoundEvent GravityHoldSound { get; set; }
+	[Property, Group( "Sound" )] SoundEvent GravityLookOpenSound { get; set; }
+	[Property, Group( "Sound" )] SoundEvent GravityLookCloseSound { get; set; }
+	[Property, Group( "Sound" )] float GravityLookDropCooldown { get; set; } = 0.5f;
+
+	SoundHandle _gravityHoldSound;
+	SoundHandle _gravityLookOpenSound;
+	SoundHandle _gravityLookCloseSound;
+	bool _clawsOpen;
+	bool _clawSoundsSuppressed;
+	TimeUntil _gravityLookCooldown;
+	TimeUntil _clawOpenSoundCooldown;
+	TimeUntil _clawCloseSoundCooldown;
+	const float ClawSoundMinInterval = 2f;
+	float ClawOpenAmount => _state.Active ? 1f : CanGravityGrabHovered() ? 0.5f : 0f;
+
+	bool CanGravityGrabHovered()
+	{
+		if ( !_stateHovered.IsValid() ) return false;
+		var body = _stateHovered.Body;
+		if ( !body.IsValid() || !body.MotionEnabled ) return false;
+
+		var eyePosition = CurrentAimTransform.Position;
+		return FindClosestPoint( body, eyePosition ).Distance( eyePosition ) <= PullDistance;
+	}
+
+	void UpdateClawSounds()
+	{
+		// Attack-driven claw movement has its own sounds. Only track idle gravity targeting here.
+		if ( _state.Active || _state.Pulling || _stateHovered.Pulling )
+		{
+			_gravityLookOpenSound?.Stop( 0.2f );
+			_gravityLookOpenSound = null;
+			_gravityLookCloseSound?.Stop( 0.2f );
+			_gravityLookCloseSound = null;
+			_clawSoundsSuppressed = true;
+			return;
+		}
+
+		var open = CanGravityGrabHovered();
+		if ( _gravityLookCooldown > 0 )
+		{
+			_clawsOpen = open;
+			return;
+		}
+
+		if ( _clawSoundsSuppressed )
+		{
+			_clawSoundsSuppressed = false;
+			_clawsOpen = open;
+			return;
+		}
+
+		if ( open == _clawsOpen ) return;
+
+		_clawsOpen = open;
+		if ( open )
+		{
+			if ( _clawOpenSoundCooldown > 0 ) return;
+			_clawOpenSoundCooldown = ClawSoundMinInterval;
+			_gravityLookOpenSound?.Stop( 0.2f );
+			_gravityLookOpenSound = GameObject.PlaySound( GravityLookOpenSound );
+		}
+		else
+		{
+			if ( _clawCloseSoundCooldown > 0 ) return;
+			_clawCloseSoundCooldown = ClawSoundMinInterval;
+			_gravityLookCloseSound?.Stop( 0.2f );
+			_gravityLookCloseSound = GameObject.PlaySound( GravityLookCloseSound );
+		}
+	}
+
+	[Rpc.Broadcast]
+	void PlayGravityShotSound( bool pulling )
+	{
+		GameObject.PlaySound( pulling ? GravityPullSound : GravityDrySound );
+	}
+
+	[Rpc.Broadcast]
+	void PlayGravityLaunchSound()
+	{
+		GameObject.PlaySound( GravityLaunchSound );
+	}
+
+	[Rpc.Broadcast]
+	void PlayGravityDropSound()
+	{
+		_gravityLookCooldown = GravityLookDropCooldown;
+		GameObject.PlaySound( GravityDropSound );
+	}
+
+	[Rpc.Broadcast]
+	void PlayGravityLockSound()
+	{
+		GameObject.PlaySound( GravityDropSound );
+	}
+
+	/// <summary>
+	/// The gravity hold loop plays at <see cref="HoldSoundFarPitch"/> when the object is this far away or further.
+	/// </summary>
+	const float HoldSoundFarDistance = 1024f;
+
+	/// <summary>
+	/// The gravity hold loop plays at full pitch when the object is this close or closer.
+	/// </summary>
+	const float HoldSoundNearDistance = 128f;
+
+	const float HoldSoundFarPitch = 0.5f;
+
+	void UpdateGravityHoldSound()
+	{
+		// Plays while holding an object, and while pulling one in
+		var state = _state.Active && _state.Pulling ? _state : _stateHovered;
+
+		if ( state.Pulling && state.IsValid() && state.Body.IsValid() && state.Body.MotionEnabled )
+		{
+			var eye = CurrentAimTransform.Position;
+			var distance = FindClosestPoint( state.Body, eye ).Distance( eye );
+
+			_gravityHoldSound ??= GameObject.PlaySound( GravityHoldSound );
+			_gravityHoldSound?.Position = GetMuzzleTransform().Position;
+			_gravityHoldSound?.Pitch = MathX.Remap( distance, HoldSoundFarDistance, HoldSoundNearDistance, HoldSoundFarPitch, 1f );
+		}
+		else
+		{
+			_gravityHoldSound?.Stop( 0.2f );
+			_gravityHoldSound = null;
+		}
+	}
+
+	[Property] public float Range { get; set; } = 8196f;
+
+	public record struct GrabState
+	{
+		public bool Active { get; set; }
+		public bool Pulling { get; set; }
+		public GameObject GameObject { get; set; }
+		public Vector3 LocalOffset { get; set; }
+		public Vector3 LocalNormal { get; set; }
+		public Rotation GrabOffset { get; set; }
+		public float GrabDistance { get; set; }
+
+		/// <summary>
+		/// Gravity pulls only: the pull cone's apex, as a world-space offset from the aim position.
+		/// </summary>
+		public Vector3 PullApex { get; set; }
+
+		/// <summary>
+		/// Gravity pulls only: how strongly the object is pulled, depending on how well we aim at it.
+		/// </summary>
+		public float PullStrength { get; set; }
+
+		public readonly Vector3 EndPoint
+		{
+			get
+			{
+				if ( !GameObject.IsValid() ) return LocalOffset;
+				return GameObject.WorldTransform.PointToWorld( LocalOffset );
+			}
+		}
+
+		public readonly Vector3 EndNormal
+		{
+			get
+			{
+				if ( !GameObject.IsValid() ) return LocalNormal;
+				return GameObject.WorldTransform.NormalToWorld( LocalNormal );
+			}
+		}
+
+		public readonly bool IsValid() => GameObject.IsValid();
+
+		public readonly Rigidbody Body => GameObject?.GetComponent<Rigidbody>();
+	}
+
+	[Sync] public GrabState _state { get; set; } = default;
+
+	[Sync] public GrabState _stateHovered { get; set; } = default;
+
+	[Sync] private Ray? CursorRay { get; set; }
+	[Sync( SyncFlags.Interpolate )] private Transform MountedAim { get; set; }
+
+	Transform EyeTransform => HasOwner ? Owner.EyeTransform : MountedAim;
+	Transform CurrentAimTransform => CursorRay is { } ray ? new Transform( ray.Position, Rotation.LookAt( ray.Forward ) ) : EyeTransform;
+
+	bool _preventReselect = false;
+
+	void Local.IPlayerEvents.OnMove( ref bool allowMovement )
+	{
+		if ( _isSpinning ) allowMovement = false;
+	}
+
+	void Local.IPlayerEvents.OnCarry( PlayerCarryEvent e )
+	{
+		if ( _state.IsValid() || _stateHovered.Pulling ) e.Cancelled = true;
+	}
+
+	bool _isSpinning;
+	readonly HoldRotation _rotation = new();
+
+	bool _launched;
+
+	/// <summary>
+	/// The force applied to pull objects to us.
+	/// </summary>
+	static float PullForce => 1000.0f;
+
+	/// <summary>
+	/// The force applied when launching grabbed objects.
+	/// </summary>
+	static float LaunchForce => 2000.0f;
+
+	/// <summary>
+	/// The distance at which we'll grab an object when pulling it towards us.
+	/// </summary>
+	static float PullDistance => 200.0f;
+
+	/// <summary>
+	/// How quickly W/S moves a held object while rotate mode is active.
+	/// </summary>
+	static float KeyboardMoveSpeed => 240.0f;
+
+	public override void OnCameraMove( Player player, ref Angles angles )
+	{
+		base.OnCameraMove( player, ref angles );
+
+		if ( _state.IsValid() && _isSpinning )
+		{
+			angles = default;
+		}
+	}
+
+	bool _beamPlacedThisFrame;
+
+	protected override void PlaceViewModel( CameraComponent camera, in CameraView view )
+	{
+		base.PlaceViewModel( camera, view );
+
+		UpdateBeamState();
+		_beamPlacedThisFrame = true;
+	}
+
+	protected override void OnPreRender()
+	{
+		base.OnPreRender();
+		UpdateGravityHoldSound();
+		UpdateClawSounds();
+
+		if ( _beamPlacedThisFrame )
+		{
+			_beamPlacedThisFrame = false;
+			return;
+		}
+
+		UpdateBeamState();
+	}
+
+	void UpdateBeamState()
+	{
+		if ( _state.Active && !_state.Pulling )
+		{
+			var muzzle = HasOwner ? GetMuzzleTransform() : CurrentAimTransform;
+			var end = _state.EndPoint;
+			var endNormal = _stateHovered.EndNormal;
+
+			if ( !_state.IsValid() && HasOwner && !IsProxy )
+			{
+				var aim = CurrentAimTransform;
+				var tr = Scene.Trace.Ray( aim.Position, aim.Position + aim.Forward * Range )
+					.IgnoreGameObjectHierarchy( GameObject.Root )
+					.Run();
+
+				end = tr.EndPosition;
+				endNormal = tr.Normal;
+			}
+
+			UpdateBeam( muzzle, CurrentAimTransform.Forward, end, endNormal, _state.IsValid() );
+		}
+		else
+		{
+			CloseBeam();
+		}
+	}
+
+	protected override void OnControl()
+	{
+		var player = Owner;
+
+		UpdateViewmodelScreen();
+		UpdateScreenGraph();
+
+		if ( Scene.TimeScale == 0 )
+			return;
+
+		if ( Input.Pressed( "use" ) && _state.IsValid() )
+		{
+			ViewModel?.PlaySound( ButtonInSound );
+		}
+		else if ( Input.Released( "use" ) && _state.IsValid() )
+		{
+			ViewModel?.PlaySound( ButtonOutSound );
+		}
+
+		var spinMove = Vector3.Zero;
+		_isSpinning = Input.Down( "use" ) && _state.Active && _state.IsValid();
+		if ( _isSpinning )
+		{
+			spinMove = Input.AnalogMove;
+			player.Controller.WishVelocity = Vector3.Zero;
+			Input.Clear( "use" );
+		}
+
+		_rotation.UpdateSnapping();
+
+		var cursorDragging = InspectCursor.IsDragging;
+		var primaryDown = Input.Down( "attack1" ) || cursorDragging;
+		var cursorFreeze = InspectCursor.ConsumeFreeze();
+		var cursorAim = _state.IsValid() ? CursorRay.HasValue : cursorDragging;
+		CursorRay = cursorAim ? InspectCursor.DragRay : null;
+		ViewModel?.RunEvent<ViewModel>( _updateViewModel ??= UpdateViewModel );
+
+		if ( _state.IsValid() )
+		{
+			_stateHovered = default;
+
+			if ( Input.Pressed( "reload" ) )
+			{
+				UnfreezeAll( _state.Body );
+				Input.Clear( "reload" );
+			}
+
+			if ( _state.Pulling )
+			{
+				if ( Input.Pressed( "attack1" ) )
+				{
+					var force = player.EyeTransform.Rotation.Forward * LaunchForce;
+					Launch( _state.Body, force );
+					PlayGravityLaunchSound();
+
+					_state = default;
+					_isSpinning = false;
+					_preventReselect = true;
+				}
+				else if ( Input.Pressed( "attack2" ) )
+				{
+					PlayGravityDropSound();
+					_state = default;
+					_isSpinning = false;
+					_preventReselect = true;
+				}
+			}
+			else
+			{
+				var freeze = primaryDown && (Input.Down( "attack2" ) || cursorFreeze);
+				if ( !primaryDown || freeze )
+				{
+					if ( freeze ) Freeze( _state.Body );
+
+					_state = default;
+					_preventReselect = true;
+					ViewModel?.PlaySound( ReleasedSound );
+					return;
+				}
+
+				if ( !Input.MouseWheel.IsNearZeroLength )
+				{
+					_state = _state with { GrabDistance = MathF.Max( 0f, _state.GrabDistance + Input.MouseWheel.y * 20f ) };
+
+					// stop processing this so inventory doesn't change
+					Sandbox.Inventory.ConsumeMouseWheel();
+				}
+			}
+
+			if ( _isSpinning )
+			{
+				var state = _state;
+
+				// Only beam grabs allow W/S to adjust the holding distance.
+				if ( !state.Pulling )
+				{
+					state.GrabDistance += spinMove.x * KeyboardMoveSpeed * Time.Delta;
+					state.GrabDistance = MathF.Max( 0.0f, state.GrabDistance );
+				}
+
+				// Gravity holds use W/S to pitch around the viewer's right axis.
+				state.GrabOffset = _rotation.Rotate( HoldFrame, spinMove, state.Pulling );
+				_state = state;
+			}
+
+			return;
+		}
+
+		if ( _preventReselect )
+		{
+			_state = default;
+			_stateHovered = default;
+			if ( !primaryDown && !Input.Down( "attack2" ) )
+				_preventReselect = false;
+
+			return;
+		}
+
+		var isPulling = Input.Down( "attack2" );
+		UpdateHovered( CurrentAimTransform, isPulling );
+
+		if ( isPulling && Input.Pressed( "attack2" ) )
+			PlayGravityShotSound( IsPullLock( _stateHovered ) );
+
+		if ( _stateHovered.Pulling )
+			return;
+
+		if ( primaryDown )
+		{
+			ViewModel?.RunEvent<ViewModel>( x => x.OnAttack() );
+			GrabHovered();
+		}
+		else if ( Input.Released( "attack1" ) )
+		{
+			ViewModel?.PlaySound( ReleasedSound );
+		}
+		else if ( Input.Pressed( "reload" ) && _stateHovered.IsValid() )
+		{
+			UnfreezeAll( _stateHovered.Body );
+		}
+	}
+
+	private bool _primaryControlDown;
+	private bool _secondaryControlDown;
+
+	protected override void OnPrimaryPressed()
+	{
+		if ( !_state.IsValid() || !_state.Pulling ) return;
+
+		var force = AimTransform.Rotation.Forward * LaunchForce;
+		Launch( _state.Body, force );
+		PlayGravityLaunchSound();
+		_state = default;
+		_preventReselect = true;
+	}
+
+	protected override void OnPrimaryDown()
+	{
+		_primaryControlDown = true;
+
+		if ( _state.IsValid() )
+			return;
+
+		if ( ConsumeReselectBlock() ) return;
+		UpdateGrab();
+	}
+
+	protected override void OnPrimaryReleased()
+	{
+		_primaryControlDown = false;
+
+		if ( _state.IsValid() )
+		{
+			if ( !_state.Pulling )
+			{
+				_state = default;
+				_preventReselect = true;
+				GameObject.PlaySound( ReleasedSound );
+			}
+
+			return;
+		}
+
+		if ( ConsumeReselectBlock() ) return;
+
+		if ( _secondaryControlDown )
+		{
+			UpdateGrab();
+		}
+		else
+		{
+			_stateHovered = default;
+			GameObject.PlaySound( ReleasedSound );
+		}
+	}
+
+	protected override void OnSecondaryPressed()
+	{
+		if ( !_state.IsValid() )
+		{
+			if ( _preventReselect ) return;
+			PlayGravityShotSound( IsPullLock( FindGrabbedBody( AimTransform, true ) ) );
+			return;
+		}
+
+		if ( !_state.Pulling ) return;
+
+		PlayGravityDropSound();
+		_state = default;
+		_preventReselect = true;
+	}
+
+	protected override void OnSecondaryDown()
+	{
+		_secondaryControlDown = true;
+
+		if ( _state.IsValid() )
+			return;
+
+		if ( ConsumeReselectBlock() ) return;
+		UpdateGrab();
+	}
+
+	protected override void OnSecondaryReleased()
+	{
+		_secondaryControlDown = false;
+
+		if ( _state.IsValid() || ConsumeReselectBlock() ) return;
+
+		if ( _primaryControlDown )
+			UpdateGrab();
+		else
+			_stateHovered = default;
+	}
+
+	private bool ConsumeReselectBlock()
+	{
+		if ( !_preventReselect ) return false;
+		if ( !_primaryControlDown && !_secondaryControlDown ) _preventReselect = false;
+		return true;
+	}
+
+	private void AdjustGrabDistance( float amount )
+	{
+		if ( HasOwner || !Networking.IsHost || !_state.IsValid() || _state.Pulling ) return;
+
+		_state = _state with { GrabDistance = MathF.Max( 0f, _state.GrabDistance + amount ) };
+	}
+
+	/// <summary>
+	/// Increases the grab distance using a connected signal.
+	/// </summary>
+	[SignalInput( Id = nameof( ExtendInput ) ), Description( "#weapon.setting.extend.description" )]
+	public void ExtendSignal( float amount ) => AdjustGrabDistance( amount * 200f * Time.Delta );
+
+	/// <summary>
+	/// Decreases the grab distance using a connected signal.
+	/// </summary>
+	[SignalInput( Id = nameof( RetractInput ) ), Description( "#weapon.setting.retract.description" )]
+	public void RetractSignal( float amount ) => AdjustGrabDistance( -amount * 200f * Time.Delta );
+
+	protected override void OnContraptionControl()
+	{
+		base.OnContraptionControl();
+
+		if ( ExtendInput.Down() ) AdjustGrabDistance( 200f * Time.Delta );
+		if ( RetractInput.Down() ) AdjustGrabDistance( -200f * Time.Delta );
+	}
+
+	private void UpdateGrab()
+	{
+		var aim = AimTransform;
+		MountedAim = aim;
+
+		UpdateHovered( aim, _secondaryControlDown );
+		if ( _primaryControlDown && !_stateHovered.Pulling )
+			GrabHovered();
+	}
+
+	void UpdateHovered( Transform aim, bool pulling )
+	{
+		_state = default;
+		var pullLock = _stateHovered;
+		_stateHovered = default;
+		var found = FindGrabbedBody( aim, pulling );
+		_stateHovered = pulling ? UpdatePullLock( pullLock, found, aim ) : found;
+
+		if ( _stateHovered.Pulling && CanGravityGrabHovered() )
+		{
+			_state = _stateHovered with { Active = true };
+		}
+	}
+
+	void GrabHovered()
+	{
+		_state = _stateHovered with { Active = true };
+		if ( !_state.IsValid() ) return;
+
+		var go = _state.GameObject;
+		go.Root.RunEvent<IPhysgunEvent>( x => x.OnPhysgunPickup() );
+		foreach ( var npc in go.Root.GetComponentsInChildren<Sandbox.Npcs.BaseNpc>() )
+			npc.StartCarry( GameObject );
+
+		if ( _state.IsValid() ) Unfreeze( _state.Body );
+	}
+
+	Action<ViewModel> _updateViewModel;
+
+	private void UpdateViewModel( ViewModel model )
+	{
+		var parameters = model.Renderer?.Animation.Parameters;
+		if ( parameters is null ) return;
+
+		parameters.TrySet( "stylus", ClawOpenAmount );
+		parameters.TrySet( "b_button", _isSpinning );
+		parameters.TrySet( "brake", _state.Active || _state.Pulling || _stateHovered.Pulling ? 1f : 0f );
+	}
+
+	readonly PhysicsHold _hold = new();
+
+	/// <summary>
+	/// The object our joint is moving
+	/// </summary>
+	GameObject _held;
+
+	/// <summary>
+	/// Tells the object we were moving that we let go of it
+	/// </summary>
+	void DropHeld()
+	{
+		var held = _held;
+		_held = null;
+
+		if ( !held.IsValid() ) return;
+
+		held.Root.RunEvent<IPhysgunEvent>( x => x.OnPhysgunDrop() );
+
+		foreach ( var npc in held.Root.GetComponentsInChildren<Sandbox.Npcs.BaseNpc>() )
+		{
+			npc.StopCarry( GameObject );
+		}
+	}
+
+	protected override void OnDisabled()
+	{
+		base.OnDisabled();
+
+		_hold.Release();
+		DropHeld();
+		CloseBeam();
+		_gravityHoldSound?.Stop( 0.2f );
+		_gravityHoldSound = null;
+
+		_state = default;
+		_gravityLookOpenSound?.Stop( 0.2f );
+		_gravityLookOpenSound = null;
+		_gravityLookCloseSound?.Stop( 0.2f );
+		_gravityLookCloseSound = null;
+		_clawsOpen = false;
+		_clawSoundsSuppressed = false;
+		_gravityLookCooldown = 0;
+		_stateHovered = default;
+		_launched = default;
+		_primaryControlDown = false;
+		_secondaryControlDown = false;
+		_isSpinning = false;
+		CursorRay = null;
+	}
+
+	protected override void OnFixedUpdate()
+	{
+		base.OnFixedUpdate();
+
+		// switched straight to another object, the joint still holds the old one
+		if ( _held.IsValid() && _held != _state.GameObject )
+		{
+			_hold.Release();
+			DropHeld();
+		}
+
+		if ( !CanMoveFor( _state ) )
+		{
+			_hold.Release();
+			DropHeld();
+
+			if ( _stateHovered.Pulling && CanMoveFor( _stateHovered ) )
+				ApplyPullForce( _stateHovered );
+
+			_launched = false;
+
+			return;
+		}
+
+		// If we just launched, don't add a joint until state has let go.
+		if ( _launched ) return;
+
+		_held = _state.GameObject;
+		DamageBlame.Blame( _held, Owner );
+		_hold.Hold( _state.Body, _state.EndPoint );
+		_hold.Move( GetHoldTarget() );
+	}
+
+	/// <summary>
+	/// The frame <see cref="GrabState.GrabOffset"/> is relative to: the full aim rotation for gravity
+	/// holds, only the stabilized yaw for beam grabs.
+	/// </summary>
+	Rotation HoldFrame => _state.Pulling ? CurrentAimTransform.Rotation : PhysicsHold.Stabilize( EyeTransform.Rotation );
+
+	Transform GetHoldTarget()
+	{
+		var eye = EyeTransform;
+		var aim = CurrentAimTransform;
+		if ( IsProxy && !CursorRay.HasValue && !_state.Pulling && Owner?.Network.Owner?.AimAngles is { } angles
+			&& Owner.Controller?.Mode is not SitMoveMode )
+		{
+			eye.Rotation = angles.ToRotation();
+			aim = eye;
+		}
+
+		var distance = PhysicsHold.ClampGrabDistance( _state.Body, _state.EndPoint, aim, _state.GrabDistance );
+		var position = aim.Position + aim.Forward * distance;
+		if ( IsProxy ) position = eye.Position + (position - eye.Position).ClampLength( Range );
+
+		var frame = _state.Pulling ? aim.Rotation : PhysicsHold.Stabilize( eye.Rotation );
+		return new Transform( position, frame * _state.GrabOffset );
+	}
+
+	/// <summary>
+	/// When true, the physgun aims where the seated player's camera looks.
+	/// </summary>
+	[Property, ClientEditable, Sync, Title( "#weapon.setting.camera_aim" ), Description( "#weapon.setting.camera_aim.description" )]
+	public bool CanAim { get; set; } = true;
+
+	public override bool IsTargetedAim => CanAim;
+
+	Transform AimTransform
+	{
+		get
+		{
+			var ray = AimRay;
+			return new Transform( ray.Position, Rotation.LookAt( ray.Forward ) );
+		}
+	}
+
+	/// <summary>
+	/// Ask the object if it allows being grabbed (anything can reject via IPhysgunEvent)
+	/// </summary>
+	bool AllowsGrab( GameObject go )
+	{
+		var grabEvent = new IPhysgunEvent.GrabEvent { Grabber = Network.Owner };
+		go.Root.RunEvent<IPhysgunEvent>( x => x.OnPhysgunGrab( grabEvent ) );
+		return !grabEvent.Cancelled;
+	}
+
+	/// <summary>
+	/// Is this physgun holding <paramref name="root"/> or pulling it in? The grab is synced, so this works everywhere.
+	/// </summary>
+	public bool IsGrabbing( GameObject root )
+	{
+		return Grabs( _state ) || (_stateHovered.Pulling && Grabs( _stateHovered ));
+
+		bool Grabs( GrabState state ) => (state.Active || state.Pulling) && state.GameObject?.Root == root;
+	}
+
+	/// <summary>
+	/// The holder picks what to grab on their machine, so check it again here before moving it for them.
+	/// </summary>
+	bool CanMoveFor( in GrabState state )
+	{
+		if ( !state.IsValid() ) return false;
+
+		var body = state.Body;
+		if ( !body.IsValid() || body.IsProxy || !body.MotionEnabled || !body.PhysicsBody.IsValid() ) return false;
+
+		return !IsProxy || AllowsGrab( state.GameObject );
+	}
+
+	GrabState FindGrabbedBody( Transform aim, bool isPulling )
+	{
+		GrabState state = default;
+
+		var tr = Scene.Trace.Ray( aim.Position, aim.Position + aim.Forward * Range )
+			.IgnoreGameObjectHierarchy( GameObject.Root )
+			.Run();
+
+		state.LocalOffset = tr.EndPosition;
+		state.LocalNormal = tr.Normal;
+		state.Pulling = isPulling;
+
+		var rb = tr.Hit && tr.Body is not null ? tr.Component as Rigidbody : null;
+
+		if ( isPulling )
+		{
+			if ( !CanPull( rb ) )
+				rb = FindPullTarget( aim, tr ) ?? rb;
+
+			if ( GetRagdollRoot( rb ) is { } root )
+				rb = root;
+		}
+
+		if ( !rb.IsValid() || !rb.PhysicsBody.IsValid() ) return state;
+
+		var physicsBody = rb.PhysicsBody;
+		var go = physicsBody.GameObject;
+		if ( !go.IsValid() || go.IsDestroyed ) return state;
+
+		if ( !AllowsGrab( go ) ) return state;
+
+		// Trace hits physics, convert to local using scaled physics transform.
+		var bodyTransform = physicsBody.Transform.WithScale( go.WorldScale );
+
+		state.GameObject = go;
+		state.LocalNormal = bodyTransform.NormalToLocal( tr.Normal );
+
+		if ( isPulling )
+		{
+			// Scale is built into mass center, remove it.
+			var bodyScale = new Transform( Vector3.Zero, Rotation.Identity, bodyTransform.Scale );
+			state.LocalOffset = bodyScale.PointToLocal( physicsBody.LocalMassCenter );
+			state.GrabDistance = 0;
+			state.GrabOffset = aim.Rotation.Inverse * bodyTransform.Rotation;
+		}
+		else
+		{
+			state.LocalOffset = bodyTransform.PointToLocal( tr.HitPosition );
+			state.GrabDistance = Vector3.DistanceBetween( aim.Position, tr.HitPosition );
+			state.GrabDistance = PhysicsHold.ClampGrabDistance( state.Body, tr.HitPosition, aim, state.GrabDistance );
+			state.GrabOffset = PhysicsHold.Stabilize( EyeTransform.Rotation ).Inverse * bodyTransform.Rotation;
+		}
+
+		_rotation.Reset( state.GrabOffset );
+
+		return state;
+	}
+
+	[Rpc.Broadcast( NetFlags.OwnerOnly )]
+	void Freeze( Rigidbody body )
+	{
+		if ( !body.IsValid() ) return;
+
+		var go = body.GameObject;
+		if ( go.Tags.Has( "npc" ) )
+			return;
+
+		FreezeEffect.Play( go, true, IsProxy ? null : [go] );
+
+		if ( body.IsProxy ) return;
+
+		if ( Networking.IsHost && AllowsGrab( go ) )
+		{
+			body.MotionEnabled = false;
+		}
+	}
+
+	[Rpc.Host( NetFlags.OwnerOnly )]
+	void Unfreeze( Rigidbody body ) => UnfreezeBody( body );
+
+	void UnfreezeBody( Rigidbody body )
+	{
+		if ( !body.IsValid() ) return;
+		if ( body.IsProxy ) return;
+		if ( !AllowsGrab( body.GameObject ) ) return;
+
+		body.MotionEnabled = true;
+	}
+
+	[Rpc.Broadcast( NetFlags.OwnerOnly )]
+	void UnfreezeAll( Rigidbody body )
+	{
+		if ( !body.IsValid() ) return;
+
+		var bodies = new HashSet<Rigidbody>();
+		if ( !IsProxy || !body.IsProxy )
+			PhysicsHold.GetConnectedBodies( body.GameObject, bodies );
+
+		FreezeEffect.Play( body.GameObject, false, IsProxy ? null : bodies.Select( x => x.GameObject ) );
+
+		if ( IsProxy && body.IsProxy ) return;
+
+		if ( !IsProxy )
+		{
+			var count = bodies.Select( x => x.GameObject.Root ).Distinct().Count();
+			var phrase = Game.Language.GetPhrase( "physgun.unfrozen", new() { { "count", count.ToString() } } );
+			Sandbox.UI.Notices.AddNotice( "ac_unit", Color.Cyan, phrase );
+		}
+
+		if ( body.IsProxy || !Networking.IsHost ) return;
+
+		foreach ( var rb in bodies )
+		{
+			UnfreezeBody( rb );
+		}
+
+		var models = bodies
+			.Select( x => x.Components.GetInAncestorsOrSelf<ModelPhysics>() )
+			.Where( x => x.IsValid() )
+			.Distinct();
+
+		foreach ( var mp in models )
+		{
+			UnfreezeModelPhysics( mp );
+		}
+	}
+
+	void UnfreezeModelPhysics( ModelPhysics modelPhysics )
+	{
+		if ( !modelPhysics.IsValid() ) return;
+		if ( modelPhysics.IsProxy ) return;
+		if ( !AllowsGrab( modelPhysics.GameObject ) ) return;
+
+		modelPhysics.MotionEnabled = true;
+	}
+
+	[Rpc.Host( NetFlags.OwnerOnly )]
+	void Launch( Rigidbody body, Vector3 force )
+	{
+		if ( !body.IsValid() ) return;
+		if ( body.IsProxy ) return;
+		if ( !AllowsGrab( body.GameObject ) ) return;
+
+		// We already launched.
+		if ( _launched ) return;
+
+		_hold.Release();
+		DamageBlame.Blame( body.GameObject, Owner );
+
+		var mass = body.Mass;
+		body.ApplyImpulse( force.Normal * (mass * force.Length) );
+		body.PhysicsBody?.ApplyAngularImpulse( Vector3.Random * (mass * force.Length) );
+
+		_launched = true;
+	}
+}

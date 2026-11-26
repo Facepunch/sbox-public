@@ -1,4 +1,4 @@
-<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:modeldoc29:version{3cec427c-1b0e-4d48-a90a-0436f33a6041} -->
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:modeldoc30:version{8c2d7a91-9c42-4bf0-883a-5a3b1762d4f1} -->
 {
 	rootNode = 
 	{
@@ -14,12 +14,16 @@
 						remaps = 
 						[
 							{
-								from = "hair_cap.vmat"
-								to = "models/citizen_clothes/hair/hair_pigtails/textures/hair_pigtails_cap.vmat"
+								from = "thinning_hair.vmat"
+								to = "models/citizen_clothes/hair/hair_bobcut/models/hair_bobcut_trans_01.vmat"
 							},
 							{
-								from = "m_longbrown.vmat"
-								to = "models/citizen_clothes/hair/legacy_hair/textures/hair_01.vmat"
+								from = "hair_cap.vmat"
+								to = "models/citizen_clothes/hair/hair_bobcut/models/hair_bobcut_cap.vmat"
+							},
+							{
+								from = "under_hair.vmat"
+								to = "models/citizen_clothes/hair/hair_bobcut/models/hair_bobcut_01.vmat"
 							},
 						]
 						use_global_default = false
@@ -33,7 +37,7 @@
 				[
 					{
 						_class = "RenderMeshFile"
-						name = "bobcut_LOD0"
+						name = "LOD0"
 						filename = "models/citizen_clothes/hair/hair_bobcut/models/hair_bobcut_m_human.fbx"
 						import_translation = [ 0.0, 0.0, 0.0 ]
 						import_rotation = [ 0.0, 0.0, 0.0 ]
@@ -50,73 +54,6 @@
 								"Bobcut_LOD1",
 								"Bobcut_LOD2",
 								"Bobcut_LOD3",
-							]
-						}
-					},
-					{
-						_class = "RenderMeshFile"
-						name = "bobcut_LOD1"
-						filename = "models/citizen_clothes/hair/hair_bobcut/models/hair_bobcut_m_human.fbx"
-						import_translation = [ 0.0, 0.0, 0.0 ]
-						import_rotation = [ 0.0, 0.0, 0.0 ]
-						import_scale = 1.0
-						align_origin_x_type = "None"
-						align_origin_y_type = "None"
-						align_origin_z_type = "None"
-						parent_bone = ""
-						import_filter = 
-						{
-							exclude_by_default = false
-							exception_list = 
-							[
-								"Bobcut_LOD2",
-								"Bobcut_LOD3",
-								"bobcut_LOD0",
-							]
-						}
-					},
-					{
-						_class = "RenderMeshFile"
-						name = "bobcut_LOD2"
-						filename = "models/citizen_clothes/hair/hair_bobcut/models/hair_bobcut_m_human.fbx"
-						import_translation = [ 0.0, 0.0, 0.0 ]
-						import_rotation = [ 0.0, 0.0, 0.0 ]
-						import_scale = 1.0
-						align_origin_x_type = "None"
-						align_origin_y_type = "None"
-						align_origin_z_type = "None"
-						parent_bone = ""
-						import_filter = 
-						{
-							exclude_by_default = false
-							exception_list = 
-							[
-								"Bobcut_LOD1",
-								"Bobcut_LOD3",
-								"bobcut_LOD0",
-							]
-						}
-					},
-					{
-						_class = "RenderMeshFile"
-						name = "bobcut_LOD3"
-						filename = "models/citizen_clothes/hair/hair_bobcut/models/hair_bobcut_m_human.fbx"
-						import_translation = [ 0.0, 0.0, 0.0 ]
-						import_rotation = [ 0.0, 0.0, 0.0 ]
-						import_scale = 1.0
-						align_origin_x_type = "None"
-						align_origin_y_type = "None"
-						align_origin_z_type = "None"
-						parent_bone = ""
-						import_filter = 
-						{
-							exclude_by_default = false
-							exception_list = 
-							[
-								"Bobcut_LOD1",
-								"Bobcut_LOD2",
-								"bobcut_LOD0",
-								"hair_cap_LOD0",
 							]
 						}
 					},
@@ -138,40 +75,312 @@
 				]
 			},
 			{
+				_class = "PhysicsJointList"
+				children = 
+				[
+					{
+						_class = "PhysicsJointWeld"
+						parent_body = "head"
+						child_body = "hair_front_01"
+						anchor_origin = [ 17.969494, 9.580173, 0.846539 ]
+						anchor_angles = [ 0.0, 0.0, 0.0 ]
+						collision_enabled = true
+						linear_strength = 10.0
+						angular_strength = 10.0
+						linear_freqeuncy = 2000.0
+						linear_damping_ratio = 1.163
+						max_force = 0.02
+						angular_frequency = 22.540001
+						angular_damping_ratio = 0.915
+						max_torque = 0.002
+					},
+					{
+						_class = "PhysicsJointWeld"
+						parent_body = "hair_front_01"
+						child_body = "hair_front_02"
+						anchor_origin = [ -3.988195, 3.796119, 0.113121 ]
+						anchor_angles = [ 0.0, 0.0, 0.0 ]
+						collision_enabled = true
+						linear_strength = 10.0
+						angular_strength = 10.0
+						linear_freqeuncy = 2000.0
+						linear_damping_ratio = 0.13
+						max_force = 0.02
+						angular_frequency = 22.540001
+						angular_damping_ratio = 1.647
+						max_torque = 2.0
+					},
+					{
+						_class = "PhysicsJointWeld"
+						parent_body = "head"
+						child_body = "hair_left_01"
+						anchor_origin = [ 13.990606, -0.319385, 7.809378 ]
+						anchor_angles = [ 0.0, 0.0, 0.0 ]
+						collision_enabled = true
+						linear_strength = 200.0
+						angular_strength = 200.0
+						linear_freqeuncy = 2000.0
+						linear_damping_ratio = 1.163
+						max_force = 0.02
+						angular_frequency = 22.540001
+						angular_damping_ratio = 1.647
+						max_torque = 2.0
+					},
+					{
+						_class = "PhysicsJointWeld"
+						parent_body = "hair_left_01"
+						child_body = "hair_left_02"
+						anchor_origin = [ -2.547464, 0.239935, 2.389881 ]
+						anchor_angles = [ 0.0, 0.0, 0.0 ]
+						collision_enabled = true
+						linear_strength = 10.0
+						angular_strength = 10.0
+						linear_freqeuncy = 2000.0
+						linear_damping_ratio = 1.163
+						max_force = 0.02
+						angular_frequency = 22.540001
+						angular_damping_ratio = 1.647
+						max_torque = 2.0
+					},
+					{
+						_class = "PhysicsJointWeld"
+						parent_body = "head"
+						child_body = "hair_right_01"
+						anchor_origin = [ 15.467296, 1.009012, -6.300506 ]
+						anchor_angles = [ 0.0, 0.0, 0.0 ]
+						collision_enabled = true
+						linear_strength = 200.0
+						angular_strength = 200.0
+						linear_freqeuncy = 2000.0
+						linear_damping_ratio = 1.163
+						max_force = 0.02
+						angular_frequency = 22.540001
+						angular_damping_ratio = 1.647
+						max_torque = 2.0
+					},
+					{
+						_class = "PhysicsJointWeld"
+						parent_body = "hair_right_01"
+						child_body = "hair_right_02"
+						anchor_origin = [ -1.107094, -0.244269, 0.031187 ]
+						anchor_angles = [ 0.0, 0.0, 0.0 ]
+						collision_enabled = true
+						linear_strength = 10.0
+						angular_strength = 10.0
+						linear_freqeuncy = 2000.0
+						linear_damping_ratio = 1.163
+						max_force = 0.02
+						angular_frequency = 22.540001
+						angular_damping_ratio = 1.647
+						max_torque = 2.0
+					},
+					{
+						_class = "PhysicsJointWeld"
+						parent_body = "head"
+						child_body = "hair_back_01"
+						anchor_origin = [ 14.012329, -10.960888, -0.018777 ]
+						anchor_angles = [ 0.0, 0.0, 0.0 ]
+						collision_enabled = true
+						linear_strength = 10.0
+						angular_strength = 10.0
+						linear_freqeuncy = 2000.0
+						linear_damping_ratio = 1.163
+						max_force = 0.02
+						angular_frequency = 22.540001
+						angular_damping_ratio = 1.647
+						max_torque = 2.0
+					},
+					{
+						_class = "PhysicsJointWeld"
+						parent_body = "hair_back_01"
+						child_body = "hair_back_02"
+						anchor_origin = [ -1.60618, -0.107267, 0.143196 ]
+						anchor_angles = [ 0.0, 0.0, 0.0 ]
+						collision_enabled = true
+						linear_strength = 10.0
+						angular_strength = 10.0
+						linear_freqeuncy = 2000.0
+						linear_damping_ratio = 1.163
+						max_force = 0.02
+						angular_frequency = 22.540001
+						angular_damping_ratio = 1.647
+						max_torque = 2.0
+					},
+				]
+			},
+			{
+				_class = "PhysicsShapeList"
+				children = 
+				[
+					{
+						_class = "PhysicsShapeCapsule"
+						parent_bone = "head"
+						surface_prop = "default"
+						collision_tags = "solid"
+						radius = 9.5
+						point0 = [ 15.0, 0.0, 0.0 ]
+						point1 = [ -3.0123, 0.0, 0.0 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = "hair_front_01"
+						surface_prop = "default"
+						collision_tags = "solid"
+						origin = [ -0.677495, 2.617934, 0.360909 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 6.226349, 2.753082, 10.628847 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = "hair_front_02"
+						surface_prop = "default"
+						collision_tags = "solid"
+						origin = [ -1.920001, -1.285658, 0.277447 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 3.120757, 3.28006, 10.459339 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = "hair_left_01"
+						surface_prop = "default"
+						collision_tags = "solid"
+						origin = [ 1.206614, 0.177498, 3.909248 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 5.500308, 10.0, 3.887401 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = "hair_left_02"
+						surface_prop = "default"
+						collision_tags = "solid"
+						origin = [ 1.696553, 1.927192, 3.336592 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 4.625463, 8.761606, 3.638884 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = "hair_right_01"
+						surface_prop = "default"
+						collision_tags = "solid"
+						origin = [ 2.159395, 0.0, 1.090334 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 5.68121, 10.0, 4.030321 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = "hair_right_02"
+						surface_prop = "default"
+						collision_tags = "solid"
+						origin = [ 3.954676, 0.222082, -2.45475 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 5.171134, 10.0, 2.125137 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = "hair_back_01"
+						surface_prop = "default"
+						collision_tags = "solid"
+						origin = [ 1.917499, -2.284209, 0.0 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 6.165002, 2.692164, 10.0 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = "hair_back_02"
+						surface_prop = "default"
+						collision_tags = "solid"
+						origin = [ 2.761554, -2.020049, 0.0 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 6.575401, 2.631175, 10.0 ]
+					},
+				]
+			},
+			{
 				_class = "LODGroupList"
 				children = 
 				[
 					{
 						_class = "LODGroup"
 						switch_threshold = 0.0
+						auto_simplify_mode = 0
+						auto_reduction = 0.5
+						auto_max_error = 0.0
+						auto_lock_border_vertices = true
+						auto_permissive_simplification = false
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						auto_strip_vertex_color = false
+						auto_material_culling_enabled = false
 						meshes = 
 						[
-							"bobcut_LOD0",
+							"LOD0",
 						]
+						material_culls = [  ]
 					},
 					{
 						_class = "LODGroup"
 						switch_threshold = 10.0
-						meshes = 
-						[
-							"bobcut_LOD1",
-						]
+						auto_simplify_mode = 1
+						auto_reduction = 0.5
+						auto_max_error = 0.0
+						auto_lock_border_vertices = true
+						auto_permissive_simplification = false
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						auto_strip_vertex_color = false
+						auto_material_culling_enabled = false
+						meshes = [  ]
+						material_culls = [  ]
 					},
 					{
 						_class = "LODGroup"
 						switch_threshold = 20.0
-						meshes = 
-						[
-							"bobcut_LOD2",
-						]
+						auto_simplify_mode = 1
+						auto_reduction = 0.5
+						auto_max_error = 0.0
+						auto_lock_border_vertices = false
+						auto_permissive_simplification = true
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						auto_strip_vertex_color = false
+						auto_material_culling_enabled = false
+						meshes = [  ]
+						material_culls = [  ]
 					},
 					{
 						_class = "LODGroup"
 						switch_threshold = 40.0
-						meshes = 
-						[
-							"bobcut_LOD3",
-						]
+						auto_simplify_mode = 1
+						auto_reduction = 0.45
+						auto_max_error = 0.0
+						auto_lock_border_vertices = false
+						auto_permissive_simplification = true
+						auto_protect_uv_seams = false
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						auto_strip_vertex_color = false
+						auto_material_culling_enabled = false
+						meshes = [  ]
+						material_culls = [  ]
+					},
+					{
+						_class = "LODGroup"
+						switch_threshold = 60.0
+						auto_simplify_mode = 1
+						auto_reduction = 0.4
+						auto_max_error = 0.0
+						auto_lock_border_vertices = false
+						auto_permissive_simplification = true
+						auto_protect_uv_seams = false
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						auto_strip_vertex_color = false
+						auto_material_culling_enabled = false
+						meshes = [  ]
+						material_culls = [  ]
 					},
 				]
 			},
@@ -179,6 +388,8 @@
 		model_archetype = ""
 		primary_associated_entity = ""
 		anim_graph_name = ""
+		animation_graph_name = resource:""
+		skeleton_name = resource:""
 		base_model_name = ""
 	}
 }

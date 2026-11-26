@@ -94,10 +94,9 @@ public sealed partial class FaceTool( MeshTool tool ) : SelectionTool<MeshFace>(
 		if ( Gizmo.IsHovered && Tool.MoveMode.AllowSceneSelection && !IsLassoSelecting )
 		{
 			SelectFace();
-
-			if ( Gizmo.IsDoubleClicked )
-				SelectContiguousFaces();
 		}
+
+		UpdateMoveMode();
 
 		_faceObject.Init( Graphics.PrimitiveType.Triangles );
 
@@ -254,10 +253,8 @@ public sealed partial class FaceTool( MeshTool tool ) : SelectionTool<MeshFace>(
 
 	protected override IEnumerable<IMeshElement> GetAllSelectedElements()
 	{
-		foreach ( var group in Selection.OfType<MeshFace>()
-			.GroupBy( x => x.Component ) )
+		foreach ( var component in SelectedMeshes )
 		{
-			var component = group.Key;
 			foreach ( var hFace in component.Mesh.FaceHandles )
 			{
 				if ( component.Mesh.IsFaceHidden( hFace ) )
@@ -285,22 +282,23 @@ public sealed partial class FaceTool( MeshTool tool ) : SelectionTool<MeshFace>(
 		}
 	}
 
-	private void SelectContiguousFaces()
+	protected override bool OnDoubleClick( IMeshElement element )
 	{
-		var targetFace = TraceFace();
+		var targetFace = element is MeshFace face ? face : default;
 		if ( !targetFace.IsValid() )
-			return;
+			return false;
 
-		if ( Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Alt ) && (SelectByNormal || SelectByMaterial) )
+		if ( Gizmo.IsAltPressed && (SelectByNormal || SelectByMaterial) )
 		{
 			SelectFacesByNormal( targetFace );
-			return;
+			return true;
 		}
 
-		if ( Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Shift ) && TrySelectFacePath( targetFace ) )
-			return;
+		if ( Gizmo.IsShiftPressed && !Gizmo.IsCtrlPressed && TrySelectFacePath( targetFace ) )
+			return true;
 
 		SelectAllConnectedFaces( targetFace );
+		return true;
 	}
 
 	/// <summary>
@@ -313,11 +311,9 @@ public sealed partial class FaceTool( MeshTool tool ) : SelectionTool<MeshFace>(
 
 		var mesh = startFace.Component.Mesh;
 
-		if ( !Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Shift ) )
-			Selection.Clear();
-
 		var queue = new Queue<FaceHandle>();
 		var visited = new HashSet<FaceHandle>();
+		var faces = new List<IMeshElement>();
 
 		queue.Enqueue( startFace.Handle );
 		visited.Add( startFace.Handle );
@@ -326,19 +322,7 @@ public sealed partial class FaceTool( MeshTool tool ) : SelectionTool<MeshFace>(
 		{
 			var currentHandle = queue.Dequeue();
 
-			var meshFace = new MeshFace( startFace.Component, currentHandle );
-
-			if ( Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Ctrl ) )
-			{
-				if ( Selection.Contains( meshFace ) )
-					Selection.Remove( meshFace );
-				else
-					Selection.Add( meshFace );
-			}
-			else
-			{
-				Selection.Add( meshFace );
-			}
+			faces.Add( new MeshFace( startFace.Component, currentHandle ) );
 
 			var edges = mesh.GetFaceEdges( currentHandle );
 			foreach ( var edge in edges )
@@ -353,6 +337,8 @@ public sealed partial class FaceTool( MeshTool tool ) : SelectionTool<MeshFace>(
 				}
 			}
 		}
+
+		ApplyElementSelection( faces, Gizmo.KeyboardModifiers, "Select Connected Faces" );
 	}
 
 	/// <summary>
@@ -379,9 +365,6 @@ public sealed partial class FaceTool( MeshTool tool ) : SelectionTool<MeshFace>(
 		{
 			targetMaterial = targetFace.Material;
 		}
-
-		if ( !Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Shift ) )
-			Selection.Clear();
 
 		var queue = new Queue<FaceHandle>();
 		var visited = new HashSet<FaceHandle>();
@@ -429,32 +412,13 @@ public sealed partial class FaceTool( MeshTool tool ) : SelectionTool<MeshFace>(
 			}
 		}
 
-		foreach ( var face in matchingFaces )
-		{
-			if ( Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Ctrl ) )
-			{
-				if ( Selection.Contains( face ) )
-					Selection.Remove( face );
-				else
-					Selection.Add( face );
-			}
-			else
-			{
-				Selection.Add( face );
-			}
-		}
+		ApplyElementSelection( matchingFaces.Cast<IMeshElement>(), Gizmo.KeyboardModifiers, "Select Filtered Faces" );
 	}
 
 	private bool TrySelectFacePath( MeshFace targetFace )
 	{
-		var selected = Selection.OfType<MeshFace>()
-			.Where( f => f.IsValid() && f.Component == targetFace.Component )
-			.ToList();
-
-		if ( selected.Count == 0 || selected.Count > 2 )
-			return false;
-
-		var startFace = selected.FirstOrDefault( f => f.Handle != targetFace.Handle );
+		var startFace = Selection.OfType<MeshFace>().LastOrDefault( face =>
+			IsSelectableElement( face ) && face.Component == targetFace.Component && face.Handle != targetFace.Handle );
 
 		if ( !startFace.IsValid() )
 			return false;
@@ -463,8 +427,7 @@ public sealed partial class FaceTool( MeshTool tool ) : SelectionTool<MeshFace>(
 		if ( path == null || path.Count == 0 )
 			return false;
 
-		foreach ( var face in path.Where( f => !Selection.Contains( f ) ) )
-			Selection.Add( face );
+		ApplyElementSelection( path.Cast<IMeshElement>(), Gizmo.KeyboardModifiers, "Select Face Path" );
 
 		return true;
 	}
@@ -551,7 +514,7 @@ public sealed partial class FaceTool( MeshTool tool ) : SelectionTool<MeshFace>(
 
 	public override Rotation CalculateSelectionBasis()
 	{
-		if ( GlobalSpace ) return Rotation.Identity;
+		if ( GlobalSpace ) return WorkPlane.Current.Rotation;
 
 		var face = Selection.OfType<MeshFace>().FirstOrDefault();
 		if ( face.IsValid() )

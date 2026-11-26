@@ -1,0 +1,157 @@
+{
+  "Version": 1,
+  "nodes": [
+    {
+      "_class": "BoolParameterNode",
+      "ParameterIdentifier": "c90e128d-541d-4cdf-baba-b95eac382657",
+      "ParameterName": "ironsights",
+      "Identifier": "91a01e6b-3780-4c93-a550-b6feae573d39",
+      "Position": "0,-300",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "FloatSwitchNode",
+      "Condition": {
+        "Identifier": "91a01e6b-3780-4c93-a550-b6feae573d39",
+        "Output": "Value"
+      },
+      "TrueValue": 1,
+      "FalseValue": 0,
+      "EaseTime": 0,
+      "Easing": "Linear",
+      "Identifier": "49ed455c-59cd-4a41-accb-0c4d7a23352f",
+      "Position": "270,-240",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "AnimationClipNode",
+      "Loop": false,
+      "SampleRootMotion": false,
+      "GraphEvents": [],
+      "PlayInReverse": {
+        "Identifier": null,
+        "Output": null
+      },
+      "ResetTime": {
+        "Identifier": null,
+        "Output": null
+      },
+      "DefaultVariationData": {
+        "AnimationName": {
+          "Id": "38a7aa34-dcaa-45a9-8e65-51cfacf78b36",
+          "Path": "weapons/revolver/animations/fire_01.anim"
+        },
+        "SpeedMultiplier": 1,
+        "StartSyncEventOffset": 0
+      },
+      "Overrides": [],
+      "Identifier": "a656319f-60c0-4e3a-88b7-04df0d2df314",
+      "Position": "0,0",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "AnimationClipNode",
+      "Loop": false,
+      "SampleRootMotion": false,
+      "GraphEvents": [],
+      "PlayInReverse": {
+        "Identifier": null,
+        "Output": null
+      },
+      "ResetTime": {
+        "Identifier": null,
+        "Output": null
+      },
+      "DefaultVariationData": {
+        "AnimationName": {
+          "Id": "7a95b038-1630-40a1-ac98-3656f5f75883",
+          "Path": "weapons/revolver/animations/fire_ads.anim"
+        },
+        "SpeedMultiplier": 1,
+        "StartSyncEventOffset": 0
+      },
+      "Overrides": [],
+      "Identifier": "02b1d93d-6d94-45d4-af3d-1ef94f888d1d",
+      "Position": "0,140",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "ParameterizedAnimationClipSelectorNode",
+      "Parameter": {
+        "Identifier": "49ed455c-59cd-4a41-accb-0c4d7a23352f",
+        "Output": "Result"
+      },
+      "Options": [
+        {
+          "Label": "fire 01",
+          "Pose": {
+            "Identifier": "a656319f-60c0-4e3a-88b7-04df0d2df314",
+            "Output": "Result"
+          }
+        },
+        {
+          "Label": "fire ads",
+          "Pose": {
+            "Identifier": "02b1d93d-6d94-45d4-af3d-1ef94f888d1d",
+            "Output": "Result"
+          }
+        }
+      ],
+      "IgnoreInvalidOptions": false,
+      "DefaultVariationData": {
+        "OptionWeights": [
+          1,
+          1
+        ]
+      },
+      "Overrides": [],
+      "Identifier": "1ffb96f9-595a-4c9d-89aa-54caa0097d21",
+      "Position": "390,20",
+      "Title": "Select clip",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "PoseResultNode",
+      "Pose": {
+        "Identifier": "1ffb96f9-595a-4c9d-89aa-54caa0097d21",
+        "Output": "Result"
+      },
+      "Identifier": "eca23dd1-5e5f-4da7-ad25-3e7d84c29d31",
+      "Position": "710,0",
+      "HandleOffsets": {}
+    }
+  ],
+  "Model": {
+    "Id": "9092f135-0dbf-4f1a-a810-e6da12fcc03c",
+    "Path": "weapons/magnum/v_magnum.vmdl"
+  },
+  "Skeleton": {
+    "Id": "f85bbbac-18cb-4a21-918f-5589fc84573d",
+    "Path": "weapons/revolver/animations/revolver.skel"
+  },
+  "parameters": [
+    {
+      "Identifier": "c90e128d-541d-4cdf-baba-b95eac382657",
+      "Type": "Bool",
+      "Name": "ironsights",
+      "Group": "",
+      "RuntimeDefaultFloat": 0,
+      "RuntimeDefaultBool": false,
+      "RuntimeDefaultID": "",
+      "RuntimeDefaultVector": "0,0,0",
+      "DefaultFloat": 0,
+      "Min": 0,
+      "Max": 1,
+      "DefaultBool": false,
+      "DefaultID": "",
+      "EnumTypeName": "",
+      "ExpectedValues": [],
+      "ResolvedOptions": [],
+      "DefaultVector": "0,0,0",
+      "PreviewStartTargetIsSet": false,
+      "PreviewStartTargetIsBone": false,
+      "PreviewStartBone": ""
+    }
+  ],
+  "virtualParameters": []
+}

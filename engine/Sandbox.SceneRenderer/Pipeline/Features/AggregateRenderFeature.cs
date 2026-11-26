@@ -200,7 +200,7 @@ internal sealed class AggregateRenderFeature : RenderFeature
 			if ( material is null ) continue;
 
 			// Lightmaps light every draw or none of them (CAggregateSceneObjectDesc::SetBakedLightingAttributes)
-			context.SetObjectAttributes( null, !depth && aggregate.Lightmapped ? aggregate.LightmapAttributes : null );
+			context.SetObjectAttributes( aggregate.Attributes, !depth && aggregate.Lightmapped ? aggregate.LightmapAttributes : null );
 
 			var drawn = batch.CullArg >= 0 && phase != OcclusionPhase.None
 				? context.DrawModelFragmentsCulled( material, mode, mesh, draw, phase, aggregate.FirstInstance, batch.CullArg, batch.Count, depthBias, slopeBias, stripPixelShader )

@@ -42,6 +42,64 @@ public class NetworkTest
 	}
 
 	[TestMethod]
+	public void PropertyRefreshPreservesExistingSlotsAndRegistersMissingSlots()
+	{
+		using var scope = new Scene().Push();
+		using var peers = new ClientAndHost( TypeLibrary );
+		peers.BecomeHost();
+
+		var go = new GameObject();
+		var prop = go.Components.Create<Prop>();
+		prop.Health = 100;
+		go.NetworkSpawn();
+
+		var property = ReflectionQueryCache.SyncProperties( typeof( Prop ) ).Single( x => x.Property.Name == nameof( Prop.Health ) );
+		var slot = NetworkObject.GetPropertySlot( property.NameHash, prop.Id );
+		var table = go._net.dataTable;
+		table.Unregister( slot );
+		var existing = new NetworkTable.Entry { TargetType = typeof( float ), GetValue = () => 42f };
+		table.Register( slot, existing );
+		existing.IsDirty = false;
+
+		go._net.RegisterProperties( prop, prop.Id );
+		Assert.AreEqual( 42f, table.GetValue( slot ) );
+		Assert.IsFalse( existing.IsDirty, "Refreshing must preserve existing entry state" );
+
+		table.Unregister( slot );
+		go._net.RegisterProperties( prop, prop.Id );
+		Assert.AreEqual( 100f, table.GetValue( slot ) );
+		prop.Health = 75;
+		Assert.AreEqual( 75f, table.GetValue( slot ), "A newly registered accessor must read the live instance" );
+
+		var other = go.Components.Create<Prop>();
+		other.Health = 25;
+		go._net.RegisterProperties( other, other.Id );
+		var otherSlot = NetworkObject.GetPropertySlot( property.NameHash, other.Id );
+		Assert.AreEqual( 25f, table.GetValue( otherSlot ) );
+		Assert.AreEqual( 75f, table.GetValue( slot ), "Instances of the same type must retain separate accessors" );
+	}
+
+	[TestMethod, TestCategory( Allocations.Category )]
+	public void RegisteredPropertyRefreshDoesNotAllocate()
+	{
+		using var scope = new Scene().Push();
+		using var peers = new ClientAndHost( TypeLibrary );
+		peers.BecomeHost();
+
+		var go = new GameObject();
+		var prop = go.Components.Create<Prop>();
+		var rigidbody = go.Components.Create<Rigidbody>();
+		go.NetworkSpawn();
+
+		Allocations.AssertSettles( "Refreshing registered GameObject, Prop and Rigidbody properties", () =>
+		{
+			go._net.RegisterProperties( go, go.Id );
+			go._net.RegisterProperties( prop, prop.Id );
+			go._net.RegisterProperties( rigidbody, rigidbody.Id );
+		} );
+	}
+
+	[TestMethod]
 	public void DisableTransformSync()
 	{
 		Assert.IsNotNull( TypeLibrary.GetType<ModelRenderer>(), "TypeLibrary hasn't been given the game assembly" );
@@ -140,6 +198,9 @@ public class NetworkTest
 		Assert.IsTrue( local.Scale.AlmostEqual( expected.Scale ), $"Scale was {local.Scale}" );
 	}
 
+	/// <summary>
+	/// Action and physical key taps, aim, and mouse deltas reach the host through client ticks.
+	/// </summary>
 	[TestMethod]
 	public void NetworkedInput()
 	{
@@ -157,6 +218,16 @@ public class NetworkTest
 
 		Input.InputSettings = inputSettings;
 		Input.SetAction( "Jump", true );
+		Input.OnButton( NativeEngine.ButtonCode.KEY_K, "k", true );
+		Input.OnButton( NativeEngine.ButtonCode.KEY_K, "k", false );
+		var camera = Game.ActiveScene.CreateObject().Components.Create<CameraComponent>();
+		camera.WorldRotation = Rotation.FromYaw( 90 );
+		var movement = new Vector2( 2, 3 );
+		var wheel = new Vector2( 0.75f, -0.75f );
+		Input.AddMouseMovement( new Vector2( 3, -2 ) );
+		Input.AddMouseWheel( new Vector2( 0.25f, -1 ) );
+		Input.AddMouseMovement( new Vector2( -1, 5 ) );
+		Input.AddMouseWheel( new Vector2( 0.5f, 0.25f ) );
 
 		// Send a client tick - this will build a user command as well
 		Game.ActiveScene.SendClientTick( SceneNetworkSystem.Instance );
@@ -175,11 +246,20 @@ public class NetworkTest
 
 		Assert.AreEqual( true, clientAndHost.Client.Pressed( "Jump" ) );
 		Assert.AreEqual( true, clientAndHost.Client.Down( "Jump" ) );
+		Assert.IsTrue( clientAndHost.Client.KeyPressed( "k" ) );
+		Assert.IsTrue( clientAndHost.Client.KeyDown( "k" ) );
+		Assert.AreEqual( camera.WorldRotation.Angles(), clientAndHost.Client.AimAngles );
+		Assert.AreEqual( movement, clientAndHost.Client.MouseDelta );
+		Assert.AreEqual( wheel, clientAndHost.Client.MouseWheel );
 
 		// Become the client
 		clientAndHost.BecomeClient();
 
 		Input.ClearActions();
+		camera.Enabled = false;
+		Input.AddMouseMovement( -movement );
+		Input.AddMouseWheel( -wheel );
+		Assert.AreEqual( camera.WorldRotation.Angles(), Connection.Local.AimAngles );
 
 		// Send a client tick - this will build a user command as well
 		Game.ActiveScene.SendClientTick( SceneNetworkSystem.Instance );
@@ -198,6 +278,11 @@ public class NetworkTest
 
 		Assert.AreEqual( true, clientAndHost.Client.Released( "Jump" ) );
 		Assert.AreEqual( false, clientAndHost.Client.Down( "Jump" ) );
+		Assert.IsTrue( clientAndHost.Client.KeyReleased( "k" ) );
+		Assert.IsFalse( clientAndHost.Client.KeyDown( "k" ) );
+		Assert.IsNull( clientAndHost.Client.AimAngles );
+		Assert.AreEqual( -movement, clientAndHost.Client.MouseDelta );
+		Assert.AreEqual( -wheel, clientAndHost.Client.MouseWheel );
 
 		// Let's test wrap-aware command number processing
 		var userCommand = new UserCommand( uint.MaxValue );
@@ -224,6 +309,8 @@ public class NetworkTest
 		} );
 
 		Assert.AreEqual( false, clientAndHost.Client.Pressed( "Forward" ) );
+		Assert.AreEqual( Vector2.Zero, clientAndHost.Client.MouseDelta );
+		Assert.AreEqual( Vector2.Zero, clientAndHost.Client.MouseWheel );
 		Assert.AreEqual( true, clientAndHost.Client.Pressed( "Jump" ) );
 		Assert.AreEqual( true, clientAndHost.Client.Down( "Jump" ) );
 
@@ -235,6 +322,57 @@ public class NetworkTest
 
 		// Don't leak pressed input state into later tests
 		Input.ClearActions();
+	}
+
+	/// <summary>
+	/// Controller axis movement and release travel through the normal client tick.
+	/// </summary>
+	[TestMethod]
+	public void NetworkedAnalogInput()
+	{
+		using var scope = new Scene().Push();
+		using var peers = new ClientAndHost( TypeLibrary );
+		var scene = Game.ActiveScene;
+		var suppressed = Input.Suppressed;
+		var usingController = Input.UsingController;
+		var controllers = Controller.All.ToArray();
+
+		try
+		{
+			Input.Suppressed = false;
+			Controller.All.Clear();
+			var controller = new Controller( 4096 );
+			controller.SetAxis( GameControllerAxis.LeftX, -16384 );
+			Controller.All.Add( controller );
+			Input.UsingController = true;
+
+			peers.BecomeClient();
+			var expectedAxis = Connection.Local.GetAnalog( InputAnalog.LeftStickX );
+			Assert.IsTrue( expectedAxis < -0.4f );
+			scene.SendClientTick( SceneNetworkSystem.Instance );
+			peers.BecomeHost();
+			peers.Host.ProcessMessages( InternalMessageType.ClientTick, bs => Networking.System.OnReceiveClientTick( bs, peers.Client ) );
+			peers.Host.Messages.Clear();
+			peers.Client.Messages.Clear();
+
+			Assert.AreEqual( expectedAxis, peers.Client.GetAnalog( InputAnalog.LeftStickX ), 0.00004f );
+
+			// Return the axis to neutral.
+			peers.BecomeClient();
+			controller.SetAxis( GameControllerAxis.LeftX, 0 );
+			scene.SendClientTick( SceneNetworkSystem.Instance );
+			peers.BecomeHost();
+			peers.Host.ProcessMessages( InternalMessageType.ClientTick, bs => Networking.System.OnReceiveClientTick( bs, peers.Client ) );
+			Assert.AreEqual( 0f, peers.Client.GetAnalog( InputAnalog.LeftStickX ) );
+		}
+		finally
+		{
+			Controller.All.Clear();
+			Controller.All.UnionWith( controllers );
+			Input.UsingController = usingController;
+			Input.Suppressed = suppressed;
+			scene.Destroy();
+		}
 	}
 
 	[TestMethod]
@@ -766,11 +904,43 @@ public class NetworkTest
 			}
 		}
 
-		refreshMsg.JsonData = rootJson.ToJsonString();
+		refreshMsg.JsonData = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes( rootJson );
 
 		go._net.OnRefreshMessage( clientAndHost.Client, refreshMsg );
 
 		Assert.AreEqual( 2, comp.FromHostInt, "FromHost property should not be overwritten by network refresh on the host" );
+	}
+
+	[TestMethod]
+	public void FromHostPropertyNotOverwrittenByOwnerTable()
+	{
+		var scene = new Scene();
+		using var scope = scene.Push();
+
+		using var clientAndHost = new ClientAndHost( TypeLibrary );
+
+		clientAndHost.BecomeHost();
+
+		var go = new GameObject();
+		go.Parent = scene;
+
+		var fromHost = go.Components.Create<FromHostPropertyComponent>();
+		var regular = go.Components.Create<RegularPropertyComponent>();
+		go.NetworkSpawn( clientAndHost.Client );
+
+		fromHost.FromHostInt = 3;
+		regular.RegularInt = 3;
+		var table = ByteStream.Create( 256 );
+		go._net.dataTable.WriteAll( ref table );
+		var tableData = table.ToArray();
+		table.Dispose();
+		fromHost.FromHostInt = 2;
+		regular.RegularInt = 2;
+
+		go._net.OnNetworkTableMessage( new ObjectNetworkTableMsg { Guid = go.Id, TableData = tableData }, clientAndHost.Client );
+
+		Assert.AreEqual( 2, fromHost.FromHostInt, "The owner must not write a FromHost property" );
+		Assert.AreEqual( 3, regular.RegularInt, "The owner still writes the properties it controls" );
 	}
 
 	[TestMethod]
@@ -813,7 +983,7 @@ public class NetworkTest
 			}
 		}
 
-		refreshMsg.JsonData = rootJson.ToJsonString();
+		refreshMsg.JsonData = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes( rootJson );
 
 		go._net.OnRefreshMessage( clientAndHost.Client, refreshMsg );
 
@@ -1203,6 +1373,87 @@ public class NetworkTest
 		go._net.EnsureCreateMessageSent( clientAndHost.Client );
 
 		Assert.AreEqual( 0, CreateMsgCount( clientAndHost.Client ) );
+	}
+
+	[TestMethod]
+	[DataRow( true )]
+	[DataRow( false )]
+	public void BroadcastRecipientCheckMatchesDelivery( bool host )
+	{
+		using var scope = new Scene().Push();
+		using var peers = new ClientAndHost( TypeLibrary );
+		peers.Become( host ? peers.Host : peers.Client );
+		var remote = host ? peers.Client : peers.Host;
+
+		foreach ( var state in Enum.GetValues<Connection.ChannelState>() )
+		{
+			remote.State = state;
+			foreach ( var filter in new Connection.Filter?[]
+			{
+				null,
+				new( Connection.Filter.FilterType.Include, new[] { remote } ),
+				new( Connection.Filter.FilterType.Exclude, new[] { remote } ),
+				new( Connection.Filter.FilterType.Include, new[] { Connection.Local } )
+			} )
+			{
+				Assert.AreEqual(
+					Networking.System.GetFilteredConnections( filter: filter ).Any(),
+					Networking.System.HasBroadcastRecipients( filter: filter ),
+					$"Recipient check differs for {state}, host={host}" );
+			}
+		}
+	}
+
+	[TestMethod]
+	public void UnsentSpawnsAndRefreshesAreCapturedForLateJoiners()
+	{
+		using var scope = new Scene().Push();
+		using var peers = new ClientAndHost( TypeLibrary );
+		peers.BecomeHost();
+		peers.Client.State = Connection.ChannelState.Snapshot - 1;
+		peers.Client.Messages.Clear();
+
+		var go = new GameObject();
+		var component = go.Components.Create<SerializationProbe>();
+		component.Value = 10;
+		go.NetworkSpawn();
+		Assert.IsTrue( go.IsNetworkRoot );
+		Assert.AreEqual( 0, component.Reads, "No recipient needs a serialized spawn" );
+
+		component.Value = 20;
+		go.Network.Refresh( component );
+		var child = new GameObject( go );
+		child.Name = "added while alone";
+		go.Network.Refresh( child );
+		go.Network.Refresh();
+		Assert.AreEqual( 0, component.Reads, "No recipient needs a serialized refresh" );
+		Assert.AreEqual( 0, peers.Client.Messages.Count );
+
+		peers.Client.State = Connection.ChannelState.Connected;
+		var snapshot = new List<object>();
+		Game.ActiveScene.SerializeNetworkObjects( peers.Client, snapshot );
+		var create = snapshot.OfType<ObjectCreateMsg>().Single( x => x.Guid == go.Id );
+		Assert.IsTrue( component.Reads > 0 );
+		var json = JsonNode.Parse( create.JsonData );
+		Assert.AreEqual( 20, json["Components"][0][nameof( SerializationProbe.Value )].GetValue<int>() );
+		Assert.AreEqual( "added while alone", json["Children"][0]["Name"].GetValue<string>() );
+
+		peers.Client.Messages.Clear();
+		go.Network.Refresh( component );
+		Assert.IsTrue( peers.Client.Messages.Any( x => x.Payload is ObjectRefreshComponentMsg ) );
+	}
+
+	private class SerializationProbe : Component
+	{
+		public int Reads;
+		private int _value;
+
+		[Property]
+		public int Value
+		{
+			get { Reads++; return _value; }
+			set { _value = value; }
+		}
 	}
 
 	// Spawns a cullable (not AlwaysTransmit) networked object with controllable visibility.

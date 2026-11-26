@@ -84,6 +84,9 @@ internal static class SteamCallbacks
 	{
 		using var scope = GlobalContext.MenuScope();
 
+		// A join from here on, though the lobby's still being looked up
+		using var joining = Networking.JoinScope();
+
 		var lobby = new Lobby( steamId.ValueUnsigned );
 		if ( await lobby.Refresh() == false )
 		{

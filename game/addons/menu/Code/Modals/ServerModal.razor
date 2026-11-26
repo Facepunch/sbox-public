@@ -2,6 +2,7 @@
 @inherits MenuProject.Modals.BaseModal
 @using Sandbox;
 @using Sandbox.Network;
+@using MenuProject.Platform;
 @using Sandbox.UI
 
 <root>
@@ -40,18 +41,18 @@
 
 			<div class="detail-row @(MapUnavailable ? "unavailable" : "")" onclick=@OpenMapInfo>
 				<div class="thumb">
-					@if ( string.IsNullOrEmpty( MapPackage?.Thumb ) )
+					@if ( string.IsNullOrEmpty( MapThumb ) )
 					{
 						<i>map</i>
 					}
 					else
 					{
-						<div class="thumb-img" style="background-image: url( @MapPackage.Thumb )"></div>
+						<div class="thumb-img" style="background-image: url( @MapThumb )"></div>
 					}
 				</div>
 				<div class="info">
 					<label class="eyebrow">#menu.home.map</label>
-					<label class="title">@(MapPackage?.Title ?? (MapUnavailable ? "#menu.home.unknown" : Server.Map))</label>
+					<label class="title">@(MapTitle ?? (MapUnavailable ? "#menu.home.unknown" : Server.Map))</label>
 				</div>
 			</div>
 
@@ -59,7 +60,7 @@
 
 		<div class="footer">
 			<Button class="clicky" @onclick=@(() => CloseModal( false ))>#menu.common.cancel</Button>
-			<Button class="clicky primary" Disabled=@(!MenuHelpers.HasAuthority) Icon="play_circle_filled" onclick=@JoinServer>#menu.home.join_server</Button>
+			<Button class="clicky primary" Disabled=@(!MenuHelpers.HasAuthority) Icon="play_circle" onclick=@JoinServer>#menu.home.join_server</Button>
 		</div>
 
 	</div>
@@ -70,20 +71,23 @@
 	public LobbyInformation Server { get; set; }
 
 	Package GamePackage;
-	Package MapPackage;
+	GamePageLoad map;
+
+	string MapThumb => map?.WorkshopItem?.Thumb ?? map?.Local?.Thumb;
+	string MapTitle => map?.WorkshopItem?.Title ?? map?.Local?.Title;
 
 	string BannerImage => GamePackage?.ThumbWide ?? GamePackage?.Thumb;
-	bool MapUnavailable => MapPackage is null && string.IsNullOrEmpty( Server.Map );
+	bool MapUnavailable => string.IsNullOrEmpty( Server.Map );
 
 	protected override void OnAfterTreeRender( bool firstTime )
 	{
 		base.OnAfterTreeRender( firstTime );
 
 		if ( firstTime )
-			LoadPackages();
+			LoadDetails();
 	}
 
-	async void LoadPackages()
+	async void LoadDetails()
 	{
 		if ( Server.Game.Contains( '.' ) && !Server.Game.Contains( "local." ) )
 		{
@@ -95,15 +99,9 @@
 			}
 		}
 
-		if ( Server.Map.Contains( '.' ) && !Server.Map.Contains( ".vmap" ) )
-		{
-			var pkg = await Package.FetchAsync( Server.Map, true );
-			if ( pkg?.Public ?? false )
-			{
-				MapPackage = pkg;
-				StateHasChanged();
-			}
-		}
+		map = new GamePageLoad( Server.Map, map: true );
+		await map.Run();
+		StateHasChanged();
 	}
 
 	void JoinServer()
@@ -121,9 +119,9 @@
 
 	void OpenMapInfo()
 	{
-		if ( MapPackage is null ) return;
-		Game.Overlay.ShowMapModal( MapPackage.FullIdent );
+		if ( map?.WorkshopItem is null && map?.Local is null ) return;
+		Game.Overlay.ShowMapModal( Server.Map );
 	}
 
-	protected override int BuildHash() => System.HashCode.Combine( Server.LobbyId, GamePackage?.Thumb, MapPackage?.Thumb, MenuHelpers.HasAuthority );
+	protected override int BuildHash() => System.HashCode.Combine( Server.LobbyId, GamePackage?.Thumb, map?.WorkshopItem, map?.Local, MenuHelpers.HasAuthority );
 }

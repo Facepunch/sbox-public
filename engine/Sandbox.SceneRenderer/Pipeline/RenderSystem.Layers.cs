@@ -83,6 +83,8 @@ public sealed partial class RenderSystem
 			new StageLayer( Stage.Tonemapping ),
 			new OutputLayer(),
 			new StageLayer( Stage.AfterPostProcess, final: true ),
+			new ToolOverlayLayer(),
+			new ToolScreenOverlayLayer(),
 			new ScreenOverlayLayer( withDepth: true ),
 			new ScreenOverlayLayer( withDepth: false ),
 			new StageLayer( Stage.UI, final: true ),

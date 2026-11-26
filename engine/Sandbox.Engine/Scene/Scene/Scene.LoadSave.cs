@@ -88,6 +88,7 @@ public partial class Scene : GameObject
 
 			ProcessDeletes();
 			NavMesh.Reset();
+			_navMeshLoadPending = !IsEditor && !options.ShowLoadingScreen;
 
 			if ( HasPhysicsWorld )
 			{
@@ -134,6 +135,9 @@ public partial class Scene : GameObject
 			using var blobs = BlobDataSerializer.Load( sceneFile.BinaryData, sceneFile.ResourcePath );
 			using var batchGroup = CallbackBatch.Batch();
 
+			if ( IsEditor )
+				DeserializeInstances( sceneFile.SceneProperties?[InstancesKey], options.IsAdditive );
+
 			if ( sceneFile.GameObjects is not null )
 			{
 				foreach ( var json in sceneFile.GameObjects )
@@ -145,7 +149,7 @@ public partial class Scene : GameObject
 
 			if ( sceneFile.SceneProperties is not null )
 			{
-				DeserializeProperties( sceneFile.SceneProperties, options.IsSystemScene );
+				DeserializeProperties( sceneFile.SceneProperties, options.IsSystemScene, loadInstances: false );
 			}
 
 			//
@@ -190,6 +194,9 @@ public partial class Scene : GameObject
 			RunEvent<ISceneStartup>( x => x.OnHostInitialize() );
 			RunEvent<ISceneStartup>( x => x.OnClientInitialize() );
 		}
+
+		// Drop unused definitions, including broken links recovered as ordinary objects.
+		InstanceState = IsEditor ? ExportInstanceState( InstanceState.Instances.Keys ) : SceneInstanceState.Empty;
 
 		return true;
 	}
@@ -287,6 +294,8 @@ public partial class Scene : GameObject
 	public JsonObject SerializeProperties()
 	{
 		var jso = new JsonObject();
+		if ( SerializeInstances() is { } instances )
+			jso.Add( InstancesKey, instances );
 
 		foreach ( var prop in GlobalContext.Current.TypeLibrary.GetType<Scene>()
 			.Properties
@@ -374,8 +383,11 @@ public partial class Scene : GameObject
 		return metadata;
 	}
 
-	void DeserializeProperties( JsonObject data, bool isSystemScene = false )
+	void DeserializeProperties( JsonObject data, bool isSystemScene = false, bool loadInstances = true )
 	{
+		if ( IsEditor && !isSystemScene && loadInstances )
+			DeserializeInstances( data[InstancesKey] );
+
 		var sceneType = GlobalContext.Current.TypeLibrary.GetType<Scene>();
 		Assert.NotNull( sceneType, "Scene type is inaccessible!" );
 
@@ -441,6 +453,7 @@ public partial class Scene : GameObject
 		using var blobs = BlobDataSerializer.Capture();
 
 		target.Id = Id;
+		// SceneFile consumers, including MapInstance, can deserialize these objects directly.
 		target.GameObjects = Children.Select( x => x.Serialize() ).Where( x => x is not null ).ToArray();
 		target.SceneProperties = SerializeProperties();
 		target.BinaryData = blobs.ToByteArray();

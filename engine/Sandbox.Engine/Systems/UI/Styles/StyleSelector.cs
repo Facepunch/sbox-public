@@ -148,7 +148,7 @@ public sealed class StyleSelector
 			if ( target.Id == null )
 				return false;
 
-			if ( string.Compare( target.Id, Id, true ) != 0 )
+			if ( !string.Equals( target.Id, Id, StringComparison.OrdinalIgnoreCase ) )
 				return false;
 		}
 

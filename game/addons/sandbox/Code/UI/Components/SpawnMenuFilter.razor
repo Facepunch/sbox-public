@@ -1,0 +1,15 @@
+@using Sandbox;
+@using Sandbox.UI;
+@inherits Panel
+@namespace Sandbox
+
+<root>
+    <SpawnMenuSearchEntry Value:bind=@Query HasClearButton />
+</root>
+
+
+@code
+{
+	public string Query { get; set; }
+}
+

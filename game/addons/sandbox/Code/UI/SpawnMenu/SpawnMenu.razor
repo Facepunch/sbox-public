@@ -1,0 +1,67 @@
+@using Sandbox;
+@using Sandbox.UI;
+@namespace Sandbox
+@inherits Panel
+@attribute [SpawnMenuHost.SpawnMenuMode]
+@attribute [Icon( "inventory_2" )]
+@attribute [Title( "#spawnmenu.tab.spawn" )]
+@attribute [Order( -100 )]
+
+<root class="menu-panel">
+    <div class="container">
+        <TabPanel class="spawnmenuleft" @ref="SpawnTabs" />
+        <div class="tools-menu-slot" @ref="ToolsParent"></div>
+    </div>
+</root>
+
+@code
+{
+    TabPanel SpawnTabs;
+    Button IconSizeButton;
+    internal Panel ToolsParent { get; private set; }
+
+    protected override void OnAfterTreeRender( bool firstTime )
+    {
+        BuildTabs();
+
+        if ( !IconSizeButton.IsValid() )
+        {
+            IconSizeButton = SpawnTabs.TabBar.AddChild( new Button( null, SpawnMenuIconSizeExtensions.Current.Icon(), OpenIconSizeMenu ) );
+            IconSizeButton.AddClass( "icon-size-button" );
+            IconSizeButton.Tooltip = "#ui.icon_size.title";
+        }
+
+        Scene?.Get<SpawnMenuHost>()?.MoveToolsMenu();
+    }
+
+    void OpenIconSizeMenu()
+    {
+        SpawnMenuIconSizeExtensions.OpenMenu( IconSizeButton, size =>
+        {
+            SpawnMenuIconSizeExtensions.Current = size;
+            IconSizeButton.Icon = size.Icon();
+        } );
+    }
+
+    /// <summary>
+    /// Builds the spawn tabs registered by the game and addons.
+    /// </summary>
+    public void BuildTabs() => SpawnTabs.PopulateTabs<ISpawnMenuTab>( "spawnmenu.tab" );
+
+    /// <summary>
+    /// Builds the tabs in the shared tools menu.
+    /// </summary>
+    public void BuildUtilityTabs() => Scene?.Get<SpawnMenuHost>()?.ToolsMenu?.BuildTabs();
+
+    /// <summary>
+    /// Opens a stored spawnlist in the props tab.
+    /// </summary>
+    public void OpenSpawnlist( Storage.Entry entry )
+    {
+        var tab = SpawnTabs?.TabBar.Tabs.FirstOrDefault( tab => tab.UserData is PropsPage );
+        if ( tab?.UserData is not PropsPage page ) return;
+
+        SpawnTabs.TabBar.SelectTab( tab );
+        page.SelectSpawnlist( entry );
+    }
+}

@@ -5,7 +5,7 @@ namespace Editor.AnimGraph.Nodes;
 /// <summary>
 /// Returns true when the source state reaches the point where its transition should begin so the blend finishes at the state's end.
 /// <br/><br/><b>Use when:</b>&#160;Leaving a state automatically as its animation completes.
-/// <br/><b>Important:</b>&#160;By default it fires early by the transition duration. <b>At Clip End</b> waits for the exact end or loop boundary. Only valid inside a conduit transition graph.
+/// <br/><b>Important:</b>&#160;By default it fires early by the transition duration. <b>At Clip End</b> waits for the exact end or loop boundary. Nested machines with exit states instead wait for their exit condition. Only valid inside a conduit transition graph.
 /// </summary>
 [Title( "State Completed" ), Group( "State Machine" ), Icon( "task_alt" )]
 [AvailableIn( GraphKind.TransitionConduit )]
@@ -32,6 +32,9 @@ public class StateCompletedConditionNode : Node, ITransitionScopedNode
 			compiler.Error( "State Completed is only usable in a conduit's transition graph" );
 			return compiler.ConstBool( false );
 		}
+
+		if ( compiler.SourceStateExitCondition is { } exitCondition )
+			return exitCondition;
 
 		return compiler.Builder.StateCompletedCondition(
 			compiler.SourceState,

@@ -52,7 +52,9 @@ public partial class Package
 				TotalCount = (int)l.TotalCount,
 				Tags = l.Tags?.Select( x => new TagEntry( x.Key, x.Value ) ).ToArray() ?? Array.Empty<TagEntry>(),
 				Facets = l.Facets?.Select( Package.Facet.FromDto ).ToArray() ?? Array.Empty<Facet>(),
-				Orders = l.Orders?.Select( x => new SortOrder( x.Name, x.Title, x.Icon ) ).ToArray() ?? Array.Empty<SortOrder>(),
+				Orders = l.Orders?
+					.Where( x => x.Name is not ("bestrated" or "rated" or "mostreviewed" or "reviewed" or "hiddengem" or "underrated") )
+					.Select( x => new SortOrder( x.Name, x.Title, x.Icon ) ).ToArray() ?? [],
 				Properties = l.Properties?.Select( PackageProperty.FromDto ).ToArray() ?? Array.Empty<PackageProperty>(),
 			};
 		}

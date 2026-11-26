@@ -90,12 +90,6 @@ public static partial class SandboxMenuExtensions
 	}
 
 	/// <summary>
-	/// Hide this package from the local player's discovery and search, or show it again. False if the
-	/// backend refused. Kept in <see cref="MenuUtility.Hidden"/> too.
-	/// </summary>
-	public static Task<bool> SetHiddenAsync( this Package package, bool hidden ) => MenuUtility.Hidden.SetPackageHidden( package.FullIdent, hidden );
-
-	/// <summary>
 	/// Open a modal for the specific package. This will open the correct modal
 	/// </summary>
 	public static void OpenModal( this Package package )
@@ -108,7 +102,8 @@ public static partial class SandboxMenuExtensions
 
 		if ( package.TypeName == "map" )
 		{
-			Game.Overlay.ShowMapModal( package.FullIdent );
+			if ( !package.IsRemote ) Game.Overlay.ShowMapModal( package.PrimaryAsset );
+			else if ( package.WorkshopId != 0 ) Game.Overlay.ShowMapModal( package.WorkshopId.ToString() );
 			return;
 		}
 

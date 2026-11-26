@@ -1,0 +1,26 @@
+{
+  "publish": {
+    "Allowed": true,
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "scaffolding_clamp_a",
+      "Type": "model",
+      "Org": "facepunch",
+      "Ident": "scaffolding_clamp_a",
+      "Tags": null,
+      "Schema": 0,
+      "HasAssets": false,
+      "AssetsPath": null,
+      "Resources": null,
+      "MenuResources": null,
+      "HasCode": false,
+      "CodePath": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/construction/scaffolding/scaffolding_clamp_a.vmdl"
+      }
+    }
+  },
+  "guid": "02f9e8d5-7c7c-4349-9928-cdb3d1347e0e"
+}

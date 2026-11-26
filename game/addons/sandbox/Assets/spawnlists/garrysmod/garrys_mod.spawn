@@ -1,0 +1,378 @@
+{
+  "Title": "Garry's Mod",
+  "Description": "",
+  "Icon": "sports_esports",
+  "RequiredMount": "gmod",
+  "Parent": null,
+  "Order": 3,
+  "Items": [
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Tool Props",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/balloons/balloon_classicheart.mdl",
+      "Title": "balloon_classicheart",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/balloons/balloon_dog.mdl",
+      "Title": "balloon_dog",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/balloons/balloon_star.mdl",
+      "Title": "balloon_star",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/dav0r/camera.mdl",
+      "Title": "camera",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/dav0r/hoverball.mdl",
+      "Title": "hoverball",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/dav0r/thruster.mdl",
+      "Title": "thruster",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/dav0r/buttons/button.mdl",
+      "Title": "button",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/dav0r/buttons/switch.mdl",
+      "Title": "switch",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/dav0r/tnt/tnt.mdl",
+      "Title": "tnt",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/dav0r/tnt/tnttimed.mdl",
+      "Title": "tnttimed",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/dynamite/dynamite.mdl",
+      "Title": "dynamite",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/lamps/torch.mdl",
+      "Title": "torch",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/maxofs2d/balloon_classic.mdl",
+      "Title": "balloon_classic",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/maxofs2d/balloon_gman.mdl",
+      "Title": "balloon_gman",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/maxofs2d/balloon_mossman.mdl",
+      "Title": "balloon_mossman",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/maxofs2d/button_01.mdl",
+      "Title": "button_01",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/maxofs2d/button_02.mdl",
+      "Title": "button_02",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/maxofs2d/button_03.mdl",
+      "Title": "button_03",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/maxofs2d/button_04.mdl",
+      "Title": "button_04",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/maxofs2d/button_05.mdl",
+      "Title": "button_05",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/maxofs2d/button_06.mdl",
+      "Title": "button_06",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/maxofs2d/button_slider.mdl",
+      "Title": "button_slider",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/maxofs2d/thruster_projector.mdl",
+      "Title": "thruster_projector",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/maxofs2d/lamp_projector.mdl",
+      "Title": "lamp_projector",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/maxofs2d/light_tubular.mdl",
+      "Title": "light_tubular",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/maxofs2d/thruster_propeller.mdl",
+      "Title": "thruster_propeller",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/thrusters/jetpack.mdl",
+      "Title": "jetpack",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/maxofs2d/hover_plate.mdl",
+      "Title": "hover_plate",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/maxofs2d/hover_propeller.mdl",
+      "Title": "hover_propeller",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/maxofs2d/lamp_flashlight.mdl",
+      "Title": "lamp_flashlight",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/maxofs2d/hover_basic.mdl",
+      "Title": "hover_basic",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/maxofs2d/hover_classic.mdl",
+      "Title": "hover_classic",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/maxofs2d/hover_rings.mdl",
+      "Title": "hover_rings",
+      "Icon": null
+    },
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Misc Props",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/balloons/hot_airballoon.mdl",
+      "Title": "hot_airballoon",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/balloons/hot_airballoon_basket.mdl",
+      "Title": "hot_airballoon_basket",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/chairs/armchair.mdl",
+      "Title": "armchair",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/food/burger.mdl",
+      "Title": "burger",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/food/hotdog.mdl",
+      "Title": "hotdog",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/maxofs2d/camera.mdl",
+      "Title": "camera",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/weapons/w_toolgun.mdl",
+      "Title": "w_toolgun",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/maxofs2d/companion_doll.mdl",
+      "Title": "companion_doll",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/maxofs2d/cube_tool.mdl",
+      "Title": "cube_tool",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/maxofs2d/gm_painting.mdl",
+      "Title": "gm_painting",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/maxofs2d/logo_gmod_b.mdl",
+      "Title": "logo_gmod_b",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/maxofs2d/motion_sensor.mdl",
+      "Title": "motion_sensor",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/maxofs2d/construct_sign.mdl",
+      "Title": "construct_sign",
+      "Icon": null
+    },
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Vehicle Props",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/nova/airboat_seat.mdl",
+      "Title": "airboat_seat",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/nova/jalopy_seat.mdl",
+      "Title": "jalopy_seat",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/nova/jeep_seat.mdl",
+      "Title": "jeep_seat",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/nova/chair_office01.mdl",
+      "Title": "chair_office01",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/nova/chair_office02.mdl",
+      "Title": "chair_office02",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/nova/chair_plastic01.mdl",
+      "Title": "chair_plastic01",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/nova/chair_wood01.mdl",
+      "Title": "chair_wood01",
+      "Icon": null
+    },
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Hats",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/nova/w_headcrab.mdl",
+      "Title": "w_headcrab",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/nova/w_headgear.mdl",
+      "Title": "w_headgear",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/player/items/humans/graduation_cap.mdl",
+      "Title": "graduation_cap",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/player/items/humans/top_hat.mdl",
+      "Title": "top_hat",
+      "Icon": null
+    }
+  ],
+  "__references": [],
+  "__version": 0
+}

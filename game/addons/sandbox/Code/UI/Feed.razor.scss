@@ -1,0 +1,108 @@
+@import "/UI/Theme.scss";
+
+// HL2 / GMod style death notices stacked in the top right,
+// killer, kill icon, victim. Amber is HudLayer.DefaultTint so it matches the painted HUD.
+$feed-amber: #f7c44d;
+$feed-icon: #ffa01e;
+$feed-npc: #ff4b3c;
+$feed-height: 36px;
+
+Feed
+{
+	position: absolute;
+	top: $deadzone-y;
+	right: $deadzone-x;
+	flex-direction: column;
+	align-items: flex-end;
+	gap: 4px;
+	font-size: 20px;
+	font-family: $body-font;
+	font-weight: 700;
+	color: $feed-amber;
+	text-shadow: 1px 1px 2px #000e;
+	pointer-events: none;
+	z-index: -1000;
+	transition: opacity 0.2s ease;
+
+	&.hide
+	{
+		opacity: 0;
+	}
+}
+
+Feed > .entry
+{
+	flex-shrink: 0;
+	height: $feed-height;
+	padding: 0px 12px;
+	gap: 10px;
+	align-items: center;
+	border: 1px solid transparent;
+	border-radius: 4px;
+	opacity: 1;
+	transform: translateX( 0px );
+	transition: all 0.15s ease-out;
+
+	.name
+	{
+		white-space: nowrap;
+		color: $feed-amber;
+
+		&.npc
+		{
+			color: $feed-npc;
+		}
+	}
+
+	.icons
+	{
+		height: 100%;
+		gap: 2px;
+		align-items: center;
+	}
+
+	.icon
+	{
+		height: 28px;
+		background-position: center;
+		background-size: contain;
+		background-repeat: no-repeat;
+		background-tint: $feed-icon;
+		transform: rotateY( 180deg );
+
+		&.modifier
+		{
+			height: 22px;
+		}
+	}
+
+	// the little robot head in front of an NPC's name
+	.npc-icon
+	{
+		height: 18px;
+		margin-right: -4px;
+		background-tint: $feed-npc;
+		opacity: 0.85;
+		transform: none;
+	}
+
+	// kills the local player made
+	&.is-me
+	{
+		border: 1px solid rgba( 247, 196, 77, 0.6 );
+	}
+
+	&:intro
+	{
+		opacity: 0;
+		transform: translateX( 40px );
+	}
+
+	&:outro
+	{
+		opacity: 0;
+		height: 0px;
+		margin-top: -4px;
+		transition: opacity 0.35s ease-in, height 0.2s ease-in 0.3s, margin-top 0.2s ease-in 0.3s;
+	}
+}

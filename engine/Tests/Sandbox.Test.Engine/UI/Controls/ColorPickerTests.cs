@@ -4,7 +4,7 @@ using static UITests.UiTesting;
 namespace UITests.Controls;
 
 [TestClass]
-[DoNotParallelize] // Focus, popups and recent colours are shared UI state
+[DoNotParallelize] // Focus and popups are shared UI state
 public class ColorPickerTests
 {
 	RootPanel root;
@@ -51,9 +51,9 @@ public class ColorPickerTests
 		Property = Game.TypeLibrary.GetSerializedObject( target ).GetProperty( nameof( Target.Colour ) )
 	};
 
-	static Panel Palette( ColorPickerControl picker, string title ) => picker.Children
-		.First( section => section.Children.OfType<Label>().Any( label => label.Text == title ) )
-		.Children.First( panel => panel.HasClass( "swatches" ) );
+	static Panel SavedPalette( ColorPickerControl picker ) => picker.Children
+		.Single( panel => panel.HasClass( "section" ) )
+		.Children.Single( panel => panel.HasClass( "swatches" ) );
 
 	static Panel Numbers( ColorPickerControl picker ) => picker.Children.First( p => p.HasClass( "numbers" ) );
 	static ColorTextEntry Hex( ColorPickerControl picker ) => Numbers( picker ).Children.OfType<ColorTextEntry>().Single();
@@ -80,8 +80,7 @@ public class ColorPickerTests
 
 	void ClickSwatch( ColorSwatch swatch )
 	{
-		// Input requests focus on press, then queues the click on release. In particular, a
-		// recent swatch must survive the focus tick between those two events.
+		// Input requests focus on press, then queues the click on release.
 		swatch.Focus();
 		MouseEvent( swatch, "onmousedown" );
 		SettleFocus();
@@ -98,7 +97,7 @@ public class ColorPickerTests
 		var picker = Picker( new Target(), popup );
 		Type( Hex( picker ), "red" );
 
-		var saved = Palette( picker, "Saved" );
+		var saved = SavedPalette( picker );
 		var swatch = saved.Children.OfType<ColorSwatch>().First();
 		var count = saved.Children.OfType<ColorSwatch>().Count();
 		MouseEvent( swatch, "onrightclick", "mouseright" );
@@ -115,18 +114,18 @@ public class ColorPickerTests
 		Assert.IsFalse( popup.IsDeleting );
 	}
 
+	/// <summary>
+	/// Selecting a saved swatch finishes a text edit and applies the swatch colour.
+	/// </summary>
 	[TestMethod]
-	[DataRow( "Saved" )]
-	[DataRow( "Recent" )]
-	public void SwatchSelectionReplacesFocusedText( string palette )
+	public void SwatchSelectionReplacesFocusedText()
 	{
 		var target = new Target();
 		var picker = Picker( target );
-		ClickSwatch( Palette( picker, "Saved" ).Children.OfType<ColorSwatch>().First() );
 		var entry = Hex( picker );
 		Type( entry, "red" );
 
-		ClickSwatch( Palette( picker, palette ).Children.OfType<ColorSwatch>().First() );
+		ClickSwatch( SavedPalette( picker ).Children.OfType<ColorSwatch>().First() );
 
 		Assert.AreEqual( Color.White, target.Colour );
 		Assert.AreEqual( "#FFFFFF", entry.Text );
@@ -145,7 +144,7 @@ public class ColorPickerTests
 		Type( entry, "255" );
 		Assert.AreEqual( Color.Red, target.Colour );
 
-		ClickSwatch( Palette( picker, "Saved" ).Children.OfType<ColorSwatch>().ElementAt( 1 ) );
+		ClickSwatch( SavedPalette( picker ).Children.OfType<ColorSwatch>().ElementAt( 1 ) );
 
 		Assert.AreEqual( Color.Black, target.Colour );
 		Assert.AreEqual( "0", entry.Text );
@@ -191,10 +190,13 @@ public class ColorPickerTests
 		Assert.IsFalse( entry.HasFocus );
 	}
 
+	/// <summary>
+	/// Scrubbing updates the current colour, and the add button saves it to the palette.
+	/// </summary>
 	[TestMethod]
 	[DataRow( false )]
 	[DataRow( true )]
-	public void ScrubbingNumbersAddsTheFinalColourToRecent( bool brightness )
+	public void ScrubbedColourCanBeSaved( bool brightness )
 	{
 		var target = new Target();
 		var picker = Picker( target );
@@ -202,6 +204,8 @@ public class ColorPickerTests
 		Hex( picker ).Blur();
 		SettleFocus();
 		var original = target.Colour;
+		var saved = SavedPalette( picker );
+		var count = saved.Children.OfType<ColorSwatch>().Count();
 		var tabs = picker.Children.SelectMany( p => p.Children ).OfType<ButtonGroup>().Single();
 		MouseEvent( tabs.Children.OfType<Button>().Single( p => p.Text == "RGB" ), "onclick" );
 
@@ -215,8 +219,11 @@ public class ColorPickerTests
 		MouseEvent( entry, "onmouseup" );
 
 		Assert.AreNotEqual( original, target.Colour );
-		var recent = Palette( picker, "Recent" ).Children.OfType<ColorSwatch>().First();
-		Assert.AreEqual( target.Colour, recent.Color.ToColor(), "ending a numeric scrub must remember the final colour" );
+		Assert.AreEqual( count, saved.Children.OfType<ColorSwatch>().Count() );
+
+		MouseEvent( saved.Children.Single( p => p.HasClass( "add" ) ), "onclick" );
+		Assert.AreEqual( count + 1, saved.Children.OfType<ColorSwatch>().Count() );
+		Assert.AreEqual( target.Colour, saved.Children.OfType<ColorSwatch>().Last().Color.ToColor() );
 	}
 
 	[TestMethod]
@@ -261,7 +268,7 @@ public class ColorPickerTests
 	public void ChangingUsageRefreshesPaletteWithoutReplacingSwatches()
 	{
 		var picker = Picker( new Target() );
-		var swatch = Palette( picker, "Saved" ).Children.OfType<ColorSwatch>().ElementAt( 2 );
+		var swatch = SavedPalette( picker ).Children.OfType<ColorSwatch>().ElementAt( 2 );
 		Assert.IsNull( swatch.Style.BackgroundColor, "transparent swatches use a separate fill" );
 
 		picker.HasAlpha = false;
@@ -288,7 +295,7 @@ public class ColorPickerTests
 
 		Assert.IsFalse( entry.HasFocus );
 		var picker = root.Children.OfType<Popup>().Single().Children.OfType<ColorPickerControl>().Single();
-		ClickSwatch( Palette( picker, "Saved" ).Children.OfType<ColorSwatch>().First() );
+		ClickSwatch( SavedPalette( picker ).Children.OfType<ColorSwatch>().First() );
 		Assert.AreEqual( "#FFFFFF", entry.Text );
 	}
 }

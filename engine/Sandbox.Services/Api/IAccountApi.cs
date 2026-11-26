@@ -6,7 +6,7 @@ public partial class ServiceApi
 {
 	public interface IAccountApi
 	{
-		/// <summary>Get the calling player's explicitly hidden package and organization IDs.</summary>
+		/// <summary>Get the calling player's explicitly hidden package and organization idents.</summary>
 		[Get( "/account/hidden/1" )]
 		Task<HiddenContent> GetHiddenContent();
 

@@ -69,7 +69,7 @@ public sealed class PivotMode : MoveMode
 		var origin = tool.Pivot.Position;
 
 		// Make sure our unsnapped pivot is set to the snapped pivot when not dragging.
-		if ( !Gizmo.Pressed.Any )
+		if ( Gizmo.WasLeftMousePressed || !Gizmo.Pressed.Any )
 		{
 			_unsnappedPivot = origin;
 			_moveDelta = default;
@@ -79,15 +79,14 @@ public sealed class PivotMode : MoveMode
 		{
 			Gizmo.Hitbox.DepthBias = 0.01f;
 
-			DrawPivotMarker( origin );
-
-			if ( !Gizmo.Control.Position( "position", Vector3.Zero, out var delta, _basis ) )
-				return;
-
-			_moveDelta += delta;
-
-			var target = (_unsnappedPivot + _moveDelta) * _basis.Inverse;
-			Install( tool, Gizmo.Snap( target, _moveDelta * _basis.Inverse ) * _basis );
+			if ( Gizmo.Control.UpdatePosition( "position", Vector3.Zero, out var delta, _basis ) )
+			{
+				_moveDelta += delta;
+				Install( tool, tool.SnapTranslation( _unsnappedPivot, _moveDelta, _basis ) );
+			}
+			Gizmo.Transform = new Transform( tool.Pivot.Position );
+			DrawPivotMarker( tool.Pivot.Position );
+			Gizmo.Draw.Position( "position", _basis );
 		}
 	}
 
@@ -130,10 +129,10 @@ public sealed class PivotMode : MoveMode
 			return distance < SnapScreenDistance ? vertex.Value : SnapToGrid( position );
 		}
 
-		var plane = new Plane( new Vector3( 0, 0, tool.Pivot.Position.z ), Vector3.Up );
+		var plane = new Plane( tool.Pivot.Position, Gizmo.Camera.Ortho ? -Gizmo.Camera.Rotation.Forward : WorkPlane.Current.Rotation.Up );
 
 		return plane.TryTrace( Gizmo.CurrentRay, out var hit )
-			? SnapToGrid( Gizmo.CurrentRay.Project( hit.Length ) )
+			? SnapToGrid( hit )
 			: null;
 	}
 
@@ -165,9 +164,7 @@ public sealed class PivotMode : MoveMode
 
 	private static Vector3 SnapToGrid( Vector3 position )
 	{
-		return Gizmo.Settings.SnapToGrid || Gizmo.IsCtrlPressed
-			? Gizmo.Snap( position, Vector3.One )
-			: position;
+		return WorkPlane.Snap( position );
 	}
 
 	private static float ScreenDistance( Vector3 a, Vector3 b )
@@ -180,7 +177,7 @@ public sealed class PivotMode : MoveMode
 	/// </summary>
 	private static float ScreenSize( Vector3 position, float scale )
 	{
-		return scale * Gizmo.Camera.Position.Distance( position ) / 1000.0f;
+		return SceneEditorExtensions.GetGizmoSize( position, scale );
 	}
 
 	private static void DrawPivotMarker( Vector3 origin )

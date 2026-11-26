@@ -1,0 +1,21 @@
+@using Sandbox.UI;
+@inherits Panel
+@namespace Sandbox
+
+<root>
+    <SpawnMenuToolbar>
+        <Body><SpawnMenuSearchEntry @ref="SearchBox" Value:bind=@Sidebar.Filter HasClearButton /></Body>
+    </SpawnMenuToolbar>
+</root>
+
+@code
+{
+    internal UIGroupedList Sidebar { get; init; }
+
+    TextEntry SearchBox;
+
+    protected override void OnAfterTreeRender( bool firstTime )
+    {
+        if ( firstTime ) SearchBox.Focus();
+    }
+}

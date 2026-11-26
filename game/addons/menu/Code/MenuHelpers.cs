@@ -1,9 +1,9 @@
-using Sandbox;
+﻿using Sandbox;
 using Sandbox.DataModel;
 using Sandbox.Diagnostics;
 using Sandbox.Modals;
+using MenuProject.Platform;
 using MenuProject.MenuUI.Front;
-using MenuProject.Modals.GameModalComponents;
 using MenuPanel = MenuProject.UI.MenuPanel;
 
 public static class MenuHelpers
@@ -37,88 +37,15 @@ public static class MenuHelpers
 	}
 
 	/// <summary>
-	/// Off to the avatar editor - its own scene, in place of the menu's. Not from inside a game.
+	/// Your avatar - a page up out of the dock, from a game too
 	/// </summary>
-	public static bool CanEditAvatar => !Game.InGame;
-
-	const string AvatarScene = "/scenes/avatar.scene";
-
-	public static void OpenAvatarEditor()
-	{
-		// The platform menu's is a page up out of its dock - no scene of its own, so from a game too
-		if ( MenuProject.Platform.PlatformMenu.Enabled )
-		{
-			MenuProject.Platform.PlatformRoot.Instance?.OpenShelf( MenuProject.Platform.PlatformShelf.Avatar );
-			return;
-		}
-
-		if ( !CanEditAvatar ) return;
-
-		var options = new SceneLoadOptions();
-		options.ShowLoadingScreen = false;
-		options.SetScene( AvatarScene );
-
-		MenuScene.Scene.Load( options );
-	}
-
-	/// <summary>
-	/// The avatar editor's up as the platform menu's scene - the platform's hidden under it
-	/// </summary>
-	public static bool InAvatarEditor => MenuScene.Scene?.Get<AvatarEditManager>() is not null;
-
-	static bool closingAvatarEditor;
-
-	/// <summary>
-	/// Back out of the avatar editor - onto the menu's own scene, or on the platform, back to no scene at all. That's
-	/// done next tick (TickAvatarEditor), from outside the scene - not from its own update, which this is called from.
-	/// </summary>
-	public static void CloseAvatarEditor()
-	{
-		if ( MenuProject.Platform.PlatformMenu.Enabled )
-		{
-			closingAvatarEditor = true;
-			return;
-		}
-
-		var options = new SceneLoadOptions();
-		options.ShowLoadingScreen = true;
-		options.SetScene( "/scenes/menu-main.scene" );
-
-		Game.ActiveScene.Load( options );
-	}
-
-	/// <summary>
-	/// The platform menu's avatar editor scene put away, once it's asked to be - from the platform's own tick
-	/// </summary>
-	internal static void TickAvatarEditor()
-	{
-		if ( !closingAvatarEditor ) return;
-
-		closingAvatarEditor = false;
-
-		var scene = MenuScene.Scene;
-		MenuScene.Scene = null;
-		scene?.Destroy();
-	}
+	public static void OpenAvatarEditor() => MenuProject.Platform.PlatformRoot.Instance?.OpenShelf( MenuProject.Platform.PlatformShelf.Avatar );
 
 	/// <summary>
 	/// Do we have authority to start or join games.
 	/// If we're in a party, only the party owner can start or join games.
 	/// </summary>
 	public static bool HasAuthority => PartyRoom.Current?.Owner.IsMe ?? true;
-
-	/// <summary>
-	/// Go to one of the menu's pages, in whichever menu's showing - the pause menu's, mid-game with it
-	/// up, or the main menu's. For things that live over the pages rather than in them (popups, modals),
-	/// which have no navigator of their own to find.
-	/// </summary>
-	public static void Navigate( string url )
-	{
-		if ( MenuProject.Modals.PauseMenuModal.PauseModal.Open?.Navigate( url ) ?? false )
-			return;
-
-		MenuProject.MainMenu.Instance?.Navigator?.Navigate( url );
-	}
 
 	/// <summary>
 	/// General-purpose method to play a game package. Handles quickplay, dedicated servers,
@@ -134,7 +61,7 @@ public static class MenuHelpers
 	/// <paramref name="openSetup"/>, where that's somewhere else (the platform menu's own page).
 	/// </para>
 	/// </summary>
-	public static async void PlayGame( Package package, Package mapPackage = null, string via = null, Panel source = null, bool fitChecked = false, Action<Package> openSetup = null )
+	public static async void PlayGame( Package package, string map = null, string via = null, Panel source = null, bool fitChecked = false, Action<Package> openSetup = null )
 	{
 		Assert.True( HasAuthority, "You do not have authority to start a game, only the party owner can do that." );
 
@@ -148,7 +75,7 @@ public static class MenuHelpers
 		if ( !fitChecked && MenuProject.PlayerModes.PartySize > 1 )
 		{
 			var workshop = await MenuUtility.FetchWorkshopItemAsync( MenuUtility.KnownWorkshopId( package ) );
-			if ( !ConfirmPartyFit( package, () => PlayGame( package, mapPackage, via, source, fitChecked: true, openSetup ), workshop ) )
+			if ( !ConfirmPartyFit( package, () => PlayGame( package, map, via, source, fitChecked: true, openSetup ), workshop ) )
 				return;
 		}
 
@@ -160,7 +87,7 @@ public static class MenuHelpers
 		if ( !package.Info.IsDedicatedServerOnly && party?.IsGameSelected( package ) == true && party.SelectedGameSettings is not null )
 		{
 			if ( openSetup is not null ) openSetup( package );
-			else ModalSystem.Instance?.OpenGameSetup( package, via, source );
+			else ModalSystem.Instance?.SetUpGame( package );
 			return;
 		}
 
@@ -190,12 +117,12 @@ public static class MenuHelpers
 		if ( NeedsSetup( package ) )
 		{
 			if ( openSetup is not null ) openSetup( package );
-			else ModalSystem.Instance?.OpenGameSetup( package, via, source, initialMap: mapPackage?.FullIdent );
+			else ModalSystem.Instance?.SetUpGame( package, map );
 			return;
 		}
 
 		// Already on its own menu, with no map to load it with - it's started from there, by the game
-		if ( mapPackage is null && string.IsNullOrWhiteSpace( package.Info.DefaultMap ) && Game.IsOnMenu && MenuUtility.GamePackage?.FullIdent == package.FullIdent )
+		if ( map is null && string.IsNullOrWhiteSpace( package.Info.DefaultMap ) && Game.IsOnMenu && MenuUtility.GamePackage?.FullIdent == package.FullIdent )
 			return;
 
 		// Direct launch
@@ -203,22 +130,13 @@ public static class MenuHelpers
 
 		await PrepareForLoad();
 
-		if ( mapPackage is null )
-		{
-			// Fetch the default map if one is configured
-			var defaultMap = package.Info.DefaultMap;
-			if ( !string.IsNullOrWhiteSpace( defaultMap ) )
-			{
-				Log.Info( $"DefaultMap configured, launching game with map: {defaultMap}" );
-				mapPackage = await Package.FetchAsync( defaultMap, false );
-			}
-		}
+		map ??= package.Info.DefaultMap;
 
 		if ( PartyRoom.Current is { } currentParty ) LaunchArguments.ServerName = currentParty.Name;
 
-		if ( mapPackage is not null )
+		if ( !string.IsNullOrWhiteSpace( map ) )
 		{
-			MenuUtility.OpenGameWithMap( package.FullIdent, mapPackage.FullIdent );
+			MenuUtility.OpenGameWithMap( package.FullIdent, map );
 		}
 		else
 		{
@@ -358,7 +276,6 @@ public static class MenuHelpers
 		return false;
 	}
 
-	public static string SANDBOX_IDENT => "facepunch.sandbox";
 
 	/// <summary>
 	/// A package by ident, if it's been fetched - <see cref="FetchPackages"/> fetches them
@@ -371,25 +288,53 @@ public static class MenuHelpers
 	public static string CachedTitle( string ident ) => CachedPackage( ident )?.Title ?? ident;
 
 	/// <summary>
-	/// Fetches these packages for <see cref="CachedPackage"/> - published ones only: not a local project, nor a map
-	/// that's a game's own file rather than on the Workshop
+	/// Fetches these packages for <see cref="CachedPackage"/> - published ones only, not a local project
 	/// </summary>
-	public static async Task FetchPackages( IEnumerable<string> idents )
+	public static Task FetchPackages( IEnumerable<string> idents )
 	{
-		var fetches = idents
-			.Where( x => x is not null && x.Contains( '.' ) && !x.Contains( "local." ) && !x.EndsWith( ".vmap" ) )
-			.Distinct()
-			.Select( x => Package.FetchAsync( x, true ) )
-			.ToArray();
+		var published = idents.Where( x => x is not null && x.Contains( '.' ) && !x.Contains( "local." ) );
+		return FetchAll( published, ident => Package.FetchAsync( ident, true ) );
+	}
 
+	static readonly Dictionary<string, (string Title, string Thumb)> maps = new( StringComparer.OrdinalIgnoreCase );
+
+	/// <summary>
+	/// A map's title, or the map itself if it hasn't been fetched - <see cref="FetchMaps"/> fetches them
+	/// </summary>
+	public static string MapTitle( string map ) => CachedMap( map ).Title ?? map;
+
+	/// <summary>
+	/// A map's picture, if it's been fetched and has one
+	/// </summary>
+	public static string MapThumb( string map ) => CachedMap( map ).Thumb;
+
+	static (string Title, string Thumb) CachedMap( string map ) => !string.IsNullOrEmpty( map ) && maps.TryGetValue( map, out var found ) ? found : default;
+
+	/// <summary>
+	/// Fetches these maps' names and art for <see cref="MapTitle"/> and <see cref="MapThumb"/>
+	/// </summary>
+	public static Task FetchMaps( IEnumerable<string> mapsToFetch ) =>
+		FetchAll( mapsToFetch.Where( x => !string.IsNullOrEmpty( x ) && !maps.ContainsKey( x ) ), FetchMap );
+
+	static async Task FetchAll( IEnumerable<string> idents, Func<string, Task> fetch )
+	{
 		try
 		{
-			await Task.WhenAll( fetches );
+			await Task.WhenAll( idents.Distinct( StringComparer.OrdinalIgnoreCase ).Select( fetch ) );
 		}
 		catch ( Exception e )
 		{
-			Log.Warning( $"Couldn't fetch packages: {e.Message}" );
+			Log.Warning( $"Couldn't fetch server details: {e.Message}" );
 		}
+	}
+
+	static async Task FetchMap( string map )
+	{
+		var details = await MenuUtility.FetchMapDetailsAsync( map );
+
+		// A Workshop map Steam couldn't be asked about is tried again next time
+		if ( details.Title is not null || details.Thumb is not null )
+			maps[map] = (details.Title, details.Thumb);
 	}
 
 	/// <summary>
@@ -440,6 +385,8 @@ public static class MenuHelpers
 	/// </summary>
 	public static void JoinServer( Sandbox.Network.LobbyInformation server )
 	{
+		if ( !MenuProject.Platform.PlatformMenu.CanChangeGame ) return;
+
 		if ( !string.IsNullOrEmpty( server.Game ) )
 		{
 			var history = ServerHistory( server.Game );
@@ -532,14 +479,6 @@ public static class MenuHelpers
 		return $"{minutes} minute{(minutes == 1 ? "" : "s")}";
 	}
 
-	/// <summary>
-	/// A size in bytes to read - "201.63 MB", with a space before the unit and the unit in capitals
-	/// </summary>
-	/// <summary>
-	/// The backend's 1 to 5 star rating filter - not offered, the rest of its filters are
-	/// </summary>
-	public static bool IsRatingFacet( Package.Facet facet ) => facet.Name.Contains( "rating", StringComparison.OrdinalIgnoreCase ) || facet.Title.Contains( "rating", StringComparison.OrdinalIgnoreCase );
-
 	public static string FormatSize( long bytes )
 	{
 		var formatted = bytes.FormatBytes();
@@ -571,201 +510,6 @@ public static class MenuHelpers
 	/// <see cref="TimeAgo(System.DateTimeOffset)"/> for a UTC <see cref="System.DateTime"/>.
 	/// </summary>
 	public static string TimeAgo( System.DateTime utc ) => TimeAgo( new System.DateTimeOffset( System.DateTime.SpecifyKind( utc, System.DateTimeKind.Utc ) ) );
-
-	public static MenuPanel OpenFriendMenu( Panel source, Friend friend )
-	{
-		var menu = MenuPanel.Open( source );
-
-		menu.AddOption( "contact_page", "#menu.games.view_profile", () => Game.Overlay.ShowPlayer( (long)friend.Id ) );
-
-		if ( !friend.IsFriend && !friend.IsMe )
-		{
-			menu.AddOption( "person_add", "#menu.games.send_friend_request", friend.OpenAddFriendOverlay );
-		}
-
-		var me = new Friend( Game.SteamId );
-		var connectString = friend.GetRichPresence( "connect" );
-		var isInGame = !string.IsNullOrEmpty( connectString );
-		var inSameGame = isInGame && connectString == me.GetRichPresence( "connect" );
-		var canJoinGame = !string.IsNullOrEmpty( connectString );
-
-		if ( canJoinGame && !inSameGame )
-		{
-			menu.AddOption( "sports_esports", "#menu.games.join_game", () => MenuUtility.JoinFriendGame( friend ) );
-		}
-
-		return menu;
-	}
-
-	public static void OpenPackageMenu( Panel source, Package package, bool multiplayerOverride = false )
-	{
-		if ( package.TypeName == "game" )
-			OpenGameMenu( source, package, multiplayerOverride );
-		else if ( package.TypeName == "map" )
-			OpenMapMenu( source, package );
-		else
-			Log.Info( $"Unknown package type: {package.TypeName}" );
-	}
-
-	static void OpenGameMenu( Panel source, Package package, bool multiplayerOverride = false )
-	{
-		var menu = MenuPanel.Open( source );
-
-		menu.AddOption( "play_arrow", "#menu.games.open_game", () =>
-		{
-			Discovery.Clicked( source, package );
-			LaunchGame( package.FullIdent );
-		} );
-
-		if ( package.Tags.Contains( "maplaunch" ) )
-		{
-			menu.AddOption( "folder", "#menu.games.open_with_map", () =>
-			{
-				Game.Overlay.ShowPackageSelector( $"type:map sort:trending target:{package.FullIdent}", ( p ) => MenuUtility.OpenGameWithMap( package.FullIdent, p.FullIdent ) );
-			} );
-		}
-
-		if ( multiplayerOverride || package.Tags.Contains( "multiplayer" ) || package.Info.MaxPlayers > 1 )
-		{
-			menu.AddSpacer();
-			menu.AddOption( "list", "#menu.games.view_servers", () =>
-			{
-				Game.Overlay.ShowServerList( new Sandbox.Modals.ServerListConfig( package.FullIdent ) );
-			} );
-		}
-
-		menu.AddSpacer();
-		var liked = package.Interaction.Rating == 0;
-		var disliked = package.Interaction.Rating == 1;
-		var favourite = package.Interaction.Favourite;
-		menu.AddOption( "thumb_up", liked ? "#menu.games.liked" : "#menu.games.like", () => _ = package.SetVoteAsync( true ) );
-		menu.AddOption( "thumb_down", disliked ? "#menu.games.disliked" : "#menu.games.dislike", () => _ = package.SetVoteAsync( false ) );
-		menu.AddOption( favourite ? "favorite" : "favorite_border", favourite ? "#menu.games.remove_from_favourites" : "#menu.games.add_to_favourites", () => _ = package.SetFavouriteAsync( !favourite ) );
-
-		menu.AddSpacer();
-		menu.AddOption( "rate_review", "#menu.games.review_game", () => Game.Overlay.ShowReviewModal( package ) );
-		menu.AddOption( "flag", "#menu.games.report_game", () => Game.Overlay.ShowReportModal( package.FullIdent ) );
-		menu.AddOption( "block", "#menu.games.hide_game", () => _ = HidePackage( source, package ) );
-	}
-
-	/// <summary>
-	/// Hide a game from this player's discovery and search. Toasts the result and drops the
-	/// tile from the front-page shelf it came from.
-	/// </summary>
-	public static async Task<bool> HidePackage( Panel source, Package package )
-	{
-		// Hover cards float in the root; their shelf is behind the hovered card
-		if ( source is MenuProject.UI.PackageHoverCard hoverCard )
-		{
-			source = hoverCard.Source;
-			hoverCard.Close();
-		}
-
-		var hidden = await package.SetHiddenAsync( true );
-
-		if ( hidden )
-		{
-			var putBack = source?.AncestorsAndSelf.OfType<FrontPageGames>().FirstOrDefault()?.RemovePackage( package );
-
-			// Hid the wrong one - a way straight back, on the toast saying so
-			MenuOverlay.Instance?.BottomRight?.Queue( new MenuProject.Toast
-			{
-				Title = $"{package.Title} hidden",
-				Icon = "visibility_off",
-				ActionText = "#menu.games.undo",
-				OnAction = () => _ = UnhidePackage( package, putBack )
-			}, duration: UndoSeconds );
-		}
-		else
-		{
-			Toast( $"Couldn't hide {package.Title} right now", "visibility_off" );
-		}
-
-		return hidden;
-	}
-
-	/// <summary>
-	/// How long the hidden toast stays up - longer than most, it's got an Undo on it.
-	/// </summary>
-	const float UndoSeconds = 7f;
-
-	/// <summary>
-	/// Show a hidden game again - and put it back on the shelf it came off, if there's a way to.
-	/// </summary>
-	public static async Task<bool> UnhidePackage( Package package, Action putBack = null )
-	{
-		var shown = await package.SetHiddenAsync( false );
-
-		if ( shown )
-		{
-			putBack?.Invoke();
-			Toast( $"{package.Title} is back", "visibility" );
-		}
-		else
-		{
-			Toast( $"Couldn't unhide {package.Title} right now", "visibility" );
-		}
-
-		return shown;
-	}
-
-	static void Toast( string title, string icon ) => MenuOverlay.Instance?.BottomRight?.Queue( new MenuProject.Toast() { Title = title, Icon = icon } );
-
-	static void OpenMapMenu( Panel source, Package package )
-	{
-		var menu = MenuPanel.Open( source );
-
-		async void OnPackageSelected( Package package )
-		{
-			Assert.True( HasAuthority, "You do not have authority to start a game, only the party owner can do that." );
-			LaunchArguments.Map = null;
-
-			var filters = new Dictionary<string, string>
-			{
-				{ "game", SANDBOX_IDENT },
-				{ "map", package.FullIdent },
-			};
-
-			var lobbies = await Networking.QueryLobbies( filters );
-
-			foreach ( var lobby in lobbies ) // TODO - order by most attractive
-			{
-				if ( lobby.IsFull || lobby.IsPasswordProtected ) continue;
-
-				if ( await MenuUtility.TryJoinLobby( lobby.LobbyId ) )
-					return;
-			}
-
-			CreateGameWithMap( SANDBOX_IDENT, package );
-		}
-
-		void ViewGameList( Package package )
-		{
-			Game.Overlay.ShowServerList( new Sandbox.Modals.ServerListConfig( null, package.FullIdent ) );
-		}
-
-		if ( HasAuthority )
-		{
-			menu.AddOption( "play_arrow", "#menu.games.join_existing_session", () => OnPackageSelected( package ) );
-			menu.AddOption( "playlist_add", "#menu.games.create_own_game", () => CreateGameWithMap( SANDBOX_IDENT, package ) );
-
-			menu.AddSpacer();
-		}
-
-		menu.AddOption( "list", "#menu.games.view_servers", () => ViewGameList( package ) );
-
-		menu.AddSpacer();
-		menu.AddOption( "info", "#menu.games.view_map_details", () => Game.Overlay.ShowPackageModal( package.FullIdent ) );
-		menu.AddOption( "star", "#menu.games.rate_map", () => Game.Overlay.ShowReviewModal( package ) );
-	}
-
-	public static void CreateGameWithMap( string gameIdent, Package mapPackage )
-	{
-		Assert.True( HasAuthority, "You do not have authority to start a game, only the party owner can do that." );
-
-		LaunchArguments.Map = mapPackage.FullIdent;
-		MenuUtility.OpenGame( gameIdent, false );
-	}
 
 	/// <summary>
 	/// Opens a game's menu page, or launches it directly in VR.

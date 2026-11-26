@@ -20,7 +20,7 @@ Layer0
 
 	//---- Color ----
 	g_flModelTintAmount "1.000"
-	g_vColorTint "[1.000000 1.000000 1.000000 0.000000]"
+	g_vColorTint "[0.600000 0.600000 0.600000 0.000000]"
 	TextureColor "models/citizen_clothes/hair/hair_balding/Models/hair_balding_cap_color.png"
 	TextureTintMask "[0.888000 0.888000 0.888000 0.000000]"
 

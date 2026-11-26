@@ -111,7 +111,7 @@ public partial class PackagePopup : PopupWidget
 			bool isFav = Package.Interaction.Favourite;
 			var favBtn = panel.Layout.Add( new Button.Clear(
 				isFav ? "Remove Favourite" : "Add to Favourites",
-				isFav ? "favorite" : "favorite_border" ) );
+				isFav ? "heart_minus" : "heart_plus" ) );
 			favBtn.SetProperty( "is-active", isFav );
 			favBtn.MouseClick = () => _ = Package.SetFavouriteAsync( !Package.Interaction.Favourite );
 		}

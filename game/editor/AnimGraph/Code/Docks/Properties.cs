@@ -36,6 +36,7 @@ public class Properties : Widget
 			if ( value == _target )
 				return;
 
+			_header.CancelRename();
 			_target = value;
 			Rebuild();
 			TargetChanged?.Invoke();
@@ -77,7 +78,6 @@ public class Properties : Widget
 		};
 
 		_scroller = _sheetPanel.Layout.Add( CreateScroller( _sheetPanel ), 1 );
-		_sheetCanvas = _scroller.Canvas;
 
 		_editor = Layout.AddColumn( 1 );
 		_editor.Add( _miniPreview );
@@ -139,6 +139,7 @@ public class Properties : Widget
 	private void SyncPreview()
 	{
 		_miniPreview.Graph = _window.Graph;
+		_miniPreview.PlaybackRate = _target is Nodes.AnimationClipNode animationClip ? animationClip.SpeedMultiplier : 1f;
 
 		switch ( _target )
 		{
@@ -194,10 +195,10 @@ public class Properties : Widget
 		if ( _scroller is null || _target is null )
 			return;
 
-		var previousCanvas = _scroller.Canvas;
+		var previousCanvas = _sheetCanvas;
 		var previousDebugBody = _debugBody;
 		_debugBody = null;
-		var nextCanvas = CreateSheetCanvas( _scroller );
+		var nextCanvas = CreateSheetCanvas( _scroller.Canvas );
 		nextCanvas.Visible = false;
 		var content = CreateSheetCanvas( nextCanvas );
 		content.Layout.Margin = 4;
@@ -209,11 +210,12 @@ public class Properties : Widget
 			var so = _target.GetSerialized();
 			so.OnPropertyChanged += property =>
 			{
+				PropertyUpdated?.Invoke( property );
 				UpdateHeader();
 				SyncPreview();
-				PropertyUpdated?.Invoke( property );
 			};
-			so.OnPropertyFinishEdit += p => _window.CommitChange( p is null ? "Edit Properties" : $"Edit {p.Name}" );
+			so.OnPropertyFinishEdit += p => _window.CommitChange(
+				p is null ? "Edit Properties" : $"Edit {p.Name}", _window.GetPropertyChangeScope( p ) );
 
 			var hideAnimName = _target is AnimationClipInfo;
 
@@ -271,8 +273,15 @@ public class Properties : Widget
 		_scroller.UpdatesEnabled = false;
 		try
 		{
+			// Replacing the scroll area's canvas immediately deletes the widget handling the click.
+			// Swap its contents instead so Qt can finish dispatching the event.
+			if ( previousCanvas is not null )
+			{
+				previousCanvas.Visible = false;
+				previousCanvas.Destroy();
+			}
+			_scroller.Canvas.Layout.Add( nextCanvas );
 			nextCanvas.Visible = true;
-			_scroller.Canvas = nextCanvas;
 		}
 		finally
 		{
@@ -829,6 +838,8 @@ public class Properties : Widget
 			case Node node:
 				var type = DisplayInfo.ForType( node.GetType() );
 				SetHeader( type.Name ?? node.GetType().Name, node.DisplayInfo.Name );
+				if ( !string.IsNullOrWhiteSpace( node.Title ) )
+					_header.Detail = node.Title;
 				_header.Icon = node.DisplayInfo.Icon ?? type.Icon ?? "account_tree";
 				_header.Color = node.PrimaryColor;
 				break;
@@ -871,9 +882,34 @@ public class Properties : Widget
 				_header.Icon = "settings";
 				break;
 		}
+		if ( _target is Node editableNode )
+			_header.SetRenameAction( _header.Detail ?? "", title => RenameNode( editableNode, title ) );
+		else
+			_header.SetRenameAction( null, null );
+
 		var navigation = _window.GetNavigationAction( _target );
 		_header.SetOpenAction( navigation?.Text, "open_in_full", navigation?.Action );
 		_header.Update();
+	}
+
+	private void RenameNode( Node node, string title )
+	{
+		if ( node.Title == title )
+			return;
+
+		node.Title = title;
+		UpdateHeader();
+		PropertyUpdated?.Invoke( node.GetSerialized().GetProperty( nameof( Node.Title ) ) );
+		_window.CommitChange( "Rename Node", GraphChangeScope.EditorOnly );
+	}
+
+	internal bool StartRename()
+	{
+		if ( _target is not Node )
+			return false;
+
+		_header.StartRename();
+		return true;
 	}
 
 	/// <summary>
@@ -897,14 +933,39 @@ class PropertiesHeader : Widget
 	public Color Color { get; set; } = DefaultIconColor;
 
 	private readonly IconButton _openButton;
+	private readonly LineEdit _renameEdit;
+	private readonly Option _clearTitle;
+	private string _renameText;
+	private Action<string> _renameAction;
+	private Rect _titleRect;
 
 	public PropertiesHeader() : base( null )
 	{
 		FixedHeight = Theme.RowHeight + 2;
+		MouseTracking = true;
+		FocusMode = FocusMode.Click;
 
 		Layout = Layout.Row();
 		Layout.Margin = new Sandbox.UI.Margin( 0, 1, 4, 1 );
 		Layout.AddStretchCell();
+
+		_renameEdit = new TitleEditor( this )
+		{
+			Visible = false,
+			MinimumWidth = 0,
+			ToolTip = "Leave empty to restore the automatic title. Enter to apply, Escape to cancel."
+		};
+		_renameEdit.EditingFinished += FinishRename;
+		_clearTitle = _renameEdit.AddOptionToEnd( new Option( "Clear title", "clear", () =>
+		{
+			_renameEdit.Text = "";
+			FinishRename();
+		} )
+		{
+			Enabled = false,
+			ToolTip = "Clear title"
+		} );
+		_renameEdit.TextChanged += text => _clearTitle.Enabled = !string.IsNullOrEmpty( text );
 
 		_openButton = Layout.Add( new IconButton( "open_in_full", null, this )
 		{
@@ -913,6 +974,108 @@ class PropertiesHeader : Widget
 			IconSize = 14,
 			Visible = false
 		} );
+	}
+
+	public void SetRenameAction( string text, Action<string> action )
+	{
+		CancelRename();
+		_renameText = text;
+		_renameAction = action;
+		ToolTip = action is not null ? "Double-click the title to rename (F2). Clear it to restore the automatic title." : null;
+		Cursor = CursorShape.Arrow;
+	}
+
+	public void StartRename()
+	{
+		if ( _renameAction is null || _renameEdit.Visible )
+			return;
+
+		_renameEdit.Text = _renameText;
+		_renameEdit.Visible = true;
+		DoLayout();
+		_renameEdit.Focus();
+		_renameEdit.SelectAll();
+		Update();
+	}
+
+	private void FinishRename()
+	{
+		if ( !_renameEdit.Visible )
+			return;
+
+		var text = _renameEdit.Text.Trim();
+		var original = _renameText;
+		var action = _renameAction;
+		CancelRename();
+		if ( text != original )
+			action?.Invoke( text );
+	}
+
+	public void CancelRename()
+	{
+		_renameEdit.Visible = false;
+		Update();
+	}
+
+	protected override void OnDoubleClick( MouseEvent e )
+	{
+		if ( e.LeftMouseButton && _renameAction is not null && _titleRect.IsInside( e.LocalPosition ) )
+		{
+			StartRename();
+			e.Accepted = true;
+			return;
+		}
+		base.OnDoubleClick( e );
+	}
+
+	protected override void OnMouseMove( MouseEvent e )
+	{
+		Cursor = _renameAction is not null && _titleRect.IsInside( e.LocalPosition )
+			? CursorShape.IBeam : CursorShape.Arrow;
+		base.OnMouseMove( e );
+	}
+
+	protected override void OnKeyPress( KeyEvent e )
+	{
+		if ( e.Key == KeyCode.F2 && _renameAction is not null )
+		{
+			StartRename();
+			e.Accepted = true;
+			return;
+		}
+		base.OnKeyPress( e );
+	}
+
+	protected override void DoLayout()
+	{
+		base.DoLayout();
+		var left = string.IsNullOrEmpty( Icon ) ? 4f : 30f;
+		var right = _openButton.Visible ? _openButton.Position.x - 4 : Width - 4;
+		Paint.SetHeadingFont( 11, 440, sizeInPixels: true );
+		var typeText = Paint.GetElidedText( Text, MathF.Max( 0, right - left ) * 0.55f );
+		left += Paint.MeasureText( typeText ).x + 12 + Paint.MeasureText( "·" ).x;
+		_renameEdit.Position = new Vector2( left, 1 );
+		_renameEdit.Size = new Vector2( MathF.Max( 0, right - left ), Height - 2 );
+	}
+
+	private sealed class TitleEditor( PropertiesHeader header ) : LineEdit( header )
+	{
+		protected override void OnKeyPress( KeyEvent e )
+		{
+			if ( e.Key == KeyCode.Escape )
+			{
+				header.CancelRename();
+				e.Accepted = true;
+				return;
+			}
+			if ( e.Key == KeyCode.Enter )
+			{
+				header.FinishRename();
+				e.Accepted = true;
+				return;
+			}
+			base.OnKeyPress( e );
+		}
 	}
 
 	/// <summary>
@@ -947,21 +1110,31 @@ class PropertiesHeader : Widget
 
 		// Title: type tinted with the selection color, instance detail in plain text
 		var textLeft = string.IsNullOrEmpty( Icon ) ? 4f : 30f;
-		var textRight = _openButton.Visible ? _openButton.Position.x - 4 : rect.Width;
+		var textRight = _openButton.Visible ? _openButton.Position.x - 4 : rect.Width - 4;
 		var textRect = new Rect( textLeft, rect.Top, textRight - textLeft, rect.Height );
+		if ( _renameAction is not null )
+			textRect.Width *= 0.55f;
 		Paint.SetHeadingFont( 11, 440, sizeInPixels: true );
 		Paint.SetPen( Color == DefaultIconColor ? Theme.Text : Color );
-		var drawn = Paint.DrawText( textRect, Text, TextFlag.LeftCenter );
+		var drawn = Paint.DrawText( textRect, Paint.GetElidedText( Text, MathF.Max( 0, textRect.Width ) ), TextFlag.LeftCenter | TextFlag.SingleLine );
 
-		if ( !string.IsNullOrEmpty( Detail ) )
+		_titleRect = default;
+		var placeholder = string.IsNullOrEmpty( Detail ) && _renameAction is not null;
+		var detail = placeholder ? "Add title" : Detail;
+		textRect.Right = textRight;
+		if ( !string.IsNullOrEmpty( detail ) && drawn.Right + 18 < textRect.Right )
 		{
 			textRect.Left = drawn.Right + 6;
 			Paint.SetPen( Theme.TextControl.WithAlpha( 0.5f ) );
 			drawn = Paint.DrawText( textRect, "·", TextFlag.LeftCenter );
 
 			textRect.Left = drawn.Right + 6;
-			Paint.SetPen( Theme.Text );
-			Paint.DrawText( textRect, Detail, TextFlag.LeftCenter );
+			if ( _renameEdit.Visible )
+				return;
+
+			Paint.SetPen( placeholder ? Theme.TextControl.WithAlpha( 0.4f ) : Theme.Text );
+			drawn = Paint.DrawText( textRect, Paint.GetElidedText( detail, MathF.Max( 0, textRect.Width ) ), TextFlag.LeftCenter | TextFlag.SingleLine );
+			_titleRect = new Rect( textRect.Left, rect.Top, MathF.Max( 0, drawn.Right - textRect.Left ), rect.Height );
 		}
 	}
 }

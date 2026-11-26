@@ -6,6 +6,7 @@ namespace Sandbox;
 /// <summary>
 /// For accessing assets from the cloud - from code
 /// </summary>
+[Expose]
 public static partial class Cloud
 {
 	static CaseInsensitiveDictionary<string> cached = new();
@@ -121,7 +122,7 @@ public static partial class Cloud
 	/// </summary>
 	public static bool IsInstalled( string ident )
 	{
-		return PackageManager.Find( ident, allowLocalPackages: true ) != null;
+		return PackageManager.Find( ident ) != null;
 	}
 
 	/// <summary>
@@ -173,7 +174,7 @@ public static partial class Cloud
 	static async Task<(Package, string)> GetPackageAndPrimaryAsset( string ident )
 	{
 		var package = await Package.FetchAsync( ident, false );
-		if ( package == null || package.Revision == null )
+		if ( package is null || (package.IsRemote && package.Revision is null) )
 		{
 			// Package was not found
 			return (null, null);

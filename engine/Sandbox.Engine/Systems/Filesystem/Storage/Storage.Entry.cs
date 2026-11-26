@@ -157,8 +157,7 @@ public static partial class Storage
 				_thumbGenerated = true;
 				if ( !Files.FileExists( ThumbPath ) ) return null;
 
-				var data = Files.ReadAllBytes( ThumbPath );
-				using var bitmap = Bitmap.CreateFromBytes( data.ToArray() );
+				using var bitmap = Bitmap.CreateFromFile( Files, ThumbPath );
 				_thumbnail = bitmap?.ToTexture();
 
 				return _thumbnail;
@@ -226,9 +225,7 @@ public static partial class Storage
 			// assign the thumbnail
 			if ( Files.FileExists( ThumbPath ) )
 			{
-				var thumbData = Files.ReadAllBytes( ThumbPath );
-				var bitmap = Bitmap.CreateFromBytes( thumbData.ToArray() );
-				options.Thumbnail = bitmap;
+				options.Thumbnail = Bitmap.CreateFromFile( Files, ThumbPath );
 			}
 
 			options.KeyValues["type"] = Type;

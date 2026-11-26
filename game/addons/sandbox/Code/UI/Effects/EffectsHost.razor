@@ -1,0 +1,13 @@
+@using Sandbox;
+@using Sandbox.UI;
+@inherits Panel
+@namespace Sandbox
+@implements IUtilityTab
+@attribute [Icon( "auto_fix_high" )]
+@attribute [Title( "#spawnmenu.mode.effects" )]
+@attribute [Order( -50 )]
+
+<root class="tab">
+    <EffectsList />
+    <EffectsProperties />
+</root>

@@ -37,47 +37,47 @@ internal static partial class PackageManager
 	/// </summary>
 	public static event Action<ActivePackage, string> OnPackageInstalledToContext;
 
-	static async Task<Package> FetchPackageAsync( string ident, bool localPriority )
-	{
-		if ( localPriority && Package.TryParseIdent( ident, out var parts ) && !parts.local )
-		{
-			if ( await Package.Fetch( $"{parts.org}.{parts.package}#local", false ) is Package package )
-			{
-				return package;
-			}
-		}
-
-		return await Package.Fetch( ident, false );
-	}
-
-
 	/// <summary>
 	/// Install a package
 	/// </summary>
 	internal static async Task<ActivePackage> InstallAsync( PackageLoadOptions options )
 	{
-		//
-		// If this package exists then mark it with our tag and move on
-		//
-		var existingPackage = Find( options.PackageIdent, options.AllowLocalPackages );
-		if ( existingPackage != null )
-		{
-			existingPackage.AddContextTag( options.ContextTag );
-			log.Info( $"Install Package (Already Mounted) {options.PackageIdent} [{options.ContextTag}]" );
-			options.Loading?.LoadingProgress( LoadingProgress.Create( $"Loading {existingPackage.Package.Title}" ) );
-			return existingPackage;
-		}
-
-		log.Trace( $"Install Package {options.PackageIdent} [{options.ContextTag}]" );
-		options.Loading?.LoadingProgress( LoadingProgress.Create( $"Fetching {options.PackageIdent}" ) );
-		var package = options.Package ?? await FetchPackageAsync( options.PackageIdent, options.AllowLocalPackages );
-
 		options.CancellationToken.ThrowIfCancellationRequested();
 
-		if ( package == null )
-		{
+		var existing = Find( options.PackageIdent );
+		var package = Project.FindByIdent( options.PackageIdent )?.Package ?? existing?.Package;
+		if ( package is null && options.Package is not LocalPackage )
+			package = options.Package;
+
+		package ??= await Package.FetchAsync( options.PackageIdent, false );
+		if ( package is null )
 			throw new FileNotFoundException( $"Unable to find package '{options.PackageIdent}'" );
+
+		if ( package.IsRemoteMap )
+			throw new InvalidOperationException( $"Load map '{package.FullIdent}' by Workshop item ID or asset path." );
+
+		if ( package is LocalPackage local )
+		{
+			if ( local.Project.Broken )
+				throw new InvalidOperationException( $"Couldn't load local project '{local.FullIdent}'" );
+
+			if ( local.Project.NeedsInstallCompilation )
+			{
+				options.Loading?.LoadingProgress( LoadingProgress.Create( $"Compiling {local.Title}" ) );
+				if ( await Project.AddGameFromFile( local.Project.ConfigFilePath ) is null )
+					throw new InvalidOperationException( $"Couldn't load local project '{local.FullIdent}'" );
+			}
 		}
+
+		options.CancellationToken.ThrowIfCancellationRequested();
+		if ( existing?.Package == package && existing.FileSystem is not null )
+		{
+			existing.AddContextTag( options.ContextTag );
+			options.Loading?.LoadingProgress( LoadingProgress.Create( $"Loading {package.Title}" ) );
+			return existing;
+		}
+
+		options.Loading?.LoadingProgress( LoadingProgress.Create( $"Loading {package.Title}" ) );
 
 		//
 		// Dependencies install one at a time and before this package, so they mount in a fixed order.
@@ -86,50 +86,45 @@ internal static partial class PackageManager
 		using var prefetchCancel = CancellationTokenSource.CreateLinkedTokenSource( options.CancellationToken );
 		var prefetch = options.IsDependency || options.SkipAssetDownload || !package.EnumerateInstallDependencies().Any()
 			? Task.CompletedTask
-			: PrefetchAsync( package, true, options.AllowLocalPackages, prefetchCancel.Token );
-
-		ActivePackage ap;
+			: PrefetchAsync( package, true, prefetchCancel.Token );
 
 		try
 		{
-			//
-			// If this package has dependencies then download them first
-			//
 			await InstallDependencies( package, options with { IsDependency = true } );
-
-			ap = await ActivePackage.Create( package, options.CancellationToken, options );
 			options.CancellationToken.ThrowIfCancellationRequested();
+
+			// Another request can finish mounting this project while its dependencies install.
+			if ( Find( options.PackageIdent ) is { } mounted )
+			{
+				mounted.AddContextTag( options.ContextTag );
+				return mounted;
+			}
+
+			var prepared = await ActivePackage.Create( package, options.CancellationToken, options );
+			var registered = Project.FindByIdent( options.PackageIdent )?.Package;
+
+			// Project registration can change while published files download or compile.
+			if ( registered != (package as LocalPackage) )
+			{
+				prepared.DisposeFileSystems();
+				return await InstallAsync( options with { Package = null } );
+			}
+
+			if ( Find( options.PackageIdent ) is { } installed )
+			{
+				prepared.DisposeFileSystems();
+				installed.AddContextTag( options.ContextTag );
+				return installed;
+			}
+
+			prepared.Activate( options );
+			return prepared;
 		}
 		finally
 		{
-			// Everything it would fetch is installed by now, or we failed and don't want it
 			prefetchCancel.Cancel();
 			await prefetch;
 		}
-
-		//
-		// Games mount the dlls the backend compiled for them. Everything else, and a game whose
-		// backend compile isn't ready, compiles its code archives here.
-		//
-		if ( package.IsRemote && !ap.HasPrecompiledDlls() )
-		{
-			if ( ap.HasCodeArchives() )
-			{
-				options.Loading?.LoadingProgress( LoadingProgress.Create( $"Compiling {package.Title}" ) );
-				Api.Activity.LoadStage( "compile" );
-
-				if ( !await ap.CompileCodeArchive() )
-					Log.Warning( $"There were errors when compiling {package.FullIdent}!" );
-			}
-			else if ( package.TypeName == "game" )
-			{
-				// A game can't run without any code
-				throw new System.Exception( "This game has no precompiled assemblies or code archives!" );
-			}
-		}
-
-		ap.AddContextTag( options.ContextTag );
-		return ap;
 	}
 
 	public static void UnmountTagged( string tag )
@@ -155,10 +150,6 @@ internal static partial class PackageManager
 			item.Delete();
 			ActivePackages.Remove( item );
 		}
-
-		// Workshop updates wait for their package to be unmounted
-		if ( unmounted.Any( x => x.Package is { InstallsFromWorkshop: true } ) )
-			Services.Ugc.OnPackagesUnmounted();
 	}
 
 	internal static void UnmountAll()
@@ -200,7 +191,7 @@ internal static partial class PackageManager
 	/// package's own files with <paramref name="includeRoot"/>. Nothing is mounted. Never throws, the
 	/// installs report any failure.
 	/// </summary>
-	internal static async Task PrefetchAsync( Package root, bool includeRoot, bool allowLocalPackages, CancellationToken token )
+	internal static async Task PrefetchAsync( Package root, bool includeRoot, CancellationToken token )
 	{
 		// Keep upgrades paused across the entire dependency tree, including manifest fetches.
 		using var textureDownload = TextureWebStreaming.BeginDownload();
@@ -213,8 +204,8 @@ internal static partial class PackageManager
 
 			var fetches = dependencies.Select( async ident =>
 			{
-				if ( Find( ident, allowLocalPackages ) is not null ) return;
-				if ( await FetchPackageAsync( ident, allowLocalPackages ) is Package dependency )
+				if ( Find( ident ) is not null ) return;
+				if ( await Package.FetchAsync( ident, false ) is Package dependency )
 					await Prefetch( dependency, true );
 			} );
 
@@ -243,7 +234,7 @@ internal static partial class PackageManager
 			try
 			{
 				// install this package
-				await InstallAsync( new PackageLoadOptions() { PackageIdent = project.Package.FullIdent, ContextTag = "local", CancellationToken = token, AllowLocalPackages = true } );
+				await InstallAsync( new PackageLoadOptions() { PackageIdent = project.Package.FullIdent, ContextTag = "local", CancellationToken = token } );
 			}
 			catch ( Exception ex )
 			{
@@ -272,25 +263,18 @@ internal static partial class PackageManager
 	}
 
 	/// <summary>
-	/// Retrieve a package by ident.
-	/// </summary>
-	internal static ActivePackage Find( string packageIdent )
-	{
-		return ActivePackages.Where( x => x.Package.IsNamed( packageIdent ) ).First();
-	}
-
-	/// <summary>
 	/// Retrieve a package by ident and minimum download mode.
 	/// </summary>
-	internal static ActivePackage Find( string packageIdent, bool allowLocalPackages, bool exactName = false )
+	internal static ActivePackage Find( string packageIdent, bool exactName = false )
 	{
-		// don't search for exact name if it starts with local
-		// because it might be #local, or not
-		if ( packageIdent.StartsWith( "local." ) )
-			exactName = false;
+		if ( Project.FindByIdent( packageIdent ) is { } project )
+		{
+			var local = project.Package;
+			return ActivePackages.FirstOrDefault( x => x.Package == local );
+		}
 
-		return ActivePackages.FirstOrDefault( x =>
-			(exactName ? string.Equals( x.Package.FullIdent, packageIdent, StringComparison.OrdinalIgnoreCase ) : x.Package.IsNamed( packageIdent ))
-			&& (allowLocalPackages || x.Package is not LocalPackage) );
+		return ActivePackages.FirstOrDefault( x => x.Package is not LocalPackage && (exactName
+			? string.Equals( x.Package.FullIdent, packageIdent, StringComparison.OrdinalIgnoreCase )
+			: x.Package.IsNamed( packageIdent )) );
 	}
 }

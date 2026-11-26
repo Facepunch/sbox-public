@@ -23,16 +23,19 @@ public record EverythingLocation : LocalAssetBrowser.Location
 
 		foreach ( var asset in AssetSystem.All.OrderBy( x => x.Name ) )
 		{
-			bool isCloud = asset.AbsolutePath.Contains( ".sbox/cloud/" );
+			var path = asset.AbsolutePath;
+			if ( string.IsNullOrEmpty( path ) ) continue;
+
+			bool isCloud = path.Contains( ".sbox/cloud/" );
 			if ( isCloud ) continue;
 
 			if ( menuPath is not null && menuProject != Project.Current )
 			{
-				bool isMenu = asset.AbsolutePath.StartsWith( menuPath );
+				bool isMenu = path.StartsWith( menuPath );
 				if ( isMenu ) continue;
 			}
 
-			yield return new FileInfo( asset.AbsolutePath );
+			yield return new FileInfo( path );
 		}
 	}
 }

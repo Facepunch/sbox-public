@@ -1,0 +1,5 @@
+{
+    "hint.openspawnmenu": "{input:SpawnMenu}을(를) 누르고 있으면 생성 메뉴가 열립니다",
+    "hint.openinspectmenu": "{input:InspectMenu}을(를) 누르고 있으면 검사 메뉴가 열립니다",
+    "hint.openpausemenu": "ESC 키를 눌러 일시 정지 메뉴를 열고 컨트롤을 확인하세요."
+}

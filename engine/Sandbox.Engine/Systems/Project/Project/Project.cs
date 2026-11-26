@@ -55,7 +55,7 @@ public sealed partial class Project
 	/// because all it does is look to see if we have a published package cached with the same ident.
 	/// </summary>
 	[JsonIgnore]
-	public bool IsPublished => Package.TryGetCached( Config.FullIdent, out _ );
+	public bool IsPublished => Package.TryGetCachedRemote( Config.FullIdent, out _ );
 
 	/// <summary>
 	/// The URL to the package's page for editing
@@ -83,11 +83,10 @@ public sealed partial class Project
 	public bool IsTransient { get; internal set; }
 
 	/// <summary>
-	/// If true this project isn't a 'real' project. It's likely a temporary project created with the
-	/// intention to configure and publish a single asset.
+	/// Tools and menus are automatically loaded engine addons.
 	/// </summary>
 	[JsonIgnore]
-	public bool IsBuiltIn { get; internal set; }
+	public bool IsBuiltIn => Config?.Type is "tool" or "menu";
 
 	/// <summary>
 	/// If true this project's config didn't come from a .sbproj on disk and is never written back
@@ -199,7 +198,19 @@ public sealed partial class Project
 		DisposeFileSystems();
 	}
 
-	internal bool LoadMinimal()
+	// A config can be edited in place. Keep the accepted identity until a reload or save succeeds.
+	private (string Org, string Ident) savedIdent;
+
+	private bool CanRegisterIdent( DataModel.ProjectConfig config )
+	{
+		var existing = FindByIdent( config.Org, config.Ident );
+		if ( existing is null || existing == this ) return true;
+
+		Log.Warning( $"Refusing project identifier '{config.FullIdent}' for '{ConfigFilePath}': already registered at '{existing.ConfigFilePath}'." );
+		return false;
+	}
+
+	internal bool LoadMinimal( bool registering = false )
 	{
 		if ( IsTransient )
 			return false;
@@ -209,8 +220,17 @@ public sealed partial class Project
 			Assert.True( RootDirectory?.Exists ?? false, $"{RootDirectory} does not exist" );
 
 			var text = _embeddedConfigJson ?? File.ReadAllText( ConfigFilePath );
-			Config = JsonSerializer.Deserialize<DataModel.ProjectConfig>( text );
-			Config.Init( ConfigFilePath );
+			var config = JsonSerializer.Deserialize<DataModel.ProjectConfig>( text );
+			config.Init( ConfigFilePath );
+
+			if ( (registering || All.Contains( this )) && !CanRegisterIdent( config ) )
+			{
+				Active = false;
+				return false;
+			}
+
+			Config = config;
+			savedIdent = (config.Org, config.Ident);
 
 			UpdateMockPackage();
 			return true;
@@ -224,10 +244,19 @@ public sealed partial class Project
 		}
 	}
 
-	internal void Load()
+	internal bool Load( bool registering = false )
 	{
-		if ( !LoadMinimal() )
-			return;
+		if ( !LoadMinimal( registering ) )
+			return false;
+
+		// Integration tests also compile editor addons, as editor build tools do.
+		if ( !Config.ShouldLoad( Application.IsEditor || Application.IsUnitTest, Application.IsHeadless ) )
+		{
+			Active = false;
+			return false;
+		}
+
+		Active |= IsBuiltIn;
 
 		try
 		{
@@ -239,6 +268,8 @@ public sealed partial class Project
 			Broken = true;
 			Active = false;
 		}
+
+		return !Broken;
 	}
 
 	/// <summary>
@@ -404,6 +435,9 @@ public sealed partial class Project
 
 		if ( !ConfigFilePath.EndsWith( ".sbproj" ) ) return;
 
+		if ( All.Contains( this ) && !CanRegisterIdent( Config ) )
+			(Config.Org, Config.Ident) = savedIdent;
+
 		var json = Config.ToJson();
 
 		// Check if we need to do this first..
@@ -412,12 +446,17 @@ public sealed partial class Project
 			if ( File.Exists( ConfigFilePath ) )
 			{
 				var existingContents = File.ReadAllText( ConfigFilePath );
-				if ( json == existingContents ) return;
+				if ( json == existingContents )
+				{
+					savedIdent = (Config.Org, Config.Ident);
+					return;
+				}
 			}
 		}
 		catch ( System.Exception ) { }
 
 		File.WriteAllText( ConfigFilePath, json );
+		savedIdent = (Config.Org, Config.Ident);
 
 		// update the package with new details
 		UpdateMockPackage();
@@ -441,29 +480,18 @@ public sealed partial class Project
 	{
 		mockPackage ??= new LocalPackage( this );
 		mockPackage.TypeName = Config.Type;
-		mockPackage.Ident = Config.Ident;
+		mockPackage.Ident = savedIdent.Ident ?? Config.Ident;
 		mockPackage.Title = Config.Title;
 		mockPackage.PackageReferences = Config.PackageReferences?.ToArray() ?? Array.Empty<string>();
 		mockPackage.EditorReferences = Config.EditorReferences?.ToArray() ?? Array.Empty<string>();
 
 		mockPackage.Org = new Package.Organization
 		{
-			Ident = Config.Org,
-			Title = Config.Org
+			Ident = savedIdent.Org ?? Config.Org,
+			Title = string.IsNullOrWhiteSpace( Config.OrgTitle ) ? Config.Org : Config.OrgTitle
 		};
 
 		mockPackage.Tags = Array.Empty<string>();
-
-		// build a clean ident because the full ident will have #local
-		var fullIdent = $"{mockPackage.Org.Ident}.{mockPackage.Ident}";
-
-		//
-		// Maybe we can fill in a bunch of stuff
-		//
-		if ( Package.TryGetCached( fullIdent, out var cachedPackage ) )
-		{
-			mockPackage.UpdateFromPackage( cachedPackage );
-		}
 
 		return mockPackage;
 	}
@@ -475,4 +503,9 @@ public sealed partial class Project
 	{
 		return Config.Type == "library";
 	}
+
+	/// <summary>
+	/// Whether this project can publish compiled gameplay code alongside its assets.
+	/// </summary>
+	public bool CanPublishCode() => Config.Type is "game" or "library";
 }

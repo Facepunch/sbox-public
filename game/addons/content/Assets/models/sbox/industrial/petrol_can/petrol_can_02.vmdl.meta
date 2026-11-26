@@ -1,0 +1,26 @@
+{
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "Petrol Can",
+      "Type": "model",
+      "Org": "facepunch",
+      "Ident": "petrol_can",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/industrial/petrol_can/petrol_can_02.vmdl",
+        "Summary": "Explosive petrol can",
+        "Description": "Container for carrying petrol. Explodes when damaged.",
+        "Public": true,
+        "AssetLicense": "CC0"
+      }
+    }
+  },
+  "guid": "f9f70e4a-9a88-4cc6-bce9-6808a69386af"
+}

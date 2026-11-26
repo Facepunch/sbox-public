@@ -7,7 +7,6 @@
 @namespace MenuProject.Platform
 @page "/shelf/mounts"
 @inherits ShelfPage
-@implements IShelfPage
 
 @*
     The games s&box can mount, up out of the dock - those installed, each a press to turn on or off, then the others,
@@ -18,7 +17,7 @@
     <div class="rows" @ref="Rows">
         <div class="row">
             <div class="header">
-                <i class="icon">extension</i>
+                <i class="icon">videogame_asset</i>
                 <label class="title">Installed</label>
                 <label class="subtitle">Turn one on to use its maps and models</label>
             </div>
@@ -31,7 +30,7 @@
 
                 @if ( !Installed.Any() )
                 {
-                    <div class="empty"><i>extension_off</i><label>None of these games are installed</label></div>
+                    <div class="empty"><i>videogame_asset_off</i><label>None of these games are installed</label></div>
                 }
             </div>
         </div>
@@ -60,7 +59,7 @@
 @code
 {
     // The whole shelf, down to the dock - its rows scrolling on their own
-    bool IShelfPage.ToDock => true;
+    public override bool ToDock => true;
 
     Panel Rows;
 

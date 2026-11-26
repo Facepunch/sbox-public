@@ -1,0 +1,33 @@
+@import 'resource-picker.scss';
+
+@mixin component-theme
+{
+	ResourcePickerButton
+	{
+		@include resource-picker-control;
+		border-radius: $ui-menu-radius;
+	}
+
+	UISheet .sheet-row:not(.bare) ResourcePickerButton,
+	GameObjectInspector .material-row > ResourcePickerButton
+	{
+		@include ui-inspector-field;
+
+		.subtitle
+		{
+			display: none;
+		}
+
+		&::after
+		{
+			content: "chevron_right";
+			font-family: $ui-icon;
+			font-variation-settings: $ui-icon-filled-axes;
+			font-size: 16px;
+			color: $ui-text-label;
+			pointer-events: none;
+		}
+	}
+}
+
+@import "/UI/Theme/Apply.scss";

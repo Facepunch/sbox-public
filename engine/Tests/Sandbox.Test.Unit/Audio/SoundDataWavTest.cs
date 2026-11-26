@@ -87,6 +87,27 @@ public class SoundDataWavTest
 	}
 
 	[TestMethod]
+	public void ChannelExtractionPreservesFramesRateAndLoop()
+	{
+		var wav = Wav( 16, cuePoint: 1, markLength: 2 );
+		BitConverter.GetBytes( (ushort)2 ).CopyTo( wav, 22 ); // stereo
+		BitConverter.GetBytes( 22050 * 4 ).CopyTo( wav, 28 );
+		BitConverter.GetBytes( (ushort)4 ).CopyTo( wav, 32 );
+		BitConverter.GetBytes( (ushort)16 ).CopyTo( wav, 34 );
+		var samples = new short[] { -1, 100, 2, 200, 3, 300, 4, 400 };
+		Buffer.BlockCopy( samples, 0, wav, 44, 16 );
+		var data = SoundData.FromWav( wav );
+		data.SelectChannel( 0 );
+		var actual = new short[4]; Buffer.BlockCopy( data.PCMData, 0, actual, 0, 8 );
+		CollectionAssert.AreEqual( new short[] { -1, 2, 3, 4 }, actual );
+		Assert.AreEqual( (ushort)1, data.Channels );
+		Assert.AreEqual( 4u, data.SampleCount );
+		Assert.AreEqual( 22050u, data.SampleRate );
+		Assert.AreEqual( 1, data.LoopStart );
+		Assert.AreEqual( 3, data.LoopEnd );
+	}
+
+	[TestMethod]
 	public void NoCueChunkMeansNoLoop()
 	{
 		var data = SoundData.FromWav( Wav( 1000 ) );

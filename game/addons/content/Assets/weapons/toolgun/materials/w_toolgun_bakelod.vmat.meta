@@ -1,0 +1,28 @@
+{
+  "guid": "7da45746-b5e6-47e5-88ff-7a701679bb5f",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "W Toolgun Bakelod",
+      "Type": "material",
+      "Org": "local",
+      "Ident": "w_toolgun_bakelod",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [
+        "jase.carddebris_a_02#12112"
+      ],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "weapons/toolgun/materials/w_toolgun_bakelod.vmat"
+      }
+    }
+  }
+}

@@ -1,4 +1,4 @@
-﻿namespace Sandbox;
+namespace Sandbox;
 
 /// <summary>
 /// Emits particles in a ring. The ring can be flat or have a tube-like quality.
@@ -20,7 +20,7 @@ public sealed class ParticleRingEmitter : ParticleEmitter
 
 	protected override void DrawGizmos()
 	{
-		//using ( Gizmo.Scope( "ring", new Transform( 0, new Angles( 90, 0, 0 ) ) ) )
+		//using ( Gizmo.PushScope( "ring", new Transform( 0, new Angles( 90, 0, 0 ) ) ) )
 		//{
 		//	Gizmo.Draw.Color = Color.White.WithAlpha( 0.2f );
 		//	Gizmo.Draw.SolidRing( 0, Radius.Evaluate( Delta, 0 ), Radius.Evaluate( Delta, 0 ) + 1 + Thickness.Evaluate( Delta, EmitRandom ), AngleStart.Evaluate( Delta, 0 ), AngleEnd.Evaluate( Delta, 0 ), 16 );

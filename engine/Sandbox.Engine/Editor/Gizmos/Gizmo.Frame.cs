@@ -1,4 +1,4 @@
-﻿using System.Collections.Immutable;
+using System.Collections.Immutable;
 
 namespace Sandbox;
 
@@ -12,6 +12,7 @@ public static partial class Gizmo
 	{
 		public ImmutableHashSet<string> SelectedPath;
 		public string HoveredPath;
+		public object HoveredObject;
 		public string PressedPath;
 
 		public Inputs Input;

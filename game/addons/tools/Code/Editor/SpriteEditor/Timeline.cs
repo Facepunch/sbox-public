@@ -90,7 +90,7 @@ public class Timeline : Widget
 		bannerLayout.AddStretchCell();
 
 		var text = bannerLayout.Add( new Label( "search" ) );
-		text.SetStyles( "font-family: Material Icons;" );
+		text.SetStyles( "font-family: Material Symbols Outlined;" );
 		text.HorizontalSizeMode = SizeMode.CanShrink;
 		bannerLayout.AddSpacingCell( 4 );
 		FrameSizeSlider = new FloatSlider( this );

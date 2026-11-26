@@ -1,0 +1,417 @@
+{
+  "Title": "Counter-Strike: Source",
+  "Description": "",
+  "Icon": "sports_esports",
+  "RequiredMount": "gmod",
+  "Parent": {
+    "Id": "a4bcdcf9-3ab1-4b92-9ac5-3cb900be512a",
+    "Path": "spawnlists/garrysmod/garrys_mod.spawn"
+  },
+  "Order": 37,
+  "Items": [
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "The Good Guys",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/player/ct_gign.mdl",
+      "Title": "ct_gign",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/player/ct_sas.mdl",
+      "Title": "ct_sas",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/player/ct_urban.mdl",
+      "Title": "ct_urban",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models//player/ct_gsg9.mdl",
+      "Title": "ct_gsg9",
+      "Icon": null
+    },
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "The Bad Guys",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/player/t_guerilla.mdl",
+      "Title": "t_guerilla",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/player/t_leet.mdl",
+      "Title": "t_leet",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/player/t_phoenix.mdl",
+      "Title": "t_phoenix",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models//player/t_arctic.mdl",
+      "Title": "t_arctic",
+      "Icon": null
+    },
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "The Dumb Guys",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/characters/hostage_01.mdl",
+      "Title": "hostage_01",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/characters/hostage_02.mdl",
+      "Title": "hostage_02",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/characters/hostage_03.mdl",
+      "Title": "hostage_03",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/characters/hostage_04.mdl",
+      "Title": "hostage_04",
+      "Icon": null
+    },
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Pistols",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/weapons/w_pist_glock18.mdl",
+      "Title": "w_pist_glock18",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/weapons/w_pist_usp_silencer.mdl",
+      "Title": "w_pist_usp_silencer",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/weapons/w_pist_deagle.mdl",
+      "Title": "w_pist_deagle",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/weapons/w_pist_fiveseven.mdl",
+      "Title": "w_pist_fiveseven",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/weapons/w_pist_p228.mdl",
+      "Title": "w_pist_p228",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/weapons/w_pist_usp.mdl",
+      "Title": "w_pist_usp",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/weapons/w_pist_elite_single.mdl",
+      "Title": "w_pist_elite_single",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/weapons/w_pist_elite.mdl",
+      "Title": "w_pist_elite",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/weapons/w_pist_elite_dropped.mdl",
+      "Title": "w_pist_elite_dropped",
+      "Icon": null
+    },
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Rifles",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/weapons/w_rif_galil.mdl",
+      "Title": "w_rif_galil",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/weapons/w_rif_famas.mdl",
+      "Title": "w_rif_famas",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/weapons/w_rif_ak47.mdl",
+      "Title": "w_rif_ak47",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/weapons/w_rif_m4a1.mdl",
+      "Title": "w_rif_m4a1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/weapons/w_rif_m4a1_silencer.mdl",
+      "Title": "w_rif_m4a1_silencer",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/weapons/w_rif_sg552.mdl",
+      "Title": "w_rif_sg552",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/weapons/w_rif_aug.mdl",
+      "Title": "w_rif_aug",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/weapons/w_snip_scout.mdl",
+      "Title": "w_snip_scout",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/weapons/w_snip_awp.mdl",
+      "Title": "w_snip_awp",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/weapons/w_snip_g3sg1.mdl",
+      "Title": "w_snip_g3sg1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/weapons/w_snip_sg550.mdl",
+      "Title": "w_snip_sg550",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/weapons/w_mach_m249para.mdl",
+      "Title": "w_mach_m249para",
+      "Icon": null
+    },
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "SMGs & Shotguns",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/weapons/w_shot_m3super90.mdl",
+      "Title": "w_shot_m3super90",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/weapons/w_shot_xm1014.mdl",
+      "Title": "w_shot_xm1014",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/weapons/w_smg_mac10.mdl",
+      "Title": "w_smg_mac10",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/weapons/w_smg_mp5.mdl",
+      "Title": "w_smg_mp5",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/weapons/w_smg_p90.mdl",
+      "Title": "w_smg_p90",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/weapons/w_smg_tmp.mdl",
+      "Title": "w_smg_tmp",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/weapons/w_smg_ump45.mdl",
+      "Title": "w_smg_ump45",
+      "Icon": null
+    },
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Gear & Grenades",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/weapons/w_c4.mdl",
+      "Title": "w_c4",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/weapons/w_c4_planted.mdl",
+      "Title": "w_c4_planted",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/weapons/w_defuser.mdl",
+      "Title": "w_defuser",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/weapons/w_eq_eholster.mdl",
+      "Title": "w_eq_eholster",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/weapons/w_eq_eholster_elite.mdl",
+      "Title": "w_eq_eholster_elite",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/weapons/w_eq_fraggrenade.mdl",
+      "Title": "w_eq_fraggrenade",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/weapons/w_eq_fraggrenade_thrown.mdl",
+      "Title": "w_eq_fraggrenade_thrown",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/weapons/w_eq_flashbang.mdl",
+      "Title": "w_eq_flashbang",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/weapons/w_eq_flashbang_thrown.mdl",
+      "Title": "w_eq_flashbang_thrown",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/weapons/w_eq_smokegrenade.mdl",
+      "Title": "w_eq_smokegrenade",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/weapons/w_eq_smokegrenade_thrown.mdl",
+      "Title": "w_eq_smokegrenade_thrown",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/weapons/w_knife_ct.mdl",
+      "Title": "w_knife_ct",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/weapons/w_knife_t.mdl",
+      "Title": "w_knife_t",
+      "Icon": null
+    },
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Shells",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/shells/shell_12gauge.mdl",
+      "Title": "shell_12gauge",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/shells/shell_338mag.mdl",
+      "Title": "shell_338mag",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/shells/shell_556.mdl",
+      "Title": "shell_556",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/shells/shell_57.mdl",
+      "Title": "shell_57",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/shells/shell_762nato.mdl",
+      "Title": "shell_762nato",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/shells/shell_9mm.mdl",
+      "Title": "shell_9mm",
+      "Icon": null
+    }
+  ],
+  "__references": [],
+  "__version": 0
+}

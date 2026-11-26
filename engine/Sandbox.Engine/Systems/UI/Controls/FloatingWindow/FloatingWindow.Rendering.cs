@@ -57,4 +57,5 @@ public partial class FloatingWindow
 	}
 
 	protected override string GetRenderTreeChecksum() => $"{BuildHash()}";
+	internal override bool HasRenderTree => true;
 }

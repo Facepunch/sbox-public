@@ -49,6 +49,8 @@ public abstract partial class Connection
 		msg.Dispose();
 	}
 
+	internal bool IsAwaitingResponse( Guid requestId ) => _responseWaiters.ContainsKey( requestId );
+
 	/// <summary>
 	/// A response to a message has arrived, route it to the correct async function
 	/// </summary>

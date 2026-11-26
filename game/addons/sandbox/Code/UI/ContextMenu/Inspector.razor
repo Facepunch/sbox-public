@@ -1,0 +1,114 @@
+@using Sandbox;
+@using Sandbox.UI;
+@namespace Sandbox
+@inherits Panel
+
+<root>
+
+	<div class="canvas" @ref=_canvas></div>
+
+</root>
+
+@code
+{
+    public GameObject Hovered => hovered;
+
+    Panel _canvas = default;
+
+    protected override int BuildHash() => HashCode.Combine( hovered, Selected.Count );
+
+    public override void Tick()
+    {
+        UpdateCursor();
+        UpdateHoverOutline();
+    }
+
+    protected override void OnVisibilityChanged()
+    {
+        UpdateHoverOutline();
+    }
+
+    void UpdateHoverOutline()
+    {
+        var host = Ancestors.OfType<ContextMenuHost>().FirstOrDefault();
+        if ( host is null ) return;
+
+        if ( !IsVisible || !InspectCursor.IsOpen || InspectCursor.ActiveSelectTool is null )
+        {
+            host.HoveredOutline.Hide();
+            return;
+        }
+
+        // Something already selected keeps its selection outline when hovered
+        host.HoveredOutline.Show( Selected.Contains( hovered ) ? null : hovered, HighlightStyle.Hovered );
+    }
+
+    GameObject hovered;
+
+    /// <summary>
+    /// The objects selected for editing in the context menu and the Select tool.
+    /// </summary>
+    public IReadOnlyCollection<GameObject> Selected => Scene?.Get<SpawnMenuHost>()?.SelectedObjects ?? [];
+
+    void UpdateCursor()
+    {
+        if ( !InspectCursor.IsOpen || InspectCursor.ActiveSelectTool is not { } select )
+        {
+            hovered = null;
+            return;
+        }
+
+        UpdateHovered( GetSelectableRoot( select.TraceSelect().GameObject ) );
+    }
+
+    internal static GameObject GetSelectableRoot( GameObject hit )
+    {
+        var root = hit.FindNetworkRoot();
+        return root.IsValid() && !root.Tags.Has( "world" ) ? root : null;
+    }
+
+    void UpdateHovered( GameObject o )
+    {
+        if ( hovered == o ) return;
+
+        hovered = o;
+        PlaySound( "ui.button.over" );
+    }
+
+
+    public void WorldMouseDown(MousePanelEvent e)
+    {
+        SelectObject( hovered );
+    }
+
+    public void WorldMouseRightDown(MousePanelEvent e)
+    {
+        OpenContextMenu( hovered );
+    }
+
+    /// <summary>
+    /// Select the object and open its right-click menu under the mouse.
+    /// </summary>
+    public void OpenContextMenu( GameObject target )
+    {
+        if ( !target.IsValid() ) return;
+
+        SelectObject( target );
+
+        var ev = new IContextMenuEvent.Event( target );
+        Scene.RunEvent<IContextMenuEvent>( listener => listener.PopulateContextMenu( ev ) );
+        if ( !ev.Options.Any() ) return;
+
+        var menu = new Sandbox.UI.Menu();
+        ev.Populate( menu );
+
+        menu.Open( this, Popup.PositionMode.UnderMouse );
+    }
+
+    /// <summary>
+    /// Selects the clicked object, adding it to the selection while Run is held.
+    /// </summary>
+    public void SelectObject( GameObject o ) => Scene?.Get<SpawnMenuHost>()?.SelectObject( o );
+}
+
+

@@ -172,6 +172,10 @@ public sealed partial class IndirectLightVolume
 							break;
 						}
 
+						// At the same offset the next round would repeat the same rays.
+						if ( newOffset.Equals( offset ) )
+							break;
+
 						offset = newOffset;
 					}
 

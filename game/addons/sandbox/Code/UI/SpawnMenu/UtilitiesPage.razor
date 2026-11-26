@@ -1,0 +1,60 @@
+@using Sandbox;
+@using Sandbox.UI;
+@inherits UtilityPage
+@namespace Sandbox
+@attribute [Icon( "settings" )]
+@attribute [Title( "#spawnmenu.utility.client" )]
+@attribute [Group( "#spawnmenu.utility.group.utilities" )]
+@attribute [Order( 0 )]
+
+<root class="page">
+    <UISheet Target="@Settings" PropertyFilter="@UISheet.PropertiesAndButtons" />
+</root>
+
+@code
+{
+    readonly LocalPlayerSettings Settings = new();
+
+    // Write through the console system so Saved and UserInfo convar behavior is preserved.
+    sealed class LocalPlayerSettings
+    {
+        [Property, Title( "#spawnmenu.utility.view_tilt" ), Group( "#spawnmenu.utility.camera" )]
+        [Description( "#spawnmenu.utility.view_tilt_description" ), Range( 0f, 1f ), Step( 0.05f ), Order( 0 )]
+        public float ViewTilt
+        {
+            get => GamePreferences.ViewTilt;
+            set => ConsoleSystem.SetValue( "sandbox.viewtilt", value.Clamp( 0f, 1f ) );
+        }
+
+        [Property, Title( "#spawnmenu.utility.view_bobbing" ), Group( "#spawnmenu.utility.camera" ), Order( 1 )]
+        [Description( "#spawnmenu.utility.view_bobbing_description" )]
+        public bool ViewBobbing
+        {
+            get => GamePreferences.ViewBobbing;
+            set => ConsoleSystem.SetValue( "sandbox.viewbob", value );
+        }
+
+        [Property, Title( "#spawnmenu.utility.screen_shake" ), Group( "#spawnmenu.utility.camera" )]
+        [Range( 0.1f, 2f ), Step( 0.1f ), Order( 2 )]
+        public float ScreenShake
+        {
+            get => GamePreferences.Screenshake;
+            set => ConsoleSystem.SetValue( "sandbox.screenshake", value.Clamp( 0.1f, 2f ) );
+        }
+
+        [Property, Title( "#spawnmenu.utility.auto_switch" ), Group( "#spawnmenu.utility.weapons" )]
+        [Description( "#spawnmenu.utility.auto_switch_description" ), Order( 3 )]
+        public bool AutoSwitch
+        {
+            get => GamePreferences.AutoSwitch;
+            set => ConsoleSystem.SetValue( "sandbox.autoswitch", value );
+        }
+
+        [Property, Title( "#spawnmenu.utility.show_hints" ), Group( "#spawnmenu.utility.interface" ), Order( 4 )]
+        public bool ShowHints
+        {
+            get => Hints.ShowHints;
+            set => ConsoleSystem.SetValue( "sandbox.showhints", value );
+        }
+    }
+}

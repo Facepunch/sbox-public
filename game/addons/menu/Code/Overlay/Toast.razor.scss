@@ -36,6 +36,11 @@ Toast
 		transition: all 0.1s ease;
 	}
 
+	i.error_outline
+	{
+		font-variation-settings: $menu-icon-outlined;
+	}
+
 	label
 	{
 		font-family: Poppins;

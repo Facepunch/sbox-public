@@ -480,12 +480,11 @@ public static partial class MenuUtility
 	}
 
 	/// <summary>
-	/// Post a review for a package
+	/// Completes without submitting a package review.
 	/// </summary>
+	[Obsolete( "Written package reviews are no longer supported." )]
 	public static Task PostReview( string packageIdent, Sandbox.Services.Review.ReviewScore score, string content, Sandbox.Services.Review.PositiveTags positives, Sandbox.Services.Review.NegativeTags negatives )
-	{
-		return Sandbox.Services.Review.Post( packageIdent, score, content, positives, negatives );
-	}
+		=> Task.CompletedTask;
 
 	/// <summary>
 	/// Post a report for a package
@@ -516,14 +515,12 @@ public static partial class MenuUtility
 		return services.Select( x => new LinkedService( x.Type, x.Id, x.Name, x.Avatar ) ).ToList();
 	}
 
-	public static async Task SetMountState( string name, bool state )
+	/// <summary>
+	/// Mount or unmount a game and save the player's preference outside the editor.
+	/// </summary>
+	public static Task SetMountState( string name, bool state )
 	{
-		await Sandbox.Mounting.Directory.SetMountState( name, state );
-
-		if ( !Application.IsEditor )
-		{
-			Sandbox.Mounting.MountConfig.Save();
-		}
+		return Sandbox.Mounting.Directory.SetMountState( name, state, savePreference: !Application.IsEditor );
 	}
 
 	/// <summary>

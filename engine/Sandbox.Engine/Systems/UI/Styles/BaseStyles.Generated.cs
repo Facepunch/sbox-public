@@ -1384,6 +1384,38 @@ public abstract partial class BaseStyles
 		}
 	}
 
+	internal FontVariationSettings? _fontvariationsettings;
+	
+	/// <summary>
+	/// Represents the <c>font-variation-settings</c> CSS property.
+	/// </summary>
+	public FontVariationSettings? FontVariationSettings
+	{
+		get => _fontvariationsettings;
+		set
+		{
+			if ( _fontvariationsettings == value ) return;
+			_fontvariationsettings = value;
+			Dirty();
+		}
+	}
+
+	internal FontOpticalSizing? _fontopticalsizing;
+	
+	/// <summary>
+	/// Represents the <c>font-optical-sizing</c> CSS property.
+	/// </summary>
+	public FontOpticalSizing? FontOpticalSizing
+	{
+		get => _fontopticalsizing;
+		set
+		{
+			if ( _fontopticalsizing == value ) return;
+			_fontopticalsizing = value;
+			Dirty();
+		}
+	}
+
 	internal FontVariantNumeric? _fontvariantnumeric;
 	
 	/// <summary>
@@ -2755,6 +2787,8 @@ public abstract partial class BaseStyles
 		if ( a._textoverlineoffset != null ) _textoverlineoffset = a._textoverlineoffset;
 		if ( a._textlinethroughoffset != null ) _textlinethroughoffset = a._textlinethroughoffset;
 		if ( a._fontstyle != null ) _fontstyle = a._fontstyle;
+		if ( a._fontvariationsettings != null ) _fontvariationsettings = a._fontvariationsettings;
+		if ( a._fontopticalsizing != null ) _fontopticalsizing = a._fontopticalsizing;
 		if ( a._fontvariantnumeric != null ) _fontvariantnumeric = a._fontvariantnumeric;
 		if ( a._transform != null ) _transform = a._transform;
 		if ( a._texttransform != null ) _texttransform = a._texttransform;
@@ -2928,6 +2962,8 @@ public abstract partial class BaseStyles
 		_textoverlineoffset = a._textoverlineoffset;
 		_textlinethroughoffset = a._textlinethroughoffset;
 		_fontstyle = a._fontstyle;
+		_fontvariationsettings = a._fontvariationsettings;
+		_fontopticalsizing = a._fontopticalsizing;
 		_fontvariantnumeric = a._fontvariantnumeric;
 		_transform = a._transform;
 		_texttransform = a._texttransform;
@@ -3487,6 +3523,8 @@ public abstract partial class BaseStyles
 		hash.Add( _textoverlineoffset );
 		hash.Add( _textlinethroughoffset );
 		hash.Add( _fontstyle );
+		hash.Add( _fontvariationsettings );
+		hash.Add( _fontopticalsizing );
 		hash.Add( _fontvariantnumeric );
 		hash.Add( _transform );
 		hash.Add( _texttransform );
@@ -3625,6 +3663,7 @@ public abstract partial class BaseStyles
 		LerpProperty( "text-underline-offset", from, to, delta );
 		LerpProperty( "text-overline-offset", from, to, delta );
 		LerpProperty( "text-line-through-offset", from, to, delta );
+		LerpProperty( "font-variation-settings", from, to, delta );
 		LerpProperty( "transform", from, to, delta );
 		LerpProperty( "transform-origin-x", from, to, delta );
 		LerpProperty( "transform-origin-y", from, to, delta );
@@ -3836,6 +3875,9 @@ public abstract partial class BaseStyles
 				break;
 			case "text-line-through-offset":
 				Lerp( ref _textlinethroughoffset, from._textlinethroughoffset, to._textlinethroughoffset, from._textlinethroughoffset ?? 0, delta );
+				break;
+			case "font-variation-settings":
+				Lerp( ref _fontvariationsettings, from._fontvariationsettings, to._fontvariationsettings, from._fontvariationsettings ?? default(UI.FontVariationSettings), delta );
 				break;
 			case "transform":
 				Lerp( ref _transform, from._transform, to._transform, new UI.PanelTransform(), delta );
@@ -4091,6 +4133,8 @@ public abstract partial class BaseStyles
 		copy._textoverlineoffset = _textoverlineoffset;
 		copy._textlinethroughoffset = _textlinethroughoffset;
 		copy._fontstyle = _fontstyle;
+		copy._fontvariationsettings = _fontvariationsettings;
+		copy._fontopticalsizing = _fontopticalsizing;
 		copy._fontvariantnumeric = _fontvariantnumeric;
 		copy._transform = _transform;
 		copy._texttransform = _texttransform;
@@ -4197,6 +4241,8 @@ public abstract partial class BaseStyles
 		if ( _textoverlineoffset == null ) _textoverlineoffset = parent._textoverlineoffset;
 		if ( _textlinethroughoffset == null ) _textlinethroughoffset = parent._textlinethroughoffset;
 		if ( _fontstyle == null ) _fontstyle = parent._fontstyle;
+		if ( _fontvariationsettings == null ) _fontvariationsettings = parent._fontvariationsettings;
+		if ( _fontopticalsizing == null ) _fontopticalsizing = parent._fontopticalsizing;
 		if ( _fontvariantnumeric == null ) _fontvariantnumeric = parent._fontvariantnumeric;
 		if ( _texttransform == null ) _texttransform = parent._texttransform;
 		if ( _letterspacing == null ) _letterspacing = parent._letterspacing;
@@ -4303,6 +4349,8 @@ public abstract partial class BaseStyles
 		if ( !_textoverlineoffset.HasValue ) _textoverlineoffset = 0;
 		if ( !_textlinethroughoffset.HasValue ) _textlinethroughoffset = 0;
 		if ( !_fontstyle.HasValue ) _fontstyle = UI.FontStyle.None;
+		if ( !_fontvariationsettings.HasValue ) _fontvariationsettings = default(UI.FontVariationSettings);
+		if ( !_fontopticalsizing.HasValue ) _fontopticalsizing = UI.FontOpticalSizing.Auto;
 		if ( !_fontvariantnumeric.HasValue ) _fontvariantnumeric = UI.FontVariantNumeric.Normal;
 		if ( !_transform.HasValue ) _transform = new UI.PanelTransform();
 		if ( !_texttransform.HasValue ) _texttransform = UI.TextTransform.None;
@@ -4465,6 +4513,8 @@ public abstract partial class BaseStyles
 			case "text-overline-offset": return (_textoverlineoffset == 0);
 			case "text-line-through-offset": return (_textlinethroughoffset == 0);
 			case "font-style": return (_fontstyle == UI.FontStyle.None);
+			case "font-variation-settings": return (_fontvariationsettings == default(UI.FontVariationSettings));
+			case "font-optical-sizing": return (_fontopticalsizing == UI.FontOpticalSizing.Auto);
 			case "font-variant-numeric": return (_fontvariantnumeric == UI.FontVariantNumeric.Normal);
 			case "transform": return (_transform == new UI.PanelTransform());
 			case "text-transform": return (_texttransform == UI.TextTransform.None);

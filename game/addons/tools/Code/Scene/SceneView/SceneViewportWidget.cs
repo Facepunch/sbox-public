@@ -32,6 +32,8 @@ public partial class SceneViewportWidget : Widget
 
 	private Action<EditorEvent.ISceneView> _drawGizmosInterface;
 
+	internal bool Use2DWireframe => State.Is2D && State.Shading == Shading2D.Wireframe && SourceCamera is null;
+
 	/// <summary>
 	/// If assigned, copy FoV / ZNear / ZFar etc from this camera.
 	/// </summary>
@@ -105,7 +107,7 @@ public partial class SceneViewportWidget : Widget
 	{
 		base.OnDoubleClick( e );
 
-		doubleClick = true;
+		doubleClick |= e.LeftMouseButton;
 
 		if ( Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Alt ) )
 		{
@@ -223,7 +225,7 @@ public partial class SceneViewportWidget : Widget
 		State.CameraRotation = Rotation.LookAt( -axisDir, up );
 		State.CameraPosition = pivot + axisDir * distance;
 		State.CameraOrthoHeight = SizeFromDistanceAndFieldOfView( distance, EditorPreferences.CameraFieldOfView );
-		State.GridAxis = ViewportState.GridAxisForDirection( axisDir );
+		State.GridAxis = ViewportState.GridAxisForDirection( Session.WorkPlane.NormalToLocal( axisDir ) );
 
 		_activeCamera.WorldRotation = State.CameraRotation;
 		_activeCamera.WorldPosition = State.CameraPosition;
@@ -345,6 +347,8 @@ public partial class SceneViewportWidget : Widget
 		_activeCamera.DebugMode = State.RenderMode;
 		_activeCamera.WireframeMode = State.WireframeMode;
 		_activeCamera.CustomSize = Renderer.Size * DpiScale;
+		_activeCamera.RenderExcludeTags.Set( "editor_mesh", Use2DWireframe );
+		_activeCamera.RenderExcludeTags.Set( "editor_wireframe", !Use2DWireframe );
 
 		if ( cameraTargetPosition is not null )
 		{
@@ -399,6 +403,13 @@ public partial class SceneViewportWidget : Widget
 
 		base.OnMousePress( e );
 
+		if ( e.LeftMouseButton && Renderer.LocalRect.IsInside( Renderer.FromScreen( e.ScreenPosition ) ) )
+		{
+			hasMouseInput = true;
+			mouseWasPressed = true;
+			framesAfterRelease = 0;
+		}
+
 		if ( e.Button == MouseButtons.Right )
 		{
 			initialMousePosition = e.LocalPosition;
@@ -408,27 +419,26 @@ public partial class SceneViewportWidget : Widget
 
 	SceneTraceResult? GetCursorTracePosition( Ray ray )
 	{
-		var tr = Session.Scene.Trace.Ray( ray, Gizmo.RayDepth )
-			.UseRenderMeshes( true )
-			.UsePhysicsWorld( false )
-			.Run();
-
-		if ( tr.Hit ) return tr;
-		else
+		var frame = Session.WorkPlane;
+		if ( frame == Transform.Zero )
 		{
-			var plane = new Plane( Vector3.Up, 0.0f );
-			if ( plane.TryTrace( ray, out var point, true, Gizmo.RayDepth ) )
-			{
-				tr = default;
-				tr.Hit = true;
-				tr.Normal = plane.Normal;
-				tr.EndPosition = point;
-				tr.HitPosition = point;
-				return tr;
-			}
+			var tr = Session.Scene.Trace.Ray( ray, Gizmo.RayDepth )
+				.UseRenderMeshes( true )
+				.UsePhysicsWorld( false )
+				.Run();
+			if ( tr.Hit ) return tr;
 		}
 
-		return null;
+		var normal = WantOrtho ? -_activeCamera.WorldRotation.Forward : frame.Rotation.Up;
+		var plane = new Plane( frame.Position, normal );
+		if ( !plane.TryTrace( ray, out var point, true, Gizmo.RayDepth ) ) return null;
+		return new SceneTraceResult
+		{
+			Hit = true,
+			Normal = normal,
+			EndPosition = point,
+			HitPosition = point
+		};
 	}
 
 	public bool TryGetCursorTracePosition( out SceneTraceResult tr )
@@ -502,10 +512,13 @@ public partial class SceneViewportWidget : Widget
 		{
 			var menu = new ContextMenu( this ) { Searchable = true };
 			bool HasSelection = Session.Selection.OfType<GameObject>().Any();
+			bool CanGroup = Session.Selection.OfType<GameObject>().Any( x => x is not Scene );
 			menu.AddOption( "Cut", "content_cut", EditorScene.Cut, "editor.cut" ).Enabled = HasSelection;
 			menu.AddOption( "Copy", "content_copy", EditorScene.Copy, "editor.copy" ).Enabled = HasSelection;
 			menu.AddOption( "Paste", "content_paste", PasteAtCursor, "editor.paste" );
 			menu.AddOption( "Paste Special", "content_paste_go", EditorScene.PasteSpecial, "editor.paste-special" );
+			menu.AddOption( "Create Group", "file_copy", SceneEditorMenus.Group, "editor.group" ).Enabled = CanGroup;
+			menu.AddOption( "Create Instance", "view_in_ar", SceneEditorMenus.CreateInstance ).Enabled = CanGroup && !Session.IsPrefabSession && !Session.IsPlaying;
 			menu.AddSeparator();
 			menu.AddOption( "Duplicate", "file_copy", SceneEditorMenus.Duplicate, "editor.duplicate" ).Enabled = HasSelection;
 			menu.AddOption( "Delete", "delete", SceneEditorMenus.Delete, "editor.delete" ).Enabled = HasSelection;
@@ -533,6 +546,12 @@ public partial class SceneViewportWidget : Widget
 					EditorScene.Selection.Add( go );
 				} );
 
+				menu.AddSeparator();
+
+				var playFromHere = GetPlayFromHereTransform( trace );
+				menu.AddOption( "Play From Here", "play_circle", () => EditorScene.PlayFromHere( playFromHere, Session ) )
+					.Enabled = !Game.IsPlaying && !Session.IsPrefabSession;
+
 				var ev = new EditorEvent.ShowContextMenuEvent( Session, menu, ray, trace );
 
 				EditorEvent.RunInterface<EditorEvent.ISceneView>( x => x.ShowContextMenu( ev ) );
@@ -544,6 +563,16 @@ public partial class SceneViewportWidget : Widget
 
 			menu.OpenAtCursor();
 		}
+	}
+
+	Transform GetPlayFromHereTransform( SceneTraceResult? trace )
+	{
+		var rotation = Rotation.FromYaw( _activeCamera.WorldRotation.Yaw() );
+
+		if ( trace is { } tr && tr.Normal.z > 0.7f )
+			return new Transform( tr.HitPosition, rotation );
+
+		return new Transform( _activeCamera.WorldPosition, rotation );
 	}
 
 	bool blockCamera;
@@ -561,6 +590,7 @@ public partial class SceneViewportWidget : Widget
 
 		MousePosition = Renderer.FromScreen( Application.CursorPosition ) * Renderer.DpiScale;
 
+		UpdateWorkPlane();
 		UpdateCamera();
 		DressPrefabScene();
 
@@ -678,35 +708,47 @@ public partial class SceneViewportWidget : Widget
 			_activeCamera.WorldPosition -= _activeCamera.WorldRotation.Forward * MathF.Min( dolly, EditorPreferences.CameraZFar ) * TransitionBlend;
 		}
 
-		if ( GizmoInstance.Input.IsHovered && hasMouseFocus )
-			GizmoInstance.Input.DoubleClick = doubleClick;
+		GizmoInstance.Input.DoubleClick = doubleClick && GizmoInstance.Input.IsHovered && hasMouseFocus;
 
 		doubleClick = false;
 
 		Renderer.UpdateGizmoInputs( GizmoInstance.Input.IsHovered && hasMouseFocus );
-
-		if ( State.ShowGrid )
-		{
-			using ( Gizmo.Scope( "grid" ) )
-			{
-				Gizmo.Draw.IgnoreDepth = State.Is2D;
-				Gizmo.Draw.Grid( State.GridAxis, Gizmo.Settings.GridSpacing, State.GridOpacity );
-			}
-		}
+		Gizmo.Camera.Attributes.Set( "ToolsWireframe", Use2DWireframe );
+		Gizmo.Camera.Attributes.Set( "EditorGizmoDpiScale", Renderer.DpiScale );
 
 		if ( GizmoInstance.Input.IsHovered )
 		{
 			UpdateHovered();
 		}
 
-		Tools.Frame( _activeCamera, Session, GizmoInstance.Input.IsHovered );
+		var editingWorkPlane = Tools.Frame( _activeCamera, Session, GizmoInstance.Input.IsHovered, this );
 
-		_drawGizmosInterface ??= x => x.DrawGizmos( Session.Scene );
-		EditorEvent.RunInterface( _drawGizmosInterface );
-		Session.Scene.EditorDraw();
+		if ( State.ShowGrid )
+		{
+			var frame = Session.WorkPlane;
+			var axis = State.GridAxis;
+			if ( !editingWorkPlane && Tools.CurrentSubTool is MeshEditor.PrimitiveTool { Editor: { } editor } )
+			{
+				frame = editor.BuildTransform;
+				axis = Gizmo.GridAxis.XY;
+			}
+
+			using ( Gizmo.Scope( "grid", frame ) )
+			{
+				Gizmo.Draw.IgnoreDepth = State.Is2D;
+				Gizmo.Draw.Grid( axis, Gizmo.Settings.GridSpacing, State.GridOpacity );
+			}
+		}
+
+		if ( !editingWorkPlane )
+		{
+			_drawGizmosInterface ??= x => x.DrawGizmos( Session.Scene );
+			EditorEvent.RunInterface( _drawGizmosInterface );
+			Session.Scene.EditorDraw();
+			UpdateDragDrops();
+		}
 
 		DrawSelection();
-		UpdateDragDrops();
 
 		DrawCameraSpeedOverlay();
 		DrawOrientationGizmo();
@@ -785,7 +827,7 @@ public partial class SceneViewportWidget : Widget
 			var iconFontSize = 18 * scale;
 
 			Gizmo.Draw.Color = Color.White.WithAlpha( 2f - timeSinceCameraSpeedChange );
-			Gizmo.Draw.ScreenText( "speed", new Vector2( baseRect.Width - iconSize.x, iconSize.y ), "Material Icons", iconFontSize, TextFlag.Center );
+			Gizmo.Draw.ScreenText( "speed", new Vector2( baseRect.Width - iconSize.x, iconSize.y ), "Material Symbols Outlined", iconFontSize, TextFlag.Center );
 
 			var barSize = new Rect( 24, 64, 12, 100 ) * scale;
 
@@ -817,7 +859,7 @@ public partial class SceneViewportWidget : Widget
 		if ( !Gizmo.Settings.Selection ) return;
 
 		// Trace models in the scene, hover the hit one
-		var tr = session.Scene.Trace.Ray( Gizmo.CurrentRay, Gizmo.RayDepth )
+		var tr = session.Scene.Trace.Ray( Gizmo.Pressed.Any || Gizmo.WasLeftMousePressed ? Gizmo.Pressed.Ray : Gizmo.CurrentRay, Gizmo.RayDepth )
 					.UseRenderMeshes( true )
 					.UsePhysicsWorld( false )
 					.WithoutTags( "hidden" )
@@ -829,6 +871,10 @@ public partial class SceneViewportWidget : Widget
 			{
 				Gizmo.Hitbox.DepthBias = 1;
 				Gizmo.Hitbox.TrySetHovered( tr.Distance );
+
+				// Relinquish object clicks before tools run, including gestures completed between frames.
+				// Transform controls have a different path and retain their capture.
+				if ( Gizmo.Pressed.This && Gizmo.Pressed.CursorDelta.Length > 10 ) BoxSelection.ReleaseObjectClick();
 
 				if ( !Gizmo.IsHovered )
 					return;

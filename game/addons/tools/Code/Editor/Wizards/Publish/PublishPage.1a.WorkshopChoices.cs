@@ -161,7 +161,7 @@ partial class PublishWizard
 
 			var ident = Project.Config.FullIdent;
 			var published = ProjectPublisher.GetPublishedWorkshopItemsAsync( Project.Config.Type );
-			var package = await Package.FetchAsync( Project.Config.FullIdent, false, false );
+			var package = await ProjectPublisher.FetchPublishedPackageAsync( Project );
 			BackendThumb = string.IsNullOrEmpty( package?.Thumb ) ? null : package.Thumb;
 			ItemId = await ProjectPublisher.GetWorkshopItemIdAsync( Project );
 			PublishedItems = await published;
@@ -283,7 +283,7 @@ partial class PublishWizard
 					fact.Spacing = 6;
 
 					var symbol = fact.Add( new Label( icon ) { Color = Theme.TextControl.WithAlpha( 0.5f ), ToolTip = tooltip } );
-					symbol.SetStyles( "font-family: Material Icons; font-size: 14px;" );
+					symbol.SetStyles( "font-family: Material Symbols Outlined; font-size: 14px;" );
 					fact.Add( new Label( text ) { Color = Theme.TextControl.WithAlpha( 0.7f ), ToolTip = tooltip } );
 					fact.AddStretchCell();
 				}

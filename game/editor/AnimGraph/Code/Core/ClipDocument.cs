@@ -642,6 +642,13 @@ public sealed class ClipDocument : IAnimationDocument
 			set => Json[NameKey] = value ?? string.Empty;
 		}
 
+		[Property, Title( "Fire During Transitions" ), Description( "Fire from non-active branches and below the normal 50% blend-weight threshold, including Blend1D/2D inputs. Different clips can each fire their event." )]
+		public bool FireDuringTransitions
+		{
+			get => Json["m_fireDuringTransitions"]?.GetValue<bool>() ?? false;
+			set => Json["m_fireDuringTransitions"] = value;
+		}
+
 		private JsonNode ReadData( string key ) => Json["m_eventData"]?[key];
 
 		/// <summary>

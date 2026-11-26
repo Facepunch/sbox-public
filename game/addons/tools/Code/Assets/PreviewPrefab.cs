@@ -3,25 +3,11 @@
 [AssetPreview( "prefab" )]
 class PreviewPrefab : AssetPreview
 {
-	public override bool IsAnimatedPreview => true;
 	public override float PreviewWidgetCycleSpeed => 0.2f;
-
-	public override bool UsePixelEvaluatorForThumbs => true;
 
 	public PreviewPrefab( Asset asset ) : base( asset )
 	{
 
-	}
-
-	/// <summary>
-	/// Only initialize if we're in the live preview, so we don't load a whole scene when showing a thumbnail
-	/// </summary>
-	public override Task InitializeAsset()
-	{
-		if ( !IsRenderingThumbnail )
-			return Task.CompletedTask;
-
-		return LoadPrefabContent();
 	}
 
 	public override Widget CreateWidget( Widget parent )

@@ -62,6 +62,7 @@ public partial class Shader
 /// Thrown by <see cref="Shader.CompileAsync(string, string, CancellationToken)"/> and
 /// <see cref="Shader.CompileFileAsync(string, CancellationToken)"/> when a shader doesn't compile
 /// </summary>
+[Expose]
 public sealed class ShaderCompileException : Exception
 {
 	/// <summary>

@@ -140,7 +140,7 @@ internal sealed class GameStartupWindow : IDisposable
 				return null;
 			}
 
-			var bitmap = Bitmap.CreateFromBytes( EngineFileSystem.Root.ReadAllBytes( path ).ToArray() );
+			var bitmap = Bitmap.CreateFromFile( EngineFileSystem.Root, path );
 			if ( bitmap is null || !bitmap.IsValid )
 			{
 				bitmap?.Dispose();

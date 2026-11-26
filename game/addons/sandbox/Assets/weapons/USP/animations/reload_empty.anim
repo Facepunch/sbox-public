@@ -1,0 +1,16 @@
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:generic:version{7412167c-06e9-4698-aff2-e63eb59037e7} -->
+{
+	_class = "CClipDocument"
+	m_sourceFilename = "weapons/usp/animations/v_usp@2H_Reload_Empty.fbx"
+	m_animationSkeletonName =
+	{
+		Id = "06fd0bbb-bbbf-4671-9c7f-464dabf53a9e"
+		Path = "weapons/usp/animations/usp.skel"
+	}
+	m_nTake = 0
+	m_nStartFrame = -1
+	m_nEndFrame = -1
+	m_flImportScale = 1
+	m_additiveType = "None"
+	m_flImportFrameRate = 32
+}

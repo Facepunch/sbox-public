@@ -1,0 +1,44 @@
+@using Sandbox;
+@using Sandbox.UI;
+@inherits UtilityPage
+@namespace Sandbox
+@attribute [Icon( "dashboard" )]
+@attribute [Title( "#spawnmenu.tab.hud" )]
+@attribute [Group( "#spawnmenu.utility.group.utilities" )]
+@attribute [Order( 3 )]
+
+<root class="page">
+    <UISheet Target="@Settings" PropertyFilter="@UISheet.PropertiesAndButtons" />
+</root>
+
+@code
+{
+    readonly HudSettings Settings = new();
+
+    protected override int BuildHash() => HashCode.Combine( Game.Language.SelectedCode );
+
+    sealed class HudSettings
+    {
+        /// <summary>
+        /// Shows the health, ammo and hotbar displays.
+        /// </summary>
+        [Property, Title( "#spawnmenu.hud.draw_hud" ), Order( 0 )]
+        [Description( "#spawnmenu.hud.draw_hud_description" )]
+        public bool DrawHud
+        {
+            get => GamePreferences.DrawHud;
+            set => ConsoleSystem.SetValue( "sandbox.hud_draw", value );
+        }
+
+        /// <summary>
+        /// Lets you open and close the spawn and inspect menus with a key press.
+        /// </summary>
+        [Property, Title( "#spawnmenu.hud.toggle_menus" ), Order( 1 )]
+        [Description( "#spawnmenu.hud.toggle_menus_description" )]
+        public bool ToggleMenus
+        {
+            get => GamePreferences.ToggleMenus;
+            set => ConsoleSystem.SetValue( "sandbox.menu_toggle", value );
+        }
+    }
+}

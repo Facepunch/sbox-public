@@ -16,14 +16,6 @@ BrowseShelf
 		width: 260px;
 		padding: 14px 6px 14px 14px;
 
-		.search
-		{
-			width: auto;
-			flex-shrink: 0;
-			margin-right: 8px;
-		}
-
-		// The search stays put; this scrolls under it
 		> .options
 		{
 			flex-direction: column;
@@ -105,47 +97,6 @@ BrowseShelf
 			scrollbar-width: 0px;
 			// Back out by the inset, so the cards line up with the header
 			margin: 0 -6px;
-		}
-	}
-
-	.search
-	{
-		height: 38px;
-		align-items: center;
-		gap: 8px;
-		margin-bottom: 8px;
-		padding: 0 12px;
-		border-radius: $platform-radius;
-		border: 1px solid $platform-hairline;
-		background-color: $platform-panel;
-
-		i
-		{
-			font-size: 18px;
-			color: $platform-muted;
-		}
-
-		.clear
-		{
-			cursor: pointer;
-			@include platform-sounds;
-
-			&:hover
-			{
-				color: $platform-text;
-			}
-		}
-
-		TextEntry
-		{
-			flex-grow: 1;
-			font-size: 14px;
-			color: $platform-text;
-
-			.placeholder
-			{
-				color: $platform-faint;
-			}
 		}
 	}
 

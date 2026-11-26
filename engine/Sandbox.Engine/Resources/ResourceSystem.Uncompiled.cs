@@ -21,8 +21,14 @@ public partial class ResourceSystem
 		if ( cached is not null && cached.Guid != Guid.Empty && id.Guid == cached.Guid )
 			path = cached.ResourcePath;
 
-		if ( string.IsNullOrWhiteSpace( path ) ||
-			!TryGetType( System.IO.Path.GetExtension( path ), out var assetType ) || !assetType.IsUncompiled )
+		if ( string.IsNullOrWhiteSpace( path ) )
+			return false;
+
+		// Native formats don't need managed type discovery.
+		if ( NativeEngine.g_pResourceSystem.HandlesResource( path ) )
+			return false;
+
+		if ( !TryGetType( System.IO.Path.GetExtension( path ), out var assetType ) || !assetType.IsUncompiled )
 			return false;
 
 		if ( !assetType.TargetType.IsAssignableTo( targetType ) || path.EndsWith( "_c", StringComparison.OrdinalIgnoreCase ) )

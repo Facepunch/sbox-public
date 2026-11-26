@@ -51,7 +51,7 @@
 
             @foreach ( var server in Sorted )
             {
-                <tr class="server @(server.IsFull ? "full" : "") @(server.IsOutdated ? "outdated" : "") @(server.LobbyId == selected ? "selected" : "")" @key=@server.LobbyId onclick=@( () => selected = server.LobbyId )>
+                <tr class="server @(server.IsFull ? "full" : "") @(server.IsOutdated ? "outdated" : "") @(server.LobbyId == selected ? "selected" : "")" @key=@server.LobbyId onclick=@( () => selected = server.LobbyId ) onrightclick=@( ( PanelEvent e ) => OpenMenu( e.This, server ) )>
                     @if ( ShowGame )
                     {
                         <td>
@@ -88,7 +88,7 @@
                             <i class="friend" tooltip="Friends on it">favorite</i>
                         }
                     </td>
-                    <td class="map">@MenuHelpers.CachedTitle( server.Map )</td>
+                    <td class="map">@MenuHelpers.MapTitle( server.Map )</td>
                     <td class="players">
                         <label>@($"{server.Members}/{server.MaxMembers}")</label>
                         <div class="fullness"><div class="fill @(server.IsFull ? "full" : "")" style="width: @(Fullness( server ))%;"></div></div>
@@ -118,7 +118,7 @@
             <div class="card" @key=@picked.LobbyId>
                 @* Its map, like a package card - just to see, not to open: its page would let you start it in any game,
                    and you pick the game first. *@
-                <div class="map" style="@MenuHelpers.BackgroundImage( CardArt( picked ) )" tooltip="@MenuHelpers.CachedTitle( picked.Map )">
+                <div class="map" style="@MenuHelpers.BackgroundImage( CardArt( picked ) )" tooltip="@MenuHelpers.MapTitle( picked.Map )">
                     @if ( CardArt( picked ) is null )
                     {
                         <i>map</i>
@@ -216,7 +216,7 @@
             IEnumerable<LobbyInformation> sorted = sortBy switch
             {
                 "name" => sortDescending ? servers.OrderByDescending( x => x.Name ) : servers.OrderBy( x => x.Name ),
-                "map" => sortDescending ? servers.OrderByDescending( x => MenuHelpers.CachedTitle( x.Map ) ) : servers.OrderBy( x => MenuHelpers.CachedTitle( x.Map ) ),
+                "map" => sortDescending ? servers.OrderByDescending( x => MenuHelpers.MapTitle( x.Map ) ) : servers.OrderBy( x => MenuHelpers.MapTitle( x.Map ) ),
                 // Unknown pings are -1 - last either way
                 "ping" => sortDescending ? servers.OrderBy( x => x.Ping < 0 ).ThenByDescending( x => x.Ping ) : servers.OrderBy( x => x.Ping < 0 ).ThenBy( x => x.Ping ),
                 _ => sortDescending ? servers.OrderByDescending( x => x.Members ) : servers.OrderBy( x => x.Members ),
@@ -271,6 +271,7 @@
 
     static string WhyNotJoin( LobbyInformation server )
     {
+        if ( !PlatformMenu.CanChangeGame ) return "Servers can't be joined from the editor";
         if ( server.IsOutdated ) return OutdatedReason( server );
         if ( server.IsFull ) return "It's full";
         if ( !MenuHelpers.HasAuthority ) return "Only the party leader can join a server";
@@ -289,7 +290,7 @@
     /// </summary>
     string WhereText( LobbyInformation server )
     {
-        var map = string.IsNullOrEmpty( server.Map ) ? "No map" : MenuHelpers.CachedTitle( server.Map );
+        var map = string.IsNullOrEmpty( server.Map ) ? "No map" : MenuHelpers.MapTitle( server.Map );
         return ShowGame ? $"{MenuHelpers.CachedTitle( server.Game )} · {map}" : map;
     }
 
@@ -301,8 +302,29 @@
 
     static string CardArt( LobbyInformation server )
     {
-        if ( MenuHelpers.CachedPackage( server.Map ) is { } map ) return !string.IsNullOrEmpty( map.ThumbWide ) ? map.ThumbWide : map.Thumb;
+        if ( MenuHelpers.MapThumb( server.Map ) is { Length: > 0 } map ) return map;
         return MenuHelpers.CachedPackage( server.Game )?.Thumb is { Length: > 0 } thumb ? thumb : null;
+    }
+
+    /// <summary>
+    /// What else you can do with a server - its game's page, its map's when it's on one from the Workshop, and its name
+    /// (and a dedicated server's Steam ID) to copy
+    /// </summary>
+    void OpenMenu( Panel row, LobbyInformation server )
+    {
+        var menu = MenuProject.UI.MenuPanel.Open( row );
+
+        if ( !string.IsNullOrEmpty( server.Game ) )
+            menu.AddOption( "sports_esports", "View Game", () => PlatformRoot.Instance?.ShowGame( server.Game ) );
+
+        if ( MenuUtility.GetMapWorkshopId( server.Map ) != 0 )
+            menu.AddOption( "map", "View Map", () => PlatformRoot.Instance?.ShowMap( server.Map ) );
+
+        menu.AddSpacer();
+        menu.AddOption( "content_copy", "Copy Name", () => Clipboard.SetText( server.Name ) );
+
+        if ( IsDedicated( server ) )
+            menu.AddOption( "badge", "Copy Steam ID", () => Clipboard.SetText( server.OwnerId.ToString() ) );
     }
 
     void Join( LobbyInformation server )

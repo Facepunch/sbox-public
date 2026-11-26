@@ -26,7 +26,7 @@ public sealed class DiscoveryContext
 	public string Shelf { get; init; }
 
 	/// <summary>
-	/// The <see cref="Package.ListResult.RequestId"/> the packages came from, if any.
+	/// Identifies the list that showed these packages, when the surface supplies one.
 	/// </summary>
 	public Guid List { get; init; }
 

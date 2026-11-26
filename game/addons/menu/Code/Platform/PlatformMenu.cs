@@ -3,7 +3,7 @@ using Sandbox;
 namespace MenuProject.Platform;
 
 /// <summary>
-/// The platform menu (<c>menu_platform 1</c>): s&amp;box opens on a game's own menu, with a dock along the bottom to
+/// The menu: s&amp;box opens on a game's own menu, with a dock along the bottom to
 /// switch games. A game with a <c>MenuScene</c> is loaded onto it (<see cref="MenuUtility.OpenGameMenu"/>); one
 /// without isn't loaded until it's played, and gets the default front made from its Workshop item
 /// (<see cref="GameFront"/>). Games are remembered by their Workshop id.
@@ -11,33 +11,31 @@ namespace MenuProject.Platform;
 public static class PlatformMenu
 {
 	/// <summary>
-	/// On - the platform menu runs instead of the main menu. Not in the editor, which has no menu. The menu_platform
-	/// ConVar as it was when the menu last started (MenuSystem.Init) - changing it restarts the menu, so everything's
-	/// built for one or the other, never half of each. The one check for being on the platform.
-	/// </summary>
-	public static bool Enabled { get; private set; }
-
-	/// <summary>
-	/// The menu's starting - on the platform or not, from scratch. Whatever the last run left goes: what game it was on,
-	/// and a switch it was part way through.
+	/// The menu's starting from scratch. Whatever the last run left goes: what game it was on, and a switch it was part
+	/// way through.
 	/// </summary>
 	public static void Reset()
 	{
-		Enabled = MenuUtility.PlatformMenu && !Application.IsEditor;
-
 		CurrentId = 0;
 		Current = null;
 		Details = null;
 		PackageFailed = false;
 		IsSwitching = false;
 		IsCovering = false;
+		LocalGames = [];
 	}
 
 	/// <summary>
 	/// Not playing - on a game's menu or no game at all. Games are only switched from here, never out of one that's
-	/// being played.
+	/// being played. In the editor, not in play mode.
 	/// </summary>
-	public static bool CanSwitch => !Game.InGame || Game.IsOnMenu;
+	public static bool CanSwitch => Application.IsEditor ? !Game.IsPlaying : !Game.InGame || Game.IsOnMenu;
+
+	/// <summary>
+	/// Another game can be gone to - switched to, or a server joined. Not in the editor, where it's the game being worked
+	/// on that's played; its menu is up just for what it has, a game's page instead of the way into it.
+	/// </summary>
+	public static bool CanChangeGame => !Application.IsEditor;
 
 	/// <summary>
 	/// Why the game the platform's on can't be started - a Workshop game's item says, a local project's package does
@@ -94,11 +92,15 @@ public static class PlatformMenu
 
 	public static string Title => CurrentId != 0 ? Details?.Title : Current?.Title;
 
-	public static string Art => CurrentId != 0 ? Details?.Images.FirstOrDefault() ?? Details?.Thumb : Current?.ThumbWide ?? Current?.Thumb;
+	public static string Art => CurrentId != 0 ? Details?.Images.FirstOrDefault() ?? Details?.Thumb : Current?.Screenshots?.FirstOrDefault()?.Url ?? Current?.ThumbWide ?? Current?.Thumb;
 
 	public static string LaunchMode => (CurrentId != 0 ? Details?.GetMeta( "LaunchMode", "default" ) : Current?.Info.LaunchMode) ?? "default";
 
 	public static int MaxPlayers => (CurrentId != 0 ? Details?.GetMeta( "MaxPlayers", 1 ) : Current?.Info.MaxPlayers) ?? 1;
+
+	public static bool AllowsAddons => (CurrentId != 0 ? Details?.GetMeta( "AllowAddons", true ) : Current?.Info.AllowsAddons) ?? true;
+
+	public static string[] AddonTypes => (CurrentId != 0 ? Details?.GetMeta<string[]>( "AddonTypes", null ) : Current?.Info.AddonTypes) ?? [];
 
 	public static bool IsDedicatedServerOnly => string.Equals( LaunchMode, "dedicatedserveronly", StringComparison.OrdinalIgnoreCase );
 
@@ -108,14 +110,9 @@ public static class PlatformMenu
 	public static string Ident => CurrentId != 0 ? Details?.KeyValues.GetValueOrDefault( "package" ) : Current?.FullIdent;
 
 	/// <summary>
-	/// Sandbox's Workshop item - the game the platform opens on before anything's been picked
+	/// Games from the shared project list, refreshed with the Your games shelf.
 	/// </summary>
-	public const ulong SandboxWorkshopId = 3832911306;
-
-	/// <summary>
-	/// Local projects opened this run (<c>-rungame path/to/game.sbproj</c>). Never remembered.
-	/// </summary>
-	public static List<Package> LocalGames { get; } = new();
+	public static IReadOnlyList<Package> LocalGames { get; private set; } = [];
 
 	/// <summary>
 	/// Whether <paramref name="package"/> brings its own menu scene, rather than the default front - its settings say
@@ -203,16 +200,20 @@ public static class PlatformMenu
 	{
 		// Switched on in the middle of a game - on the one being played, rather than out of it for the one picked last
 		// time
-		if ( Game.InGame && !Game.IsOnMenu && MenuUtility.GamePackage is { } playing )
+		if ( AdoptPlaying() )
 		{
-			Current = playing;
-			_ = AdoptAsync( playing );
 			RefreshShelves();
 			return;
 		}
 
 		Run( async () =>
 		{
+			// Launched into a join - a local instance joining the editor, or a friend's invite.
+			// Wait for the connection to finish / fail, then try to adopt that game.
+			await WaitUntil( () => !MenuUtility.IsJoining, float.PositiveInfinity );
+
+			if ( AdoptPlaying() ) return;
+
 			var startup = MenuUtility.StartupGameIdent;
 
 			// A local project, or a game by its ident - on the command line
@@ -228,11 +229,35 @@ public static class PlatformMenu
 				return;
 			}
 
-			// The game picked last time, or Sandbox
-			await Switch( Game.Cookies.Get<ulong>( GameCookie, 0 ) is var id and not 0 ? id : SandboxWorkshopId );
+			// Existing Sandbox selections now open the bundled addon, including older Workshop cookies.
+			var remembered = Game.Cookies.Get<ulong>( GameCookie, 0 );
+			if ( remembered != 0 && remembered != 3832911306 )
+			{
+				await Switch( remembered );
+			}
+			else
+			{
+				await SwitchDefault();
+			}
 		} );
 
 		RefreshShelves();
+	}
+
+	/// <summary>
+	/// On the game being played, if there is one, instead of switching to another
+	/// </summary>
+	static bool AdoptPlaying()
+	{
+		if ( !Game.InGame || Game.IsOnMenu ) return false;
+
+		if ( MenuUtility.GamePackage is { } playing )
+		{
+			Current = playing;
+			_ = AdoptAsync( playing );
+		}
+
+		return true;
 	}
 
 	/// <summary>
@@ -255,8 +280,49 @@ public static class PlatformMenu
 	/// </summary>
 	static void RefreshShelves()
 	{
-		foreach ( var row in Discover.Prepend( Favourites ).Prepend( YourGames ) )
-			_ = row.RefreshAsync();
+		_ = YourGames.RefreshAsync();
+		_ = Favourites.RefreshAsync();
+		_ = RefreshFavouriteIdsAsync();
+	}
+
+	//
+	// Favourites - on the Workshop, anything you can favourite there, games and maps alike
+	//
+
+	/// <summary>
+	/// What you've favourited on the Workshop, by id - fetched with the shelves, and changed straight away when you
+	/// favourite something here (<see cref="SetFavourite"/>)
+	/// </summary>
+	public static HashSet<ulong> FavouriteIds { get; private set; } = new();
+
+	static async Task RefreshFavouriteIdsAsync()
+	{
+		FavouriteIds = await MenuUtility.FindWorkshopFavouriteIdsAsync();
+	}
+
+	public static bool IsFavourite( ulong id ) => id != 0 && FavouriteIds.Contains( id );
+
+	/// <summary>
+	/// Favourite Workshop item <paramref name="id"/>, or take it off - shown as done straight away, and put back if
+	/// Steam doesn't take it. The Favourites row's fetched again, to have it.
+	/// </summary>
+	public static async void SetFavourite( ulong id, bool favourite )
+	{
+		if ( id == 0 ) return;
+
+		if ( favourite ) FavouriteIds.Add( id );
+		else FavouriteIds.Remove( id );
+
+		if ( !await MenuUtility.FavouriteOnWorkshopAsync( id, favourite ) )
+		{
+			if ( favourite ) FavouriteIds.Remove( id );
+			else FavouriteIds.Add( id );
+
+			MenuOverlay.Instance?.BottomRight?.Queue( new MenuProject.Toast { Title = "Couldn't change your favourites", Icon = "star" } );
+			return;
+		}
+
+		_ = Favourites.RefreshAsync();
 	}
 
 	/// <summary>
@@ -282,7 +348,22 @@ public static class PlatformMenu
 	/// <summary>
 	/// Out of whatever's being played, onto Sandbox - the way out of a game, whatever it does with its scenes
 	/// </summary>
-	public static void LeaveToDefault() => SwitchTo( SandboxWorkshopId );
+	public static void LeaveToDefault() => Run( SwitchDefault );
+
+	/// <summary>
+	/// Open the default Sandbox game.
+	/// </summary>
+	static async Task SwitchDefault()
+	{
+		var package = await Package.FetchAsync( MenuUtility.DefaultGameIdent, false );
+		if ( package is not { TypeName: "game" } )
+		{
+			Log.Warning( "Could not find the Sandbox game package." );
+			return;
+		}
+
+		await Switch( package );
+	}
 
 	/// <summary>
 	/// Back onto <see cref="Current"/>'s menu after a game closed itself - once it's gone. Its teardown runs a tick
@@ -304,6 +385,9 @@ public static class PlatformMenu
 	/// </summary>
 	static async Task Switch( Package package )
 	{
+		if ( package is null ) return;
+		package = await Package.FetchAsync( package.FullIdent, false ) ?? package;
+
 		if ( package.IsRemote )
 		{
 			if ( await MenuUtility.GetWorkshopIdAsync( package ) is var id and not 0 )
@@ -311,13 +395,7 @@ public static class PlatformMenu
 				await Switch( id );
 				return;
 			}
-
-			// The picker's copy is partial - the full one has its meta
-			package = await Package.FetchAsync( package.FullIdent, false ) ?? package;
 		}
-
-		if ( !package.IsRemote && !LocalGames.Any( x => SameGame( x, package ) ) )
-			LocalGames.Add( package );
 
 		CurrentId = 0;
 		Current = package;
@@ -351,6 +429,13 @@ public static class PlatformMenu
 
 		var details = await MenuUtility.FetchWorkshopItemAsync( id );
 		if ( CurrentId != id ) return;
+
+		// Workshop selections still use the installed game's presentation and launch settings.
+		if ( Package.TryGetCached( details?.KeyValues.GetValueOrDefault( "package" ), out var local ) && local is { IsRemote: false } )
+		{
+			await Switch( local );
+			return;
+		}
 
 		Details = details;
 
@@ -412,7 +497,13 @@ public static class PlatformMenu
 	/// </summary>
 	static async Task OpenOwnMenu( Package package )
 	{
-		await MenuUtility.OpenGameMenu( package.FullIdent );
+		// Not over a join that's started meanwhile
+		if ( MenuUtility.IsJoining ) return;
+
+		// A notice stays up, such as why a join at launch failed
+		ModalSystem.Instance?.CloseAll( false, keepNotice: true );
+
+		if ( !await MenuUtility.OpenGameMenu( package.FullIdent ) ) return;
 		await WaitUntil( () => !LoadingScreen.IsVisible );
 	}
 
@@ -510,10 +601,9 @@ public static class PlatformMenu
 	//
 
 	/// <summary>
-	/// Your games - played here lately, most recent first, then everything else installed. Sandbox always - last, when
-	/// it hasn't been played here lately.
+	/// Your games - installed local addons, then Workshop games played here lately and installed Workshop games.
 	/// </summary>
-	public static GameRow YourGames { get; } = new( "Recent", "history", FindYourGames );
+	public static GameRow YourGames { get; } = new( "Your games", "sports_esports", FindYourGames );
 
 	/// <summary>
 	/// The games you've favourited on the Workshop - under your recent ones, when there are any. Asked for again every time
@@ -523,27 +613,11 @@ public static class PlatformMenu
 
 	static async Task<WorkshopItemDetails[]> FindYourGames()
 	{
-		var recent = Recent;
-		var games = await MenuUtility.FindYourWorkshopGamesAsync( recent );
+		LocalGames = MenuUtility.FindInstalledGames();
 
-		// Sandbox is always there - where it was played if it was, otherwise on the end, after everything installed
-		var id = SandboxWorkshopId;
-		if ( recent.Contains( id ) ) return games;
-
-		var sandbox = games.FirstOrDefault( x => x.Id == id ) ?? await MenuUtility.FetchWorkshopItemAsync( id );
-		if ( sandbox is null ) return games;
-
-		return [.. games.Where( x => x.Id != id ), sandbox];
+		var games = await MenuUtility.FindYourWorkshopGamesAsync( Recent );
+		return games.Where( x => !LocalGames.Any( local => string.Equals( local.FullIdent.Split( '#' )[0],
+			x.KeyValues.GetValueOrDefault( "package" ), StringComparison.OrdinalIgnoreCase ) ) ).ToArray();
 	}
 
-	/// <summary>
-	/// Discover's rows, top to bottom - just the first until View all
-	/// </summary>
-	public static GameRow[] Discover { get; } =
-	[
-		new( "Featured", "star", () => MenuUtility.FindFeaturedWorkshopGamesAsync(), 300 ),
-		new( "Most played", "sports_esports", () => MenuUtility.FindWorkshopGamesAsync( sort: Storage.SortOrder.RankedByTotalPlaytime ), 300, Storage.SortOrder.RankedByTotalPlaytime ),
-		new( "Trending", "trending_up", () => MenuUtility.FindWorkshopGamesAsync( sort: Storage.SortOrder.RankedByTrend ), 300, Storage.SortOrder.RankedByTrend ),
-		new( "Newest", "new_releases", () => MenuUtility.FindWorkshopGamesAsync( sort: Storage.SortOrder.RankedByPublicationDate ), 300, Storage.SortOrder.RankedByPublicationDate ),
-	];
 }

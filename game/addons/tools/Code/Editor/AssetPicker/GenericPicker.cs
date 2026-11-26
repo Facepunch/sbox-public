@@ -25,6 +25,11 @@ public class GenericPicker : AssetPicker
 	public MountsAssetBrowser MountsBrowser { get; protected set; }
 
 	/// <summary>
+	/// Internal Workshop map browser. Only map pickers have one.
+	/// </summary>
+	public WorkshopMapBrowser WorkshopBrowser { get; protected set; }
+
+	/// <summary>
 	/// The picked assets.
 	/// </summary>
 	public List<Asset> Assets { get; protected set; }
@@ -65,7 +70,10 @@ public class GenericPicker : AssetPicker
 		AssetBrowser.MultiSelect = Options.EnableMultiselect;
 		DockManager.AddDock( "Asset Browser", "folder", AssetBrowser, DockArea.Center ).Locked = true;
 
-		if ( Options.EnableCloud )
+		// Maps come from the Workshop, not the cloud
+		var isMapPicker = assetTypes?.Contains( AssetType.MapFile ) ?? false;
+
+		if ( Options.EnableCloud && !isMapPicker )
 		{
 			CloudBrowser = new CloudAssetBrowser( DockManager, assetTypes );
 			CloudBrowser.WindowTitle = "Cloud Browser";
@@ -75,6 +83,17 @@ public class GenericPicker : AssetPicker
 			CloudBrowser.OnPackageSelected = ( a ) => Select();
 			CloudBrowser.MultiSelect = Options.EnableMultiselect;
 			DockManager.AddDock( "Cloud Browser", "cloud_download", CloudBrowser, DockArea.Center ).Locked = true;
+		}
+
+		if ( isMapPicker )
+		{
+			WorkshopBrowser = new WorkshopMapBrowser( DockManager );
+			WorkshopBrowser.WindowTitle = "Workshop";
+			WorkshopBrowser.SetWindowIcon( "public" );
+
+			WorkshopBrowser.OnMapHighlight = ( map ) => ConfirmButton.Enabled = map is not null;
+			WorkshopBrowser.OnMapSelected = ( map ) => Select();
+			DockManager.AddDock( "Workshop", "public", WorkshopBrowser, DockArea.Center ).Locked = true;
 		}
 
 		if ( Options.EnableMounts )
@@ -134,9 +153,23 @@ public class GenericPicker : AssetPicker
 		}
 	}
 
+	/// <summary>
+	/// Starts an editable search across local assets, including the engine's built-in assets.
+	/// </summary>
+	public override void SetSearchText( string value )
+	{
+		if ( string.IsNullOrWhiteSpace( value ) )
+			return;
+
+		DockManager.RaiseDock( "Asset Browser" );
+		AssetBrowser.Search.Clear();
+		AssetBrowser.Search.Value = value;
+		AssetBrowser.NavigateTo( new EverythingLocation() );
+	}
+
 	public override void SetSelection( Package package )
 	{
-		if ( package is null )
+		if ( package is null || CloudBrowser is null )
 			return;
 
 		DockManager.RaiseDock( "Cloud Browser" );
@@ -144,8 +177,29 @@ public class GenericPicker : AssetPicker
 		CloudBrowser.FocusOnPackage( package );
 	}
 
+	public override void SetSelection( ulong workshopId )
+	{
+		if ( WorkshopBrowser is null )
+		{
+			SetSelection( (Asset)null );
+			return;
+		}
+
+		DockManager.RaiseDock( "Workshop" );
+	}
+
 	void Select()
 	{
+		if ( WorkshopBrowser?.Visible ?? false )
+		{
+			if ( WorkshopBrowser.SelectedMap is not { } map )
+				return;
+
+			OnWorkshopItemPicked?.Invoke( map.Id );
+			Window.Close();
+			return;
+		}
+
 		AssetBrowser browser = AssetBrowser.Visible ? AssetBrowser : (MountsBrowser?.Visible ?? false) ? MountsBrowser : null;
 
 		if ( browser is not null )
@@ -199,12 +253,6 @@ public class GenericPicker : AssetPicker
 	{
 		if ( package is null )
 			return false;
-
-		if ( package.TypeName == "map" )
-		{
-			// special case because these can be vpks, not assets
-			return AssetBrowser.FilterAssetTypes.Contains( AssetType.MapFile );
-		}
 
 		var primaryAssetName = package.GetCachedMeta<string>( "PrimaryAsset" );
 		string ext = Path.GetExtension( primaryAssetName );

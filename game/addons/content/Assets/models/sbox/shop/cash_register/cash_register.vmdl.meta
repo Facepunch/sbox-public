@@ -1,0 +1,23 @@
+{
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "Cash Register",
+      "Type": "model",
+      "Org": "facepunch",
+      "Ident": "cash_register",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/shop/cash_register/cash_register.vmdl",
+        "AssetLicense": "CC0"
+      }
+    }
+  },
+  "guid": "5d23cfdb-cd8f-4731-b401-7f234c02a550"
+}

@@ -104,7 +104,6 @@ public abstract partial class Resource : IValid, IJsonConvert, BytePack.ISeriali
 		ResourceId = ResourcePath.FastHash();
 #pragma warning restore CS0618 // Type or member is obsolete
 		ResourceIdLong = ResourcePath.FastHash64();
-
 		if ( guid is Guid g && g != default )
 			Guid = g;
 	}
@@ -134,6 +133,10 @@ public abstract partial class Resource : IValid, IJsonConvert, BytePack.ISeriali
 	/// Called by OnResourceReloaded when a resource has been reloaded
 	/// </summary>
 	internal virtual void OnReloaded()
+	{
+	}
+
+	internal virtual void OnMounted( string path )
 	{
 	}
 

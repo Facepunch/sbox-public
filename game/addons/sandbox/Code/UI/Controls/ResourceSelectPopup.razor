@@ -1,0 +1,556 @@
+@using Sandbox;
+@using Sandbox.UI;
+@namespace Sandbox
+@inherits BasePopup
+@implements IKeepsMenuOpen
+
+<root class="popup @(IsSoundSelection ? "sound-selection" : "")">
+
+    <div class="inner" onclick:preventDefault=@true>
+
+        <div class="list">
+            <div class="popup-header">
+                <h2>@Title</h2>
+                <TextEntry class="search" Placeholder="#spawnmenu.common.search" Value:bind=@Search HasClearButton></TextEntry>
+                <UIButton class="size-button" Icon=@(ListView ? "view_list" : IconSize.Icon()) Tooltip="#ui.icon_size.title" @onclick=@OpenSizeMenu />
+                @if (AllowPackages)
+                {
+                    <UIDropdown class="sort-dropdown" Items=@SortItems Value=@SortMode
+                                ValueChanged=@((object value) => SetSort( (PackageSortMode)value ))></UIDropdown>
+                }
+            </div>
+
+            @if ( _loading && _filteredItems.Count == 0 )
+            {
+                <UILoadingState class="loading" />
+            }
+            else
+            {
+            <MixedVirtualGrid @ref=Grid Items=@(_filteredItems) ItemSize=@ItemSize class="grid @(ListView ? "list-view" : IconSize.CssClass())">
+                <Item Context="item">
+                    @{ var value = item is ListEntry row ? row.Value : item; }
+                    @if (value is Resource res)
+                    {
+                        bool selected = res.ResourcePath.Equals(_pendingValue ?? CurrentValue, StringComparison.OrdinalIgnoreCase);
+                        string itemClass = selected ? "item active" : "item";
+                        string thumbUrl = $"thumb:{res.ResourcePath}";
+                        string name = res is IDefinitionResource def ? def.Title : res.ResourceName;
+                        var previewState = PreviewStateFor( res.ResourcePath );
+
+                        <div @key=@res.ResourcePath class="@itemClass" Tooltip=@SmallTooltip( name ) @onclick=@(() => OnItemClicked(res)) @ondoubleclick=@(() => ConfirmItem(res.ResourcePath, () => OnItemClicked(res)))>
+
+                            @if ( IsSound( res ) )
+                            {
+                                @* sounds have no thumbnail, show a speaker instead *@
+                                <div class="icon sound-icon"><i>volume_up</i></div>
+                            }
+                            else
+                            {
+                                <div class="icon" style="background-image: url( @thumbUrl )"></div>
+                            }
+
+                            <div class="details">
+                                @if ( res is IDefinitionResource definitionResource )
+                                {
+                                    <div class="title">@definitionResource.Title</div>
+                                    <div class="desc">@definitionResource.Description</div>
+                                }
+                                else
+                                {
+                                    <div class="title">@res.ResourceName</div>
+                                    <div class="desc">@(ListView ? res.ResourcePath : "")</div>
+                                }
+                            </div>
+
+                            @if ( previewState != SoundPreviewState.None )
+                            {
+                                <div class="preview-status @previewState.ToString().ToLowerInvariant()" Tooltip=@PreviewTooltip(previewState)>
+                                    <IconPanel Text=@PreviewIcon(previewState) />
+                                </div>
+                            }
+                        </div>
+                    }
+                    else if ( value is Package pkg )
+                    {
+                        bool selected = pkg.FullIdent.Equals(_pendingValue ?? CurrentValue, StringComparison.OrdinalIgnoreCase);
+                        string itemClass = selected ? "item active" : "item";
+                        var previewState = PreviewStateFor( pkg.FullIdent );
+
+                        <div @key=@pkg.FullIdent class="@itemClass" Tooltip=@SmallTooltip( pkg.Title ) @onclick=@(() => OnPackageClicked(pkg)) @ondoubleclick=@(() => ConfirmItem(pkg.FullIdent, () => OnPackageClicked(pkg)))>
+
+                            <div class="icon" style="background-image: url( @pkg.Thumb )"></div>
+                            <div class="details">
+                                <div class="title">@pkg.Title</div>
+                                <div class="desc">@pkg.Org.Title</div>
+                            </div>
+
+                            @if ( previewState != SoundPreviewState.None )
+                            {
+                                <div class="preview-status @previewState.ToString().ToLowerInvariant()" Tooltip=@PreviewTooltip(previewState)>
+                                    <IconPanel Text=@PreviewIcon(previewState) />
+                                </div>
+                            }
+                        </div>
+                    }
+                </Item>
+            </MixedVirtualGrid>
+            }
+        </div>
+
+        <div class="popup-footer">
+            <UIButton Text="#ui.common.clear" @onclick=@ClearSelection></UIButton>
+            <UIButton Text="#ui.common.apply" @onclick=@ConfirmSelection></UIButton>
+        </div>
+
+    </div>
+
+</root>
+
+@code
+{
+    /// <summary>
+    /// Title bar text, "Surface Selection" or similar when not set.
+    /// </summary>
+    public string Title
+    {
+        get => _title ?? DefaultTitle();
+        set => _title = value;
+    }
+
+    public string Extension { get; set; } = "vmdl";
+    public string CurrentValue { get; set; }
+    public bool AllowPackages { get; set; }
+    public Action<string> OnSelectedFile;
+
+    bool IsSoundSelection => string.Equals( Extension?.TrimStart( '.' ), "sound", StringComparison.OrdinalIgnoreCase );
+    bool? _listView;
+    public bool ListView
+    {
+        get => _listView ?? IsSoundSelection;
+        set
+        {
+            if ( ListView == value ) return;
+            _listView = value;
+            RebuildFilteredItems();
+            if ( Grid.IsValid() )
+            {
+                Grid.ScrollOffset = Vector2.Zero;
+                Grid.RecreateCells();
+            }
+            StateHasChanged();
+        }
+    }
+
+    // Full-width rows retain the same virtualization and click/preview handlers as tiles.
+    sealed record ListEntry( object Value ) : IMixedVirtualGridFullRow
+    {
+        public bool IsFullRow => true;
+        public float Height => 48f;
+    }
+
+    /// <summary>
+    /// Opens a picker over the menu <paramref name="source"/> is in.
+    /// </summary>
+    public static ResourceSelectPopup Open( Panel source, string extension, string currentValue, Action<string> onSelected, bool allowPackages = false, string category = null )
+    {
+        var popup = new ResourceSelectPopup
+        {
+            Extension = extension,
+            CurrentValue = currentValue,
+            AllowPackages = allowPackages && !string.Equals( extension, "sent", StringComparison.OrdinalIgnoreCase ),
+            Category = category,
+            OnSelectedFile = onSelected
+        };
+
+        popup.Parent = source.FindPopupPanel();
+        return popup;
+    }
+
+    static readonly List<UIDropdown.Item> SortItems = UIDropdown.ForEnum<PackageSortMode>();
+
+    string _title;
+    string _pendingValue;
+    IResourcePreview _previewingResource;
+
+    public string Category { get; set; }
+
+    PackageSortMode SortMode { get; set; } = PackageSortMode.Popular;
+
+    const string IconSizeCookie = "resource_select.icon_size";
+    MixedVirtualGrid Grid;
+    SpawnMenuIconSize _iconSize = Game.Cookies.Get( IconSizeCookie, SpawnMenuIconSize.Medium );
+
+    void OpenSizeMenu()
+    {
+        SpawnMenuIconSizeExtensions.OpenMenu( this, ListView ? null : IconSize, size =>
+        {
+            IconSize = size;
+            ListView = false;
+        }, onListPicked: () => ListView = true );
+    }
+
+    /// <summary>
+    /// Tile size, kept apart from the spawn menu's since these tiles also show a description.
+    /// </summary>
+    SpawnMenuIconSize IconSize
+    {
+        get => _iconSize;
+        set
+        {
+            if ( value == _iconSize ) return;
+            _iconSize = value;
+            Game.Cookies.Set( IconSizeCookie, value );
+
+            // the tiles' tooltips depend on the size
+            if ( Grid.IsValid() )
+                Grid.RecreateCells();
+
+            StateHasChanged();
+        }
+    }
+
+    Vector2 ItemSize => IconSize switch
+    {
+        SpawnMenuIconSize.Small => new Vector2( 120, 120 ),
+        SpawnMenuIconSize.Large => new Vector2( 260, 308 ),
+        _ => new Vector2( 190, 238 )
+    };
+
+    // Small tiles drop the title, so it moves into a tooltip
+    string SmallTooltip( string title ) => ListView || IconSize == SpawnMenuIconSize.Small ? title : "";
+
+    string DefaultTitle()
+    {
+        var type = AssetTypeAttribute.FindTypeByExtension( Extension )?.GetAttribute<AssetTypeAttribute>();
+        var name = LocalizedText.ResourceTypeName( Extension, type?.Name );
+        if ( name is null ) return "#ui.resource.select";
+
+        return Game.Language.GetPhrase( "ui.resource.selection", new() { { "type", LocalizedText.Resolve( name ) } } );
+    }
+
+    void SetSort( PackageSortMode mode )
+    {
+        if ( SortMode == mode ) return;
+        SortMode = mode;
+        if ( AllowPackages )
+            _ = LoadCloudPackages();
+    }
+
+    readonly List<Resource> _localResources = new();
+    readonly List<Package> _cloudPackages = new();
+    List<object> _filteredItems = new();
+
+    protected override void OnParametersSet()
+    {
+        _localResources.Clear();
+        _cloudPackages.Clear();
+
+        _localResources.AddRange( ResourceLibrary.GetAll<Resource>().Where( FilterExtension ).Where( FilterCategory ) );
+
+        RebuildFilteredItems();
+
+        if ( AllowPackages )
+        {
+            _ = LoadCloudPackages();
+        }
+    }
+
+    public override void OnHotloaded()
+    {
+        base.OnHotloaded();
+        RebuildFilteredItems();
+        if ( Grid.IsValid() ) Grid.RecreateCells();
+        StateHasChanged();
+    }
+
+    string _search = "";
+    bool _searchDirty;
+    TimeSince _lastSearchEdit;
+
+    /// <summary>
+    /// What's typed in the search box. Local items are filtered right away, the workshop is asked once typing pauses.
+    /// </summary>
+    string Search
+    {
+        get => _search;
+        set
+        {
+            value ??= "";
+            if ( _search == value ) return;
+
+            _search = value;
+            _searchDirty = true;
+            _lastSearchEdit = 0;
+
+            RebuildFilteredItems();
+            StateHasChanged();
+        }
+    }
+
+    public override void Tick()
+    {
+        base.Tick();
+
+        if ( _previewState == SoundPreviewState.Playing && (!_previewSound.IsValid() || _previewSound.IsStopped) )
+        {
+            _previewSound = null;
+            SetPreviewState( null, SoundPreviewState.None );
+        }
+
+        if ( !_searchDirty || _lastSearchEdit < 0.4f ) return;
+
+        _searchDirty = false;
+        if ( AllowPackages )
+            _ = LoadCloudPackages();
+    }
+
+    bool MatchesSearch( Resource res )
+    {
+        var text = _search.Trim();
+        if ( text.Length == 0 ) return true;
+
+        if ( res.ResourceName?.Contains( text, StringComparison.OrdinalIgnoreCase ) == true ) return true;
+        if ( res is not IDefinitionResource definition ) return false;
+
+        return definition.Title?.Contains( text, StringComparison.OrdinalIgnoreCase ) == true
+            || definition.Description?.Contains( text, StringComparison.OrdinalIgnoreCase ) == true;
+    }
+
+    bool MatchesSearch( Package pkg )
+    {
+        var text = _search.Trim();
+        return pkg.Title?.Contains( text, StringComparison.OrdinalIgnoreCase ) == true
+            || pkg.FullIdent?.Contains( text, StringComparison.OrdinalIgnoreCase ) == true;
+    }
+
+    // the search the cloud packages were found with
+    string _cloudSearch = "";
+
+    void RebuildFilteredItems()
+    {
+        var items = new List<object>();
+        items.AddRange( _localResources.Where( MatchesSearch ) );
+
+        // until the workshop answers the new search, narrow the old results down by name
+        items.AddRange( _cloudSearch == _search.Trim() ? _cloudPackages : _cloudPackages.Where( MatchesSearch ) );
+        _filteredItems = ListView ? items.Select( x => (object)new ListEntry( x ) ).ToList() : items;
+    }
+
+    int _loadId;
+    bool _loading;
+
+    async Task LoadCloudPackages()
+    {
+        var id = ++_loadId;
+        var search = _search.Trim();
+        var query = $"sort:{SortMode.ToIdentifier()} type:{Extension}";
+        if ( search.Length > 0 ) query += $" {search}";
+
+        // the old sort's packages are stale, show the loader until the new ones arrive
+        _loading = true;
+        _cloudPackages.Clear();
+        RebuildFilteredItems();
+        StateHasChanged();
+
+        Package.FindResult result = null;
+        try
+        {
+            result = await Package.FindAsync( query );
+        }
+        finally
+        {
+            // a newer request owns the state now
+            if ( id == _loadId )
+                _loading = false;
+        }
+
+        if ( id != _loadId ) return;
+
+        if ( result?.Packages != null )
+        {
+            _cloudPackages.AddRange( result.Packages );
+        }
+
+        _cloudSearch = search;
+        RebuildFilteredItems();
+        StateHasChanged();
+    }
+
+    static bool IsSound( Resource res ) => res.ResourcePath?.EndsWith( ".sound", StringComparison.OrdinalIgnoreCase ) == true;
+
+    bool FilterExtension(Resource res)
+    {
+        if (res == null) return false;
+        if (string.IsNullOrEmpty(Extension)) return true;
+
+        var ext = System.IO.Path.GetExtension(res.ResourcePath);
+        if (string.IsNullOrEmpty(ext)) return false;
+
+        return ext.TrimStart('.').Equals(Extension, StringComparison.OrdinalIgnoreCase);
+    }
+
+    bool FilterCategory(Resource res)
+    {
+        if (string.IsNullOrEmpty(Category)) return true;
+        if (res is not SoundDefinition soundDef) return true;
+
+        return string.Equals(soundDef.Category, Category, StringComparison.OrdinalIgnoreCase);
+    }
+
+    void OnItemClicked( Resource res )
+    {
+        StopPreview();
+
+        _pendingValue = res.ResourcePath;
+
+        var gameRes = ResourceLibrary.Get<GameResource>( res.ResourcePath );
+        if ( gameRes is IResourcePreview preview )
+        {
+            _previewingResource = preview;
+            preview.OnPreview();
+        }
+        else if ( gameRes is SoundEvent sound )
+        {
+            StartSoundPreview( res.ResourcePath, sound );
+        }
+
+        StateHasChanged();
+    }
+
+    void OnPackageClicked( Package pkg )
+    {
+        StopPreview();
+
+        _pendingValue = pkg.FullIdent;
+
+        if ( IsSoundSelection )
+            _ = PreviewCloudSound( pkg.FullIdent );
+
+        StateHasChanged();
+    }
+
+    // sound previews: the one playing, and which click it belongs to so a slow download can't play over a newer pick
+    SoundHandle _previewSound;
+    int _previewId;
+    string _previewValue;
+    SoundPreviewState _previewState;
+
+    enum SoundPreviewState { None, Loading, Playing, Failed }
+
+    SoundPreviewState PreviewStateFor( string value ) =>
+        string.Equals( value, _previewValue, StringComparison.OrdinalIgnoreCase ) ? _previewState : SoundPreviewState.None;
+
+    static string PreviewIcon( SoundPreviewState state ) => state switch
+    {
+        SoundPreviewState.Loading => "sync",
+        SoundPreviewState.Playing => "volume_up",
+        _ => "error"
+    };
+
+    static string PreviewTooltip( SoundPreviewState state ) => state switch
+    {
+        SoundPreviewState.Loading => "#ui.sound_preview.loading",
+        SoundPreviewState.Playing => "#ui.sound_preview.playing",
+        _ => "#ui.sound_preview.failed"
+    };
+
+    void SetPreviewState( string value, SoundPreviewState state )
+    {
+        _previewValue = value;
+        _previewState = state;
+        StateHasChanged();
+    }
+
+    void StartSoundPreview( string value, SoundEvent sound )
+    {
+        try
+        {
+            _previewSound = sound is null ? null : Sound.Play( sound );
+            SetPreviewState( value, _previewSound.IsValid() && !_previewSound.IsStopped
+                ? SoundPreviewState.Playing : SoundPreviewState.Failed );
+        }
+        catch ( Exception e )
+        {
+            Log.Warning( $"Couldn't preview sound '{value}': {e.Message}" );
+            SetPreviewState( value, SoundPreviewState.Failed );
+        }
+    }
+
+    /// <summary>
+    /// Download a workshop sound and play it, so it can be heard before it's picked.
+    /// </summary>
+    async Task PreviewCloudSound( string ident )
+    {
+        var id = _previewId;
+        SetPreviewState( ident, SoundPreviewState.Loading );
+
+        SoundEvent sound = null;
+        try
+        {
+            sound = await Cloud.Load<SoundEvent>( ident );
+        }
+        catch ( Exception e )
+        {
+            Log.Warning( $"Couldn't preview workshop sound '{ident}': {e.Message}" );
+        }
+
+        if ( id != _previewId || !IsValid ) return;
+
+        StartSoundPreview( ident, sound );
+    }
+
+    // the first click of a double click has usually picked it already
+    void ConfirmItem( string value, Action pick )
+    {
+        if ( _pendingValue != value ) pick();
+        ConfirmSelection();
+    }
+
+    void StopPreview()
+    {
+        _previewingResource?.OnPreviewStop();
+        _previewingResource = null;
+
+        _previewId++;
+        if ( _previewSound.IsValid() )
+            _previewSound.Stop();
+        _previewSound = null;
+        _previewValue = null;
+        _previewState = SoundPreviewState.None;
+    }
+
+    public override void OnDeleted()
+    {
+        StopPreview();
+        base.OnDeleted();
+    }
+
+    void ClearSelection()
+    {
+        StopPreview();
+        OnSelectedFile?.Invoke( null );
+        Delete();
+    }
+
+    void ConfirmSelection()
+    {
+        StopPreview();
+
+        if ( _pendingValue != null )
+            OnSelectedFile?.Invoke( _pendingValue );
+
+        Delete();
+    }
+
+    protected override void OnMouseDown(MousePanelEvent e)
+    {
+        base.OnMouseDown(e);
+
+        if (e.Target == this)
+        {
+            StopPreview();
+            Delete();
+        }
+    }
+
+}

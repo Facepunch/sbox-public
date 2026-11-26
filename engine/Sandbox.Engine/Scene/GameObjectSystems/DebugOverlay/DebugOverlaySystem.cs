@@ -21,6 +21,7 @@ public sealed partial class DebugOverlaySystem : GameObjectSystem<DebugOverlaySy
 		}
 
 		entries.Clear();
+		DeletePooledModels();
 	}
 
 	void RemoveExpired()
@@ -41,15 +42,28 @@ public sealed partial class DebugOverlaySystem : GameObjectSystem<DebugOverlaySy
 
 	void RemoveSingleFrame( bool createdDuringFixed )
 	{
+		// Models parked by the last pass that nothing drew again
+		DeletePooledModels();
+
+		var kept = 0;
 		for ( int i = 0; i < entries.Count; i++ )
 		{
-			if ( !entries[i].SingleFrame ) continue;
-			if ( entries[i].CreatedDuringFixed != createdDuringFixed ) continue;
+			var entry = entries[i];
+			if ( !entry.SingleFrame || entry.CreatedDuringFixed != createdDuringFixed )
+			{
+				entries[kept++] = entry;
+				continue;
+			}
 
-			entries[i].Dispose();
-			entries.RemoveAt( i );
-			i--;
+			if ( entry.Pooled && entry.sceneObject is SceneModel model && model.IsValid() && model.Model is not null )
+			{
+				ParkModel( model );
+				entry.sceneObject = null;
+			}
+
+			entry.Dispose();
 		}
+		entries.RemoveRange( kept, entries.Count - kept );
 
 		// don't force the scene world to exist just to flush deletes
 		if ( Scene.HasSceneWorld )

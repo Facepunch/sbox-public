@@ -1,0 +1,199 @@
+@using Sandbox;
+@using Sandbox.UI;
+@namespace Sandbox
+@inherits PanelComponent
+@implements Global.IPlayerEvents
+
+@if ( !Hud.IsVisible( HudElement.Inventory ) )
+    return;
+
+@if ( !inventory.IsValid() )
+    return;
+
+<root></root>
+
+@code
+{
+    [Property, Group( "Sound" )] public SoundEvent SwitchSound { get; set; }
+
+    /// <summary>
+    /// Seconds after the last selection change before the menu closes on its own, keeping the current weapon
+    /// </summary>
+    [Property] public float SelectionTimeout { get; set; } = 1.5f;
+
+    InventorySection section;
+
+    PlayerInventory inventory;
+    BaseCombatWeapon prev;
+
+    BaseCombatWeapon selected;
+    RealTimeSince sinceSelectionChanged;
+
+    bool IsSelecting => selected.IsValid();
+
+    public static bool IsOpen { get; private set; }
+
+    protected override int BuildHash() => HashCode.Combine( inventory, Hud.IsVisible( HudElement.Inventory ) );
+
+    void Global.IPlayerEvents.OnPlayerPickup( PlayerPickupEvent e )
+    {
+        StateHasChanged();
+    }
+
+    protected override void OnUpdate()
+    {
+        // only search the scene when the inventory we have is gone or stopped being ours
+        if ( !inventory.IsValid() || !inventory.Network.IsOwner )
+            inventory = Game.ActiveScene.GetAllComponents<PlayerInventory>().FirstOrDefault( x => x.Network.IsOwner );
+
+        // the highlighted weapon was dropped or removed
+        if ( selected is not null && (!selected.IsValid() || selected.Inventory != inventory) )
+            selected = null;
+
+        // the menu only shows while picking a weapon
+        IsOpen = IsSelecting && Hud.IsVisible( HudElement.Inventory );
+
+        section = HudLayer.FindSection( this, section );
+        if ( section is null ) return;
+
+        section.Inventory = inventory;
+        section.Selected = selected;
+        section.Open = IsOpen;
+    }
+
+    protected override void OnDisabled()
+    {
+        selected = null;
+        IsOpen = false;
+        if ( section is not null ) section.Open = false;
+    }
+
+    static readonly string[] SlotActions = { "Slot1", "Slot2", "Slot3", "Slot4", "Slot5", "Slot6", "Slot7", "Slot8", "Slot9" };
+
+    static string SlotAction( int index ) => SlotActions.Length > index ? SlotActions[index] : $"Slot{index + 1}";
+
+    public void HandleInput()
+    {
+        if ( inventory is null )
+            return;
+
+        if ( SpawnMenuHost.IsOpen )
+        {
+            selected = null;
+            return;
+        }
+
+        if ( Input.Pressed( "invprev" ) && prev.IsValid() )
+        {
+            selected = null;
+            var weapon = prev;
+            prev = inventory.ActiveWeapon;
+            inventory.SwitchWeapon( weapon );
+        }
+
+        for ( int i = 0; i < inventory.MaxSlots; i++ )
+        {
+            if ( Input.Pressed( SlotAction( i ) ) )
+                SelectBucket( i );
+        }
+
+        if ( !IsSelecting )
+            return;
+
+        // don't let the left click fire the weapon at this moment
+        if ( Input.Pressed( "attack1" ) )
+        {
+            Input.ReleaseAction( "attack1" );
+            Confirm();
+        }
+        else if ( Input.Pressed( "attack2" ) )
+        {
+            Input.ReleaseAction( "attack2" );
+            selected = null;
+        }
+        else if ( sinceSelectionChanged > SelectionTimeout )
+        {
+            selected = null;
+        }
+    }
+
+    /// <summary>
+    /// SlotNext / SlotPrev step the selection (the scroll wheel by default). Runs after the weapon's update, so a
+    /// weapon that uses the wheel (physgun distance, wire tool ports) calls <see cref="ConsumeMouseWheel"/> first
+    /// and nothing reaches the menu
+    /// </summary>
+    public void HandleScrollInput()
+    {
+        if ( inventory is null || SpawnMenuHost.IsOpen )
+            return;
+
+        if ( Input.Pressed( "SlotNext" ) ) Step( 1 );
+        if ( Input.Pressed( "SlotPrev" ) ) Step( -1 );
+    }
+
+    /// <summary>
+    /// Call when something used the scroll wheel this frame, so it doesn't also change weapon. Clears
+    /// <see cref="Input.MouseWheel"/> and releases the slot actions, which are bound to the wheel by default
+    /// </summary>
+    public static void ConsumeMouseWheel()
+    {
+        Input.MouseWheel = default;
+        Input.ReleaseAction( "SlotNext" );
+        Input.ReleaseAction( "SlotPrev" );
+    }
+
+    List<BaseCombatWeapon> Selectable() => inventory.Weapons.Where( x => x == inventory.ActiveWeapon || inventory.CanSwitchTo( x ) ).ToList();
+
+    /// <summary>
+    /// Pressing a bucket's key opens it on its first weapon (or the one after the held weapon), pressing it again steps through the bucket
+    /// </summary>
+    void SelectBucket( int bucket )
+    {
+        var items = Selectable().Where( x => x.Slot == bucket ).ToList();
+        if ( items.Count == 0 )
+            return;
+
+        var from = IsSelecting && selected.Slot == bucket ? selected : inventory.ActiveWeapon;
+        var index = items.IndexOf( from );
+
+        SetSelected( items[(index + 1) % items.Count] );
+    }
+
+    /// <summary>
+    /// The wheel steps through every weapon across all buckets
+    /// </summary>
+    void Step( int delta )
+    {
+        if ( delta == 0 )
+            return;
+
+        var items = Selectable();
+        if ( items.Count == 0 )
+            return;
+
+        var index = items.IndexOf( IsSelecting ? selected : inventory.ActiveWeapon );
+        if ( index < 0 ) index = delta > 0 ? -1 : 0;
+
+        index = ((index + delta) % items.Count + items.Count) % items.Count;
+        SetSelected( items[index] );
+    }
+
+    void SetSelected( BaseCombatWeapon weapon )
+    {
+        selected = weapon;
+        sinceSelectionChanged = 0;
+        Sound.Play( SwitchSound );
+    }
+
+    void Confirm()
+    {
+        var weapon = selected;
+        selected = null;
+
+        if ( !weapon.IsValid() || weapon == inventory.ActiveWeapon )
+            return;
+
+        prev = inventory.ActiveWeapon;
+        inventory.SwitchWeapon( weapon );
+    }
+}

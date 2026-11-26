@@ -1,0 +1,55 @@
+@using Sandbox;
+@using Sandbox.UI;
+@namespace Sandbox
+@inherits Panel
+
+<root>
+    @if ( Hud.IsVisible( HudElement.AmmoPickups ) )
+    {
+        @foreach ( var notice in VisibleNotices() )
+        {
+            <AmmoPickupRow Notice=@notice @key="notice" />
+        }
+    }
+</root>
+
+@code
+{
+    public override void Tick()
+    {
+        base.Tick();
+
+        Style.Right = Hud.MarginLength;
+        Style.Bottom = Length.Pixels( Hud.StackBottom * ScaleFromScreen );
+    }
+
+    IEnumerable<PlayerInventory.AmmoPickupNotice> VisibleNotices()
+    {
+        var inventory = Player.FindLocalPlayer()?.GetComponent<PlayerInventory>();
+        if ( !inventory.IsValid() ) return Enumerable.Empty<PlayerInventory.AmmoPickupNotice>();
+        return inventory.AmmoPickupNotices.Where( notice => notice.ExpiresAt > RealTime.Now );
+    }
+
+    protected override int BuildHash()
+    {
+        var hash = new HashCode();
+        hash.Add( Hud.IsVisible( HudElement.AmmoPickups ) );
+
+        var inventory = Player.FindLocalPlayer()?.GetComponent<PlayerInventory>();
+        if ( inventory.IsValid() )
+        {
+            var notices = inventory.AmmoPickupNotices;
+            for ( int i = 0; notices.Count > i; i++ )
+            {
+                var notice = notices[i];
+                if ( notice.ExpiresAt > RealTime.Now )
+                {
+                    hash.Add( notice );
+                    hash.Add( notice.Amount );
+                }
+            }
+        }
+
+        return hash.ToHashCode();
+    }
+}

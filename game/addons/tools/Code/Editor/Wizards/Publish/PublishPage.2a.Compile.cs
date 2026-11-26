@@ -74,8 +74,8 @@ partial class PublishWizard
 				throw new System.Exception( "No code was generated" );
 
 			Config.CompilerOutput = generated;
-			Config.AssemblyFiles = CompiledFiles( generated );
-			compileState = CompileState.Compiled;
+			Config.AssemblyFiles = generated.Length == 0 ? null : CompiledFiles( generated );
+			compileState = generated.Length == 0 ? CompileState.None : CompileState.Compiled;
 		}
 		catch ( System.Exception e )
 		{
@@ -124,7 +124,7 @@ partial class PublishWizard
 		{
 			var ident = $"{a.Arguments[0]}";
 
-			if ( !Package.TryParseIdent( ident, out var parts ) )
+			if ( !Package.TryParseIdentParts( ident, out var parts ) )
 			{
 				Log.Warning( $"Couldn't parse ident {ident}" );
 				continue;
@@ -174,6 +174,7 @@ partial class PublishWizard
 
 		(string Icon, string Text, Color Color) Look => Wizard.compileState switch
 		{
+			CompileState.None => ("info", "No compiled code - show details", Theme.ControlBackground),
 			CompileState.Failed => ("error", "Compile failed - show errors", Theme.Red.Darken( 0.2f )),
 			CompileState.Compiled => ("check_circle", "Code compiled", Theme.Green.Darken( 0.55f )),
 			_ => ("hourglass_top", "Compiling...", Theme.ControlBackground),

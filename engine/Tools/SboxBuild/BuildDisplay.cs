@@ -10,17 +10,38 @@ internal static class BuildDisplay
 	private static readonly object sync = new();
 	private static volatile Session current;
 
-	private sealed class Session( string title, string[] stages )
+	internal sealed class StageRow( string name, string label = null )
+	{
+		internal readonly string Name = name;
+		internal readonly string Label = Log.TerminalText( label ?? name );
+		internal readonly Stopwatch Timer = new();
+		internal string Status { get; private set; } = "Pending";
+		internal StageRow[] Children = [];
+
+		internal void SetStatus( string status )
+		{
+			if ( Status == status ) return;
+
+			Status = status;
+			if ( status == "Running" )
+			{
+				Timer.Start();
+			}
+			else
+			{
+				Timer.Stop();
+			}
+		}
+	}
+
+	private sealed class Session( string title, StageRow[] stages )
 	{
 		public readonly object Sync = new();
 		public readonly AutoResetEvent Wake = new( false );
 		public readonly Queue<(string Message, string Style)> Messages = new();
 		public readonly Stopwatch Timer = Stopwatch.StartNew();
 		public readonly string Title = Log.TerminalText( title );
-		public readonly string[] Stages = stages.Select( Log.TerminalText ).ToArray();
-		public readonly string[] Results = stages.Select( _ => "Pending" ).ToArray();
-		public readonly TimeSpan[] Started = new TimeSpan[stages.Length];
-		public readonly TimeSpan[] Elapsed = new TimeSpan[stages.Length];
+		internal readonly StageRow[] Stages = stages;
 		public int Stage = -1;
 		public string Activity = "Starting";
 		public string Detail = "";
@@ -31,12 +52,22 @@ internal static class BuildDisplay
 
 	public static bool IsActive => current != null;
 
-	private static void WriteHeader( IAnsiConsole console, bool rich )
+	private static void WriteHeader( IAnsiConsole console, bool rich, Session session )
 	{
+		if ( session.Stages.Length == 0 ) return;
+
 		console.WriteLine();
 		if ( !rich || console.Profile.Width < 40 )
 		{
 			console.Write( new Text( "s&box / bootstrap\n" ) );
+			if ( !rich )
+			{
+				lock ( session.Sync )
+				{
+					foreach ( var stage in session.Stages.Where( stage => stage.Children.Length > 0 ) )
+						Log.WriteConsole( $"{stage.Label}: {string.Join( ", ", stage.Children.Select( child => child.Label ) )}", "" );
+				}
+			}
 			return;
 		}
 
@@ -48,9 +79,7 @@ internal static class BuildDisplay
 		console.WriteLine();
 	}
 
-	public static ExitCode Run( string title, Func<ExitCode> action ) => Run( title, action, [] );
-
-	public static ExitCode Run( string title, Func<ExitCode> action, string[] stages )
+	internal static ExitCode Run( string title, Func<ExitCode> action, StageRow[] stages = null )
 	{
 		Session session;
 		lock ( sync )
@@ -82,7 +111,7 @@ internal static class BuildDisplay
 				Out = new AnsiConsoleOutput( Console.Out )
 			} );
 			interactive &= console.Profile.Capabilities.Ansi && console.Profile.Capabilities.Interactive;
-			if ( session.Stages.Length > 0 ) WriteHeader( console, interactive );
+			WriteHeader( console, interactive, session );
 
 			void Pump( LiveDisplayContext context )
 			{
@@ -126,8 +155,11 @@ internal static class BuildDisplay
 				{
 					session.Finished = true;
 					session.Timer.Stop();
-					for ( var i = 0; i < session.Stages.Length; i++ )
-						if ( session.Results[i] == "Pending" ) session.Results[i] = "Not run";
+					foreach ( var (_, row) in StageRows( session ) )
+					{
+						if ( row.Status == "Pending" ) row.SetStatus( "Not run" );
+						if ( row.Status is "Running" or "Waiting" ) row.SetStatus( "Interrupted" );
+					}
 				}
 				while ( Drain( session, context == null ? null : console ) ) { }
 				if ( context != null )
@@ -152,15 +184,11 @@ internal static class BuildDisplay
 			// Keep the outcome below visible without expanding anything.
 			GitHubActions.EndGroup();
 
-			for ( var i = 0; i < session.Stages.Length; i++ )
+			foreach ( var (label, row) in StageRows( session ) )
 			{
-				var message = $"{session.Stages[i]}: {session.Results[i]} ({FormatTime( session.Elapsed[i] )})";
-				if ( interactive ) Log.Record( message );
-				else
-				{
-					Log.Record( message );
-					Write( message, "", true );
-				}
+				var message = $"{label}: {row.Status} ({FormatTime( row.Timer.Elapsed )})";
+				Log.Record( message );
+				if ( !interactive ) Write( message, "", true );
 			}
 			var result = task.GetAwaiter().GetResult();
 			var summary = $"{session.Title}: {(result == ExitCode.Success ? "succeeded" : "failed")} in {FormatTime( session.Timer.Elapsed )}";
@@ -222,7 +250,7 @@ internal static class BuildDisplay
 		}
 	}
 
-	public static void Detail( string message )
+	internal static void Detail( string message, IReadOnlyList<string> activeChildren = null )
 	{
 		var session = current;
 		if ( session == null ) return;
@@ -230,6 +258,21 @@ internal static class BuildDisplay
 		{
 			if ( session.Finished ) return;
 			session.Detail = Log.TerminalText( message );
+			if ( activeChildren != null && session.Stage >= 0 )
+			{
+				foreach ( var child in session.Stages[session.Stage].Children )
+				{
+					if ( activeChildren.Contains( child.Name, StringComparer.OrdinalIgnoreCase ) )
+					{
+						child.SetStatus( "Running" );
+					}
+					else if ( child.Status == "Running" )
+					{
+						// More jobs for this root may become ready later.
+						child.SetStatus( "Waiting" );
+					}
+				}
+			}
 			session.Wake.Set();
 		}
 	}
@@ -243,13 +286,36 @@ internal static class BuildDisplay
 		{
 			if ( session.Finished || index < 0 || index >= session.Stages.Length ) return;
 			session.Stage = index;
-			session.Results[index] = "Running";
-			session.Started[index] = session.Timer.Elapsed;
-			name = session.Stages[index];
+			var row = session.Stages[index];
+			row.SetStatus( "Running" );
+			name = row.Label;
 			Status( name );
 		}
 		Log.SetStage( name );
 		Log.Detail( $"Starting {name}" );
+	}
+
+	internal static void SetStageChildren( StageRow[] children )
+	{
+		var session = current;
+		if ( session == null ) return;
+		lock ( session.Sync )
+		{
+			if ( session.Finished || session.Stage < 0 ) return;
+			session.Stages[session.Stage].Children = children;
+		}
+	}
+
+	internal static void FinishChild( string name, string status )
+	{
+		var session = current;
+		if ( session == null ) return;
+		lock ( session.Sync )
+		{
+			if ( session.Finished || session.Stage < 0 ) return;
+			var child = Array.Find( session.Stages[session.Stage].Children, row => row.Name == name );
+			child?.SetStatus( status );
+		}
 	}
 
 	public static void FinishStage( ExitCode result )
@@ -260,10 +326,12 @@ internal static class BuildDisplay
 		lock ( session.Sync )
 		{
 			var index = session.Stage;
-			if ( session.Finished || index < 0 || session.Results[index] != "Running" ) return;
-			session.Elapsed[index] = session.Timer.Elapsed - session.Started[index];
-			session.Results[index] = result == ExitCode.Success ? "Done" : "Failed";
-			message = $"{session.Stages[index]}: {session.Results[index]} ({FormatTime( session.Elapsed[index] )})";
+			if ( session.Finished || index < 0 ) return;
+			var row = session.Stages[index];
+			if ( row.Status != "Running" ) return;
+
+			row.SetStatus( result == ExitCode.Success ? "Done" : "Failed" );
+			message = $"{row.Label}: {row.Status} ({FormatTime( row.Timer.Elapsed )})";
 			session.Wake.Set();
 		}
 		Log.Detail( message );
@@ -311,6 +379,16 @@ internal static class BuildDisplay
 		? $"{(int)time.TotalHours}:{time.Minutes:00}:{time.Seconds:00}"
 		: $"{(int)time.TotalMinutes:00}:{time.Seconds:00}";
 
+	private static IEnumerable<(string Label, StageRow Row)> StageRows( Session session )
+	{
+		foreach ( var stage in session.Stages )
+		{
+			yield return (stage.Label, stage);
+			foreach ( var child in stage.Children )
+				yield return ($"  - {child.Label}", child);
+		}
+	}
+
 	private static IRenderable Render( Session session )
 	{
 		lock ( session.Sync )
@@ -319,11 +397,10 @@ internal static class BuildDisplay
 			table.AddColumn( Markup.Escape( session.Title ) );
 			table.AddColumn( "Status" );
 			table.AddColumn( "Elapsed" );
-			for ( var i = 0; i < session.Stages.Length; i++ )
+			foreach ( var (label, row) in StageRows( session ) )
 			{
-				var elapsed = session.Results[i] == "Running" ? session.Timer.Elapsed - session.Started[i] : session.Elapsed[i];
-				var color = session.Results[i] switch { "Done" => "green", "Failed" => "red", "Running" => "cyan", _ => "grey" };
-				table.AddRow( Markup.Escape( session.Stages[i] ), $"[{color}]{session.Results[i]}[/]", FormatTime( elapsed ) );
+				var color = row.Status switch { "Done" or "Up to date" => "green", "Failed" or "Blocked" => "red", "Running" => "cyan", _ => "grey" };
+				table.AddRow( Markup.Escape( label ), $"[{color}]{row.Status}[/]", FormatTime( row.Timer.Elapsed ) );
 			}
 			var rows = new List<IRenderable>();
 			if ( session.Stages.Length > 0 ) rows.Add( table );

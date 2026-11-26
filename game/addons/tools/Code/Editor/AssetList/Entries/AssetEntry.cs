@@ -182,7 +182,11 @@ public class AssetEntry : IAssetListEntry
 
 	public void Duplicate( string newName = null )
 	{
-		FileInfo.CopyTo( FileInfo.GetNewPath( newName ?? FileInfo.GetDefaultDuplicateName() ) );
+		var path = FileInfo.GetNewPath( newName ?? FileInfo.GetDefaultDuplicateName() );
+		if ( Asset is not null )
+			EditorUtility.CopyAsset( Asset, path, overwrite: false, rebuildFromSource: true );
+		else
+			FileInfo.CopyTo( path );
 	}
 
 	public bool OnDoubleClicked( AssetList list )

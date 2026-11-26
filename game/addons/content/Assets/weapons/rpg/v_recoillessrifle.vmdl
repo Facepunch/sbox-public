@@ -1,0 +1,178 @@
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:modeldoc30:version{8c2d7a91-9c42-4bf0-883a-5a3b1762d4f1} -->
+{
+	rootNode = 
+	{
+		_class = "RootNode"
+		children = 
+		[
+			{
+				_class = "Skeleton"
+				children =
+				[
+					{
+						_class = "SkeletonFile"
+						filename = "weapons/rpg/v_recoillessrifle.fbx"
+						import_scale = 1.0
+					},
+				]
+			},
+			{
+				_class = "MaterialGroupList"
+				children = 
+				[
+					{
+						_class = "DefaultMaterialGroup"
+						remaps = 
+						[
+							{
+								from = "84mm_missile.vmat"
+								to = "weapons/rpg/materials/84mm_missile.vmat"
+							},
+							{
+								from = "carl_gustav_a.vmat"
+								to = "weapons/rpg/materials/recoilless_rifle_a.vmat"
+							},
+							{
+								from = "carl_gustav_b.vmat"
+								to = "weapons/rpg/materials/recoilless_rifle_b.vmat"
+							},
+							{
+								from = "carl_gustav_c.vmat"
+								to = "weapons/rpg/materials/recoilless_rifle_c.vmat"
+							},
+							{
+								from = "carl_gustav_d.vmat"
+								to = "weapons/rpg/materials/recoilless_rifle_d.vmat"
+							},
+							{
+								from = "carl_gustav_main.vmat"
+								to = "weapons/rpg/materials/recoilless_rifle_main.vmat"
+							},
+							{
+								from = "v_rmr.vmat"
+								to = "weapons/rpg/materials/v_rmr.vmat"
+							},
+							{
+								from = "v_rmr_glass.vmat"
+								to = "weapons/rpg/materials/v_rmr_glass.vmat"
+							},
+							{
+								from = "v_rmr_red_dot.vmat"
+								to = "weapons/rpg/materials/v_rmr_red_dot.vmat"
+							},
+						]
+						use_global_default = false
+						global_default_material = "materials/dev/dev_metal_rough20.vmat"
+					},
+				]
+			},
+			{
+				_class = "RenderMeshList"
+				children = 
+				[
+					{
+						_class = "RenderMeshFile"
+						name = "Recoilless_Rifle"
+						filename = "weapons/rpg/v_recoillessrifle.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter = 
+						{
+							exclude_by_default = false
+							exception_list = [  ]
+						}
+					},
+				]
+			},
+			{
+				_class = "ModelModifierList"
+				children = 
+				[
+					{
+						_class = "ModelModifier_ScaleAndMirror"
+						scale = 0.3937
+						mirror_x = false
+						mirror_y = false
+						mirror_z = false
+						flip_bone_forward = false
+						swap_left_and_right_bones = false
+					},
+				]
+			},
+			{
+				_class = "AnimConstraintList"
+				children = 
+				[
+					{
+						_class = "Prefab"
+						target_file = "weapons/shared/first_person/prefabs/v_first_person_arms_animconstraintlist.vmdl_prefab"
+					},
+				]
+			},
+			{
+				_class = "IKData"
+				children = 
+				[
+					{
+						_class = "Prefab"
+						target_file = "weapons/shared/first_person/prefabs/v_first_person_arms_ikdata.vmdl_prefab"
+					},
+				]
+			},
+			{
+				_class = "BoneMarkupList"
+				children = 
+				[
+					{
+						_class = "Prefab"
+						target_file = "weapons/shared/first_person/prefabs/v_first_person_arms_bonemarkuplist.vmdl_prefab"
+					},
+				]
+				bone_cull_type = "None"
+			},
+			{
+				_class = "WeightListList"
+				children = 
+				[
+					{
+						_class = "Prefab"
+						target_file = "weapons/shared/first_person/prefabs/v_first_person_arms_weightlistlist.vmdl_prefab"
+					},
+				]
+			},
+			{
+				_class = "AttachmentList"
+				children = 
+				[
+					{
+						_class = "Attachment"
+						name = "muzzle"
+						parent_bone = "weapon_root"
+						relative_origin = [ 50.0, 0.0, 0.0 ]
+						relative_angles = [ -0.0, 0.0, 0.0 ]
+						weight = 1.0
+						ignore_rotation = false
+					},
+					{
+						_class = "Attachment"
+						name = "eject"
+						parent_bone = "weapon_root"
+						relative_origin = [ -28.0, 0.0, 0.0 ]
+						relative_angles = [ 0.0, 180.0, 0.0 ]
+						weight = 1.0
+						ignore_rotation = false
+					},
+				]
+			},
+		]
+		model_archetype = ""
+		primary_associated_entity = ""
+		anim_graph_name = ""
+		base_model_name = ""
+	}
+}

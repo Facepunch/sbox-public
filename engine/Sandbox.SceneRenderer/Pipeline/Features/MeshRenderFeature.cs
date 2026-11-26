@@ -304,7 +304,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 				if ( customRuns == 0 ) continue;
 
 				var customDistance = (customRuns & DistanceSortedLists) != 0 ? TranslucentSortDistance( centers[index], extents[index], sortCamera ) : 0;
-				AddToLists( customRuns, index, (ulong)(uint)RuntimeHelpers.GetHashCode( custom ) << 8, customDistance, !custom.IsOpaque, 0 );
+				AddToLists( customRuns, index, (ulong)(uint)RuntimeHelpers.GetHashCode( custom ) << 8, customDistance, !custom.IsOpaque, custom.RenderOrder );
 				layers.Custom |= customRuns;
 				if ( custom.WantsFrameBufferCopy && !pass.IsShadow ) layers.FrameBufferReads |= customRuns & FrameBufferCopyingLists;
 				continue;

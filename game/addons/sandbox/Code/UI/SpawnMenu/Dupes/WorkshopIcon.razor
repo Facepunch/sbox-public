@@ -1,0 +1,80 @@
+@using Sandbox;
+@using Sandbox.UI;
+@using Sandbox.Mounting;
+@inherits Panel
+@namespace Sandbox
+@attribute [StyleSheet( "DupeCard.scss" )]
+
+<root class="dupe-card">
+
+	@if ( !string.IsNullOrWhiteSpace( Item.Description ) )
+	{
+		<UICardDescription class="description" Text="@Item.Description" />
+	}
+
+	<div class="footer">
+
+		<div class="avatar" style="background-image: url('@Item.Owner.Avatar');"></div>
+		<div class="name">@Item.Title</div>
+
+	</div>
+
+</root>
+
+@code
+{
+    public Storage.QueryItem Item { get; set; }
+
+    public override bool WantsDrag => true;
+
+    protected override void OnParametersSet()
+    {
+        Style.SetBackgroundImage( Item.Preview );
+    }
+
+    protected override void OnMouseDown( MousePanelEvent e )
+    {
+        if ( e.MouseButton == MouseButtons.Right )
+        {
+            var menu = new Sandbox.UI.Menu();
+
+            SpawnlistData.PopulateContextMenu( menu, this, new SpawnlistItem
+            {
+                Ident = SpawnlistItem.MakeIdent( "dupe", Item.Id.ToString(), "workshop" ),
+                Title = Item.Title,
+                Icon = Item.Preview,
+            } );
+
+            menu.Open( this, Popup.PositionMode.UnderMouse );
+            return;
+        }
+
+        base.OnMouseDown( e );
+    }
+
+    protected override async void OnDragStart( DragEvent e )
+    {
+        var data = new DragData
+        {
+            Type = "dupe",
+            Icon = Item.Preview,
+            Title = Item.Title,
+            Source = this
+        };
+
+        DragHandler.StartDragging( data );
+
+		var installed = await Item.Install();
+		if ( installed is null ) return;
+
+		data.Data = installed.Files.ReadAllText( "/dupe.json" );
+	}
+
+    protected override void OnDragEnd(DragEvent e)
+    {
+        if ( DragHandler.IsDragging )
+        {
+            DragHandler.StopDragging();
+        }
+    }
+}

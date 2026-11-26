@@ -1,0 +1,9 @@
+@import "/UI/Theme/Light.scss";
+
+.sandbox-light
+{
+	@include component-theme;
+}
+
+@import "/UI/Theme/Dark.scss";
+@include component-theme;

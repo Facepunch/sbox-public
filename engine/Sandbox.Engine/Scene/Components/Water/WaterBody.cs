@@ -289,14 +289,19 @@ public sealed partial class WaterBody : Component, Component.ExecuteInEditor
 		var top = frame.PointToLocal( SurfaceOrigin );
 		var half = new Vector3( MathF.Abs( Size.x * WorldScale.x ) * 0.5f, MathF.Abs( Size.y * WorldScale.y ) * 0.5f, 0 );
 		var bounds = new BBox( top + (-half).WithZ( -WorldDepth ), top + half );
-		Gizmo.Draw.LineBBox( bounds );
 		// A mesh sets the bounds; it is edited with the mesh tools instead.
-		if ( Gizmo.IsSelected && !UsesMeshBounds && Gizmo.Control.BoundingBox( "Bounds", bounds, out var newBounds ) )
+		if ( Gizmo.IsSelected && !UsesMeshBounds && Gizmo.Control.UpdateBoundingBox( "Bounds", bounds, out var newBounds ) )
 		{
 			_boundsUndoScope ??= Scene.Editor?.UndoScope( "Resize Water Body" )
 				.WithComponentChanges( this ).WithGameObjectChanges( GameObject, GameObjectUndoFlags.Properties ).Push();
 			_boundsDragFrame ??= frame;
 			ResizeVolume( newBounds, frame );
+			top = frame.PointToLocal( SurfaceOrigin );
+			half = new Vector3( MathF.Abs( Size.x * WorldScale.x ) * 0.5f, MathF.Abs( Size.y * WorldScale.y ) * 0.5f, 0 );
+			bounds = new BBox( top + (-half).WithZ( -WorldDepth ), top + half );
 		}
+		Gizmo.Draw.LineBBox( bounds );
+		if ( Gizmo.IsSelected && !UsesMeshBounds )
+			Gizmo.Draw.BoundingBox( "Bounds", bounds );
 	}
 }

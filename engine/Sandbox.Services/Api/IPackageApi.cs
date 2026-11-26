@@ -10,9 +10,6 @@ public partial class ServiceApi
 		[Get( "/package/get/2/{packageIdent}" )]
 		Task<PackageDto> Get( string packageIdent );
 
-		[Get( "/package/changelists/2/{packageIdent}" )]
-		Task<BasePagedResponse<PackageChangeList>> GetChangeLists( string packageIdent, [Query] int page = 1 );
-
 		[Post( "/package/favourite/2/{packageIdent}" )]
 		Task<PackageFavouriteResult> SetFavourite( string packageIdent, [Query] bool state );
 
@@ -21,12 +18,6 @@ public partial class ServiceApi
 
 		[Post( "/package/upload/file" )]
 		Task<FileUploadResult> UploadFile( [Body] FileUploadRequest file );
-
-		[Post( "/package/upload/video" )]
-		Task<FileUploadResult> UploadVideo( [Body] VideoUploadRequest file );
-
-		[Get( "/package/list/1" )]
-		Task<PackageGroups> GetList( [Query] string id = null );
 
 		[Get( "/package/find/2" )]
 		Task<PackageFindResult> Find( [Query] string q, int take = 100, int skip = 0 );
@@ -50,15 +41,6 @@ public partial class ServiceApi
 
 		[Post( "/package/update/1/{packageIdent}" )]
 		Task<PackageDto> Update( string packageIdent, [Query] string key, [Query] string value );
-
-		[Get( "/package/reviews/{packageIdent}" )]
-		Task<PackageReviewList> GetReviews( string packageIdent, [Query] int skip, [Query] int take, [Query] int score = 0, [Query] int positives = 0, [Query] int negatives = 0 );
-
-		[Get( "/package/reviews/{packageIdent}/{steamid}" )]
-		Task<PackageReviewDto> GetReview( string packageIdent, long steamid );
-
-		[Post( "/package/reviews/{packageIdent}" )]
-		Task PostReview( string packageIdent, string text, int rating, int positives, int negatives );
 
 		[Post( "/package/reports/{packageIdent}" )]
 		Task<bool> PostReport( string packageIdent, [Query] int reasons, [Query] string comment );
@@ -87,9 +69,7 @@ public struct PackageFacet
 	public string Title { get; set; }
 
 	/// <summary>
-	/// Pre-sorted on the server. Renderers should display in given order — no
-	/// client-side reordering. Lets each facet pick its own sort semantics
-	/// (count desc for review tags, alphabetical for categories, etc.).
+	/// Entries in the display order chosen by the server for this facet.
 	/// </summary>
 	public List<Entry> Entries { get; set; }
 
@@ -140,45 +120,10 @@ public struct FileUploadRequest
 	public int Size { get; set; }
 }
 
-public struct VideoUploadRequest
-{
-	/// <summary>
-	/// Package ident
-	/// </summary>
-	public string Package { get; set; }
-
-	/// <summary>
-	/// Optional video tag. If a video with this tag is found we'll replace it instead of creating a new one.
-	/// </summary>
-	public string Tag { get; set; }
-
-	/// <summary>
-	/// A base64 embed of the file - or a blob name 
-	/// </summary>
-	public string File { get; set; }
-
-	/// <summary>
-	/// Is this a thumb - will replace any existing thumbs
-	/// </summary>
-	public bool Thumb { get; set; }
-
-	/// <summary>
-	/// True for this video to start hidden
-	/// </summary>
-	public bool Hidden { get; set; }
-}
-
-
 public struct FileUploadResult
 {
 	public string Status { get; set; }
 }
-
-public struct VideoUploadResult
-{
-	public string Status { get; set; }
-}
-
 
 public struct PublishManifest
 {

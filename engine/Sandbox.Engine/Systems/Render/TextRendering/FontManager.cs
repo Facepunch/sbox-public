@@ -16,9 +16,19 @@ internal class FontManager : FontMapper, ICharacterMatcher
 	/// </summary>
 	record struct LoadedFont( SKTypeface Typeface, bool IsMenu );
 
+	// Older addons still ask for these families by name.
+	static readonly HashSet<string> LegacyIconFamilies = new( StringComparer.OrdinalIgnoreCase )
+	{
+		"Material Icons",
+		"Material Icons Outlined"
+	};
+
 	Dictionary<(string family, int weight, int width, SKFontStyleSlant slant), LoadedFont> _loadedFonts = new();
 	Dictionary<(string family, int weight, bool italic), SKTypeface> _cache = new();
 	List<FileWatch> _watchers = new();
+
+	// Only used under the loaded-fonts lock.
+	SKFont _fallbackFont;
 
 	static FontManager()
 	{
@@ -38,7 +48,7 @@ internal class FontManager : FontMapper, ICharacterMatcher
 		{
 			lock ( _loadedFonts )
 			{
-				return _loadedFonts.Values.Select( x => x.Typeface.FamilyName ).Distinct().ToList();
+				return _loadedFonts.Keys.Select( x => x.family ).Distinct().ToList();
 			}
 		}
 	}
@@ -100,7 +110,7 @@ internal class FontManager : FontMapper, ICharacterMatcher
 			}
 		}
 
-		Log.Trace( $"Loaded font {face.FamilyName} weight {face.FontWeight} width {face.FontWidth} (IsMenu: {isMenu})" );
+		Log.Trace( $"Loaded font {key.FamilyName} weight {key.FontWeight} width {key.FontWidth} (IsMenu: {isMenu})" );
 	}
 
 	/// <summary>
@@ -145,23 +155,28 @@ internal class FontManager : FontMapper, ICharacterMatcher
 	/// </summary>
 	private SKTypeface GetBestTypeface( IStyle style )
 	{
+		var family = LegacyIconFamilies.Contains( style.FontFamily ) ? "Material Symbols Outlined" : style.FontFamily;
+
 		lock ( _loadedFonts )
 		{
-			var familyFonts = _loadedFonts.Values.Select( x => x.Typeface )
-				.Where( x => string.Equals( x.FamilyName, style.FontFamily, StringComparison.OrdinalIgnoreCase ) );
-			if ( !familyFonts.Any() ) return null;
+			SKTypeface best = null;
+			(bool wrongSlant, int widthDistance, int weightDistance, int width, SKFontStyleSlant slant) bestRank = default;
 
-			var slantFonts = familyFonts.Where( x => x.IsItalic == style.FontItalic );
-			if ( slantFonts.Any() ) familyFonts = slantFonts;
+			foreach ( var (key, font) in _loadedFonts )
+			{
+				if ( !string.Equals( key.family, family, StringComparison.OrdinalIgnoreCase ) ) continue;
 
-			// Normal width beats condensed or expanded (Skia files those under the plain family name), then the closest weight.
-			// The last two only make the order total.
-			return familyFonts
-				.OrderBy( x => Math.Abs( x.FontWidth - (int)SKFontStyleWidth.Normal ) )
-				.ThenBy( x => WeightDistance( x.FontWeight, style.FontWeight ) )
-				.ThenBy( x => x.FontWidth )
-				.ThenBy( x => x.FontSlant )
-				.First();
+				// Prefer the requested slant, then normal width, then the closest weight. Width and slant break ties.
+				bool italic = key.slant != SKFontStyleSlant.Upright;
+				int widthDistance = Math.Abs( key.width - (int)SKFontStyleWidth.Normal );
+				var rank = (italic != style.FontItalic, widthDistance, WeightDistance( key.weight, style.FontWeight ), key.width, key.slant);
+				if ( best is not null && rank.CompareTo( bestRank ) >= 0 ) continue;
+
+				bestRank = rank;
+				best = font.Typeface;
+			}
+
+			return best;
 		}
 	}
 
@@ -189,6 +204,9 @@ internal class FontManager : FontMapper, ICharacterMatcher
 
 		lock ( _loadedFonts )
 		{
+			_fallbackFont?.Dispose();
+			_fallbackFont = null;
+
 			foreach ( var (key, font) in _loadedFonts.ToArray() )
 			{
 				if ( !removeMenu && font.IsMenu )
@@ -209,9 +227,13 @@ internal class FontManager : FontMapper, ICharacterMatcher
 	{
 		lock ( _loadedFonts )
 		{
-			foreach ( var font in _loadedFonts.Values )
-				if ( font.Typeface.ContainsGlyph( character ) )
-					return font.Typeface;
+			var font = _fallbackFont ??= new SKFont();
+			foreach ( var loaded in _loadedFonts.Values )
+			{
+				font.Typeface = loaded.Typeface;
+				if ( font.ContainsGlyph( character ) )
+					return loaded.Typeface;
+			}
 		}
 
 		return SKFontManager.Default.MatchCharacter( familyName, weight, width, slant, bcp47, character );

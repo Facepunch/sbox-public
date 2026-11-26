@@ -67,7 +67,7 @@ public partial class ScriptLoadingTests
 		scene?.Destroy();
 		context.Shutdown();
 		scriptPackageLoader.Dispose();
-		Json.WarmUpCts?.Cancel();
+		Json.StopWarmUp();
 		ReflectionQueryCache.ClearTypeCache();
 		BaseFileSystem.JsonSerializerOptions = previousFilesystemJsonOptions;
 		active = null;

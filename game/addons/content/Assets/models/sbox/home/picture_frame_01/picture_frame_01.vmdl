@@ -81,26 +81,6 @@
 				[
 					{
 						_class = "PhysicsShapeBox"
-						name = "frame_stile.001_0"
-						parent_bone = ""
-						surface_prop = "wood"
-						collision_tags = "solid"
-						origin = [ 0.000002, 11.680044, 0.0 ]
-						angles = [ 0.0, 179.999985, 90.0 ]
-						dimensions = [ 1.414214, 34.123405, 2.595566 ]
-					},
-					{
-						_class = "PhysicsShapeBox"
-						name = "frame_rail.001_0"
-						parent_bone = ""
-						surface_prop = "wood"
-						collision_tags = "solid"
-						origin = [ 0.000001, -0.0, 15.76392 ]
-						angles = [ 0.0, 179.999985, -90.0 ]
-						dimensions = [ 1.414214, 2.595566, 20.764524 ]
-					},
-					{
-						_class = "PhysicsShapeBox"
 						parent_bone = ""
 						surface_prop = "wood"
 						collision_tags = "solid"

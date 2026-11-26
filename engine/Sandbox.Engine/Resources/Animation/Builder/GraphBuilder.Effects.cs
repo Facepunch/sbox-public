@@ -110,6 +110,14 @@ public sealed partial class GraphBuilder
 		} );
 	}
 
+	[Expose]
+	public enum IKSwivelMode
+	{
+		Parent,
+		EffectorTarget,
+		PoleTarget,
+	}
+
 	public sealed class TwoBoneIKSettings
 	{
 		public Node Enabled { get; init; }
@@ -118,12 +126,19 @@ public sealed partial class GraphBuilder
 		public bool WorldSpace { get; init; } = true;
 		public IKBlendMode BlendMode { get; init; } = IKBlendMode.Effector;
 		public float ChainRotationWeight { get; init; }
+		public IKSwivelMode SwivelMode { get; init; }
+		public Node PoleTarget { get; init; }
+		public float SwivelOffset { get; init; }
 	}
 
 	public sealed class FootIKSettings
 	{
 		public Node LeftTarget { get; init; }
 		public Node RightTarget { get; init; }
+		public Node LeftPoleTarget { get; init; }
+		public Node RightPoleTarget { get; init; }
+		public IKSwivelMode SwivelMode { get; init; }
+		public float SwivelOffset { get; init; }
 		public Node Enabled { get; init; }
 		public float BlendTime { get; init; }
 		public IKBlendMode BlendMode { get; init; } = IKBlendMode.Effector;
@@ -146,6 +161,11 @@ public sealed partial class GraphBuilder
 		Require( target, NodeKind.Target );
 		Optional( settings.Enabled, NodeKind.Bool );
 		Optional( settings.Weight, NodeKind.Float );
+		Optional( settings.PoleTarget, NodeKind.Target );
+		if ( !Enum.IsDefined( settings.SwivelMode ) )
+			throw new ArgumentOutOfRangeException( nameof( settings.SwivelMode ) );
+		if ( !float.IsFinite( settings.SwivelOffset ) )
+			throw new ArgumentOutOfRangeException( nameof( settings.SwivelOffset ) );
 		if ( string.IsNullOrWhiteSpace( effectorBone ) )
 			throw new ArgumentException( "Effector bone must not be null or blank.", nameof( effectorBone ) );
 		return AddNode( NodeKind.Pose, native =>
@@ -160,6 +180,9 @@ public sealed partial class GraphBuilder
 			definition.SetBlendMode( (int)settings.BlendMode );
 			definition.m_isTargetInWorldSpace = settings.WorldSpace;
 			definition.m_chainRotationWeight = settings.ChainRotationWeight;
+			definition.SetSwivelMode( (int)settings.SwivelMode );
+			definition.m_poleTargetNodeIdx = (short)ResolveOptional( settings.PoleTarget );
+			definition.m_swivelOffset = settings.SwivelOffset;
 			return definition;
 		} );
 	}
@@ -178,6 +201,12 @@ public sealed partial class GraphBuilder
 		RequirePose( child );
 		Optional( settings.LeftTarget, NodeKind.Target );
 		Optional( settings.RightTarget, NodeKind.Target );
+		Optional( settings.LeftPoleTarget, NodeKind.Target );
+		Optional( settings.RightPoleTarget, NodeKind.Target );
+		if ( !Enum.IsDefined( settings.SwivelMode ) )
+			throw new ArgumentOutOfRangeException( nameof( settings.SwivelMode ) );
+		if ( !float.IsFinite( settings.SwivelOffset ) )
+			throw new ArgumentOutOfRangeException( nameof( settings.SwivelOffset ) );
 		Optional( settings.Enabled, NodeKind.Bool );
 		if ( string.IsNullOrWhiteSpace( leftFootBone ) )
 			throw new ArgumentException( "Left foot bone must not be null or blank.", nameof( leftFootBone ) );
@@ -193,6 +222,10 @@ public sealed partial class GraphBuilder
 			definition.SetRightFootBoneID( native.InternID( IdString( rightFootBone ) ) );
 			definition.m_leftTargetNodeIdx = (short)ResolveOptional( settings.LeftTarget );
 			definition.m_rightTargetNodeIdx = (short)ResolveOptional( settings.RightTarget );
+			definition.m_leftPoleNodeIdx = (short)ResolveOptional( settings.LeftPoleTarget );
+			definition.m_rightPoleNodeIdx = (short)ResolveOptional( settings.RightPoleTarget );
+			definition.SetSwivelMode( (int)settings.SwivelMode );
+			definition.m_swivelOffset = settings.SwivelOffset;
 			definition.m_enableNodeIdx = (short)ResolveOptional( settings.Enabled );
 			definition.m_blendTime = settings.BlendTime;
 			definition.SetBlendMode( (int)settings.BlendMode );

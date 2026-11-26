@@ -1,0 +1,7 @@
+{
+  "Prefab": "entities/wheel/construction/robot.prefab",
+  "Title": "#asset.wheel.robot.title",
+  "Description": "#asset.wheel.robot.description",
+  "__references": [],
+  "__version": 0
+}

@@ -49,7 +49,7 @@ internal class GameInstance : IGameInstance
 
 	protected PackageManager.ActivePackage activePackage;
 	protected Package _package;
-	protected Package _mapPackage;
+	MapReference launchedMap;
 
 	/// <summary>
 	/// Assembly that will be used set during <see cref="LoadAsync"/>.
@@ -122,6 +122,10 @@ internal class GameInstance : IGameInstance
 
 		Sandbox.Engine.Shaders.GameShaders.Shutdown();
 
+		launchedMap?.Release();
+
+		GameInstanceDll.Current.WorkshopItems.Clear();
+
 		if ( activePackage != null && !Application.IsStandalone )
 		{
 			Game.Language?.Shutdown();
@@ -190,7 +194,7 @@ internal class GameInstance : IGameInstance
 			}
 		}
 
-		Application.GameIdent = Package is null ? Ident : $"{_package.Org.Ident}.{_package.Ident}";
+		Application.GameIdent = Package?.FullIdent ?? Ident;
 		Application.GamePackage = _package;
 		Application.ExceptionCount = default;
 
@@ -233,18 +237,12 @@ internal class GameInstance : IGameInstance
 
 		using var loadingScreen = new MenuLoadingScreen();
 
-		// The game itself first, on its own - then everything else together: its references (the install
-		// below prefetches them, finding the game already cached) and the map alongside them. One thing,
-		// then a batch, rather than the game sharing its bandwidth with a pile of small packages. A workshop
-		// game is one item Steam installs, and the install below does exactly that - so there's nothing to get ahead of.
+		// Prefetch the game before installing its references. Steam installs Workshop games as a single item.
 		if ( _package.IsRemote && !_package.InstallsFromWorkshop )
 		{
 			await _package.Prefetch( token, new PackageLoadOptions { Loading = loadingScreen } );
 			token.ThrowIfCancellationRequested();
 		}
-
-		// The map is mounted after the game package, but its downloads can run alongside the references
-		var mapPrefetch = string.IsNullOrWhiteSpace( LaunchArguments.Map ) ? null : PrefetchMapAsync( LaunchArguments.Map, token );
 
 		var downloadOptions = new PackageLoadOptions()
 		{
@@ -252,7 +250,6 @@ internal class GameInstance : IGameInstance
 			Package = _package,
 			ContextTag = "gamemenu",
 			CancellationToken = token,
-			AllowLocalPackages = !_package.IsRemote,
 			Loading = loadingScreen
 		};
 
@@ -294,17 +291,27 @@ internal class GameInstance : IGameInstance
 			return false;
 		}
 
-		//
-		// If we have a map package argument - then use it
-		//
-		if ( !string.IsNullOrWhiteSpace( LaunchArguments.Map ) )
+		var map = LaunchArguments.Map;
+		if ( !string.IsNullOrWhiteSpace( map ) )
 		{
-			var map = LaunchArguments.Map;
-			Application.Map = map;
+			// A map picked by identifier runs as the Workshop item it's published as.
+			launchedMap = await MapReference.ResolveAsync( map );
+			LaunchArguments.Map = launchedMap.Text;
+			Application.Map = launchedMap;
 			Api.Activity.LoadStage( "map" );
 
-			await LoadMapPackage( map, mapPrefetch, token );
-			Application.MapPackage = _mapPackage;
+			if ( !await launchedMap.LaunchAsync( flags.Contains( GameLoadingFlags.Remote ), GameFileSystem, token ) )
+			{
+				if ( token.IsCancellationRequested ) return false;
+
+				// The menu stops offering a map that can't be loaded.
+				using ( IMenuDll.Current?.PushScope() )
+				{
+					IMenuDll.Current?.RunEvent( "game.mapfailed", Package.FullIdent, map );
+				}
+
+				throw new Exception( $"Couldn't load the map '{map}'." );
+			}
 		}
 
 		if ( LaunchArguments.GameSettings is not null )
@@ -339,6 +346,27 @@ internal class GameInstance : IGameInstance
 			await ResourceLoader.LoadAllGameResourceAsync( FileSystem.Mounted, token );
 		}
 
+		// Scan the game and map first so each addon runs once and can override their content.
+		// The host chooses the addons; joining clients install the same Workshop IDs.
+		if ( flags.Contains( GameLoadingFlags.Host ) && Package.TypeName == "game" && Package.Info.AllowsAddons )
+		{
+			LoadingScreen.Title = "Loading Workshop Addons";
+			Workshop.Item[] addons = [];
+			try
+			{
+				addons = await Workshop.GetEnabledAddonsAsync( Application.GameIdent, token );
+			}
+			catch ( Exception e ) when ( e is not OperationCanceledException )
+			{
+				Log.Warning( e, $"Couldn't query Workshop addons: {e.Message}" );
+			}
+
+			foreach ( var addon in addons )
+			{
+				await GameInstanceDll.Current.WorkshopItems.LoadAsync( addon.Id, Workshop.ItemType.Addon, token );
+			}
+		}
+
 		// Dedicated servers install packages that GameResources reference as they load, wait
 		// for them so their resources are registered before the game starts using them
 		if ( Application.IsDedicatedServer )
@@ -369,7 +397,7 @@ internal class GameInstance : IGameInstance
 
 		_packageAssembly = null;
 
-		if ( Package.TryParseIdent( Package.FullIdent, out var ident ) )
+		if ( Package.TryParseIdentParts( Package.FullIdent, out var ident ) )
 		{
 			var loaded = enroller.FindAssembly( Package, $"package.{ident.org}.{ident.package}" );
 			if ( loaded is not null )
@@ -381,38 +409,6 @@ internal class GameInstance : IGameInstance
 		Services.Achievements.DelayAchievementUnlocks( 5 ); // don't trigger achievements for 5 seconds
 
 		//await LoadPackageRevisionAsync( Package.Revision );
-		return true;
-	}
-
-	/// <summary>
-	/// The map's package info, manifest and files, so mounting it later finds everything cached.
-	/// </summary>
-	static async Task<Package> PrefetchMapAsync( string map, CancellationToken token )
-	{
-		var package = await Package.FetchAsync( map, false );
-
-		if ( package is { IsRemote: true } )
-			await PackageManager.PrefetchAsync( package, true, false, token );
-
-		return package;
-	}
-
-	private async Task<bool> LoadMapPackage( string map, Task<Package> prefetch, CancellationToken token )
-	{
-		if ( _mapPackage is not null )
-		{
-			// Unload? Maybe?
-			_mapPackage = default;
-		}
-
-		_mapPackage = prefetch is not null ? await prefetch : await Package.FetchAsync( map, false );
-
-		if ( _mapPackage is null ) return false;
-		if ( _mapPackage.TypeName != "map" ) return false;
-
-		// Download map, mount it
-		await _mapPackage.MountAsync();
-
 		return true;
 	}
 
@@ -575,113 +571,53 @@ internal class GameInstance : IGameInstance
 		return IsOnMenu;
 	}
 
-	/// <summary>
-	/// Its menu scene, opened as any scene the game starts on is. The <see cref="ISceneStartup"/> events fire here, and
-	/// again when the game leaves it - what starts the game (hosting, spawning) checks <see cref="Game.IsOnMenu"/>.
-	/// </summary>
-	bool OpenMenuScene()
+	string GetStartupScene()
 	{
-		var options = new SceneLoadOptions();
-		options.IsAdditive = true;
+		var gameScene = Package.GetMeta<string>( "StartupScene", "start.scene" );
+		if ( launchedMap?.Asset is { } asset )
+		{
+			if ( asset.EndsWith( ".scene", StringComparison.OrdinalIgnoreCase ) ) return asset;
+			return Package.GetMeta<string>( "MapStartupScene", null ) ?? gameScene;
+		}
 
-		if ( !options.SetScene( MenuScene ) )
-			return false;
-
-		// An additive load doesn't say where the scene's from - it's what says the game's on its menu
-		Game.ActiveScene.Source = options.GetSceneFile();
-
-		Game.ActiveScene.RunEvent<ISceneStartup>( x => x.OnHostPreInitialize( options.GetSceneFile() ) );
-
-		if ( !Game.ActiveScene.Load( options ) )
-			return false;
-
-		Game.ActiveScene.AddSystemScene();
-
-		Game.ActiveScene.RunEvent<ISceneStartup>( x => x.OnHostInitialize() );
-		Game.ActiveScene.RunEvent<ISceneStartup>( x => x.OnClientInitialize() );
-		return true;
+		var dedicatedScene = Package.GetMeta<string>( "DedicatedServerStartupScene", null );
+		return Application.IsDedicatedServer && !string.IsNullOrWhiteSpace( dedicatedScene ) ? dedicatedScene : gameScene;
 	}
 
+	/// <summary>
+	/// Open the game's menu, selected map or configured startup scene and run its initialization events.
+	/// </summary>
 	public bool OpenStartupScene()
 	{
-		if ( Game.ActiveScene is not null )
-		{
-			Game.ActiveScene?.Destroy();
-			Game.ActiveScene = null;
-		}
-
+		Game.ActiveScene?.Destroy();
+		Game.ActiveScene = null;
 		Game.ActiveScene = new Scene();
 
-		if ( IsDeveloperHost )
-			return true;
+		if ( IsDeveloperHost || (Application.IsEditor && !Game.IsPlaying) ) return true;
 
-		if ( Application.IsEditor && !Game.IsPlaying )
-			return true;
-
-		if ( flags.Contains( GameLoadingFlags.Menu ) && MenuScene is not null && !Application.IsDedicatedServer )
-			return OpenMenuScene();
-
-		var startup_dedicated = Package.GetMeta<string>( "DedicatedServerStartupScene", "" );
-		var startup_game = Package.GetMeta<string>( "StartupScene", "start.scene" );
-		var startup_map = Package.GetMeta<string>( "MapStartupScene", null );
-
-		// Get the map launch scene
-		var startupScene = startup_game;
-
-		if ( Application.IsDedicatedServer && !string.IsNullOrWhiteSpace( startup_dedicated ) )
-		{
-			startupScene = startup_dedicated;
-		}
-
-		//
-		// This is the latest way to do this. We just load this scene directly
-		// If it's a vpk, we create a BLANK scene with a loader.
-		//
-		if ( _mapPackage is not null )
-		{
-			startupScene = _mapPackage.PrimaryAsset;
-
-			// if it's a VPK, use MapStartupScene for now. Fallback.
-			if ( startupScene is null || !startupScene.EndsWith( ".scene" ) )
-			{
-				startupScene = startup_map ?? startup_game;
-			}
-		}
-
+		var menu = flags.Contains( GameLoadingFlags.Menu ) && !Application.IsDedicatedServer ? MenuScene : null;
+		var startupScene = menu ?? GetStartupScene();
 		if ( string.IsNullOrWhiteSpace( startupScene ) )
 		{
 			Log.Warning( "Startup Scene was not defined - can't start!" );
 			return false;
 		}
-		else
-		{
-			var options = new SceneLoadOptions();
 
-			// this is a blank scene, so it shouldn't matter. We set
-			// additive here though, because the ISceneStartup events
-			// might be used to load other scenes into it or something.
-			options.IsAdditive = true;
+		// Startup callbacks can load additional scenes into this one.
+		var options = new SceneLoadOptions { IsAdditive = true };
+		if ( !options.SetScene( startupScene ) ) return false;
 
-			if ( !options.SetScene( startupScene ) )
-				return false;
+		// Additive loading leaves Source unset. The menu needs it for Game.IsOnMenu during startup.
+		if ( menu is not null ) Game.ActiveScene.Source = options.GetSceneFile();
 
-			Game.ActiveScene.RunEvent<ISceneStartup>( x => x.OnHostPreInitialize( options.GetSceneFile() ) );
+		Game.ActiveScene.RunEvent<ISceneStartup>( x => x.OnHostPreInitialize( options.GetSceneFile() ) );
+		if ( !Game.ActiveScene.Load( options ) ) return false;
 
-			if ( !Game.ActiveScene.Load( options ) )
-				return false;
+		Game.ActiveScene.AddSystemScene();
+		Game.ActiveScene.RunEvent<ISceneStartup>( x => x.OnHostInitialize() );
+		if ( !Application.IsDedicatedServer ) Game.ActiveScene.RunEvent<ISceneStartup>( x => x.OnClientInitialize() );
 
-			// Since this was an additive load, we need to manually add the system scene
-			Game.ActiveScene.AddSystemScene();
-
-			Game.ActiveScene.RunEvent<ISceneStartup>( x => x.OnHostInitialize() );
-
-			if ( !Application.IsDedicatedServer )
-			{
-				Game.ActiveScene.RunEvent<ISceneStartup>( x => x.OnClientInitialize() );
-			}
-
-			return true;
-		}
+		return true;
 	}
 }
 

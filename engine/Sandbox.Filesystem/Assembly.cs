@@ -18,3 +18,4 @@ using System.Runtime.CompilerServices;
 [assembly: InternalsVisibleTo( "Sandbox.Engine" )]
 [assembly: InternalsVisibleTo( "Sandbox.Compiling" )]
 [assembly: InternalsVisibleTo( "Sandbox.AppSystem" )]
+[assembly: InternalsVisibleTo( "Sandbox.Mounting" )]

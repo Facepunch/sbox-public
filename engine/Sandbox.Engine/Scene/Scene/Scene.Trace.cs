@@ -68,12 +68,9 @@ public partial class Scene : GameObject
 			}
 		}
 
-		foreach ( var system in systems.Values )
+		for ( var i = 0; i < traceProviders.Count; i++ )
 		{
-			if ( system is GameObjectSystem.ITraceProvider traceProvider )
-			{
-				traceProvider.DoTrace( trace, results );
-			}
+			traceProviders[i].DoTrace( trace, results );
 		}
 
 		SceneTrace.ClearTraceFilter();
@@ -114,15 +111,12 @@ public partial class Scene : GameObject
 			}
 		}
 
-		foreach ( var system in systems.Values )
+		for ( var i = 0; i < traceProviders.Count; i++ )
 		{
-			if ( system is GameObjectSystem.ITraceProvider traceProvider )
-			{
-				var result = traceProvider.DoTrace( trace );
+			var result = traceProviders[i].DoTrace( trace );
 
-				if ( result.HasValue && result.Value.Fraction < bestResult.Fraction )
-					bestResult = result.Value;
-			}
+			if ( result.HasValue && result.Value.Fraction < bestResult.Fraction )
+				bestResult = result.Value;
 		}
 
 		SceneTrace.ClearTraceFilter();
@@ -150,6 +144,9 @@ public partial class Scene : GameObject
 	/// </summary>
 	public IEnumerable<GameObject> FindInPhysics( Sphere sphere )
 		=> PhysicsWorld.FindInPhysics( sphere );
+
+	internal void FindInPhysics( Sphere sphere, HashSet<GameObject> results )
+		=> PhysicsWorld._world.FindInPhysics( sphere, results );
 
 	/// <summary>
 	/// Find game objects in a box using physics.

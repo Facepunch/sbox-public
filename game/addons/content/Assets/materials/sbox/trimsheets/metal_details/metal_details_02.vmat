@@ -1,0 +1,55 @@
+// THIS FILE IS AUTO-GENERATED
+
+Layer0
+{
+	shader "shaders/complex.shader"
+
+	//---- PBR ----
+	F_METALNESS_TEXTURE 1
+	F_SPECULAR 1
+
+	//---- Translucent ----
+	F_TRANSLUCENT 1
+
+	//---- Ambient Occlusion ----
+	g_flAmbientOcclusionDirectDiffuse "1.000"
+	g_flAmbientOcclusionDirectSpecular "1.000"
+	TextureAmbientOcclusion "materials/sbox/trimsheets/metal_details/metal_details_ao.png"
+
+	//---- Color ----
+	g_flModelTintAmount "0.000"
+	g_vColorTint "[1.000000 1.000000 1.000000 0.000000]"
+	TextureColor "materials/sbox/trimsheets/metal_details/metal_details_color.png"
+
+	//---- Fade ----
+	g_flFadeExponent "1.000"
+
+	//---- Fog ----
+	g_bFogEnabled "1"
+
+	//---- Metalness ----
+	TextureMetalness "[1.000000 1.000000 1.000000 0.000000]"
+
+	//---- Normal ----
+	TextureNormal "materials/sbox/trimsheets/metal_details/metal_details_normal.png"
+
+	//---- Roughness ----
+	g_flRoughnessScaleFactor "1.000"
+	TextureRoughness "materials/sbox/trimsheets/metal_details/metal_details_rough.png"
+
+	//---- Texture Coordinates ----
+	g_vTexCoordOffset "[0.000 0.000]"
+	g_vTexCoordScale "[1.000 1.000]"
+	g_vTexCoordScrollSpeed "[0.000 0.000]"
+
+	//---- Translucent ----
+	g_flOpacityScale "1.000"
+	TextureTranslucency "materials/sbox/trimsheets/metal_details/metal_details_trans.png"
+
+	SystemAttributes
+	{
+		PhysicsSurfaceProperties "metal"
+		WorldMappingWidth "128"
+		WorldMappingHeight "128"
+	}
+}

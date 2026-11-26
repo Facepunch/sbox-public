@@ -1,0 +1,2331 @@
+{
+  "Version": 1,
+  "nodes": [
+    {
+      "_class": "StateMachineNode",
+      "States": [
+        {
+          "Name": "Deploy",
+          "IsExitState": false,
+          "Type": "BlendTree",
+          "Events": [],
+          "TimedEvents": [],
+          "UseActualElapsedTimeInStateForTimedEvents": false,
+          "TransitionOrder": [],
+          "Position": "0,0",
+          "Graph": {
+            "Version": 1,
+            "nodes": [
+              {
+                "_class": "AnimationClipNode",
+                "Loop": false,
+                "SampleRootMotion": false,
+                "GraphEvents": [],
+                "PlayInReverse": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "ResetTime": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "DefaultVariationData": {
+                  "AnimationName": {
+                    "Id": "ea73c6a4-fac7-4aed-8162-c33e04a0b1e5",
+                    "Path": "weapons/m4a1/animations/deploy.anim"
+                  },
+                  "SpeedMultiplier": 1,
+                  "StartSyncEventOffset": 0
+                },
+                "Overrides": [],
+                "Identifier": "8bf9e8aa-137b-4646-bd0f-d6b4120379e4",
+                "Position": "0,0",
+                "HandleOffsets": {}
+              },
+              {
+                "_class": "PoseResultNode",
+                "Pose": {
+                  "Identifier": "8bf9e8aa-137b-4646-bd0f-d6b4120379e4",
+                  "Output": "Result"
+                },
+                "Identifier": "20ccb2bb-8246-438e-8bb8-58bc022173ce",
+                "Position": "300,0",
+                "HandleOffsets": {}
+              }
+            ]
+          },
+          "LayerGraph": {
+            "Version": 1,
+            "nodes": [
+              {
+                "_class": "StateLayerDataNode",
+                "LayerWeight": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "RootMotionWeight": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "BoneMask": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "Identifier": "0b51115f-9d97-4099-988d-9caa1ecd4aa2",
+                "Position": "400,0",
+                "HandleOffsets": {}
+              }
+            ],
+            "Kind": "LayerData"
+          }
+        },
+        {
+          "Name": "Hold",
+          "IsExitState": false,
+          "Type": "BlendTree",
+          "Events": [],
+          "TimedEvents": [],
+          "UseActualElapsedTimeInStateForTimedEvents": false,
+          "TransitionOrder": [],
+          "Position": "340,0",
+          "Graph": {
+            "Version": 1,
+            "nodes": [
+              {
+                "_class": "AnimationPoseNode",
+                "Time": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "RemapRangeStart": 0,
+                "RemapRangeEnd": 1,
+                "FixedTime": 0,
+                "UseFramesAsInput": false,
+                "DefaultVariationData": {
+                  "AnimationName": {
+                    "Id": "b1f92233-ec13-457e-abcd-c5ce22ad5a2c",
+                    "Path": "weapons/m4a1/animations/idle.anim"
+                  },
+                  "TimeOverride": -1
+                },
+                "Overrides": [],
+                "Identifier": "28d5a1aa-f07e-4509-9c60-32ce3e0556ea",
+                "Position": "0,0",
+                "HandleOffsets": {}
+              },
+              {
+                "_class": "AnimationPoseNode",
+                "Time": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "RemapRangeStart": 0,
+                "RemapRangeEnd": 1,
+                "FixedTime": 0,
+                "UseFramesAsInput": false,
+                "DefaultVariationData": {
+                  "AnimationName": {
+                    "Id": "d0131eee-b2f0-4437-b35a-aac7e3b510fb",
+                    "Path": "weapons/m4a1/animations/aim.anim"
+                  },
+                  "TimeOverride": -1
+                },
+                "Overrides": [],
+                "Identifier": "d91e0842-a3e1-4817-97da-838d57ec50e3",
+                "Position": "0,150",
+                "HandleOffsets": {}
+              },
+              {
+                "_class": "BoolParameterNode",
+                "ParameterIdentifier": "7aed3a00-599d-4c87-a470-a5649b356115",
+                "ParameterName": "ironsights",
+                "Identifier": "d26d2dbd-0c80-446a-9ef6-f835c308745a",
+                "Position": "0,320",
+                "HandleOffsets": {}
+              },
+              {
+                "_class": "FloatSwitchNode",
+                "Condition": {
+                  "Identifier": "d26d2dbd-0c80-446a-9ef6-f835c308745a",
+                  "Output": "Value"
+                },
+                "TrueValue": 1,
+                "FalseValue": 0,
+                "EaseTime": 0.15,
+                "Easing": "Linear",
+                "Identifier": "27c74f8e-99db-4da6-85ba-6867be4074f0",
+                "Position": "290,320",
+                "HandleOffsets": {}
+              },
+              {
+                "_class": "LocalLayerNode",
+                "Input": {
+                  "Identifier": "d91e0842-a3e1-4817-97da-838d57ec50e3",
+                  "Output": "Result"
+                },
+                "Weight": {
+                  "Identifier": "27c74f8e-99db-4da6-85ba-6867be4074f0",
+                  "Output": "Result"
+                },
+                "RootMotionWeight": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "BoneMask": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "BlendMode": "Overlay",
+                "IsSynchronized": false,
+                "IgnoreEvents": false,
+                "Identifier": "032841f4-8206-4cb9-998c-8e8853bd8237",
+                "Position": "615,130",
+                "HandleOffsets": {}
+              },
+              {
+                "_class": "LayerBlendNode",
+                "Base": {
+                  "Identifier": "28d5a1aa-f07e-4509-9c60-32ce3e0556ea",
+                  "Output": "Result"
+                },
+                "Layers": [
+                  {
+                    "Identifier": "032841f4-8206-4cb9-998c-8e8853bd8237",
+                    "Output": "Layer"
+                  }
+                ],
+                "OnlySampleBaseRootMotion": true,
+                "Identifier": "45ea539c-2214-4f23-95b0-1bad8ab6c291",
+                "Position": "920,0",
+                "HandleOffsets": {}
+              },
+              {
+                "_class": "PoseResultNode",
+                "Pose": {
+                  "Identifier": "45ea539c-2214-4f23-95b0-1bad8ab6c291",
+                  "Output": "Result"
+                },
+                "Identifier": "c144ff3d-ef6b-4654-8b7b-6b0fa2b5a095",
+                "Position": "1240,0",
+                "HandleOffsets": {}
+              }
+            ]
+          },
+          "LayerGraph": {
+            "Version": 1,
+            "nodes": [
+              {
+                "_class": "StateLayerDataNode",
+                "LayerWeight": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "RootMotionWeight": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "BoneMask": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "Identifier": "5c832b14-45bc-4f4c-b864-9bc1c064ce98",
+                "Position": "400,0",
+                "HandleOffsets": {}
+              }
+            ],
+            "Kind": "LayerData"
+          }
+        },
+        {
+          "Name": "Reload",
+          "IsExitState": false,
+          "Type": "BlendTree",
+          "Events": [],
+          "TimedEvents": [],
+          "UseActualElapsedTimeInStateForTimedEvents": false,
+          "TransitionOrder": [],
+          "Position": "680,0",
+          "Graph": {
+            "Version": 1,
+            "nodes": [
+              {
+                "_class": "BoolParameterNode",
+                "ParameterIdentifier": "d98a5844-81bd-4f5a-b17c-2908e0e39b84",
+                "ParameterName": "b_empty",
+                "Identifier": "d322de89-d69a-4b7e-bc59-396057fe4265",
+                "Position": "0,-300",
+                "HandleOffsets": {}
+              },
+              {
+                "_class": "FloatSwitchNode",
+                "Condition": {
+                  "Identifier": "d322de89-d69a-4b7e-bc59-396057fe4265",
+                  "Output": "Value"
+                },
+                "TrueValue": 1,
+                "FalseValue": 0,
+                "EaseTime": 0,
+                "Easing": "Linear",
+                "Identifier": "2838e158-b5a5-4baa-881a-f1161d18e1b4",
+                "Position": "270,-240",
+                "HandleOffsets": {}
+              },
+              {
+                "_class": "AnimationClipNode",
+                "Loop": false,
+                "SampleRootMotion": false,
+                "GraphEvents": [],
+                "PlayInReverse": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "ResetTime": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "DefaultVariationData": {
+                  "AnimationName": {
+                    "Id": "dc2ff326-139b-48a5-af45-809ed0c97623",
+                    "Path": "weapons/m4a1/animations/reload.anim"
+                  },
+                  "SpeedMultiplier": 1,
+                  "StartSyncEventOffset": 0
+                },
+                "Overrides": [],
+                "Identifier": "d86bb755-eb86-4fa3-a2a0-c8cc9b0739c0",
+                "Position": "0,0",
+                "HandleOffsets": {}
+              },
+              {
+                "_class": "AnimationClipNode",
+                "Loop": false,
+                "SampleRootMotion": false,
+                "GraphEvents": [],
+                "PlayInReverse": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "ResetTime": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "DefaultVariationData": {
+                  "AnimationName": {
+                    "Id": "b83c51c6-07fc-4e1c-b0b7-25ccd8591663",
+                    "Path": "weapons/m4a1/animations/reload_empty.anim"
+                  },
+                  "SpeedMultiplier": 1,
+                  "StartSyncEventOffset": 0
+                },
+                "Overrides": [],
+                "Identifier": "c8729ab4-0ae3-4192-9a16-70bbc6c2d3fa",
+                "Position": "0,140",
+                "HandleOffsets": {}
+              },
+              {
+                "_class": "ParameterizedAnimationClipSelectorNode",
+                "Parameter": {
+                  "Identifier": "2838e158-b5a5-4baa-881a-f1161d18e1b4",
+                  "Output": "Result"
+                },
+                "Options": [
+                  {
+                    "Label": "reload",
+                    "Pose": {
+                      "Identifier": "d86bb755-eb86-4fa3-a2a0-c8cc9b0739c0",
+                      "Output": "Result"
+                    }
+                  },
+                  {
+                    "Label": "reload empty",
+                    "Pose": {
+                      "Identifier": "c8729ab4-0ae3-4192-9a16-70bbc6c2d3fa",
+                      "Output": "Result"
+                    }
+                  }
+                ],
+                "IgnoreInvalidOptions": false,
+                "DefaultVariationData": {
+                  "OptionWeights": [
+                    1,
+                    1
+                  ]
+                },
+                "Overrides": [],
+                "Identifier": "93eee3bf-0eef-49ff-83b0-bf1f38685432",
+                "Position": "390,20",
+                "Title": "Select clip",
+                "HandleOffsets": {}
+              },
+              {
+                "_class": "FloatParameterNode",
+                "ParameterIdentifier": "2dd77c40-68da-4ed2-9278-fd41d9e0595d",
+                "ParameterName": "reload_duration",
+                "Identifier": "2ad84790-4ccd-4143-a89a-ffb881c86f7c",
+                "Position": "400,290",
+                "HandleOffsets": {}
+              },
+              {
+                "_class": "DurationScaleNode",
+                "Source": {
+                  "Identifier": "93eee3bf-0eef-49ff-83b0-bf1f38685432",
+                  "Output": "Result"
+                },
+                "Duration": {
+                  "Identifier": "2ad84790-4ccd-4143-a89a-ffb881c86f7c",
+                  "Output": "Value"
+                },
+                "DefaultDuration": 2,
+                "Identifier": "939f3ce1-4d6a-433a-b9a3-d674fc16c018",
+                "Position": "730,0",
+                "HandleOffsets": {}
+              },
+              {
+                "_class": "PoseResultNode",
+                "Pose": {
+                  "Identifier": "939f3ce1-4d6a-433a-b9a3-d674fc16c018",
+                  "Output": "Result"
+                },
+                "Identifier": "6b053133-7dd3-4376-9605-9e9b2b09e3e3",
+                "Position": "1050,0",
+                "HandleOffsets": {}
+              }
+            ]
+          },
+          "LayerGraph": {
+            "Version": 1,
+            "nodes": [
+              {
+                "_class": "StateLayerDataNode",
+                "LayerWeight": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "RootMotionWeight": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "BoneMask": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "Identifier": "f348c18b-aa94-4472-b04f-53b67bce65ac",
+                "Position": "400,0",
+                "HandleOffsets": {}
+              }
+            ],
+            "Kind": "LayerData"
+          }
+        }
+      ],
+      "Conduits": [
+        {
+          "From": "Deploy",
+          "To": "Hold",
+          "Graph": {
+            "Version": 1,
+            "nodes": [
+              {
+                "_class": "BoolParameterNode",
+                "ParameterIdentifier": "2af77521-7a42-4e38-bd58-36e0d2a0e8ed",
+                "ParameterName": "b_attack",
+                "Identifier": "9a9b92f1-e2e3-4bd7-b7f1-24dc20df19ae",
+                "Position": "0,0",
+                "HandleOffsets": {}
+              },
+              {
+                "_class": "StateCompletedConditionNode",
+                "AtClipEnd": false,
+                "Identifier": "ce7cf0ee-7b5c-4dd4-8667-211230c41217",
+                "Position": "0,135",
+                "HandleOffsets": {}
+              },
+              {
+                "_class": "OrNode",
+                "A": {
+                  "Identifier": "9a9b92f1-e2e3-4bd7-b7f1-24dc20df19ae",
+                  "Output": "Value"
+                },
+                "B": {
+                  "Identifier": "ce7cf0ee-7b5c-4dd4-8667-211230c41217",
+                  "Output": "Result"
+                },
+                "Identifier": "656af0c0-7c8e-4c7e-9a1f-27f23244015e",
+                "Position": "280,135",
+                "HandleOffsets": {}
+              },
+              {
+                "_class": "TransitionNode",
+                "Condition": {
+                  "Identifier": "656af0c0-7c8e-4c7e-9a1f-27f23244015e",
+                  "Output": "Result"
+                },
+                "DurationOverride": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "TimeOffsetOverride": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "StartBoneMask": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "TargetSyncID": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "TransitionName": "Deploy to Hold",
+                "Duration": 0.02,
+                "TimeMatch": "None",
+                "TimeOffset": 0,
+                "BlendWeightEasing": "Linear",
+                "RootMotionBlend": "Blend",
+                "ClampDurationToSource": false,
+                "CanBeForced": true,
+                "BoneMaskBlendInTimePercentage": 0.33,
+                "Identifier": "2a3f46ce-85dd-4355-b702-464ed91151df",
+                "Position": "600,135",
+                "HandleOffsets": {}
+              }
+            ]
+          }
+        },
+        {
+          "From": "Deploy",
+          "To": "Reload",
+          "Graph": {
+            "Version": 1,
+            "nodes": [
+              {
+                "_class": "BoolParameterNode",
+                "ParameterIdentifier": "28cae0ed-356b-421d-a7a2-1cfc32ca7d18",
+                "ParameterName": "b_reload",
+                "Identifier": "5abbec17-a8e6-4e61-87da-1dad99732d1d",
+                "Position": "0,0",
+                "HandleOffsets": {}
+              },
+              {
+                "_class": "TransitionNode",
+                "Condition": {
+                  "Identifier": "5abbec17-a8e6-4e61-87da-1dad99732d1d",
+                  "Output": "Value"
+                },
+                "DurationOverride": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "TimeOffsetOverride": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "StartBoneMask": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "TargetSyncID": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "TransitionName": "Deploy to Reload",
+                "Duration": 0.06,
+                "TimeMatch": "None",
+                "TimeOffset": 0,
+                "BlendWeightEasing": "Linear",
+                "RootMotionBlend": "Blend",
+                "ClampDurationToSource": false,
+                "CanBeForced": true,
+                "BoneMaskBlendInTimePercentage": 0.33,
+                "Identifier": "1294a2df-f83a-47b5-a4fb-58b940c2f7be",
+                "Position": "330,0",
+                "HandleOffsets": {}
+              }
+            ]
+          }
+        },
+        {
+          "From": "Hold",
+          "To": "Reload",
+          "Graph": {
+            "Version": 1,
+            "nodes": [
+              {
+                "_class": "BoolParameterNode",
+                "ParameterIdentifier": "28cae0ed-356b-421d-a7a2-1cfc32ca7d18",
+                "ParameterName": "b_reload",
+                "Identifier": "d1abce94-95ae-4c7d-8916-e1535a69e44d",
+                "Position": "0,0",
+                "HandleOffsets": {}
+              },
+              {
+                "_class": "TransitionNode",
+                "Condition": {
+                  "Identifier": "d1abce94-95ae-4c7d-8916-e1535a69e44d",
+                  "Output": "Value"
+                },
+                "DurationOverride": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "TimeOffsetOverride": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "StartBoneMask": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "TargetSyncID": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "TransitionName": "Hold to Reload",
+                "Duration": 0.06,
+                "TimeMatch": "None",
+                "TimeOffset": 0,
+                "BlendWeightEasing": "Linear",
+                "RootMotionBlend": "Blend",
+                "ClampDurationToSource": false,
+                "CanBeForced": true,
+                "BoneMaskBlendInTimePercentage": 0.33,
+                "Identifier": "54267151-2297-4bdf-8fa9-32790d05eec7",
+                "Position": "330,0",
+                "HandleOffsets": {}
+              }
+            ]
+          }
+        },
+        {
+          "From": "Reload",
+          "To": "Hold",
+          "Graph": {
+            "Version": 1,
+            "nodes": [
+              {
+                "_class": "BoolParameterNode",
+                "ParameterIdentifier": "9b5fe66d-8f79-4187-aa48-18298f9c79b0",
+                "ParameterName": "b_reload_cancel",
+                "Identifier": "e340b965-6975-43f4-b957-a3aaac55babd",
+                "Position": "0,0",
+                "HandleOffsets": {}
+              },
+              {
+                "_class": "BoolParameterNode",
+                "ParameterIdentifier": "2af77521-7a42-4e38-bd58-36e0d2a0e8ed",
+                "ParameterName": "b_attack",
+                "Identifier": "f44e1e01-4623-4b62-acf4-18c7b0782a98",
+                "Position": "0,135",
+                "HandleOffsets": {}
+              },
+              {
+                "_class": "OrNode",
+                "A": {
+                  "Identifier": "e340b965-6975-43f4-b957-a3aaac55babd",
+                  "Output": "Value"
+                },
+                "B": {
+                  "Identifier": "f44e1e01-4623-4b62-acf4-18c7b0782a98",
+                  "Output": "Value"
+                },
+                "Identifier": "ae6b09bc-2fb4-4395-b3ce-534c287a2582",
+                "Position": "280,135",
+                "HandleOffsets": {}
+              },
+              {
+                "_class": "StateCompletedConditionNode",
+                "AtClipEnd": false,
+                "Identifier": "7f703402-a70f-4620-869b-7f3ce6b30eb6",
+                "Position": "0,405",
+                "HandleOffsets": {}
+              },
+              {
+                "_class": "OrNode",
+                "A": {
+                  "Identifier": "ae6b09bc-2fb4-4395-b3ce-534c287a2582",
+                  "Output": "Result"
+                },
+                "B": {
+                  "Identifier": "7f703402-a70f-4620-869b-7f3ce6b30eb6",
+                  "Output": "Result"
+                },
+                "Identifier": "4331ab7a-1dd8-44db-abd9-a08b9688870f",
+                "Position": "560,405",
+                "HandleOffsets": {}
+              },
+              {
+                "_class": "BoolParameterNode",
+                "ParameterIdentifier": "f616402f-98ba-4758-bea6-f388cdaae5f4",
+                "ParameterName": "b_reload_finish",
+                "Identifier": "f3e7baee-2106-4b19-a935-2bc7c81f8583",
+                "Position": "0,675",
+                "HandleOffsets": {}
+              },
+              {
+                "_class": "OrNode",
+                "A": {
+                  "Identifier": "4331ab7a-1dd8-44db-abd9-a08b9688870f",
+                  "Output": "Result"
+                },
+                "B": {
+                  "Identifier": "f3e7baee-2106-4b19-a935-2bc7c81f8583",
+                  "Output": "Value"
+                },
+                "Identifier": "9f369874-f858-4a03-bca1-ae3da3659436",
+                "Position": "840,675",
+                "HandleOffsets": {}
+              },
+              {
+                "_class": "TransitionNode",
+                "Condition": {
+                  "Identifier": "9f369874-f858-4a03-bca1-ae3da3659436",
+                  "Output": "Result"
+                },
+                "DurationOverride": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "TimeOffsetOverride": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "StartBoneMask": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "TargetSyncID": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "TransitionName": "Reload to Hold",
+                "Duration": 0.06,
+                "TimeMatch": "None",
+                "TimeOffset": 0,
+                "BlendWeightEasing": "Linear",
+                "RootMotionBlend": "Blend",
+                "ClampDurationToSource": false,
+                "CanBeForced": true,
+                "BoneMaskBlendInTimePercentage": 0.33,
+                "Identifier": "b93b76e9-070e-48e2-a93c-e0fe2e23bdd6",
+                "Position": "1160,675",
+                "HandleOffsets": {}
+              }
+            ]
+          }
+        }
+      ],
+      "GlobalGraph": {
+        "Version": 1,
+        "nodes": [
+          {
+            "_class": "GlobalTransitionNode",
+            "StateName": "Deploy",
+            "Condition": {
+              "Identifier": null,
+              "Output": null
+            },
+            "DurationOverride": {
+              "Identifier": null,
+              "Output": null
+            },
+            "TimeOffsetOverride": {
+              "Identifier": null,
+              "Output": null
+            },
+            "StartBoneMask": {
+              "Identifier": null,
+              "Output": null
+            },
+            "TargetSyncID": {
+              "Identifier": null,
+              "Output": null
+            },
+            "TransitionName": "Transition",
+            "Duration": 0.2,
+            "TimeMatch": "None",
+            "TimeOffset": 0,
+            "BlendWeightEasing": "Linear",
+            "RootMotionBlend": "Blend",
+            "ClampDurationToSource": false,
+            "CanBeForced": false,
+            "BoneMaskBlendInTimePercentage": 0.33,
+            "Identifier": "dcb6d9fe-447d-42a4-aa73-569bb2a31643",
+            "Position": "400,0",
+            "HandleOffsets": {}
+          },
+          {
+            "_class": "GlobalTransitionNode",
+            "StateName": "Hold",
+            "Condition": {
+              "Identifier": null,
+              "Output": null
+            },
+            "DurationOverride": {
+              "Identifier": null,
+              "Output": null
+            },
+            "TimeOffsetOverride": {
+              "Identifier": null,
+              "Output": null
+            },
+            "StartBoneMask": {
+              "Identifier": null,
+              "Output": null
+            },
+            "TargetSyncID": {
+              "Identifier": null,
+              "Output": null
+            },
+            "TransitionName": "Transition",
+            "Duration": 0.2,
+            "TimeMatch": "None",
+            "TimeOffset": 0,
+            "BlendWeightEasing": "Linear",
+            "RootMotionBlend": "Blend",
+            "ClampDurationToSource": false,
+            "CanBeForced": false,
+            "BoneMaskBlendInTimePercentage": 0.33,
+            "Identifier": "2c27c99a-8ea1-4415-89ab-c2ee14cd5b1d",
+            "Position": "400,250",
+            "HandleOffsets": {}
+          },
+          {
+            "_class": "GlobalTransitionNode",
+            "StateName": "Reload",
+            "Condition": {
+              "Identifier": null,
+              "Output": null
+            },
+            "DurationOverride": {
+              "Identifier": null,
+              "Output": null
+            },
+            "TimeOffsetOverride": {
+              "Identifier": null,
+              "Output": null
+            },
+            "StartBoneMask": {
+              "Identifier": null,
+              "Output": null
+            },
+            "TargetSyncID": {
+              "Identifier": null,
+              "Output": null
+            },
+            "TransitionName": "Transition",
+            "Duration": 0.2,
+            "TimeMatch": "None",
+            "TimeOffset": 0,
+            "BlendWeightEasing": "Linear",
+            "RootMotionBlend": "Blend",
+            "ClampDurationToSource": false,
+            "CanBeForced": false,
+            "BoneMaskBlendInTimePercentage": 0.33,
+            "Identifier": "ffeb856c-b801-4cf3-a379-8e239b6376d8",
+            "Position": "400,500",
+            "HandleOffsets": {}
+          }
+        ],
+        "Kind": "GlobalTransitions"
+      },
+      "EntryGraph": {
+        "Version": 1,
+        "nodes": [
+          {
+            "_class": "EntryStateOverrideConditionsNode",
+            "States": [
+              "Deploy",
+              "Hold",
+              "Reload"
+            ],
+            "Conditions": [
+              {
+                "Identifier": null,
+                "Output": null
+              },
+              {
+                "Identifier": null,
+                "Output": null
+              },
+              {
+                "Identifier": null,
+                "Output": null
+              }
+            ],
+            "Identifier": "01f9f84e-ae8f-4ca1-a712-b387ea4199d9",
+            "Position": "400,0",
+            "HandleOffsets": {}
+          }
+        ],
+        "Kind": "EntryOverrides"
+      },
+      "DefaultState": "Deploy",
+      "DefaultStateIndex": 0,
+      "Identifier": "17547c09-848d-4b7a-9a62-f925a1cab66d",
+      "Position": "0,0",
+      "Title": "Weapon handling",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "StateMachineNode",
+      "States": [
+        {
+          "Name": "Rest",
+          "IsExitState": false,
+          "Type": "Off",
+          "Events": [],
+          "TimedEvents": [],
+          "UseActualElapsedTimeInStateForTimedEvents": false,
+          "TransitionOrder": [],
+          "Position": "0,0",
+          "Graph": {
+            "Version": 1,
+            "nodes": []
+          },
+          "LayerGraph": {
+            "Version": 1,
+            "nodes": [
+              {
+                "_class": "StateLayerDataNode",
+                "LayerWeight": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "RootMotionWeight": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "BoneMask": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "Identifier": "8275d113-5f23-45c2-b17c-1db17164ef43",
+                "Position": "400,0",
+                "HandleOffsets": {}
+              }
+            ],
+            "Kind": "LayerData"
+          }
+        },
+        {
+          "Name": "Fire",
+          "IsExitState": false,
+          "Type": "BlendTree",
+          "Events": [],
+          "TimedEvents": [],
+          "UseActualElapsedTimeInStateForTimedEvents": false,
+          "TransitionOrder": [],
+          "Position": "340,0",
+          "Graph": {
+            "Version": 1,
+            "nodes": [
+              {
+                "_class": "InternalReferencedGraphNode",
+                "Fallback": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "DefaultVariationData": {
+                  "GraphPath": {
+                    "Id": "16e0b2d8-4ebe-4d41-9bf3-1132e6c4e2f6",
+                    "Path": "weapons/m4a1/animations/m4a1_fire.ag"
+                  },
+                  "GraphVariation": ""
+                },
+                "Overrides": [],
+                "Identifier": "2582ae0f-bd45-4a35-a99e-a106ca0db978",
+                "Position": "0,0",
+                "HandleOffsets": {}
+              },
+              {
+                "_class": "PoseResultNode",
+                "Pose": {
+                  "Identifier": "2582ae0f-bd45-4a35-a99e-a106ca0db978",
+                  "Output": "Result"
+                },
+                "Identifier": "bd07981d-b6df-407e-b99c-c3014da44212",
+                "Position": "320,0",
+                "HandleOffsets": {}
+              }
+            ]
+          },
+          "LayerGraph": {
+            "Version": 1,
+            "nodes": [
+              {
+                "_class": "FloatParameterNode",
+                "ParameterIdentifier": "f5a2648c-4dfb-4e92-90bc-da5c5d0d8d37",
+                "ParameterName": "ironsights_fire_scale",
+                "Identifier": "d7976a9d-10e6-4d52-b90a-8d201caec904",
+                "Position": "0,0",
+                "HandleOffsets": {}
+              },
+              {
+                "_class": "StateLayerDataNode",
+                "LayerWeight": {
+                  "Identifier": "d7976a9d-10e6-4d52-b90a-8d201caec904",
+                  "Output": "Value"
+                },
+                "RootMotionWeight": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "BoneMask": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "Identifier": "9c4be092-3c4f-4a37-a2de-2451c422607e",
+                "Position": "310,0",
+                "HandleOffsets": {}
+              }
+            ]
+          }
+        },
+        {
+          "Name": "Follow-up",
+          "IsExitState": false,
+          "Type": "BlendTree",
+          "Events": [],
+          "TimedEvents": [],
+          "UseActualElapsedTimeInStateForTimedEvents": false,
+          "TransitionOrder": [],
+          "Position": "680,0",
+          "Graph": {
+            "Version": 1,
+            "nodes": [
+              {
+                "_class": "InternalReferencedGraphNode",
+                "Fallback": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "DefaultVariationData": {
+                  "GraphPath": {
+                    "Id": "16e0b2d8-4ebe-4d41-9bf3-1132e6c4e2f6",
+                    "Path": "weapons/m4a1/animations/m4a1_fire.ag"
+                  },
+                  "GraphVariation": ""
+                },
+                "Overrides": [],
+                "Identifier": "4e2e58ef-ab03-4654-97c9-19e130deddca",
+                "Position": "0,0",
+                "HandleOffsets": {}
+              },
+              {
+                "_class": "PoseResultNode",
+                "Pose": {
+                  "Identifier": "4e2e58ef-ab03-4654-97c9-19e130deddca",
+                  "Output": "Result"
+                },
+                "Identifier": "546f4bb9-798b-4438-93ef-aec29cf8f0ae",
+                "Position": "320,0",
+                "HandleOffsets": {}
+              }
+            ]
+          },
+          "LayerGraph": {
+            "Version": 1,
+            "nodes": [
+              {
+                "_class": "FloatParameterNode",
+                "ParameterIdentifier": "f5a2648c-4dfb-4e92-90bc-da5c5d0d8d37",
+                "ParameterName": "ironsights_fire_scale",
+                "Identifier": "0d5ec867-e1f8-4113-854e-eb39f250a13e",
+                "Position": "0,0",
+                "HandleOffsets": {}
+              },
+              {
+                "_class": "StateLayerDataNode",
+                "LayerWeight": {
+                  "Identifier": "0d5ec867-e1f8-4113-854e-eb39f250a13e",
+                  "Output": "Value"
+                },
+                "RootMotionWeight": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "BoneMask": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "Identifier": "a04bb16d-8ff6-49ca-8645-f8dcc919316d",
+                "Position": "310,0",
+                "HandleOffsets": {}
+              }
+            ]
+          }
+        },
+        {
+          "Name": "Dry fire",
+          "IsExitState": false,
+          "Type": "BlendTree",
+          "Events": [],
+          "TimedEvents": [],
+          "UseActualElapsedTimeInStateForTimedEvents": false,
+          "TransitionOrder": [],
+          "Position": "0,210",
+          "Graph": {
+            "Version": 1,
+            "nodes": [
+              {
+                "_class": "BoolParameterNode",
+                "ParameterIdentifier": "e5c4ea8a-e2df-42ab-978c-1d01ce0cc5ab",
+                "ParameterName": "b_attack_dry",
+                "Identifier": "52a64231-9710-4a1c-b84c-5a9bda62e539",
+                "Position": "-320,0",
+                "HandleOffsets": {}
+              },
+              {
+                "_class": "AnimationClipNode",
+                "Loop": false,
+                "SampleRootMotion": false,
+                "GraphEvents": [],
+                "PlayInReverse": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "ResetTime": {
+                  "Identifier": "52a64231-9710-4a1c-b84c-5a9bda62e539",
+                  "Output": "Value"
+                },
+                "DefaultVariationData": {
+                  "AnimationName": {
+                    "Id": "4c51f8fd-3823-4521-863f-435aaf31c65d",
+                    "Path": "weapons/m4a1/animations/dry.anim"
+                  },
+                  "SpeedMultiplier": 1,
+                  "StartSyncEventOffset": 0
+                },
+                "Overrides": [],
+                "Identifier": "ec27a924-1f14-4513-9e2f-06812292dac8",
+                "Position": "0,0",
+                "HandleOffsets": {}
+              },
+              {
+                "_class": "AnimationClipNode",
+                "Loop": false,
+                "SampleRootMotion": false,
+                "GraphEvents": [],
+                "PlayInReverse": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "ResetTime": {
+                  "Identifier": "52a64231-9710-4a1c-b84c-5a9bda62e539",
+                  "Output": "Value"
+                },
+                "DefaultVariationData": {
+                  "AnimationName": {
+                    "Id": "aec5f812-ffd8-4682-ab5b-4d090bf5075e",
+                    "Path": "weapons/m4a1/animations/trigger.anim"
+                  },
+                  "SpeedMultiplier": 1,
+                  "StartSyncEventOffset": 0
+                },
+                "Overrides": [],
+                "Identifier": "1cdd08da-1b4f-46b0-bda9-aceab43ac39d",
+                "Position": "0,180",
+                "HandleOffsets": {}
+              },
+              {
+                "_class": "LocalLayerNode",
+                "Input": {
+                  "Identifier": "1cdd08da-1b4f-46b0-bda9-aceab43ac39d",
+                  "Output": "Result"
+                },
+                "Weight": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "RootMotionWeight": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "BoneMask": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "BlendMode": "Additive",
+                "IsSynchronized": false,
+                "IgnoreEvents": false,
+                "Identifier": "8b286688-986e-4eff-98b1-b43583572ded",
+                "Position": "290,180",
+                "HandleOffsets": {}
+              },
+              {
+                "_class": "LayerBlendNode",
+                "Base": {
+                  "Identifier": "ec27a924-1f14-4513-9e2f-06812292dac8",
+                  "Output": "Result"
+                },
+                "Layers": [
+                  {
+                    "Identifier": "8b286688-986e-4eff-98b1-b43583572ded",
+                    "Output": "Layer"
+                  }
+                ],
+                "OnlySampleBaseRootMotion": true,
+                "Identifier": "9f3bd826-0d55-46c4-912a-cc0b4c93d3da",
+                "Position": "600,0",
+                "HandleOffsets": {}
+              },
+              {
+                "_class": "PoseResultNode",
+                "Pose": {
+                  "Identifier": "9f3bd826-0d55-46c4-912a-cc0b4c93d3da",
+                  "Output": "Result"
+                },
+                "Identifier": "13ae42c8-9cf7-4038-9a60-669ac116b0f5",
+                "Position": "940,0",
+                "HandleOffsets": {}
+              }
+            ]
+          },
+          "LayerGraph": {
+            "Version": 1,
+            "nodes": [
+              {
+                "_class": "FloatParameterNode",
+                "ParameterIdentifier": "f5a2648c-4dfb-4e92-90bc-da5c5d0d8d37",
+                "ParameterName": "ironsights_fire_scale",
+                "Identifier": "86dc2572-1674-40db-a3da-4b1cfe001091",
+                "Position": "0,0",
+                "HandleOffsets": {}
+              },
+              {
+                "_class": "StateLayerDataNode",
+                "LayerWeight": {
+                  "Identifier": "86dc2572-1674-40db-a3da-4b1cfe001091",
+                  "Output": "Value"
+                },
+                "RootMotionWeight": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "BoneMask": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "Identifier": "72b0f043-fc8b-48b3-ad32-3dd2f3e25604",
+                "Position": "310,0",
+                "HandleOffsets": {}
+              }
+            ]
+          }
+        }
+      ],
+      "Conduits": [
+        {
+          "From": "Rest",
+          "To": "Fire",
+          "Graph": {
+            "Version": 1,
+            "nodes": [
+              {
+                "_class": "BoolParameterNode",
+                "ParameterIdentifier": "2af77521-7a42-4e38-bd58-36e0d2a0e8ed",
+                "ParameterName": "b_attack",
+                "Identifier": "3b723466-9565-4d62-8f65-85b52d464fe8",
+                "Position": "0,0",
+                "HandleOffsets": {}
+              },
+              {
+                "_class": "TransitionNode",
+                "Condition": {
+                  "Identifier": "3b723466-9565-4d62-8f65-85b52d464fe8",
+                  "Output": "Value"
+                },
+                "DurationOverride": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "TimeOffsetOverride": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "StartBoneMask": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "TargetSyncID": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "TransitionName": "Rest to Fire",
+                "Duration": 0.025,
+                "TimeMatch": "None",
+                "TimeOffset": 0,
+                "BlendWeightEasing": "Linear",
+                "RootMotionBlend": "Blend",
+                "ClampDurationToSource": false,
+                "CanBeForced": true,
+                "BoneMaskBlendInTimePercentage": 0.33,
+                "Identifier": "d0984b93-bbda-4faa-b654-259b44009677",
+                "Position": "330,0",
+                "HandleOffsets": {}
+              }
+            ]
+          }
+        },
+        {
+          "From": "Fire",
+          "To": "Follow-up",
+          "Graph": {
+            "Version": 1,
+            "nodes": [
+              {
+                "_class": "BoolParameterNode",
+                "ParameterIdentifier": "2af77521-7a42-4e38-bd58-36e0d2a0e8ed",
+                "ParameterName": "b_attack",
+                "Identifier": "22df36d2-0115-4a20-a2d4-39e7c1267f86",
+                "Position": "0,0",
+                "HandleOffsets": {}
+              },
+              {
+                "_class": "TransitionNode",
+                "Condition": {
+                  "Identifier": "22df36d2-0115-4a20-a2d4-39e7c1267f86",
+                  "Output": "Value"
+                },
+                "DurationOverride": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "TimeOffsetOverride": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "StartBoneMask": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "TargetSyncID": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "TransitionName": "Fire to Follow-up",
+                "Duration": 0.025,
+                "TimeMatch": "None",
+                "TimeOffset": 0,
+                "BlendWeightEasing": "Linear",
+                "RootMotionBlend": "Blend",
+                "ClampDurationToSource": false,
+                "CanBeForced": true,
+                "BoneMaskBlendInTimePercentage": 0.33,
+                "Identifier": "0e5eef4c-71c5-400e-9ad0-c591507c3d52",
+                "Position": "330,0",
+                "HandleOffsets": {}
+              }
+            ]
+          }
+        },
+        {
+          "From": "Fire",
+          "To": "Rest",
+          "Graph": {
+            "Version": 1,
+            "nodes": [
+              {
+                "_class": "BoolParameterNode",
+                "ParameterIdentifier": "28cae0ed-356b-421d-a7a2-1cfc32ca7d18",
+                "ParameterName": "b_reload",
+                "Identifier": "f962cc8b-7631-4cab-9610-1682e0d1f748",
+                "Position": "0,0",
+                "HandleOffsets": {}
+              },
+              {
+                "_class": "StateCompletedConditionNode",
+                "AtClipEnd": false,
+                "Identifier": "a7bd815d-e39f-4758-9e51-47957a3b8a1e",
+                "Position": "0,135",
+                "HandleOffsets": {}
+              },
+              {
+                "_class": "OrNode",
+                "A": {
+                  "Identifier": "f962cc8b-7631-4cab-9610-1682e0d1f748",
+                  "Output": "Value"
+                },
+                "B": {
+                  "Identifier": "a7bd815d-e39f-4758-9e51-47957a3b8a1e",
+                  "Output": "Result"
+                },
+                "Identifier": "4394cc4b-2274-4e7e-b1d9-1aea14432864",
+                "Position": "280,135",
+                "HandleOffsets": {}
+              },
+              {
+                "_class": "TransitionNode",
+                "Condition": {
+                  "Identifier": "4394cc4b-2274-4e7e-b1d9-1aea14432864",
+                  "Output": "Result"
+                },
+                "DurationOverride": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "TimeOffsetOverride": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "StartBoneMask": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "TargetSyncID": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "TransitionName": "Fire to Rest",
+                "Duration": 0.05,
+                "TimeMatch": "None",
+                "TimeOffset": 0,
+                "BlendWeightEasing": "Linear",
+                "RootMotionBlend": "Blend",
+                "ClampDurationToSource": false,
+                "CanBeForced": true,
+                "BoneMaskBlendInTimePercentage": 0.33,
+                "Identifier": "35cc92f8-1e42-4e3e-a1df-8c7489329f67",
+                "Position": "600,135",
+                "HandleOffsets": {}
+              }
+            ]
+          }
+        },
+        {
+          "From": "Follow-up",
+          "To": "Fire",
+          "Graph": {
+            "Version": 1,
+            "nodes": [
+              {
+                "_class": "BoolParameterNode",
+                "ParameterIdentifier": "2af77521-7a42-4e38-bd58-36e0d2a0e8ed",
+                "ParameterName": "b_attack",
+                "Identifier": "9ea7a801-684b-4ba2-a3ab-11251832b462",
+                "Position": "0,0",
+                "HandleOffsets": {}
+              },
+              {
+                "_class": "TransitionNode",
+                "Condition": {
+                  "Identifier": "9ea7a801-684b-4ba2-a3ab-11251832b462",
+                  "Output": "Value"
+                },
+                "DurationOverride": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "TimeOffsetOverride": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "StartBoneMask": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "TargetSyncID": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "TransitionName": "Follow-up to Fire",
+                "Duration": 0.025,
+                "TimeMatch": "None",
+                "TimeOffset": 0,
+                "BlendWeightEasing": "Linear",
+                "RootMotionBlend": "Blend",
+                "ClampDurationToSource": false,
+                "CanBeForced": true,
+                "BoneMaskBlendInTimePercentage": 0.33,
+                "Identifier": "c6140e69-e639-43f0-a776-c103e74d843d",
+                "Position": "330,0",
+                "HandleOffsets": {}
+              }
+            ]
+          }
+        },
+        {
+          "From": "Follow-up",
+          "To": "Rest",
+          "Graph": {
+            "Version": 1,
+            "nodes": [
+              {
+                "_class": "BoolParameterNode",
+                "ParameterIdentifier": "28cae0ed-356b-421d-a7a2-1cfc32ca7d18",
+                "ParameterName": "b_reload",
+                "Identifier": "eca05e47-ac31-4c10-883f-167ba840835a",
+                "Position": "0,0",
+                "HandleOffsets": {}
+              },
+              {
+                "_class": "StateCompletedConditionNode",
+                "AtClipEnd": false,
+                "Identifier": "57895bb5-f983-41fb-b51a-43142904cdaf",
+                "Position": "0,135",
+                "HandleOffsets": {}
+              },
+              {
+                "_class": "OrNode",
+                "A": {
+                  "Identifier": "eca05e47-ac31-4c10-883f-167ba840835a",
+                  "Output": "Value"
+                },
+                "B": {
+                  "Identifier": "57895bb5-f983-41fb-b51a-43142904cdaf",
+                  "Output": "Result"
+                },
+                "Identifier": "0ee0f386-531c-40bb-bb60-a6a32e27ac25",
+                "Position": "280,135",
+                "HandleOffsets": {}
+              },
+              {
+                "_class": "TransitionNode",
+                "Condition": {
+                  "Identifier": "0ee0f386-531c-40bb-bb60-a6a32e27ac25",
+                  "Output": "Result"
+                },
+                "DurationOverride": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "TimeOffsetOverride": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "StartBoneMask": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "TargetSyncID": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "TransitionName": "Follow-up to Rest",
+                "Duration": 0.05,
+                "TimeMatch": "None",
+                "TimeOffset": 0,
+                "BlendWeightEasing": "Linear",
+                "RootMotionBlend": "Blend",
+                "ClampDurationToSource": false,
+                "CanBeForced": true,
+                "BoneMaskBlendInTimePercentage": 0.33,
+                "Identifier": "39cbdb88-0b15-40fa-9f4b-d98aa35e662c",
+                "Position": "600,135",
+                "HandleOffsets": {}
+              }
+            ]
+          }
+        },
+        {
+          "From": "Rest",
+          "To": "Dry fire",
+          "Graph": {
+            "Version": 1,
+            "nodes": [
+              {
+                "_class": "BoolParameterNode",
+                "ParameterIdentifier": "e5c4ea8a-e2df-42ab-978c-1d01ce0cc5ab",
+                "ParameterName": "b_attack_dry",
+                "Identifier": "b8dd3545-5af9-4daf-b62f-3a21d0bb6abc",
+                "Position": "0,0",
+                "HandleOffsets": {}
+              },
+              {
+                "_class": "TransitionNode",
+                "Condition": {
+                  "Identifier": "b8dd3545-5af9-4daf-b62f-3a21d0bb6abc",
+                  "Output": "Value"
+                },
+                "DurationOverride": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "TimeOffsetOverride": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "StartBoneMask": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "TargetSyncID": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "TransitionName": "Rest to Dry fire",
+                "Duration": 0.03,
+                "TimeMatch": "None",
+                "TimeOffset": 0,
+                "BlendWeightEasing": "Linear",
+                "RootMotionBlend": "Blend",
+                "ClampDurationToSource": false,
+                "CanBeForced": true,
+                "BoneMaskBlendInTimePercentage": 0.33,
+                "Identifier": "4a1273f3-a753-4b74-b395-f9f4e62db588",
+                "Position": "330,0",
+                "HandleOffsets": {}
+              }
+            ]
+          }
+        },
+        {
+          "From": "Fire",
+          "To": "Dry fire",
+          "Graph": {
+            "Version": 1,
+            "nodes": [
+              {
+                "_class": "BoolParameterNode",
+                "ParameterIdentifier": "e5c4ea8a-e2df-42ab-978c-1d01ce0cc5ab",
+                "ParameterName": "b_attack_dry",
+                "Identifier": "4c07c188-4b76-4611-9c00-f02f9c3729e8",
+                "Position": "0,0",
+                "HandleOffsets": {}
+              },
+              {
+                "_class": "TransitionNode",
+                "Condition": {
+                  "Identifier": "4c07c188-4b76-4611-9c00-f02f9c3729e8",
+                  "Output": "Value"
+                },
+                "DurationOverride": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "TimeOffsetOverride": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "StartBoneMask": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "TargetSyncID": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "TransitionName": "Fire to Dry fire",
+                "Duration": 0.03,
+                "TimeMatch": "None",
+                "TimeOffset": 0,
+                "BlendWeightEasing": "Linear",
+                "RootMotionBlend": "Blend",
+                "ClampDurationToSource": false,
+                "CanBeForced": true,
+                "BoneMaskBlendInTimePercentage": 0.33,
+                "Identifier": "627de7ad-1089-4aad-9ea2-971f0caccdac",
+                "Position": "330,0",
+                "HandleOffsets": {}
+              }
+            ]
+          }
+        },
+        {
+          "From": "Follow-up",
+          "To": "Dry fire",
+          "Graph": {
+            "Version": 1,
+            "nodes": [
+              {
+                "_class": "BoolParameterNode",
+                "ParameterIdentifier": "e5c4ea8a-e2df-42ab-978c-1d01ce0cc5ab",
+                "ParameterName": "b_attack_dry",
+                "Identifier": "90d85251-dac3-4e3d-bf27-1c756eda855b",
+                "Position": "0,0",
+                "HandleOffsets": {}
+              },
+              {
+                "_class": "TransitionNode",
+                "Condition": {
+                  "Identifier": "90d85251-dac3-4e3d-bf27-1c756eda855b",
+                  "Output": "Value"
+                },
+                "DurationOverride": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "TimeOffsetOverride": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "StartBoneMask": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "TargetSyncID": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "TransitionName": "Follow-up to Dry fire",
+                "Duration": 0.03,
+                "TimeMatch": "None",
+                "TimeOffset": 0,
+                "BlendWeightEasing": "Linear",
+                "RootMotionBlend": "Blend",
+                "ClampDurationToSource": false,
+                "CanBeForced": true,
+                "BoneMaskBlendInTimePercentage": 0.33,
+                "Identifier": "ed09eb94-2660-4d24-a979-0abeb66a93e1",
+                "Position": "330,0",
+                "HandleOffsets": {}
+              }
+            ]
+          }
+        },
+        {
+          "From": "Dry fire",
+          "To": "Fire",
+          "Graph": {
+            "Version": 1,
+            "nodes": [
+              {
+                "_class": "BoolParameterNode",
+                "ParameterIdentifier": "2af77521-7a42-4e38-bd58-36e0d2a0e8ed",
+                "ParameterName": "b_attack",
+                "Identifier": "182c2386-82e0-4a58-956e-6120c22abe85",
+                "Position": "0,0",
+                "HandleOffsets": {}
+              },
+              {
+                "_class": "TransitionNode",
+                "Condition": {
+                  "Identifier": "182c2386-82e0-4a58-956e-6120c22abe85",
+                  "Output": "Value"
+                },
+                "DurationOverride": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "TimeOffsetOverride": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "StartBoneMask": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "TargetSyncID": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "TransitionName": "Dry fire to Fire",
+                "Duration": 0.025,
+                "TimeMatch": "None",
+                "TimeOffset": 0,
+                "BlendWeightEasing": "Linear",
+                "RootMotionBlend": "Blend",
+                "ClampDurationToSource": false,
+                "CanBeForced": true,
+                "BoneMaskBlendInTimePercentage": 0.33,
+                "Identifier": "1ecbfe3d-c2e1-4beb-8898-df574beff40e",
+                "Position": "330,0",
+                "HandleOffsets": {}
+              }
+            ]
+          }
+        },
+        {
+          "From": "Dry fire",
+          "To": "Rest",
+          "Graph": {
+            "Version": 1,
+            "nodes": [
+              {
+                "_class": "BoolParameterNode",
+                "ParameterIdentifier": "28cae0ed-356b-421d-a7a2-1cfc32ca7d18",
+                "ParameterName": "b_reload",
+                "Identifier": "32b32d18-c0a5-4001-b515-acb5de28587c",
+                "Position": "0,0",
+                "HandleOffsets": {}
+              },
+              {
+                "_class": "StateCompletedConditionNode",
+                "AtClipEnd": false,
+                "Identifier": "4b81f709-b988-46f0-832a-901699ca18bf",
+                "Position": "0,135",
+                "HandleOffsets": {}
+              },
+              {
+                "_class": "OrNode",
+                "A": {
+                  "Identifier": "32b32d18-c0a5-4001-b515-acb5de28587c",
+                  "Output": "Value"
+                },
+                "B": {
+                  "Identifier": "4b81f709-b988-46f0-832a-901699ca18bf",
+                  "Output": "Result"
+                },
+                "Identifier": "1dbb9902-9bce-4aaa-8f82-e861e35b0e35",
+                "Position": "280,135",
+                "HandleOffsets": {}
+              },
+              {
+                "_class": "TransitionNode",
+                "Condition": {
+                  "Identifier": "1dbb9902-9bce-4aaa-8f82-e861e35b0e35",
+                  "Output": "Result"
+                },
+                "DurationOverride": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "TimeOffsetOverride": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "StartBoneMask": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "TargetSyncID": {
+                  "Identifier": null,
+                  "Output": null
+                },
+                "TransitionName": "Dry fire to Rest",
+                "Duration": 0.05,
+                "TimeMatch": "None",
+                "TimeOffset": 0,
+                "BlendWeightEasing": "Linear",
+                "RootMotionBlend": "Blend",
+                "ClampDurationToSource": false,
+                "CanBeForced": true,
+                "BoneMaskBlendInTimePercentage": 0.33,
+                "Identifier": "60a6da89-e8d4-4080-aa16-29bbbddf1320",
+                "Position": "600,135",
+                "HandleOffsets": {}
+              }
+            ]
+          }
+        }
+      ],
+      "GlobalGraph": {
+        "Version": 1,
+        "nodes": [
+          {
+            "_class": "GlobalTransitionNode",
+            "StateName": "Rest",
+            "Condition": {
+              "Identifier": null,
+              "Output": null
+            },
+            "DurationOverride": {
+              "Identifier": null,
+              "Output": null
+            },
+            "TimeOffsetOverride": {
+              "Identifier": null,
+              "Output": null
+            },
+            "StartBoneMask": {
+              "Identifier": null,
+              "Output": null
+            },
+            "TargetSyncID": {
+              "Identifier": null,
+              "Output": null
+            },
+            "TransitionName": "Transition",
+            "Duration": 0.2,
+            "TimeMatch": "None",
+            "TimeOffset": 0,
+            "BlendWeightEasing": "Linear",
+            "RootMotionBlend": "Blend",
+            "ClampDurationToSource": false,
+            "CanBeForced": false,
+            "BoneMaskBlendInTimePercentage": 0.33,
+            "Identifier": "22b8f292-6f0f-4d79-93f4-481fba17290d",
+            "Position": "400,0",
+            "HandleOffsets": {}
+          },
+          {
+            "_class": "GlobalTransitionNode",
+            "StateName": "Fire",
+            "Condition": {
+              "Identifier": null,
+              "Output": null
+            },
+            "DurationOverride": {
+              "Identifier": null,
+              "Output": null
+            },
+            "TimeOffsetOverride": {
+              "Identifier": null,
+              "Output": null
+            },
+            "StartBoneMask": {
+              "Identifier": null,
+              "Output": null
+            },
+            "TargetSyncID": {
+              "Identifier": null,
+              "Output": null
+            },
+            "TransitionName": "Transition",
+            "Duration": 0.2,
+            "TimeMatch": "None",
+            "TimeOffset": 0,
+            "BlendWeightEasing": "Linear",
+            "RootMotionBlend": "Blend",
+            "ClampDurationToSource": false,
+            "CanBeForced": false,
+            "BoneMaskBlendInTimePercentage": 0.33,
+            "Identifier": "0d1f5162-65d7-4054-9ba1-a2c094c26ed4",
+            "Position": "400,250",
+            "HandleOffsets": {}
+          },
+          {
+            "_class": "GlobalTransitionNode",
+            "StateName": "Follow-up",
+            "Condition": {
+              "Identifier": null,
+              "Output": null
+            },
+            "DurationOverride": {
+              "Identifier": null,
+              "Output": null
+            },
+            "TimeOffsetOverride": {
+              "Identifier": null,
+              "Output": null
+            },
+            "StartBoneMask": {
+              "Identifier": null,
+              "Output": null
+            },
+            "TargetSyncID": {
+              "Identifier": null,
+              "Output": null
+            },
+            "TransitionName": "Transition",
+            "Duration": 0.2,
+            "TimeMatch": "None",
+            "TimeOffset": 0,
+            "BlendWeightEasing": "Linear",
+            "RootMotionBlend": "Blend",
+            "ClampDurationToSource": false,
+            "CanBeForced": false,
+            "BoneMaskBlendInTimePercentage": 0.33,
+            "Identifier": "74e8f3eb-81e0-4cc8-b1f0-041355dac499",
+            "Position": "400,500",
+            "HandleOffsets": {}
+          },
+          {
+            "_class": "GlobalTransitionNode",
+            "StateName": "Dry fire",
+            "Condition": {
+              "Identifier": null,
+              "Output": null
+            },
+            "DurationOverride": {
+              "Identifier": null,
+              "Output": null
+            },
+            "TimeOffsetOverride": {
+              "Identifier": null,
+              "Output": null
+            },
+            "StartBoneMask": {
+              "Identifier": null,
+              "Output": null
+            },
+            "TargetSyncID": {
+              "Identifier": null,
+              "Output": null
+            },
+            "TransitionName": "Transition",
+            "Duration": 0.2,
+            "TimeMatch": "None",
+            "TimeOffset": 0,
+            "BlendWeightEasing": "Linear",
+            "RootMotionBlend": "Blend",
+            "ClampDurationToSource": false,
+            "CanBeForced": false,
+            "BoneMaskBlendInTimePercentage": 0.33,
+            "Identifier": "745cade8-0131-419c-8515-dcfdf9f537d4",
+            "Position": "400,750",
+            "HandleOffsets": {}
+          }
+        ],
+        "Kind": "GlobalTransitions"
+      },
+      "EntryGraph": {
+        "Version": 1,
+        "nodes": [
+          {
+            "_class": "EntryStateOverrideConditionsNode",
+            "States": [
+              "Rest",
+              "Fire",
+              "Follow-up",
+              "Dry fire"
+            ],
+            "Conditions": [
+              {
+                "Identifier": null,
+                "Output": null
+              },
+              {
+                "Identifier": null,
+                "Output": null
+              },
+              {
+                "Identifier": null,
+                "Output": null
+              },
+              {
+                "Identifier": null,
+                "Output": null
+              }
+            ],
+            "Identifier": "12fdffb2-052d-467c-955f-b42ae2d01ee3",
+            "Position": "400,0",
+            "HandleOffsets": {}
+          }
+        ],
+        "Kind": "EntryOverrides"
+      },
+      "DefaultState": "Rest",
+      "DefaultStateIndex": 0,
+      "Identifier": "5725114b-1dfc-4e46-b0ff-f7f82a6e483a",
+      "Position": "0,190",
+      "Title": "Firing",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "StateMachineLayerNode",
+      "StateMachine": {
+        "Identifier": "5725114b-1dfc-4e46-b0ff-f7f82a6e483a",
+        "Output": "Result"
+      },
+      "BlendMode": "Additive",
+      "IsSynchronized": false,
+      "IgnoreEvents": false,
+      "Identifier": "15aaa5b8-6e23-4748-9b1a-a4891cb9b996",
+      "Position": "330,190",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "LayerBlendNode",
+      "Base": {
+        "Identifier": "17547c09-848d-4b7a-9a62-f925a1cab66d",
+        "Output": "Result"
+      },
+      "Layers": [
+        {
+          "Identifier": "15aaa5b8-6e23-4748-9b1a-a4891cb9b996",
+          "Output": "Layer"
+        }
+      ],
+      "OnlySampleBaseRootMotion": true,
+      "Identifier": "763fe817-1f3e-4d44-9939-7238800ef64b",
+      "Position": "635,0",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "ConstBoneTargetNode",
+      "Bone": "hand_R_to_weapon_ikrule",
+      "Identifier": "36842028-65dc-48e3-98bc-9247206e9387",
+      "Position": "635,175",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "TwoBoneIKNode",
+      "Input": {
+        "Identifier": "763fe817-1f3e-4d44-9939-7238800ef64b",
+        "Output": "Result"
+      },
+      "EffectorTarget": {
+        "Identifier": "36842028-65dc-48e3-98bc-9247206e9387",
+        "Output": "Target"
+      },
+      "PoleTarget": {
+        "Identifier": null,
+        "Output": null
+      },
+      "Enable": {
+        "Identifier": null,
+        "Output": null
+      },
+      "Weight": {
+        "Identifier": null,
+        "Output": null
+      },
+      "BlendMode": "Effector",
+      "IsTargetInWorldSpace": false,
+      "SwivelMode": "Parent",
+      "SwivelOffset": 0,
+      "ReferencePoseTwistWeight": 0,
+      "DefaultVariationData": {
+        "EffectorBone": "hand_R",
+        "BlendTime": 0
+      },
+      "Overrides": [],
+      "Identifier": "c5bf9cbf-c551-4bfe-a71f-4fe7451ba74c",
+      "Position": "955,0",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "ConstBoneTargetNode",
+      "Bone": "hand_L_to_weapon_ikrule",
+      "Identifier": "e39b7cb9-a1a6-4dde-8a68-3d746123d531",
+      "Position": "955,175",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "TwoBoneIKNode",
+      "Input": {
+        "Identifier": "c5bf9cbf-c551-4bfe-a71f-4fe7451ba74c",
+        "Output": "Result"
+      },
+      "EffectorTarget": {
+        "Identifier": "e39b7cb9-a1a6-4dde-8a68-3d746123d531",
+        "Output": "Target"
+      },
+      "PoleTarget": {
+        "Identifier": null,
+        "Output": null
+      },
+      "Enable": {
+        "Identifier": null,
+        "Output": null
+      },
+      "Weight": {
+        "Identifier": null,
+        "Output": null
+      },
+      "BlendMode": "Effector",
+      "IsTargetInWorldSpace": false,
+      "SwivelMode": "Parent",
+      "SwivelOffset": 0,
+      "ReferencePoseTwistWeight": 0,
+      "DefaultVariationData": {
+        "EffectorBone": "hand_L",
+        "BlendTime": 0
+      },
+      "Overrides": [],
+      "Identifier": "5d3bfb5e-2eb5-47a8-975b-fdd2069b7e83",
+      "Position": "1275,0",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "PoseResultNode",
+      "Pose": {
+        "Identifier": "5d3bfb5e-2eb5-47a8-975b-fdd2069b7e83",
+        "Output": "Result"
+      },
+      "Identifier": "32ac9301-811f-4dab-b636-6159c63dd0c6",
+      "Position": "1640,0",
+      "HandleOffsets": {}
+    }
+  ],
+  "Model": {
+    "Id": "0843ef28-00fc-0000-c200-000000000000",
+    "Path": "weapons/m4a1/v_m4a1.vmdl"
+  },
+  "Skeleton": {
+    "Id": "59b8f637-9328-48c0-876f-8a62a48a46a2",
+    "Path": "weapons/m4a1/animations/m4a1.skel"
+  },
+  "parameters": [
+    {
+      "Identifier": "7aed3a00-599d-4c87-a470-a5649b356115",
+      "Type": "Bool",
+      "Name": "ironsights",
+      "Group": "",
+      "RuntimeDefaultFloat": 0,
+      "RuntimeDefaultBool": false,
+      "RuntimeDefaultID": "",
+      "RuntimeDefaultVector": "0,0,0",
+      "DefaultFloat": 0,
+      "Min": 0,
+      "Max": 1,
+      "DefaultBool": false,
+      "DefaultID": "",
+      "EnumTypeName": "",
+      "ExpectedValues": [],
+      "ResolvedOptions": [],
+      "DefaultVector": "0,0,0",
+      "PreviewStartTargetIsSet": false,
+      "PreviewStartTargetIsBone": false,
+      "PreviewStartBone": ""
+    },
+    {
+      "Identifier": "d98a5844-81bd-4f5a-b17c-2908e0e39b84",
+      "Type": "Bool",
+      "Name": "b_empty",
+      "Group": "",
+      "RuntimeDefaultFloat": 0,
+      "RuntimeDefaultBool": false,
+      "RuntimeDefaultID": "",
+      "RuntimeDefaultVector": "0,0,0",
+      "DefaultFloat": 0,
+      "Min": 0,
+      "Max": 1,
+      "DefaultBool": false,
+      "DefaultID": "",
+      "EnumTypeName": "",
+      "ExpectedValues": [],
+      "ResolvedOptions": [],
+      "DefaultVector": "0,0,0",
+      "PreviewStartTargetIsSet": false,
+      "PreviewStartTargetIsBone": false,
+      "PreviewStartBone": ""
+    },
+    {
+      "Identifier": "2dd77c40-68da-4ed2-9278-fd41d9e0595d",
+      "Type": "Float",
+      "Name": "reload_duration",
+      "Group": "",
+      "RuntimeDefaultFloat": 2,
+      "RuntimeDefaultBool": false,
+      "RuntimeDefaultID": "",
+      "RuntimeDefaultVector": "0,0,0",
+      "DefaultFloat": 2,
+      "Min": 0,
+      "Max": 1,
+      "DefaultBool": false,
+      "DefaultID": "",
+      "EnumTypeName": "",
+      "ExpectedValues": [],
+      "ResolvedOptions": [],
+      "DefaultVector": "0,0,0",
+      "PreviewStartTargetIsSet": false,
+      "PreviewStartTargetIsBone": false,
+      "PreviewStartBone": ""
+    },
+    {
+      "Identifier": "2af77521-7a42-4e38-bd58-36e0d2a0e8ed",
+      "Type": "Bool",
+      "Name": "b_attack",
+      "Group": "",
+      "RuntimeDefaultFloat": 0,
+      "RuntimeDefaultBool": false,
+      "RuntimeDefaultID": "",
+      "RuntimeDefaultVector": "0,0,0",
+      "DefaultFloat": 0,
+      "Min": 0,
+      "Max": 1,
+      "DefaultBool": false,
+      "DefaultID": "",
+      "EnumTypeName": "",
+      "ExpectedValues": [],
+      "ResolvedOptions": [],
+      "DefaultVector": "0,0,0",
+      "PreviewStartTargetIsSet": false,
+      "PreviewStartTargetIsBone": false,
+      "PreviewStartBone": ""
+    },
+    {
+      "Identifier": "28cae0ed-356b-421d-a7a2-1cfc32ca7d18",
+      "Type": "Bool",
+      "Name": "b_reload",
+      "Group": "",
+      "RuntimeDefaultFloat": 0,
+      "RuntimeDefaultBool": false,
+      "RuntimeDefaultID": "",
+      "RuntimeDefaultVector": "0,0,0",
+      "DefaultFloat": 0,
+      "Min": 0,
+      "Max": 1,
+      "DefaultBool": false,
+      "DefaultID": "",
+      "EnumTypeName": "",
+      "ExpectedValues": [],
+      "ResolvedOptions": [],
+      "DefaultVector": "0,0,0",
+      "PreviewStartTargetIsSet": false,
+      "PreviewStartTargetIsBone": false,
+      "PreviewStartBone": ""
+    },
+    {
+      "Identifier": "9b5fe66d-8f79-4187-aa48-18298f9c79b0",
+      "Type": "Bool",
+      "Name": "b_reload_cancel",
+      "Group": "",
+      "RuntimeDefaultFloat": 0,
+      "RuntimeDefaultBool": false,
+      "RuntimeDefaultID": "",
+      "RuntimeDefaultVector": "0,0,0",
+      "DefaultFloat": 0,
+      "Min": 0,
+      "Max": 1,
+      "DefaultBool": false,
+      "DefaultID": "",
+      "EnumTypeName": "",
+      "ExpectedValues": [],
+      "ResolvedOptions": [],
+      "DefaultVector": "0,0,0",
+      "PreviewStartTargetIsSet": false,
+      "PreviewStartTargetIsBone": false,
+      "PreviewStartBone": ""
+    },
+    {
+      "Identifier": "f616402f-98ba-4758-bea6-f388cdaae5f4",
+      "Type": "Bool",
+      "Name": "b_reload_finish",
+      "Group": "",
+      "RuntimeDefaultFloat": 0,
+      "RuntimeDefaultBool": false,
+      "RuntimeDefaultID": "",
+      "RuntimeDefaultVector": "0,0,0",
+      "DefaultFloat": 0,
+      "Min": 0,
+      "Max": 1,
+      "DefaultBool": false,
+      "DefaultID": "",
+      "EnumTypeName": "",
+      "ExpectedValues": [],
+      "ResolvedOptions": [],
+      "DefaultVector": "0,0,0",
+      "PreviewStartTargetIsSet": false,
+      "PreviewStartTargetIsBone": false,
+      "PreviewStartBone": ""
+    },
+    {
+      "Identifier": "f5a2648c-4dfb-4e92-90bc-da5c5d0d8d37",
+      "Type": "Float",
+      "Name": "ironsights_fire_scale",
+      "Group": "",
+      "RuntimeDefaultFloat": 1,
+      "RuntimeDefaultBool": false,
+      "RuntimeDefaultID": "",
+      "RuntimeDefaultVector": "0,0,0",
+      "DefaultFloat": 1,
+      "Min": 0,
+      "Max": 1,
+      "DefaultBool": false,
+      "DefaultID": "",
+      "EnumTypeName": "",
+      "ExpectedValues": [],
+      "ResolvedOptions": [],
+      "DefaultVector": "0,0,0",
+      "PreviewStartTargetIsSet": false,
+      "PreviewStartTargetIsBone": false,
+      "PreviewStartBone": ""
+    },
+    {
+      "Identifier": "e5c4ea8a-e2df-42ab-978c-1d01ce0cc5ab",
+      "Type": "Bool",
+      "Name": "b_attack_dry",
+      "Group": "",
+      "RuntimeDefaultFloat": 0,
+      "RuntimeDefaultBool": false,
+      "RuntimeDefaultID": "",
+      "RuntimeDefaultVector": "0,0,0",
+      "DefaultFloat": 0,
+      "Min": 0,
+      "Max": 1,
+      "DefaultBool": false,
+      "DefaultID": "",
+      "EnumTypeName": "",
+      "ExpectedValues": [],
+      "ResolvedOptions": [],
+      "DefaultVector": "0,0,0",
+      "PreviewStartTargetIsSet": false,
+      "PreviewStartTargetIsBone": false,
+      "PreviewStartBone": ""
+    }
+  ],
+  "virtualParameters": []
+}

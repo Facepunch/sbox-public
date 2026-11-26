@@ -12,7 +12,7 @@ PackageReactions
 	// The overlay doesn't get the main menu's theme, where glyphs get their font
 	icon
 	{
-		font-family: "Material Icons";
+		font-family: "Material Symbols Outlined";
 	}
 }
 
@@ -32,6 +32,11 @@ PackageReactions .group
 		{
 			font-size: 16px;
 			color: $platform-muted;
+		}
+
+		&.fav:not(.active) icon
+		{
+			font-variation-settings: $menu-icon-outlined;
 		}
 
 		&:hover icon

@@ -1,0 +1,108 @@
+@using Sandbox;
+@using Sandbox.UI;
+@inherits UtilityPage
+@namespace Sandbox
+@attribute [Icon( "undo" )]
+@attribute [Title( "#spawnmenu.utility.undo" )]
+@attribute [Group( "#spawnmenu.utility.group.utilities" )]
+@attribute [Order( 1 )]
+
+<root class="page">
+    @if ( Loading )
+    {
+        <div class="note">#spawnmenu.utility.undo_loading</div>
+    }
+    else if ( History.Count == 0 )
+    {
+        <div class="note">#spawnmenu.utility.undo_empty</div>
+    }
+    else
+    {
+        <div class="note">#spawnmenu.utility.undo_help</div>
+
+        @foreach ( var item in History )
+        {
+            var entry = item;
+            <div class="list-entry clickable" @onclick=@(() => Undo( entry ))>
+                <IconPanel class="list-entry-icon" Text=@(string.IsNullOrWhiteSpace( entry.Icon ) ? "undo" : entry.Icon) />
+                <div class="list-entry-info">
+                    <Label class="list-entry-name" Tokenize=@false Text=@DisplayName( entry ) />
+                    <Label class="list-entry-detail" Tokenize=@false Text=@ObjectCountText( entry.ObjectCount ) />
+                </div>
+                <div class="list-entry-action"><i>undo</i></div>
+            </div>
+        }
+    }
+</root>
+
+@code
+{
+    List<UndoSystem.HistoryItem> History = [];
+    bool Loading = true;
+
+    protected override void OnAfterTreeRender( bool firstTime )
+    {
+        base.OnAfterTreeRender( firstTime );
+
+        if ( !firstTime ) return;
+
+        UndoSystem.HistoryUpdated += OnHistoryUpdated;
+        Refresh();
+    }
+
+    protected override void OnVisibilityChanged()
+    {
+        base.OnVisibilityChanged();
+
+        if ( IsVisible )
+            Refresh();
+    }
+
+    public override void OnDeleted()
+    {
+        UndoSystem.HistoryUpdated -= OnHistoryUpdated;
+        base.OnDeleted();
+    }
+
+    void Refresh()
+    {
+        Loading = true;
+        StateHasChanged();
+        UndoSystem.RequestHistory();
+    }
+
+    /// <summary>
+    /// Reformats action titles and object counts without requesting the history again.
+    /// </summary>
+    public override void LanguageChanged()
+    {
+        base.LanguageChanged();
+        StateHasChanged();
+    }
+
+    void OnHistoryUpdated( IReadOnlyList<UndoSystem.HistoryItem> history )
+    {
+        History = history?.ToList() ?? [];
+        Loading = false;
+        StateHasChanged();
+    }
+
+    void Undo( UndoSystem.HistoryItem entry )
+    {
+        if ( entry is null ) return;
+
+        Loading = true;
+        StateHasChanged();
+        UndoSystem.UndoEntry( entry.Id );
+    }
+
+    static string DisplayName( UndoSystem.HistoryItem entry )
+        => string.IsNullOrWhiteSpace( entry.Name )
+            ? Game.Language.GetPhrase( "ui.undo.action" )
+            : LocalizedText.Resolve( entry.Name, entry.NameTokens );
+
+    static string ObjectCountText( int count )
+        => count == 1
+            ? Game.Language.GetPhrase( "spawnmenu.utility.undo_one_object" )
+            : Game.Language.GetPhrase( "spawnmenu.utility.undo_many_objects", new() { { "count", count } } );
+}

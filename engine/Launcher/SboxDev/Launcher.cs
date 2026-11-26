@@ -12,6 +12,9 @@ public static class Launcher
 		if ( HasCommandLineSwitch( "-generatesolution" ) )
 		{
 			NetCore.InitializeInterop( Environment.CurrentDirectory );
+
+			// Tools mode, so the editor addons in editor/ and addons/tools are in the solution like they are in the editor's
+			Application.Initialize( dedicated: false, headless: true, toolsMode: true, testMode: false, isRetail: NativeEngine.EngineGlobal.IsRetail() );
 			Bootstrap.InitMinimal( Environment.CurrentDirectory );
 			Project.InitializeBuiltIn( false ).GetAwaiter().GetResult();
 			Project.GenerateSolution().GetAwaiter().GetResult();

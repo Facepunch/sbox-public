@@ -8,6 +8,13 @@ partial class ViewportTools
 			var group = AddGroup();
 
 			group.Layout.Add( new SceneCompileToolbar( group ) );
+			layout.Add( group );
+		}
+
+		AddSeparator( layout );
+
+		{
+			var group = AddGroup();
 			group.Layout.Add( new ViewportButton( "wifi", OpenNetworkSettings ) { ToolTip = "Network settings" } );
 
 			layout.Add( group );
@@ -45,6 +52,7 @@ partial class ViewportTools
 			var cs = new ControlSheet();
 
 			cs.AddRow( so.GetProperty( nameof( SceneViewportWidget.ViewportState.View ) ) );
+			cs.AddRow( so.GetProperty( nameof( SceneViewportWidget.ViewportState.Shading ) ) );
 			cs.AddRow( so.GetProperty( nameof( SceneViewportWidget.ViewportState.WireframeMode ) ) );
 			cs.AddRow( so.GetProperty( nameof( SceneViewportWidget.ViewportState.EnablePostProcessing ) ) );
 

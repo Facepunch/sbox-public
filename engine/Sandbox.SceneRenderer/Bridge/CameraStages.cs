@@ -176,7 +176,7 @@ internal sealed class CameraStages : IRenderStages, IDisposable
 
 		if ( gamma && ViewTarget.IsFloatFormat( target.ColorFormat ) )
 		{
-			scratch = RenderTarget.GetTemporary( (int)target.Size.x, (int)target.Size.y, ImageFormat.RGBA16161616F, ImageFormat.None );
+			scratch = RenderTarget.GetEngineTemporary( (int)target.Size.x, (int)target.Size.y, ImageFormat.RGBA16161616F, ImageFormat.None );
 			var rect = target.Viewport;
 			RenderTools.BindColorAndDepthTarget( context, scratch.ColorTarget.native, default, false );
 			RenderTools.BlitTexture( context, target.Color, (int)rect.Left, (int)rect.Top, (int)rect.Width, (int)rect.Height, 1 );
@@ -196,11 +196,6 @@ internal sealed class CameraStages : IRenderStages, IDisposable
 		{
 			((IManagedCamera)Camera).OnRenderStage( stage );
 		}
-
-		// AO and SSR name their results in pipeline texture slots after the prepass, which native uploads at frame end
-		// (UpdateGlobalPerFrameDescriptorBindings) - after this frame is submitted. Upload them here so its forward draws read
-		// this frame's, as native's views do.
-		if ( stage == Stage.AfterDepthPrepass ) CSceneSystem.UploadPipelineTextureIndices( context );
 
 		if ( scratch is not null )
 		{

@@ -10,7 +10,15 @@ public partial class DebugOverlaySystem
 		if ( transform == default ) transform = Transform.Zero;
 		if ( color == default ) color = Color.White;
 
-		var so = new SceneModel( Scene.SceneWorld, model, transform );
+		// Single frame models without bones are reused by the next frame's draws instead of recreated
+		var pooled = duration <= 0 && localBoneTransforms == null && model is not null;
+		var so = pooled ? TakePooledModel( model ) : null;
+		if ( so is not null )
+		{
+			so.RenderingEnabled = true;
+			so.ClearMaterialOverride();
+		}
+		so ??= new SceneModel( Scene.SceneWorld, model, transform );
 		so.Flags.CastShadows = castShadows;
 		so.ColorTint = color;
 		so.RenderLayer = overlay ? SceneRenderLayer.OverlayWithoutDepth : SceneRenderLayer.Default;
@@ -30,6 +38,6 @@ public partial class DebugOverlaySystem
 		if ( materialOveride is not null )
 			so.SetMaterialOverride( materialOveride );
 
-		Add( duration, so );
+		Add( duration, so, pooled );
 	}
 }

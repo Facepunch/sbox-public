@@ -18,18 +18,6 @@ namespace Sandbox
 
 		void ProtectedWrite( LogEventInfo logEvent )
 		{
-			string stacktrace = null;
-
-			if ( logEvent.Exception != null )
-			{
-				stacktrace = WriteExceptionDetails( logEvent.Exception );
-			}
-
-			if ( stacktrace == null && logEvent.StackTrace != null )
-			{
-				stacktrace = logEvent.StackTrace.ToString();
-			}
-
 			var l = Sandbox.LogLevel.Trace;
 			if ( logEvent.Level == NLog.LogLevel.Info ) l = LogLevel.Info;
 			if ( logEvent.Level == NLog.LogLevel.Warn ) l = LogLevel.Warn;
@@ -40,7 +28,6 @@ namespace Sandbox
 				Level = l,
 				Logger = logEvent.LoggerName,
 				Message = logEvent.FormattedMessage,
-				Stack = stacktrace,
 				Time = DateTime.Now
 			};
 

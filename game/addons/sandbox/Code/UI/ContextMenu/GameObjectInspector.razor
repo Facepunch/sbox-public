@@ -1,0 +1,317 @@
+@using Sandbox;
+@using Sandbox.UI;
+@inherits Panel
+@namespace Sandbox
+
+<root>
+    <div class="body">
+            @if ( Target.Count == 0 )
+            {
+            <div class="empty-state">#spawnmenu.inspect.click_to_inspect</div>
+            }
+            else
+            {
+                var totalMass = Target.SelectMany( go => go.GetComponentsInChildren<Rigidbody>() ).Sum( ResolveMass );
+                var health = Target.Select( go => go.GetComponent<Prop>() ).FirstOrDefault( p => p.IsValid() );
+                var hasHealth = health.IsValid() && health.Health != 0;
+
+                if ( totalMass <= 0 && !hasHealth && Properties.Count == 0 && Renderers.Count == 0 )
+                {
+                    <div class="empty-state">#spawnmenu.inspect.nothing_to_edit</div>
+                }
+
+                if ( totalMass > 0 || hasHealth )
+                {
+                    <div class="object-info">
+                        @if ( totalMass > 0 )
+                        {
+                            <div class="stat"><IconPanel Text="scale" /><label>@Game.Language.GetPhrase( "ui.inspect.mass", new() { { "mass", totalMass.ToString( "0.#" ) } } )</label></div>
+                        }
+                        @if ( hasHealth )
+                        {
+                            <div class="stat"><IconPanel Text="favorite" /><label>@Game.Language.GetPhrase( "ui.inspect.health", new() { { "health", health.Health.ToString( "0.#" ) } } )</label></div>
+                        }
+                    </div>
+                }
+                <UISheet Target="@Properties"></UISheet>
+
+                @if (Renderers.Count > 0)
+                {
+                    @if ( MaterialGroups.Count > 1 )
+                    {
+                        var currentGroup = Renderers[0].MaterialGroup ?? MaterialGroups[0];
+                        <div class="material-row skin-row">
+                            <label>#spawnmenu.inspect.skin</label>
+                            <UIDropdown class="inspector-field" Items=@MaterialGroups.Select( group => new UIDropdown.Item( group, group ) ).ToList()
+                                        Value=@currentGroup ValueChanged=@((object value) => SetMaterialGroup( (string)value )) Tokenize=@false></UIDropdown>
+                        </div>
+                    }
+
+                    var mixedOverride = HasMixedOverride;
+                    var wholeOverride = mixedOverride ? null : Renderers[0].MaterialOverride;
+                    var anyOverride = HasAnyOverride;
+                    var overrideName = mixedOverride ? Game.Language.GetPhrase( "ui.inspect.mixed_material_override" )
+                        : wholeOverride?.ResourceName ?? Game.Language.GetPhrase( "ui.inspect.no_material_override" );
+
+                    <div class="material-row @(anyOverride ? "overridden" : "")">
+                        <UIHintLabel class="label" Text="#ui.inspect.material_override" Hint="#ui.inspect.material_override_hint"></UIHintLabel>
+                        <ResourcePickerButton class="material-picker" @onclick=@PickWholeMaterial Thumb=@MaterialThumb( wholeOverride ) Badge=@(mixedOverride ? "*" : "-")
+                                              Title=@overrideName Empty=@(!anyOverride) />
+                        @if (anyOverride)
+                        {
+                            <UIButton class="material-revert" Text="x" @onclick=@(() => SetWholeMaterialOverride(null))></UIButton>
+                        }
+                    </div>
+
+                    <UISeparator />
+
+                    var accessor = Renderers[0].Materials;
+                    @for (int i = 0; i < accessor.Count; i++)
+                    {
+                        var index = i;
+                        var locked = anyOverride;
+                        var hasOverride = !locked && accessor.HasOverride(index);
+                        var mat = locked ? wholeOverride : hasOverride ? accessor.GetOverride(index) : accessor.GetOriginal(index);
+
+                        <div class="material-row @(hasOverride ? "overridden" : "") @(locked ? "locked" : "")">
+                            <label>@Game.Language.GetPhrase( "ui.inspect.material_number", new() { { "number", index + 1 } } )</label>
+                            <ResourcePickerButton class="material-picker" @onclick=@(() => PickMaterial(index)) Thumb=@MaterialThumb( mat ) Empty=@(mat is null)
+                                                  Title=@(locked && mat is null ? overrideName : mat?.ResourceName ?? Game.Language.GetPhrase( "ui.inspect.default_material" )) />
+                            @if (hasOverride)
+                            {
+                                <UIButton class="material-revert" Text="x" @onclick=@(() => RevertMaterial(index))></UIButton>
+                            }
+                        </div>
+                    }
+
+                    @if ( BodyParts.Count > 0 )
+                    {
+                        <div class="group-header">#ui.inspect.bodygroups</div>
+
+                        @foreach ( var part in BodyParts )
+                        {
+                            var partName = part.Name;
+                            <div class="material-row">
+                                <label>@partName</label>
+                                <UIDropdown class="inspector-field" Items=@(part.Choices.Select( ( choice, i ) => new UIDropdown.Item( ChoiceTitle( choice ), i ) ).ToList())
+                                            Value=@(Renderers[0].GetBodyGroup( part.Index )) ValueChanged=@((object value) => SetBodyGroup( partName, (int)value )) Tokenize=@false></UIDropdown>
+                            </div>
+                        }
+                    }
+                }
+            }
+    </div>
+</root>
+
+@code
+{
+    readonly List<GameObject> Target = new();
+
+    /// <summary>
+    /// Rebuilds the property sheet when the Select tool's selection changes.
+    /// </summary>
+    public override void Tick()
+    {
+        var selection = Scene?.Get<SpawnMenuHost>()?.SelectedObjects ?? [];
+        if ( Target.SequenceEqual( selection ) ) return;
+
+        Target.Clear();
+        Target.AddRange( selection );
+        RebuildFromTarget();
+        StateHasChanged();
+    }
+
+    // Frozen rigidbodies report Mass = 0 from the live physics body, so fall back
+    // to PhysicalProperties.Mass and MassOverride before giving up.
+    static float ResolveMass( Rigidbody rb )
+    {
+        if ( !rb.IsValid() ) return 0f;
+        var mo = rb.GetComponent<PhysicalProperties>();
+        if ( mo.IsValid() && mo.Mass > 0f ) return mo.Mass;
+        if ( rb.MassOverride > 0f ) return rb.MassOverride;
+        return rb.Mass;
+    }
+
+    List<SerializedProperty> Properties = new();
+    List<ModelRenderer> Renderers = new();
+    List<string> MaterialGroups = new();
+    List<Model.BodyPart> BodyParts = new();
+
+    protected override int BuildHash()
+    {
+        var hc = new HashCode();
+        foreach ( var go in Target )
+        {
+            hc.Add( go.Id );
+            hc.Add( ResolveMass( go.GetComponent<Rigidbody>() ) );
+            hc.Add( go.GetComponent<Prop>()?.Health ?? -1f );
+            var renderer = go.GetComponent<ModelRenderer>();
+            hc.Add( renderer?.MaterialGroup );
+
+            if ( renderer.IsValid() )
+            {
+                hc.Add( renderer.BodyGroups );
+                hc.Add( renderer.MaterialOverride?.ResourcePath );
+                for ( int i = 0; i < renderer.Materials.Count; i++ )
+                    hc.Add( renderer.Materials.HasOverride( i ) ? renderer.Materials.GetOverride( i )?.ResourcePath : null );
+            }
+        }
+        return hc.ToHashCode();
+    }
+
+    void RebuildFromTarget()
+    {
+        Properties = new();
+        Renderers = new();
+        MaterialGroups = new();
+        BodyParts = new();
+
+        foreach (var c in Target.SelectMany(x => x.Components.GetAll()).Distinct().GroupBy(x => x is Collider ? typeof(Collider) : x.GetType()))
+        {
+            CollectProperties(c.ToArray());
+        }
+
+        // the dropdowns show the first renderer's choices, a part with a single choice has nothing to switch between
+        var bodyModel = Renderers.FirstOrDefault()?.Model;
+        if ( bodyModel is not null )
+            BodyParts.AddRange( bodyModel.Parts.All.Where( part => part.Choices.Count > 1 ) );
+    }
+
+    bool HasEditableProperties(Type type, PropertyDescription[] properties)
+    {
+        if (type.IsAssignableTo(typeof(ModelRenderer))) return true;
+        if (type.IsAssignableTo(typeof(Collider))) return true;
+
+        foreach (var prop in properties)
+        {
+            if (prop.HasAttribute<ClientEditableAttribute>())
+                return true;
+        }
+
+        return false;
+    }
+
+    void CollectProperties(Component[] components)
+    {
+        var firstComponent = components.First();
+
+        var tl = TypeLibrary.GetType(firstComponent.GetType());
+        if (tl is null) return;
+
+        if (!HasEditableProperties(firstComponent.GetType(), tl.Properties)) return;
+
+        var so = new MultiSerializedObject();
+        so.OnPropertyChanged = PropertyChanged;
+
+        foreach (var component in components)
+            so.Add(TypeLibrary.GetSerializedObject(component));
+
+        so.Rebuild();
+
+        foreach (var prop in tl.Properties)
+        {
+            if (!prop.HasAttribute<ClientEditableAttribute>()) continue;
+            Properties.Add(so.GetProperty(prop.Name));
+        }
+
+        if (firstComponent is ModelRenderer mr)
+        {
+            Renderers.AddRange(components.OfType<ModelRenderer>());
+
+            var model = mr.Model;
+            if ( model is not null )
+            {
+                for ( int i = 0; i < model.MaterialGroupCount; i++ )
+                    MaterialGroups.Add( model.GetMaterialGroupName( i ) );
+            }
+
+            var prop = mr.GetComponent<Prop>();
+            if (prop is not null)
+            {
+                var propso = TypeLibrary.GetSerializedObject(prop);
+                propso.OnPropertyChanged = PropertyChanged;
+                Properties.Add(propso.GetProperty(nameof(ModelRenderer.Tint)));
+            }
+            else
+            {
+                Properties.Add(so.GetProperty(nameof(ModelRenderer.Tint)));
+            }
+
+            Properties.Add(so.GetProperty(nameof(ModelRenderer.RenderType)));
+        }
+
+        if (firstComponent is Collider && !components.Any(x => x.Tags.Has("noclip")))
+            Properties.Add(so.GetProperty(nameof(Collider.Surface)));
+    }
+
+    void PropertyChanged(SerializedProperty prop)
+    {
+        foreach (var c in prop.Parent.Targets)
+        {
+            if (c is Component component)
+                GameManager.ChangeProperty(component, prop.Name, prop.GetValue<object>());
+        }
+    }
+
+
+    void SetMaterialGroup( string group )
+    {
+        foreach ( var renderer in Renderers )
+            GameManager.ChangeMaterialGroup( renderer, group );
+    }
+
+    // a blank choice is the one that hides the part
+    static string ChoiceTitle( Model.BodyPart.Choice choice ) => string.IsNullOrWhiteSpace( choice.Name )
+        ? Game.Language.GetPhrase( "ui.inspect.bodygroup_none" )
+        : choice.Name;
+
+    void SetBodyGroup( string part, int choice )
+    {
+        foreach ( var renderer in Renderers )
+            GameManager.ChangeBodyGroup( renderer, part, choice );
+    }
+
+    bool HasAnyOverride => Renderers.Any( r => r.MaterialOverride is not null );
+    bool HasMixedOverride => Renderers.Select( r => r.MaterialOverride ).Distinct().Skip( 1 ).Any();
+
+    static string MaterialThumb( Material material ) => material is null ? null : $"thumb:{material.ResourcePath}";
+
+    // workshop materials are listed by package ident, not by their mounted path
+    static string PickerValue( Material material ) =>
+        material is null ? null : Cloud.ResolvePrimaryAsset( material.ResourcePath )?.FullIdent ?? material.ResourcePath;
+
+    void PickWholeMaterial()
+    {
+        var current = HasMixedOverride ? null : PickerValue( Renderers[0].MaterialOverride );
+        ResourceSelectPopup.Open( this, "material", current, SetWholeMaterialOverride, allowPackages: true );
+    }
+
+    void SetWholeMaterialOverride(string path)
+    {
+        foreach (var renderer in Renderers)
+            GameManager.ChangeWholeMaterialOverride(renderer, path);
+    }
+
+    void PickMaterial(int index)
+    {
+        // individual slots are locked while any selected object has a whole-model override
+        if (HasAnyOverride) return;
+
+        var accessor = Renderers[0].Materials;
+        var mat = accessor.HasOverride(index) ? accessor.GetOverride(index) : accessor.GetOriginal(index);
+
+        ResourceSelectPopup.Open( this, "material", PickerValue( mat ), path => SetMaterialOverride( index, path ), allowPackages: true );
+    }
+
+    void SetMaterialOverride(int index, string path)
+    {
+        foreach (var renderer in Renderers)
+            GameManager.ChangeMaterialOverride(renderer, index, path);
+    }
+
+    void RevertMaterial(int index)
+    {
+        foreach (var renderer in Renderers)
+            GameManager.ChangeMaterialOverride(renderer, index, null);
+    }
+}

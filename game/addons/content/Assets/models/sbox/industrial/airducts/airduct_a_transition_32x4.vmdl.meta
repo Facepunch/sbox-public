@@ -1,0 +1,26 @@
+{
+  "publish": {
+    "Allowed": true,
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "Airduct a transition 32x4",
+      "Type": "model",
+      "Org": "facepunch",
+      "Ident": "airduct_a_transition_32x4",
+      "Tags": null,
+      "Schema": 0,
+      "HasAssets": false,
+      "AssetsPath": null,
+      "Resources": null,
+      "MenuResources": "*",
+      "HasCode": false,
+      "CodePath": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/industrial/airducts/airduct_a_transition_32x4.vmdl"
+      }
+    }
+  },
+  "guid": "aa3220a9-e381-4fc7-9675-b7dd21e2a28e"
+}

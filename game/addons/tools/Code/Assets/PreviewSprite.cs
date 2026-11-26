@@ -3,7 +3,6 @@
 [AssetPreview( "sprite" )]
 class PreviewSprite : AssetPreview
 {
-	public override bool IsAnimatedPreview => false;
 	public Sandbox.Rendering.FilterMode FilterMode { get; set; } = Sandbox.Rendering.FilterMode.Bilinear;
 
 	private Sprite spriteResource;
@@ -72,7 +71,7 @@ class PreviewSprite : AssetPreview
 		if ( !IsRenderingThumbnail )
 		{
 			var originPosition = new Vector3( -1, pivotOffset.x, pivotOffset.y ) * 16;
-			Scene.DebugOverlay.Text( originPosition, new TextRendering.Scope( "add", Color.White, 7, "Material Icons" )
+			Scene.DebugOverlay.Text( originPosition, new TextRendering.Scope( "add", Color.White, 7, "Material Symbols Outlined" )
 			{
 				FilterMode = Sandbox.Rendering.FilterMode.Point,
 			} );

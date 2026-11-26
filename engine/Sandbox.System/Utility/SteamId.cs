@@ -7,7 +7,7 @@ namespace Sandbox;
 /// Provides type-safe storage and conversion between long/ulong representations.
 /// </summary>
 [JsonConverter( typeof( SteamIdJsonConverter ) )]
-public struct SteamId
+public struct SteamId : IEquatable<SteamId>
 {
 	private readonly ulong _id;
 
@@ -62,6 +62,11 @@ public struct SteamId
 	/// </summary>
 	public override string ToString() => _id.ToString();
 
+	public readonly bool Equals( SteamId other ) => _id == other._id;
+
+	public override readonly bool Equals( object obj ) => obj is SteamId other && _id == other._id;
+
+	public override readonly int GetHashCode() => _id.GetHashCode();
 
 	/// <summary>
 	/// The different types of Steam accounts.

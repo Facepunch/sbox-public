@@ -1,12 +1,11 @@
-﻿using Sandbox.Services;
-
-namespace Sandbox;
+﻿namespace Sandbox;
 
 public partial class Package
 {
 	/// <summary>
 	/// Represents the actual response from the api
 	/// </summary>
+	[Obsolete( "Grouped discovery lists have been retired. Use Package.FindAsync for package search." )]
 	public class ListResult
 	{
 		/// <summary>
@@ -25,6 +24,7 @@ public partial class Package
 		/// </summary>
 		public Grouping[] Groupings { get; set; }
 
+		[Obsolete( "Grouped discovery lists have been retired. Use Package.FindAsync for package search." )]
 		public class Grouping
 		{
 			/// <summary>
@@ -61,26 +61,6 @@ public partial class Package
 			/// The packages in this group
 			/// </summary>
 			public Package[] Packages { get; set; }
-		}
-
-
-		internal static ListResult From( PackageGroups groups )
-		{
-			var result = new ListResult();
-			result.Title = groups.Title;
-			result.RequestId = Guid.NewGuid();
-			result.Groupings = groups.Groupings?.Select( x => new Grouping
-			{
-				Id = x.Id,
-				Title = x.Title,
-				Description = x.Description,
-				Icon = x.Icon,
-				Style = x.Style,
-				QueryString = x.QueryString,
-				Packages = x.Packages.Select( y => RemotePackage.FromDto( y ) ).ToArray()
-			} ).ToArray();
-
-			return result;
 		}
 	}
 

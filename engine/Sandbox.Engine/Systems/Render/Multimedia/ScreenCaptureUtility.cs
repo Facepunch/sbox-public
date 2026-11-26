@@ -30,7 +30,7 @@ internal static class ScreenCaptureUtility
 				var height = (int)Graphics.Viewport.Height;
 
 				// Preserve the frame before the recording border is drawn.
-				using var tempRT = RenderTarget.GetTemporary( width, height, Graphics.IdealColorFormat, ImageFormat.None );
+				using var tempRT = RenderTarget.GetEngineTemporary( width, height, Graphics.IdealColorFormat, ImageFormat.None );
 				RenderTools.CopyTexture( Graphics.Context, colorTarget, tempRT.ColorTarget.native, default, 0, 0, 0, 0, 0, 0 );
 
 				ScreenshotService.ProcessFrame( Graphics.Context, tempRT.ColorTarget.native );

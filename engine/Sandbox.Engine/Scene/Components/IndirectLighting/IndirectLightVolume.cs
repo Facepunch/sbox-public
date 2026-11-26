@@ -16,7 +16,7 @@ using System.Threading;
 [Icon( "grid_view" )]
 [EditorHandle( "materials/gizmo/lpv.png" )]
 [Alias( "DDGIVolume" )]
-public sealed partial class IndirectLightVolume : Component, Component.ExecuteInEditor, Component.DontExecuteOnServer
+public sealed partial class IndirectLightVolume : Component, Component.ExecuteInEditor, Component.DontExecuteOnServer, ISceneCompile
 {
 	/// <summary>
 	/// Behavior when a probe is detected inside geometry.
@@ -351,10 +351,44 @@ public sealed partial class IndirectLightVolume : Component, Component.ExecuteIn
 	[Header( "Actions" )]
 	[ShowIf( nameof( IsSceneSaved ), true )]
 	[Button( "Bake", "lightbulb" )]
-	public async Task BakeProbes( CancellationToken ct = default )
+	public Task BakeProbes( CancellationToken ct = default ) => BakeProbes( ct, null );
+
+	string BakeFilename( string name ) => $"ddgi/{Id.ToShortHash()}/{name}.vtex_c";
+
+	SceneCompileWork ISceneCompile.GetWork()
+	{
+		return new( "Indirect Lighting", $"Bake indirect lighting for {GameObject.Name}",
+			context => BakeProbes( context.CancellationToken, context.Progress ), Order: 10 )
+		{
+			Outputs = [BakeFilename( "irradiance" ), BakeFilename( "distance" ), BakeFilename( "relocation" )],
+			Clear = _ => ClearBake()
+		};
+	}
+
+	void ClearBake()
+	{
+		if ( _bakeCts is not null )
+			throw new InvalidOperationException( $"'{GameObject.Name}' is already baking." );
+
+		if ( IrradianceTexture is not null || DistanceTexture is not null || RelocationTexture is not null || BakeVersion != 0 )
+			Scene.Editor.MarkBakeReferencesChanged();
+
+		IrradianceTexture = null;
+		DistanceTexture = null;
+		RelocationTexture = null;
+		Probes = null;
+		BakeVersion = 0;
+		MarkDirty();
+	}
+
+	async Task BakeProbes( CancellationToken ct, IProgressSection progress )
 	{
 		if ( Scene?.SceneWorld is null || !IsSceneSaved || _bakeCts is not null )
+		{
+			if ( progress is not null )
+				throw new InvalidOperationException( $"Cannot bake '{GameObject.Name}' while it is unavailable or already baking." );
 			return;
+		}
 
 		using var bakeCts = CancellationTokenSource.CreateLinkedTokenSource( ct, GameObject.EnabledToken );
 		_bakeCts = bakeCts;
@@ -370,17 +404,25 @@ public sealed partial class IndirectLightVolume : Component, Component.ExecuteIn
 			_bakePreview = (updater.GeneratedIrradianceTexture, updater.GeneratedDistanceTexture, GeneratedRelocationTexture);
 			MarkDirty();
 
-			if ( !await updater.RunAsync( bakeCts.Token ) || !IsSceneSaved )
+			if ( !await updater.RunAsync( bakeCts.Token, progress ) || !IsSceneSaved )
+			{
+				if ( progress is not null )
+					throw new OperationCanceledException( bakeCts.Token );
 				return;
+			}
 
 			bakeCts.Token.ThrowIfCancellationRequested();
 			Graphics.FlushGPU();
 
-			// New paths preserve textures referenced by the previous scene save, including on failure.
-			var bakeId = Guid.NewGuid();
-			var irradiance = SaveTexture( updater.GeneratedIrradianceTexture, "Irradiance", bakeId );
-			var distance = SaveTexture( updater.GeneratedDistanceTexture, "Distance", bakeId, ImageFormat.BC6H );
-			var relocation = SaveTexture( GeneratedRelocationTexture, "Relocation", bakeId, ImageFormat.RGBA16161616F );
+			var irradiance = SaveTexture( updater.GeneratedIrradianceTexture, "irradiance" );
+			var distance = SaveTexture( updater.GeneratedDistanceTexture, "distance", ImageFormat.BC6H );
+			var relocation = SaveTexture( GeneratedRelocationTexture, "relocation", ImageFormat.RGBA16161616F );
+
+			if ( IrradianceTexture != irradiance || DistanceTexture != distance || RelocationTexture != relocation || BakeVersion != CurrentBakeVersion )
+			{
+				if ( progress is null ) Scene.Editor.HasUnsavedChanges = true;
+				else Scene.Editor.MarkBakeReferencesChanged();
+			}
 
 			IrradianceTexture = irradiance;
 			DistanceTexture = distance;
@@ -458,12 +500,13 @@ public sealed partial class IndirectLightVolume : Component, Component.ExecuteIn
 		if ( !Gizmo.IsSelected )
 			return;
 
-		if ( Gizmo.Control.BoundingBox( "Bounds", Bounds, out var newBounds ) )
+		if ( Gizmo.Control.UpdateBoundingBox( "Bounds", Bounds, out var newBounds ) )
 		{
 			_boundsUndoScope ??= Scene.Editor?.UndoScope( "Resize Indirect Light Volume" ).WithComponentChanges( this ).Push();
 
 			Bounds = newBounds;
 		}
+		Gizmo.Draw.BoundingBox( "Bounds", Bounds );
 
 		Gizmo.Draw.LineBBox( Bounds );
 
@@ -480,21 +523,23 @@ public sealed partial class IndirectLightVolume : Component, Component.ExecuteIn
 	/// <summary>
 	/// Saves texture to disk and reloads it.
 	/// </summary>
-	private Texture SaveTexture( Texture source, string suffix, Guid bakeId, ImageFormat? format = null )
+	private Texture SaveTexture( Texture source, string name, ImageFormat? format = null )
 	{
 		if ( source is null || source.IsError )
-			throw new InvalidOperationException( $"Cannot save invalid {suffix} probe texture." );
+			throw new InvalidOperationException( $"Cannot save invalid {name} probe texture." );
 
 		var sceneFolder = Scene.Editor.GetSceneFolder();
-		var filename = $"/ddgi/{GameObject?.Name ?? "DDGIVolume"}_{suffix}_{Id}_{bakeId:N}.vtex_c";
+		var filename = BakeFilename( name );
 
 		var vtexBytes = source.SaveToVtex( format );
-		var path = sceneFolder.WriteFile( filename, vtexBytes );
+		var path = Resource.FixPath( sceneFolder.WriteFile( filename, vtexBytes ) );
+		NativeEngine.g_pResourceSystem.ReloadResource( path );
 
 		var saved = Texture.Load( path );
 		if ( !saved.IsValid() || saved.IsError )
-			throw new InvalidOperationException( $"Could not load saved {suffix} probe texture." );
+			throw new InvalidOperationException( $"Could not load saved {name} probe texture." );
 
+		saved.RefreshNativeDescription();
 		return saved;
 	}
 

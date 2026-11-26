@@ -203,12 +203,13 @@ internal sealed class DirectSoundModel : IDisposable
 	/// The source room's reverb reaches the listener the way the direct sound does: muffled per band by the walls in between
 	/// or the path around them. Mono in, mono out, its own effect so its gain interpolation doesn't fight the direct path's.
 	/// </summary>
-	public void FilterReverbSend( MultiChannelBuffer input, MultiChannelBuffer output, float occlusionMultiplier, in DirectSoundParams p )
+	public void FilterReverbSend( MultiChannelBuffer input, MultiChannelBuffer output, float gain, float occlusionMultiplier, in DirectSoundParams p )
 	{
 		OcclusionParams( occlusionMultiplier, in p, out var occlusion, out var txLow, out var txMid, out var txHigh );
 
 		_nativeReverb = _nativeReverb.IsNull ? CDirectEffect.Create() : _nativeReverb;
 		output.Silence();
-		_nativeReverb.Apply( 1f, 1f, 1f, 1f, occlusion, txLow, txMid, txHigh, input._native, output._native );
+		// The send level goes in as the gain so it is interpolated per sample, like the direct sound's.
+		_nativeReverb.Apply( gain, 1f, 1f, 1f, occlusion, txLow, txMid, txHigh, input._native, output._native );
 	}
 }

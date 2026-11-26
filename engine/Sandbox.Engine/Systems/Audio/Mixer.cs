@@ -219,6 +219,18 @@ public partial class Mixer
 		set => Interlocked.Exchange( ref _airAborb, value );
 	}
 
+	float _doppler = 1.0f;
+
+	/// <summary>
+	/// How much sounds shift in pitch as they and the listener move toward or away from each other (0 = off, 1 = physical).
+	/// </summary>
+	[Range( 0, 1 ), Group( "Simulation" )]
+	public float Doppler
+	{
+		get => Volatile.Read( ref _doppler );
+		set => Interlocked.Exchange( ref _doppler, value );
+	}
+
 	/// <summary>
 	/// Should this be the only mixer that is heard?
 	/// </summary>
@@ -477,14 +489,14 @@ public partial class Mixer
 			var sourceParams = allParams[vs.SourceOffset + i];
 
 			float mixerReverbScale = Reverb;
-			if ( vs.HasReverb && mixerReverbScale > 0f && vs.ReverbRoom.Mix > 0.09f )
+			if ( vs.HasReverb && mixerReverbScale > 0f )
 			{
 				var reverbSendLevel = sourceParams.ReverbAmount * mixerReverbScale * ReverbLevel( listener, in sourceParams, vs.ReverbRoom ) * volume;
 
 				// The send is filtered by the occlusion per band, the gate guesses with the mid band.
 				if ( reverbSendLevel * vs.ReverbRoom.Mix * (sourceParams.OcclusionEnabled ? sourceParams.TransmissionBands.Mid : 1f) >= ReverbAudible )
 				{
-					// From the dry samples: the reverb doesn't follow the direct sound's distance attenuation.
+					// From the dry samples, the send level carries the sound's falloff.
 					FillReverbSend( samples, reverbSendLevel, source, in sourceParams );
 					GetReverb( listener, in vs.ReverbRoom )?.Feed( _reverbFilteredBuffer, vs.ReverbRoom.Mix );
 				}
@@ -503,8 +515,8 @@ public partial class Mixer
 		}
 	}
 
-	// Below this a voice's send isn't worth mixing into its room's reverb. Cheap now the reverb is shared.
-	const float ReverbAudible = 0.005f;
+	// Below this (-80 dB) a voice's send can't be heard, the same floor the direct sound uses.
+	const float ReverbAudible = 1e-4f;
 
 	MultiChannelBuffer DirectBuffer( int channels )
 	{
@@ -512,26 +524,30 @@ public partial class Mixer
 		return _directBuffers[channels] ??= new MultiChannelBuffer( channels );
 	}
 
-	// Past the critical distance a room's reverb would match the source at full volume; held a little under so loud,
-	// sharp sounds heard from afar don't drown in it. Same idea as a max wet level elsewhere.
-	const float MaxReverbLevel = 0.7f;
+	// Reverb against the direct sound at the room's critical distance, where physically they match. -14 dB.
+	const float ReverbTrim = 0.2f;
 
 	/// <summary>
-	/// Reverb level of a source in its room. A diffuse field doesn't fall with distance like the direct sound does: it matches
-	/// the direct sound at the room's critical distance and stays there, closer in the direct sound dominates.
+	/// Reverb send of a source in its room, the reverb unit has unity gain. It follows the sound's own falloff, so how wet a sound
+	/// is depends on the room and the distance and not on the range it was given. Against the direct sound it is
+	/// <see cref="ReverbTrim"/> at the room's critical distance and grows with the square root of the distance, half the slope
+	/// of a diffuse field in dB, never past the direct sound.
 	/// </summary>
 	static float ReverbLevel( Listener listener, in DirectSoundParams p, in ReverbSnapshot room )
 	{
-		if ( !p.DistanceAttenuation ) return 1f;
+		if ( !p.DistanceAttenuation ) return ReverbTrim;
 
 		var dist = p.Position.Distance( listener.MixTransform.Position );
-		float near = SoundFalloff.MinDistance( p.MinDistance, p.Distance );
-		float critical = MathF.Max( room.CriticalDistanceMeters * 39.37f, 1f );
+		// A curve that doesn't end at zero still stops at the sound's distance.
+		if ( p.FalloffMode == SoundFalloffMode.Curve && dist >= p.Distance ) return 0f;
 
-		// The direct sound's level at the critical distance by whichever falloff the sound uses, quieter still inside its size
-		float diffuse = SoundFalloff.Gain( p.FalloffMode, p.Falloff, p.MinDistance, p.Distance, critical ) * MathF.Min( 1f, dist / near );
-		float fade = p.FalloffMode == SoundFalloffMode.Physical ? SoundFalloff.RangeFade( dist, p.Distance ) : (dist < p.Distance ? 1f : 0f);
-		return MathF.Min( MaxReverbLevel, diffuse ) * fade;
+		float direct = SoundFalloff.Gain( p.FalloffMode, p.Falloff, p.MinDistance, p.Distance, dist );
+		// A diffuse field would grow with distance over critical distance against the direct sound, the square root halves that in dB.
+		float critical = MathF.Max( room.CriticalDistanceMeters * 39.37f, 1f );
+		float ratio = MathF.Min( 1f, ReverbTrim * MathF.Sqrt( dist / critical ) );
+		// Barron's revised theory: the reflected field's amplitude falls by exp(-0.02 r / T60), r in meters.
+		float falloff = MathF.Exp( -0.02f * dist / 39.37f / MathF.Max( room.DecayTime, 0.05f ) );
+		return direct * ratio * falloff;
 	}
 
 	/// <summary>
@@ -540,13 +556,13 @@ public partial class Mixer
 	/// </summary>
 	void FillReverbSend( MultiChannelBuffer dry, float scale, DirectSoundModel model, in DirectSoundParams p )
 	{
-		var weight = scale / dry.ChannelCount;
+		var weight = 1f / dry.ChannelCount;
 		var mono = _reverbMonoBuffer.Get( 0 );
 		mono.Silence();
 		for ( var inCh = 0; inCh < dry.ChannelCount; inCh++ )
 			mono.MixFrom( dry.Get( inCh ), weight );
 
-		model.FilterReverbSend( _reverbMonoBuffer, _reverbFilteredBuffer, Occlusion, in p );
+		model.FilterReverbSend( _reverbMonoBuffer, _reverbFilteredBuffer, scale, Occlusion, in p );
 	}
 
 	/// <summary>

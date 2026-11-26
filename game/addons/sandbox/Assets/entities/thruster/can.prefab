@@ -1,0 +1,337 @@
+{
+  "RootObject": {
+    "__guid": "974f0ca5-f160-4b71-92a3-c26b65ad498f",
+    "__version": 2,
+    "Flags": 0,
+    "Name": "can",
+    "Position": "0,0,0",
+    "Rotation": "0,0,0,1",
+    "Scale": "1,1,1",
+    "Tags": "",
+    "Enabled": true,
+    "NetworkMode": 2,
+    "NetworkFlags": 0,
+    "NetworkOrphaned": 0,
+    "NetworkTransmit": true,
+    "OwnerTransfer": 1,
+    "Components": [
+      {
+        "__type": "Sandbox.Rigidbody",
+        "__guid": "af921d5f-5c05-4839-a4d0-5df04145bbc4",
+        "__enabled": true,
+        "Flags": 0,
+        "AngularDamping": 0,
+        "EnableImpactDamage": false,
+        "EnhancedCcd": false,
+        "Gravity": true,
+        "GravityScale": 1,
+        "ImpactDamage": 0,
+        "LinearDamping": 0,
+        "Locking": {
+          "X": false,
+          "Y": false,
+          "Z": false,
+          "Pitch": false,
+          "Yaw": false,
+          "Roll": false
+        },
+        "MassCenterOverride": "0,0,0",
+        "MassOverride": 0,
+        "MinImpactDamageSpeed": 500,
+        "MotionEnabled": true,
+        "OnComponentDestroy": null,
+        "OnComponentDisabled": null,
+        "OnComponentEnabled": null,
+        "OnComponentFixedUpdate": null,
+        "OnComponentStart": null,
+        "OnComponentUpdate": null,
+        "OverrideMassCenter": false,
+        "RigidbodyFlags": "DisableCollisionSounds",
+        "StartAsleep": false
+      },
+      {
+        "__type": "ThrusterEntity",
+        "__guid": "5ec6f51b-3e7b-455f-b911-a298981faebe",
+        "__enabled": true,
+        "Flags": 0,
+        "Activate": {
+          "IsEnabled": false,
+          "Action": null
+        },
+        "OnComponentDestroy": null,
+        "OnComponentDisabled": null,
+        "OnComponentEnabled": null,
+        "OnComponentFixedUpdate": null,
+        "OnComponentStart": null,
+        "OnComponentUpdate": null,
+        "OnEffect": {
+          "_type": "gameobject",
+          "go": "c9766106-d30c-4d6c-859c-8543695ae788"
+        },
+        "Power": 0.5
+      }
+    ],
+    "Children": [
+      {
+        "__guid": "9a6c145a-58f0-4a40-a74e-a4d01bd5bd49",
+        "__version": 2,
+        "Flags": 0,
+        "Name": "model",
+        "Position": "0,0,0",
+        "Rotation": "0,0,0,1",
+        "Scale": "1,1,1",
+        "Tags": "",
+        "Enabled": true,
+        "NetworkMode": 2,
+        "NetworkFlags": 0,
+        "NetworkOrphaned": 0,
+        "NetworkTransmit": true,
+        "OwnerTransfer": 1,
+        "Components": [
+          {
+            "__type": "Sandbox.ModelRenderer",
+            "__guid": "d1907729-aeaa-4d31-8d5f-6e8bd1b50796",
+            "__enabled": true,
+            "Flags": 0,
+            "BodyGroups": 18446744073709551615,
+            "CreateAttachments": false,
+            "LodOverride": null,
+            "MaterialGroup": "orange",
+            "MaterialOverride": null,
+            "Materials": null,
+            "Model": "models/sbox/kitchen/cola_can/cola_can.vmdl",
+            "OnComponentDestroy": null,
+            "OnComponentDisabled": null,
+            "OnComponentEnabled": null,
+            "OnComponentFixedUpdate": null,
+            "OnComponentStart": null,
+            "OnComponentUpdate": null,
+            "RenderOptions": {
+              "GameLayer": true,
+              "OverlayLayer": false,
+              "BloomLayer": false,
+              "AfterUILayer": false
+            },
+            "RenderType": "On",
+            "Tint": "1,1,1,1"
+          },
+          {
+            "__type": "Sandbox.BoxCollider",
+            "__guid": "4a1aa819-3447-482f-95b2-7e0d28b03eaf",
+            "__enabled": true,
+            "Flags": 0,
+            "Center": "0.04588497,0.02514791,3.372257",
+            "ColliderFlags": 0,
+            "Elasticity": null,
+            "Friction": null,
+            "IsTrigger": false,
+            "OnComponentDestroy": null,
+            "OnComponentDisabled": null,
+            "OnComponentEnabled": null,
+            "OnComponentFixedUpdate": null,
+            "OnComponentStart": null,
+            "OnComponentUpdate": null,
+            "OnObjectTriggerEnter": null,
+            "OnObjectTriggerExit": null,
+            "OnTriggerEnter": null,
+            "OnTriggerExit": null,
+            "RollingResistance": null,
+            "Scale": "3.686821,3.760139,6.592344",
+            "Static": false,
+            "Surface": null,
+            "SurfaceVelocity": "0,0,0"
+          }
+        ],
+        "Children": []
+      },
+      {
+        "__guid": "c9766106-d30c-4d6c-859c-8543695ae788",
+        "__version": 2,
+        "Flags": 0,
+        "Name": "effect",
+        "Position": "0,0,8.112002",
+        "Rotation": "0,-0.7071067,0,0.7071068",
+        "Scale": "1,1,1",
+        "Tags": "particles",
+        "Enabled": false,
+        "NetworkMode": 2,
+        "NetworkFlags": 0,
+        "NetworkOrphaned": 0,
+        "NetworkTransmit": true,
+        "OwnerTransfer": 1,
+        "Components": [],
+        "Children": [
+          {
+            "__guid": "5c87ae82-34c2-40fc-96ab-ba08237b5391",
+            "__version": 2,
+            "__Prefab": "entities/thruster/fx_thruster.prefab",
+            "__PrefabInstancePatch": {
+              "AddedObjects": [],
+              "RemovedObjects": [],
+              "PropertyOverrides": [
+                {
+                  "Target": {
+                    "Type": "GameObject",
+                    "IdValue": "4ed3c797-7152-4b93-b23e-200847667cf2"
+                  },
+                  "Property": "Rotation",
+                  "Value": "-0.5,0.5,0.4999999,0.5000001"
+                },
+                {
+                  "Target": {
+                    "Type": "GameObject",
+                    "IdValue": "5be41b7d-9bb9-45d5-92a3-e59891b449ff"
+                  },
+                  "Property": "Tags",
+                  "Value": ""
+                },
+                {
+                  "Target": {
+                    "Type": "GameObject",
+                    "IdValue": "ba1aec4e-e06e-4e71-848e-e4dc6b6d76ee"
+                  },
+                  "Property": "Tags",
+                  "Value": ""
+                },
+                {
+                  "Target": {
+                    "Type": "GameObject",
+                    "IdValue": "8a171ea3-5088-4b19-9f98-1f3f3ab7c948"
+                  },
+                  "Property": "Tags",
+                  "Value": ""
+                },
+                {
+                  "Target": {
+                    "Type": "GameObject",
+                    "IdValue": "c577aead-fc5e-4008-afbc-983d06e4894f"
+                  },
+                  "Property": "Tags",
+                  "Value": ""
+                }
+              ],
+              "MovedObjects": []
+            },
+            "__PrefabIdToInstanceId": {
+              "4ed3c797-7152-4b93-b23e-200847667cf2": "5c87ae82-34c2-40fc-96ab-ba08237b5391",
+              "5be41b7d-9bb9-45d5-92a3-e59891b449ff": "815af3a6-1759-48f5-aa52-c72e80d55f01",
+              "2d53b2bd-3e3e-45f1-9bb2-b7858a42d942": "84abbd7f-6436-46fd-ad65-856285700423",
+              "bd3aee3d-2f65-43e2-bd26-ebdbda016649": "dc4a9630-d6a2-4b4d-b6b4-ea562cc35bd9",
+              "50a153bf-95ae-468d-b362-ea8229834653": "6fe36226-9bdb-453c-a7b7-f4a7a8aeaf14",
+              "ba1aec4e-e06e-4e71-848e-e4dc6b6d76ee": "321527b9-aa8e-49d7-8ed0-2f848fbff360",
+              "87550c15-7a6a-4815-a86b-89f5061e195a": "78fadfcf-fa45-45d0-b38e-524888c43b3d",
+              "ea6b76ec-2d5d-4a79-913c-23600af808fe": "4a7e07a2-cb19-4c15-a0e4-97c54f6a5db3",
+              "0aeee8fe-d171-4838-929b-6857e57d98b0": "b950dec4-5d92-4124-b8c4-91090a66899b",
+              "8a171ea3-5088-4b19-9f98-1f3f3ab7c948": "cf8f1629-3a0c-4393-9c25-a0da72cd3c7c",
+              "fc1d8518-4317-4fa6-8795-40ff0b0b971f": "6d782f14-6a74-4cba-9b7b-8d09887758a7",
+              "b397ccf6-2759-49d2-9612-ac72933c7ca8": "666f44a0-47ba-4977-8ffc-58fcc80e8345",
+              "bbad85f2-ea62-471f-baf2-930745e4e0f5": "c09d798a-a320-42db-9993-320d2fafeb39",
+              "c577aead-fc5e-4008-afbc-983d06e4894f": "2f09616a-010d-467f-a177-179e1408db7b",
+              "ca2d2e39-3b9e-4f7b-afb3-86dc21b42fac": "d0aae6b0-8a14-4afa-9bc3-b409a8ac6397",
+              "e2d40377-e44c-4f39-8895-12a2c0be1dc4": "5e1d2aa0-1d68-420b-81fa-451dbc07446b",
+              "f2de812b-934b-48ea-8715-459c806bb2e5": "c90949cb-418c-42b3-92e6-b75a2d0f0815",
+              "4d30d9ea-ea81-4899-8af5-967ded285adf": "ce72ecc0-541d-4892-9a52-d8e3e21c79d1",
+              "e06d7ae2-0ac5-4487-939b-25033defd560": "b31cc4b7-0e62-4d7e-bca5-66c0bf1cc8c5"
+            }
+          },
+          {
+            "__guid": "14ba6128-fa0e-4a8d-95ec-d42cb56800cc",
+            "__version": 2,
+            "Flags": 0,
+            "Name": "Sound",
+            "Position": "6.942768,0,0.000001192093",
+            "Rotation": "0,0,0,1",
+            "Scale": "1,1,1",
+            "Tags": "",
+            "Enabled": true,
+            "NetworkMode": 2,
+            "NetworkFlags": 0,
+            "NetworkOrphaned": 0,
+            "NetworkTransmit": true,
+            "OwnerTransfer": 1,
+            "Components": [
+              {
+                "__type": "Sandbox.SoundPointComponent",
+                "__guid": "41d722c5-6b0d-4697-b19b-c39d9564d5a4",
+                "__enabled": false,
+                "Flags": 0,
+                "Distance": 512,
+                "DistanceAttenuation": false,
+                "DistanceAttenuationOverride": false,
+                "Falloff": [
+                  {
+                    "x": 0,
+                    "y": 1,
+                    "in": 3.1415927,
+                    "out": -3.1415927,
+                    "mode": "Mirrored"
+                  },
+                  {
+                    "x": 1,
+                    "y": 0,
+                    "in": 0,
+                    "out": 0,
+                    "mode": "Mirrored"
+                  }
+                ],
+                "Force2d": false,
+                "MaxRepeatTime": 1,
+                "MinRepeatTime": 1,
+                "Occlusion": false,
+                "OcclusionOverride": false,
+                "OcclusionRadius": 32,
+                "OnComponentDestroy": null,
+                "OnComponentDisabled": null,
+                "OnComponentEnabled": null,
+                "OnComponentFixedUpdate": null,
+                "OnComponentStart": null,
+                "OnComponentUpdate": null,
+                "Pitch": 1,
+                "PlayOnStart": true,
+                "ReflectionOverride": false,
+                "Reflections": false,
+                "Repeat": false,
+                "SoundEvent": "entities/thruster/sounds/thruster_loop_default.sound",
+                "SoundOverride": false,
+                "StopOnNew": false,
+                "TargetMixer": {
+                  "Name": "unknown",
+                  "Id": "00000000-0000-0000-0000-000000000000"
+                },
+                "Volume": 1
+              }
+            ],
+            "Children": []
+          }
+        ]
+      }
+    ],
+    "__properties": {
+      "NetworkInterpolation": true,
+      "TimeScale": 1,
+      "WantsSystemScene": true,
+      "Metadata": {},
+      "NavMesh": {
+        "Enabled": false,
+        "IncludeStaticBodies": true,
+        "IncludeKeyframedBodies": true,
+        "EditorAutoUpdate": false,
+        "AgentHeight": 64,
+        "AgentRadius": 16,
+        "AgentStepSize": 18,
+        "AgentMaxSlope": 40,
+        "ExcludedBodies": "",
+        "IncludedBodies": "",
+        "CustomBounds": false
+      }
+    },
+    "__variables": []
+  },
+  "ResourceVersion": 2,
+  "ShowInMenu": false,
+  "MenuPath": null,
+  "MenuIcon": null,
+  "DontBreakAsTemplate": false,
+  "__references": [],
+  "__version": 2
+}

@@ -190,19 +190,27 @@ public partial class Package
 		/// <summary>Space-separated creator tags.</summary>
 		public string Tags { get; init; }
 
-		/// <summary>True if this item supplies its own human skin (body) instead of just an attachment.</summary>
+		/// <summary>
+		/// True if this item supplies its own human skin (body) instead of just an attachment.
+		/// </summary>
 		public bool HasHumanSkin { get; init; }
 
-		/// <summary>Body groups toggled on when wearing the human-skin variant.</summary>
+		/// <summary>
+		/// Body groups toggled on when wearing the human-skin variant.
+		/// </summary>
 		public ulong HumanSkinBodyGroups { get; init; }
 
-		/// <summary>Tags applied to the human-skin body.</summary>
+		/// <summary>
+		/// Tags applied to the human-skin body.
+		/// </summary>
 		public string HumanSkinTags { get; init; }
 
 		/// <summary>Material used for the eyes when this item replaces them.</summary>
 		public string EyesMaterial { get; init; }
 
-		/// <summary>Eyes material applied to the supplied human skin, if any.</summary>
+		/// <summary>
+		/// Eyes material applied to the replacement body.
+		/// </summary>
 		public string HumanEyesMaterial { get; init; }
 
 		/// <summary>Body slots this item occupies on the outer layer.</summary>

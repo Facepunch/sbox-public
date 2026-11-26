@@ -6,9 +6,12 @@ namespace Sandbox.Animation;
 /// A compiled animation clip (.anim) - a compressed pose stream authored against a
 /// <see cref="Skeleton"/>.
 /// </summary>
-public sealed partial class Clip : Resource
+public sealed partial class Clip : Resource, IDisposable
 {
 	internal HAnimClip native;
+	private bool shared;
+
+	public static ClipBuilder Builder => new();
 
 	public override bool IsValid => native.IsValid;
 
@@ -22,10 +25,13 @@ public sealed partial class Clip : Resource
 	/// </summary>
 	public string Name => ResourcePath;
 
-	private Clip( HAnimClip native, string name )
+	private Clip( HAnimClip native, string name, bool procedural )
 	{
 		this.native = native;
-		RegisterWeakResourceId( name, native.GetGuid() );
+		shared = !procedural;
+		SetResourceIdentity( name, procedural ? null : native.GetGuid() );
+		if ( !NativeGlue.Resources.IsAnonymousResource( native.GetBindingPtr() ) )
+			Game.Resources.RegisterWeak( this );
 	}
 
 	/// <summary>
@@ -40,14 +46,48 @@ public sealed partial class Clip : Resource
 		if ( id.Guid is Guid guid && Game.Resources.TryGet<Clip>( guid, out var resource ) )
 			return resource;
 
-		var path = id.ResolvePath();
+		var path = FixPath( id.ResolvePath() );
+		if ( string.IsNullOrWhiteSpace( path ) && id.Guid is null )
+			return null;
+
+		if ( Mounting.MountUtility.IsMountPath( path ) )
+			return Mounting.Directory.TryLoad( path, out var mounted ) ? mounted as Clip : null;
+
 		return FromNative( NativeGlue.Resources.GetAnimClip( path, id.Guid ?? Guid.Empty ), path );
+	}
+
+	internal override void OnMounted( string path )
+	{
+		ThreadSafe.AssertIsMainThread();
+		if ( shared )
+		{
+			if ( ResourcePath != FixPath( path ) )
+				throw new InvalidOperationException( $"Mounted animation clip '{path}' must be created by its loader, not shared from '{ResourcePath}'." );
+			if ( Game.Resources.Get<Clip>( ResourcePath ) != this )
+				Game.Resources.RegisterWeak( this );
+			return;
+		}
+
+		RegisterWeakResourceId( path );
+		shared = true;
+	}
+
+	public static Task<Clip> LoadAsync( string filename )
+	{
+		ThreadSafe.AssertIsMainThread();
+		return ResourceLibrary.LoadAsync<Clip>( FixPath( filename ) );
+	}
+
+	public void Dispose()
+	{
+		if ( !shared )
+			Destroy();
 	}
 
 	/// <summary>
 	/// Try to make it so only one Clip class exists for each clip
 	/// </summary>
-	internal static Clip FromNative( HAnimClip native, string name )
+	internal static Clip FromNative( HAnimClip native, string name, bool procedural = false )
 	{
 		if ( native.IsNull )
 			return null;
@@ -63,11 +103,12 @@ public sealed partial class Clip : Resource
 		{
 			// If we're using a cached one we don't need this handle, we'll leak
 			native.DestroyStrongHandle();
-			Game.Resources.RegisterWeak( clip );
+			if ( !NativeGlue.Resources.IsAnonymousResource( clip.native.GetBindingPtr() ) )
+				Game.Resources.RegisterWeak( clip );
 			return clip;
 		}
 
-		clip = new Clip( native, name );
+		clip = new Clip( native, name, procedural );
 		NativeResourceCache.Add( instanceId, clip );
 
 		return clip;
@@ -138,7 +179,7 @@ public sealed partial class Clip : Resource
 	/// <summary>
 	/// The skeleton this clip was authored against. Null if it failed to load.
 	/// </summary>
-	public Skeleton Skeleton => _skeleton ??= Skeleton.FromNative( native.GetSkeleton(), SkeletonName );
+	public Skeleton Skeleton => _skeleton.IsValid() ? _skeleton : _skeleton = Skeleton.FromNative( native.GetSkeleton(), SkeletonName );
 
 	/// <summary>
 	/// Whether the clip's skeleton has loaded. Sampling returns identity transforms until it has.
@@ -172,6 +213,18 @@ public sealed partial class Clip : Resource
 	{
 		ValidateCycle( cycle );
 		return native.GetRootMotionTransformS2( cycle );
+	}
+
+	/// <summary>
+	/// Sample a named float channel at a position through the clip, from 0 to 1.
+	/// Morph weights belong to the "MorphChannel" set. Returns false if the channel is absent.
+	/// </summary>
+	public bool TryGetFloatChannel( float cycle, string set, string channel, out float value )
+	{
+		ValidateCycle( cycle );
+		ArgumentException.ThrowIfNullOrWhiteSpace( set );
+		ArgumentException.ThrowIfNullOrWhiteSpace( channel );
+		return native.GetFloatChannelValue( cycle, set, channel, out value );
 	}
 
 	private static void ValidateCycle( float cycle )

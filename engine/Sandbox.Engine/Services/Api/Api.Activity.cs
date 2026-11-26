@@ -11,7 +11,7 @@ internal static partial class Api
 	public static partial class Activity
 	{
 		static int ActivityCount;
-		static string[] lastAddons;
+		static ulong[] lastAddonWorkshopIds;
 		static string sessionGame;
 		static Dictionary<string, object> sessionLoad;
 		static Origin sessionOrigin;
@@ -38,13 +38,19 @@ internal static partial class Api
 		public static float SessionSeconds => IsSessionActive ? (float)SessionTimer.ElapsedSeconds : 0.0f;
 		public static FastTimer SessionTimer;
 
-		/// <summary>Keep main-thread snapshots in order, including a close followed by a fast reload.</summary>
+		/// <summary>
+		/// Keep main-thread snapshots in order, including a close followed by a fast reload.
+		/// </summary>
 		internal static void QueueUpdate( string game, string gameVersion, string map, string[] addons, object net = null )
 		{
 			var (load, origin) = PeekCompletedLoad( game );
+			var gameWorkshopId = Application.GamePackage?.WorkshopId ?? 0;
+			var mapWorkshopId = Application.Map?.WorkshopId ?? 0;
+			var addonWorkshopIds = WorkshopItems.Current?.GetMountedAddonIds() ?? [];
+
 			lock ( updateLock )
 			{
-				queuedUpdate = queuedUpdate.ContinueWith( _ => UpdateActivity( game, gameVersion, map, addons, net, load, origin ), TaskScheduler.Default ).Unwrap();
+				queuedUpdate = queuedUpdate.ContinueWith( _ => UpdateActivity( game, gameVersion, map, addons, net, load, origin, gameWorkshopId, mapWorkshopId, addonWorkshopIds ), TaskScheduler.Default ).Unwrap();
 			}
 		}
 
@@ -52,7 +58,7 @@ internal static partial class Api
 		/// Heartbeat for the current game. <paramref name="net"/> is the network state sampled on the
 		/// main thread: mode, players, max.
 		/// </summary>
-		static async Task UpdateActivity( string game, string gameVersion, string map, string[] addons, object net, Dictionary<string, object> load, Origin origin )
+		static async Task UpdateActivity( string game, string gameVersion, string map, string[] addons, object net, Dictionary<string, object> load, Origin origin, ulong gameWorkshopId, ulong mapWorkshopId, ulong[] addonWorkshopIds )
 		{
 			try
 			{
@@ -79,7 +85,7 @@ internal static partial class Api
 					await CloseActivity( performanceData );
 					sessionGame = game;
 
-					if ( game == null || game.Contains( "#local" ) || game.StartsWith( "local." ) )
+					if ( game == null )
 						return;
 
 					//Log.Info( $"New Session Started! ({game}/{map})" );
@@ -96,7 +102,7 @@ internal static partial class Api
 					WriteOpenSession( game );
 				}
 
-				lastAddons = addons;
+				lastAddonWorkshopIds = addonWorkshopIds;
 				if ( load is not null )
 				{
 					sessionLoad = load;
@@ -107,13 +113,11 @@ internal static partial class Api
 				if ( !IsSessionActive )
 					return;
 
-				if ( game != null ) game = game.Trim().ToLower();
-
 				var data = new Dictionary<string, object>();
-				data.Add( "game", game );
 				data.Add( "gameversion", gameVersion );
-				data.Add( "map", map );
-				data.Add( "content", lastAddons );
+				if ( gameWorkshopId != 0 ) data.Add( "gameId", gameWorkshopId );
+				if ( mapWorkshopId != 0 ) data.Add( "mapId", mapWorkshopId );
+				data.Add( "addonIds", addonWorkshopIds );
 				data.Add( "st", SessionSeconds.FloorToInt() );
 				data.Add( "sh", SessionId.ToString() );
 				data.Add( "performance", performanceData );
@@ -190,11 +194,10 @@ internal static partial class Api
 			await Stats.ForceFlushAsync().ConfigureAwait( false );
 
 			var data = new Dictionary<string, object>();
-			data.Add( "game", "" );
 			data.Add( "st", SessionSeconds.FloorToInt() );
 			data.Add( "sh", SessionId.ToString() );
 			data.Add( "i", ActivityCount++ );
-			data.Add( "content", lastAddons );
+			data.Add( "addonIds", lastAddonWorkshopIds );
 			data.Add( "performance", performanceData );
 			data.Add( "config", GetConfig() );
 			data.Add( "hardware", Engine.SystemInfo.AsObject() );
@@ -219,7 +222,7 @@ internal static partial class Api
 			SessionId = Guid.Empty;
 			SessionTimer = default;
 			ActivityCount = -1;
-			lastAddons = null;
+			lastAddonWorkshopIds = null;
 			sessionLoad = null;
 			sessionOrigin = null;
 

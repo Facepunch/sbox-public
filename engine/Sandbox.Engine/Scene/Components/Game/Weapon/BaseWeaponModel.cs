@@ -123,7 +123,7 @@ public partial class BaseWeaponModel : Component
 #pragma warning disable CS0618
 	public virtual void OnDeploy()
 	{
-		Renderer?.Set( "b_deploy", true );
+		TriggerGesture( "b_deploy" );
 
 		if ( DeploySound is not null )
 			GameObject.PlaySound( DeploySound );
@@ -138,7 +138,7 @@ public partial class BaseWeaponModel : Component
 	/// <param name="origin">Where the shot originated, when it wasn't the muzzle.</param>
 	public virtual void OnAttack( Vector3? hitPoint = null, Vector3? origin = null )
 	{
-		Renderer?.Set( "b_attack", true );
+		TriggerGesture( "b_attack" );
 
 		DoMuzzleEffect();
 		DoEjectBrass();
@@ -149,7 +149,7 @@ public partial class BaseWeaponModel : Component
 	/// </summary>
 	public virtual void OnDryFire()
 	{
-		Renderer?.Set( "b_attack_dry", true );
+		TriggerGesture( "b_attack_dry" );
 	}
 
 	/// <summary>
@@ -158,7 +158,7 @@ public partial class BaseWeaponModel : Component
 	/// </summary>
 	public virtual void OnReloadStart()
 	{
-		Renderer?.Set( "b_reload", true );
+		TriggerGesture( "b_reload" );
 	}
 
 	/// <summary>
@@ -168,11 +168,34 @@ public partial class BaseWeaponModel : Component
 	public virtual void OnIncrementalReload() { }
 
 	/// <summary>
-	/// Called when the reload finishes. Base clears the "b_reload" animation parameter. Override to extend.
+	/// Called when the reload finishes. Pulses "b_reload_finish" on AG2 or clears "b_reload" on a legacy graph.
 	/// </summary>
 	public virtual void OnReloadFinish()
 	{
-		Renderer?.Set( "b_reload", false );
+		if ( Renderer?.UseAnimGraph != true ) return;
+
+		if ( Renderer.Animation.Graph is not null )
+		{
+			Renderer.Animation.Parameters.TryTrigger( "b_reload_finish" );
+		}
+		else
+		{
+			Renderer.Set( "b_reload", false );
+		}
+	}
+
+	private void TriggerGesture( string name )
+	{
+		if ( Renderer?.UseAnimGraph != true ) return;
+
+		if ( Renderer.Animation.Graph is not null )
+		{
+			Renderer.Animation.Parameters.TryTrigger( name );
+		}
+		else
+		{
+			Renderer.Set( name, true );
+		}
 	}
 #pragma warning restore CS0618
 

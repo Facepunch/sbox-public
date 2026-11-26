@@ -294,4 +294,47 @@ public class PostProcessStateTest : SceneTest
 			Assert.IsTrue( copy.OverrideTargets );
 		}
 	}
+
+	/// <summary>
+	/// The list overload the Highlight effect uses returns the same targets as GetOutlineTargets,
+	/// in automatic mode (enabled renderers in the hierarchy) and with manual targets.
+	/// </summary>
+	[TestMethod]
+	public void HighlightOutlineTargetsIntoList()
+	{
+		var scene = new Scene();
+		using ( scene.Push() )
+		{
+			var go = scene.CreateObject();
+			var outline = go.Components.Create<HighlightOutline>();
+			var own = go.Components.Create<OutlineProbeRenderer>();
+
+			var child = scene.CreateObject();
+			child.SetParent( go );
+			var childRenderer = child.Components.Create<OutlineProbeRenderer>();
+
+			var disabled = scene.CreateObject();
+			disabled.SetParent( go );
+			disabled.Components.Create<OutlineProbeRenderer>();
+			disabled.Enabled = false;
+
+			var list = new System.Collections.Generic.List<Renderer>();
+			outline.GetOutlineTargets( list );
+			CollectionAssert.AreEqual( outline.GetOutlineTargets().ToList(), list );
+			CollectionAssert.AreEquivalent( new Renderer[] { own, childRenderer }, list );
+
+			outline.OverrideTargets = true;
+			outline.Targets = [childRenderer];
+			list.Clear();
+			outline.GetOutlineTargets( list );
+			CollectionAssert.AreEqual( new Renderer[] { childRenderer }, list );
+		}
+	}
+}
+
+/// <summary>
+/// A renderer with no model, so outline target tests don't need the native resource system.
+/// </summary>
+public class OutlineProbeRenderer : Renderer
+{
 }
