@@ -23,4 +23,36 @@ public class ContentBuffersTests
 		ContentBuffers.TrimIdle( 0 );
 		Assert.AreEqual( 0L, ContentBuffers.KeptBytes, "let go once nothing has streamed for the idle time" );
 	}
+
+	/// <summary>
+	/// With the kept arrays full of small mips' arrays (as a load leaves them), a big file buffer streaming rents now and then
+	/// is kept for its next rent, others making room, instead of being let go and made again each time.
+	/// </summary>
+	[TestMethod]
+	public void ABigBufferIsKeptWhenSmallOnesFillTheRoom()
+	{
+		var max = ContentBuffers.MaxKeptBytes;
+		ContentBuffers.Clear();
+		try
+		{
+			ContentBuffers.MaxKeptBytes = 16 << 20;
+			var big = ContentBuffers.Rent( 4 << 20 );
+			var small = new byte[(16 << 20) / (64 << 10)][];
+			for ( int i = 0; i < small.Length; i++ ) small[i] = ContentBuffers.Rent( 64 << 10 );
+			foreach ( var array in small ) ContentBuffers.Return( array );
+			Assert.AreEqual( 16L << 20, ContentBuffers.KeptBytes, "the small arrays fill the room" );
+
+			// The small size was rented after the big one, so it isn't the staler
+			ContentBuffers.Return( big );
+			var made = ContentBuffers.MadeBytes;
+			for ( int i = 0; i < 4; i++ ) ContentBuffers.Return( ContentBuffers.Rent( 4 << 20 ) );
+			Assert.AreEqual( made, ContentBuffers.MadeBytes, "the big buffer was kept and rented again" );
+			Assert.IsTrue( ContentBuffers.KeptBytes <= 16L << 20, "within the room" );
+		}
+		finally
+		{
+			ContentBuffers.MaxKeptBytes = max;
+			ContentBuffers.Clear();
+		}
+	}
 }

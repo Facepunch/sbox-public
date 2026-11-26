@@ -7,8 +7,10 @@ namespace Borealis.Source2;
 /// Arrays that content is read and decoded into while it streams (a texture file's bytes, its mips), used again rather than
 /// left for the collector: a map's textures streaming in made megabytes of large-object garbage a second. Sizes round up to
 /// a power of two. At most <see cref="MaxKeptBytes"/> are kept between uses: when they're full, arrays of the size least
-/// lately asked for make room for one more lately asked for (what's streamed moves from coarse mips to fine and back), and
-/// past that, and above <see cref="LargestPooled"/>, returned arrays are let go. Any thread.
+/// lately asked for make room for one more lately asked for (what's streamed moves from coarse mips to fine and back), then
+/// those of the size holding the most (a load leaves hundreds of small mips' arrays kept, which mustn't crowd out the big
+/// file buffers streaming rents now and then), and past that, and above <see cref="LargestPooled"/>, returned arrays are let
+/// go. Any thread.
 /// </summary>
 public static class ContentBuffers
 {
@@ -80,7 +82,7 @@ public static class ContentBuffers
 		var index = BitOperations.Log2( (uint)array.Length ) - SmallestShift;
 		while ( Interlocked.Read( ref keptBytes ) + array.Length > MaxKeptBytes )
 		{
-			if ( !LetGoStalest( index ) )
+			if ( !LetGoStalest( index ) && !LetGoFullest( index, array.Length ) )
 			{
 				Interlocked.Add( ref droppedBytes, array.Length );
 				return;
@@ -90,6 +92,37 @@ public static class ContentBuffers
 		Interlocked.Add( ref keptBytes, array.Length );
 		var stack = free[index];
 		lock ( stack ) stack.Push( array );
+	}
+
+	/// <summary>
+	/// With no size rented less lately than the one at <paramref name="index"/>, let go of one kept array of the size whose kept
+	/// arrays add up to the most, if that's more than <paramref name="length"/>: a big file's buffer, rented less often than the
+	/// mips streaming decodes, was otherwise always the one let go, and made again for the next big file while hundreds of
+	/// small mips' arrays from the load stayed kept.
+	/// </summary>
+	static bool LetGoFullest( int index, int length )
+	{
+		int fullest = -1;
+		long most = length;
+		for ( int i = 0; i < free.Length; i++ )
+		{
+			if ( i == index ) continue;
+			var bytes = (long)free[i].Count << (i + SmallestShift);
+			if ( bytes <= most ) continue;
+			most = bytes;
+			fullest = i;
+		}
+
+		if ( fullest < 0 ) return false;
+		var stack = free[fullest];
+		lock ( stack )
+		{
+			if ( !stack.TryPop( out var old ) ) return true;
+			Interlocked.Add( ref keptBytes, -old.Length );
+			Interlocked.Add( ref droppedBytes, old.Length );
+		}
+
+		return true;
 	}
 
 	// Let go of one kept array of the size least lately rented, if that's longer ago than the size at index
