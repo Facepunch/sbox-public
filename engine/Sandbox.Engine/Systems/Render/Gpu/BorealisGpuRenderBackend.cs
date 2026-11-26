@@ -2858,12 +2858,14 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 	/// Submit the buffer writes made outside a block, visible to everything after them: before a block, a device frame,
 	/// a readback, or freeing a buffer they may write.
 	/// </summary>
-	void SubmitUploads()
+	// Later: with the queue's next submission (the frame handed over's first, or the device frame's switch), in the same place
+	// in its order, so the main thread doesn't submit, or wait for the queue behind a present, to hand a frame over
+	void SubmitUploads( bool later = false )
 	{
 		DropStaleUploads();
 		if ( uploads is null ) return;
 		uploads.Barrier( PipelineStage.Transfer, MemoryAccess.TransferWrite, PipelineStage.AllCommands, MemoryAccess.MemoryRead | MemoryAccess.MemoryWrite );
-		SubmittedReadbacks( uploadReadbacks, gpu.Submit( uploads ) );
+		SubmittedReadbacks( uploadReadbacks, later ? gpu.SubmitLater( uploads ) : gpu.Submit( uploads ) );
 		uploads = null;
 	}
 

@@ -28,7 +28,7 @@ internal sealed partial class BorealisGpuRenderBackend
 		// What the next frame's start takes from this one: the uploads recorded since (in the closing device frame), the
 		// player's settings and whether a load is showing
 		var next = Application.FrameCount + 1;
-		SubmitUploads();
+		SubmitUploads( later: true );
 		LimitAnisotropy();
 		BiasMips( next );
 		services.Loading = GameLoading( Sandbox.Engine.GlobalContext.Game?.ActiveScene );
@@ -59,7 +59,7 @@ internal sealed partial class BorealisGpuRenderBackend
 		// before the frame's blocks
 		var next = Application.FrameCount + 1;
 		if ( staged.Count > 0 ) WriteStaged();
-		SubmitUploads();
+		SubmitUploads( later: true );
 		LimitAnisotropy();
 		BiasMips( next );
 		services.Loading = GameLoading( Sandbox.Engine.GlobalContext.Game?.ActiveScene );
