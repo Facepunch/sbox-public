@@ -633,6 +633,11 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 		=> a.LightSphere is { } sphere && sphere == b.LightSphere && a.TargetMap == b.TargetMap;
 
 	/// <summary>
+	/// Whether views sharing a light-sphere query are culled together (<see cref="RenderSystem.CullGroup"/>). Off: each on its own.
+	/// </summary>
+	internal static bool GroupCulls { get; set; } = true;
+
+	/// <summary>
 	/// Cull the groups in chunk <paramref name="chunk"/>, with that chunk's own candidate list.
 	/// </summary>
 	void CullChunk( int chunk, int[] typeFeatures )
@@ -642,9 +647,13 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 		for ( int g = chunkStarts[chunk]; g < chunkStarts[chunk + 1]; g++ )
 		{
 			var first = groupStarts[g];
+			var end = groupStarts[g + 1];
 			var inFrustum = RenderSystem.FindCandidates( world, passes[first], candidates, out var inTree, out _ );
 
-			for ( int i = first; i < groupStarts[g + 1]; i++ )
+			// A cube's faces test each candidate's filters once, then their frustums
+			if ( end - first > 1 && GroupCulls && system.CullGroup( world, passes, first, end, candidates, inTree, typeFeatures ) ) continue;
+
+			for ( int i = first; i < end; i++ )
 				system.CullShadow( world, passes[i], candidates, inTree, inFrustum, typeFeatures );
 		}
 	}

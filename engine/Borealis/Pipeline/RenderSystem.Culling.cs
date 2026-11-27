@@ -339,6 +339,75 @@ public sealed partial class RenderSystem
 	}
 
 	/// <summary>
+	/// <see cref="CullShadow"/> for shadow views [<paramref name="first"/>, <paramref name="end"/>) of one light-sphere query
+	/// (a point light's cube faces): what doesn't depend on the face (resident lists, size, sub-worlds, tags, culling boxes,
+	/// feature, caster and static filters) is tested once a candidate, and each face's frustum once. Their visible lists are
+	/// as culling each on its own would make them. False, having culled nothing, when the views differ in anything but their
+	/// frustums: the caller culls each.
+	/// </summary>
+	internal bool CullGroup( RenderWorld world, List<ViewPass> passes, int first, int end, List<int> candidates, int inTree, int[] typeFeatures )
+	{
+		var pass = passes[first];
+		if ( end - first > 32 || !pass.IsShadow || pass.CullReasons is not null || pass.LightSphere is null ) return false;
+		for ( int p = first + 1; p < end; p++ )
+		{
+			var other = passes[p];
+			if ( !other.IsShadow || other.Root != pass.Root || other.StaticFilter != pass.StaticFilter || other.ResidentMembers != pass.ResidentMembers
+				|| other.ResidentHolds != pass.ResidentHolds || other.TexelSized != pass.TexelSized || other.CullReasons is not null
+				|| other.LightSphere != pass.LightSphere || other.SplitsLods != pass.SplitsLods || other.SettledStamp != pass.SettledStamp
+				|| other.RestlessStamp != pass.RestlessStamp || other.NewlySettled != pass.NewlySettled ) return false;
+		}
+
+		var root = pass.Root;
+		var sizeCull = pass.KeepsSmallCasters ? default : SizeCull.ForPass( pass );
+		var filter = pass.StaticFilter;
+		var objects = world.Objects;
+		var centers = world.BoundsCenter;
+		var extents = world.BoundsExtents;
+		var subWorlds = world.SubWorlds;
+		var members = pass.ResidentMembers;
+		var holds = pass.ResidentHolds;
+		var boxes = System.Runtime.InteropServices.CollectionsMarshal.AsSpan( world.CullingBoxes );
+		var types = world.ObjectTypeIndices;
+
+		var entries = System.Runtime.InteropServices.CollectionsMarshal.AsSpan( candidates );
+		for ( int k = 0; k < entries.Length; k++ )
+		{
+			var i = entries[k] >> 1;
+			if ( holds is not null && i < holds.Length && holds[i] ) continue;
+			if ( members is not null && i < members.Length && members[i] != 0 ) continue;
+			if ( k < inTree && sizeCull.Culls( centers[i], extents[i] ) ) continue;
+			if ( !root.ShowsSubWorld( subWorlds[i] ) ) continue;
+			var obj = objects[i];
+			if ( !root.ShowsShown( obj ) ) continue;
+			if ( boxes.Length > 0 && CullingBox.CullsObject( obj ) && CullingBox.Culls( boxes, centers[i], extents[i] ) ) continue;
+
+			var feature = typeFeatures[types[i]];
+			if ( feature < 0 ) continue;
+			var f = features[feature];
+			if ( !f.DrawsShadows || !f.CastsShadow( obj ) ) continue;
+			if ( filter == StaticFilter.NoStatic && obj.CachesAsStatic ) continue;
+
+			// The faces it's in, before the settled filter, which counts what it takes
+			var faces = 0u;
+			for ( int p = first; p < end; p++ )
+			{
+				if ( passes[p].View.Frustum.Intersects( centers[i], extents[i] ) ) faces |= 1u << (p - first);
+			}
+
+			if ( faces == 0 ) continue;
+			if ( filter >= StaticFilter.Settled && !TakesCaster( pass, filter, obj, world.MovedStamps[i] ) ) continue;
+
+			for ( int p = first; p < end; p++ )
+			{
+				if ( (faces & (1u << (p - first))) != 0 ) passes[p].VisibleByFeature[feature].Add( i );
+			}
+		}
+
+		return true;
+	}
+
+	/// <summary>
 	/// Whether a cache (<see cref="StaticFilter.Settled"/>, <see cref="StaticFilter.SettledNoStatic"/>) or what's drawn on top
 	/// of it (<see cref="StaticFilter.Unsettled"/>) takes a caster, which <see cref="DrawnLive"/> or <see cref="TakesSettled"/>
 	/// decides, but for one that animates only some of its LODs in a view that <see cref="ViewPass.SplitsLods"/>: both take it,

@@ -201,6 +201,50 @@ public class ShadowCacheTests
 	}
 
 	/// <summary>
+	/// A point light's six faces culled together (<see cref="Borealis.Shadows.ShadowSystem.GroupCulls"/>) see the same casters,
+	/// in the same order, as each culled on its own: static and moving casters of every size, near and far, on every side.
+	/// </summary>
+	[TestMethod]
+	public void CubeFacesCulledTogetherSeeWhatEachWouldAlone()
+	{
+		var world = new RenderWorld();
+		world.Lighting.SunColor = Color.Black;
+		var random = new Random( 7 );
+		for ( int i = 0; i < 300; i++ )
+		{
+			var position = new Vector3( 100 + random.Next( -70, 70 ), random.Next( -70, 70 ), random.Next( -70, 70 ) );
+			var size = random.Next( 3 ) == 0 ? 0.05f : random.Next( 1, 8 );
+			world.Add( new MeshObject( null, new Transform( position ) ) { LocalBounds = new BBox( new Vector3( -size ), new Vector3( size ) ), IsStatic = random.Next( 2 ) == 0 } );
+		}
+
+		world.Add( new LightObject( LightObject.LightKind.Point, new Transform( new Vector3( 100, 0, 0 ) ) ) { Radius = 60 } );
+
+		var view = LookingDownX();
+		int[][] Lists( bool together )
+		{
+			Borealis.Shadows.ShadowMapper.ResetCache();
+			Borealis.Shadows.ShadowSystem.GroupCulls = together;
+			try
+			{
+				using var system = new RenderSystem();
+				var mesh = system.GetFeature<MeshRenderFeature>();
+				CollectAndPrepare( system, world, view );
+				return system.ShadowMaps.Passes.ToArray().Select( p => p.Visible( mesh ).ToArray() ).ToArray();
+			}
+			finally
+			{
+				Borealis.Shadows.ShadowSystem.GroupCulls = true;
+			}
+		}
+
+		var alone = Lists( false );
+		var together = Lists( true );
+		Assert.AreEqual( 6, alone.Length );
+		Assert.IsTrue( alone.Sum( l => l.Length ) > 100, "the faces see casters" );
+		for ( int i = 0; i < alone.Length; i++ ) CollectionAssert.AreEqual( alone[i], together[i], $"face {i}" );
+	}
+
+	/// <summary>
 	/// A static mesh whose material animates vertices (<see cref="GpuMaterial.AnimatesVertices"/>) isn't a static caster: a cached
 	/// light draws it live, while a plain static mesh stays in its cache. A material that doesn't know yet (null) leaves it
 	/// cached until it does.
