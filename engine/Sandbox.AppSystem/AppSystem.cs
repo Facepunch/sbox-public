@@ -186,6 +186,7 @@ public class AppSystem
 
 	public virtual void Shutdown()
 	{
+		Sandbox.Diagnostics.Profiler.Shutdown();
 		startupWindow?.Dispose();
 		startupWindow = null;
 

@@ -1,6 +1,6 @@
 ﻿namespace Sandbox.Diagnostics;
 
-internal static class Profiler
+internal static class EtwProfiler
 {
 	public static bool IsProfiling => _etwLogger?.IsRunning ?? false;
 

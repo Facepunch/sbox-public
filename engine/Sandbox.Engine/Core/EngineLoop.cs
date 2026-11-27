@@ -25,9 +25,11 @@ internal static class EngineLoop
 	static Superluminal _runFrame = new Superluminal( "RunFrame", "#4d5e73" );
 	static Superluminal _frameStart = new Superluminal( "FrameStart", "#2c3541" );
 	static Superluminal _frameEnd = new Superluminal( "FrameEnd", "#2c3541" );
+	static readonly ProfileScope CpuFrame = new( Diagnostics.Profiler.FrameScopeName );
 
 	internal static void RunFrame( CMaterialSystem2AppSystemDict appDict, out bool wantsQuit )
 	{
+		Diagnostics.Profiler.Update( frameBoundary: true );
 		if ( Application.WantsExit )
 		{
 			SoundHandle.Shutdown();
@@ -46,6 +48,7 @@ internal static class EngineLoop
 		FastTimer frameTimer = FastTimer.StartNew();
 
 		using ( _runFrame.Start() )
+		using ( CpuFrame.Start() )
 		{
 			Application.FrameCount++;
 			RealTime.Update( time );
