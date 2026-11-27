@@ -263,7 +263,14 @@ static class StartupLoadProject
 			if ( Sandbox.Application.IsUnitTest )
 				return true;
 
-			await GameInstanceDll.Current.LoadGamePackageAsync( project.Package.FullIdent, GameLoadingFlags.Host | GameLoadingFlags.Reload, ct );
+			var gameIdent = project.Package.FullIdent;
+			if ( project.Config.Type == "map" && !string.IsNullOrWhiteSpace( parentPackage ) )
+			{
+				LaunchArguments.Map = project.Package.FullIdent;
+				gameIdent = parentPackage;
+			}
+
+			await GameInstanceDll.Current.LoadGamePackageAsync( gameIdent, GameLoadingFlags.Host | GameLoadingFlags.Reload, ct );
 		}
 
 

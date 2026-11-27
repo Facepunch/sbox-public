@@ -23,6 +23,8 @@ partial class PolygonMesh
 	{
 		var groups = new Dictionary<Material, (List<MeshVertex> Vertices, List<int> Indices)>();
 
+		UpdateLightmapUvs();
+
 		try
 		{
 			// ComputeFaceVertexNormal recomputes the plane of every face it touches, so prime the
@@ -150,6 +152,7 @@ partial class PolygonMesh
 				Normal = normal,
 				Tangent = tangent,
 				Texcoord = TextureCoord[faceEdge],
+				LightmapUv = _lightmapUvs.GetValueOrDefault( faceEdge ),
 				Blend = Blends[faceEdge],
 				SecondaryBlend = SecondaryBlends?[faceEdge] ?? default,
 				Color = Colors[faceEdge],

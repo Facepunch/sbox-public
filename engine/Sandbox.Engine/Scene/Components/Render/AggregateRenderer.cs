@@ -81,7 +81,20 @@ public sealed class AggregateRenderer : Renderer, Component.ExecuteInEditor, IHa
 		}
 	} = Color.White;
 
+	/// <summary>
+	/// Set at compile time - the model has coordinates in the scene's <see cref="Scene.Lightmap"/>.
+	/// </summary>
+	[Property, Hide]
+	public bool Lightmapped { get; set { field = value; UpdateLightmap(); } }
+
 	SceneAggregateObject _aggregate;
+
+	internal void UpdateLightmap()
+	{
+		if ( !_aggregate.IsValid() ) return;
+
+		_aggregate.SetLightmap( Lightmapped ? Scene?.Lightmap?.VisibleTextures : null );
+	}
 
 	protected override void OnEnabled()
 	{
@@ -147,6 +160,7 @@ public sealed class AggregateRenderer : Renderer, Component.ExecuteInEditor, IHa
 		_aggregate.ColorTint = Tint;
 		OnSceneObjectCreated( _aggregate );
 		RenderOptions.Apply( _aggregate );
+		UpdateLightmap();
 	}
 
 	protected override void OnRenderOptionsChanged()

@@ -62,6 +62,26 @@ public partial class Texture
 					writer.SetTexture( faceBitmap, mip, face );
 				}
 			}
+			else if ( isVolume )
+			{
+				// Store slices in Z order. Stacking an entire volume in one bitmap can exceed its height limit.
+				var sliceWidth = Math.Max( 1, width >> mip );
+				var sliceHeight = Math.Max( 1, height >> mip );
+				var sliceCount = Math.Max( 1, depth >> mip );
+				var hdr = ImageFormat == ImageFormat.RGBA16161616F;
+				var readFormat = hdr ? ImageFormat.RGBA16161616F : ImageFormat.RGBA8888;
+				var premultiplied = Flags.HasFlag( TextureFlags.PremultipliedAlpha );
+				var scratch = premultiplied ? new byte[GetImageFormatSize( readFormat, sliceWidth, sliceHeight )] : null;
+
+				for ( int z = 0; z < sliceCount; z++ )
+				{
+					var slice = new Bitmap( sliceWidth, sliceHeight, hdr );
+					var pixels = scratch is null ? slice.GetBuffer() : scratch.AsSpan();
+					GetPixels( (0, 0, sliceWidth, sliceHeight), z, mip, pixels, readFormat );
+					if ( premultiplied ) slice.SetPixelData( pixels, premultiplied: true );
+					writer.SetTexture( slice, mip, z );
+				}
+			}
 			else
 			{
 				var bitmap = GetBitmap( mip );

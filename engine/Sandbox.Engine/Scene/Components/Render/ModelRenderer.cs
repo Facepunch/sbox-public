@@ -240,15 +240,18 @@ public partial class ModelRenderer : Renderer, ExecuteInEditor, ITintable, IMate
 
 		var model = Model ?? Model.Load( "models/dev/box.vmdl" );
 
+		// Lightmapped, it draws a copy of its geometry: one LOD of the body and material group it has
+		var lightmapped = LightmapModel();
+
 		_sceneObject.ColorTint = Tint;
-		_sceneObject.Model = model;
-		_sceneObject.MeshGroupMask = BodyGroups;
+		_sceneObject.Model = lightmapped ?? model;
+		_sceneObject.MeshGroupMask = lightmapped is null ? BodyGroups : ulong.MaxValue;
 		_sceneObject.Flags.CastShadows = RenderType == ShadowRenderType.On || RenderType == ShadowRenderType.ShadowsOnly;
 		_sceneObject.Flags.IsStatic = GameObject.IsStatic && !_hasActiveDeformations;
 		_sceneObject.RenderingEnabled = model.HasRenderMeshes();
 
 		if ( _lodOverride.HasValue )
-			_sceneObject.LodOverride = _lodOverride.Value;
+			_sceneObject.LodOverride = lightmapped is null ? _lodOverride.Value : -1;
 
 		RenderOptions.Apply( _sceneObject );
 
@@ -258,13 +261,14 @@ public partial class ModelRenderer : Renderer, ExecuteInEditor, ITintable, IMate
 		if ( HasMaterialGroups )
 		{
 			_sceneObject.SetMaterialOverride( null );
-			_sceneObject.SetMaterialGroup( MaterialGroup );
+			if ( lightmapped is null ) _sceneObject.SetMaterialGroup( MaterialGroup );
 		}
 		else
 		{
 			_sceneObject.SetMaterialOverride( MaterialOverride );
 		}
 
+		_sceneObject.SetLightmap( lightmapped is null ? null : Lightmap.VisibleTextures );
 	}
 
 	protected override void OnEnabled()
@@ -306,6 +310,8 @@ public partial class ModelRenderer : Renderer, ExecuteInEditor, ITintable, IMate
 		{
 			Transform.OnTransformChanged -= OnTransformChanged;
 
+			// The backup would keep pointing at lightmap constants that go with the object
+			_sceneObject?.SetLightmap();
 			BackupRenderAttributes( _sceneObject?.Attributes );
 			_sceneObject?.Delete();
 			_sceneObject = null;

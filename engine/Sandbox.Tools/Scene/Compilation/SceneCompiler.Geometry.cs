@@ -38,6 +38,11 @@ partial class SceneCompiler
 		/// </summary>
 		Paint = 2,
 		SecondaryPaint = 4,
+
+		/// <summary>
+		/// Coordinates in the scene's lightmap, for geometry the scene's <see cref="BakedLightmap"/> baked.
+		/// </summary>
+		Lightmap = 8,
 	}
 
 	/// <summary>
@@ -51,6 +56,7 @@ partial class SceneCompiler
 		public Vector4 Tangent;
 		public Vector2 Texcoord;
 		public Vector2 Texcoord1;
+		public Vector2 LightmapUv;
 		public Color32 Color;
 		public Color32 Blend;
 		public Color32 SecondaryBlend;
@@ -106,7 +112,7 @@ partial class SceneCompiler
 	/// <summary>
 	/// One aggregate's worth of geometry, grouped and split but not yet turned into a model.
 	/// </summary>
-	internal sealed record AggregatePlan( Material Material, Color Tint, string Tags, Transform Transform, Chunk[] Chunks )
+	internal sealed record AggregatePlan( Material Material, Color Tint, string Tags, Transform Transform, bool Lightmapped, Chunk[] Chunks )
 	{
 		public bool Translucent { get; } = IsTranslucent( Material );
 	}
@@ -119,9 +125,10 @@ partial class SceneCompiler
 	/// <summary>
 	/// What decides which aggregate a chunk lands in. Tint is part of the key because it is applied
 	/// to the whole compiled object, the same way the map compiler refuses to merge meshes whose tints
-	/// differ. Tags come along because the compiled object has to carry them.
+	/// differ. Tags come along because the compiled object has to carry them, and lightmaps because
+	/// they're bound to the whole object too.
 	/// </summary>
-	internal readonly record struct GroupKey( Material Material, Color Tint, string Tags, Transform Transform );
+	internal readonly record struct GroupKey( Material Material, Color Tint, string Tags, Transform Transform, bool Lightmapped );
 
 	/// <summary>
 	/// A world transform split into what each vertex stream needs. Normals go through the inverse
@@ -175,6 +182,7 @@ partial class SceneCompiler
 					Normal = Normal( vertex.Normal ),
 					Tangent = Tangent( vertex.Tangent ),
 					Texcoord = vertex.Texcoord,
+					LightmapUv = vertex.LightmapUv,
 					Color = Color32.White,
 					Blend = vertex.Blend,
 					SecondaryBlend = vertex.SecondaryBlend,
@@ -233,6 +241,7 @@ partial class SceneCompiler
 			var transform = new GeometryTransform( source.WorldTransform );
 			var tags = TagKey( source.GameObject );
 			var visible = !source.HideInGame;
+			var lightmapped = source.Lightmap is not null;
 
 			bool fitted = source.Collision != MeshComponent.CollisionType.None &&
 				(source.Mesh.UsesPerMaterialCollision( source.Collision ) || source.Collision is not (MeshComponent.CollisionType.Mesh or MeshComponent.CollisionType.Hull));
@@ -265,7 +274,7 @@ partial class SceneCompiler
 					var vertexTransform = preserveOrigin ? new GeometryTransform( Transform.Zero ) : transform;
 					var vertices = vertexTransform.Apply( submesh.Vertices, out var streams );
 
-					Add( groups, submesh.Material, source.Color, tags, vertices, submesh.Indices, streams,
+					Add( groups, submesh.Material, source.Color, tags, lightmapped, vertices, submesh.Indices, streams,
 						preserveOrigin ? source.WorldTransform : Transform.Zero,
 						preserveOrigin ? source.Mesh.CalculateBounds() : Bounds( vertices ) );
 				}
@@ -282,13 +291,11 @@ partial class SceneCompiler
 			await onProgress( ++done, total );
 		}
 
-		var cache = new Dictionary<(Model Model, ulong BodyGroups, int Lod), List<PropMesh>>();
-
 		foreach ( var renderer in props )
 		{
 			cancel.ThrowIfCancellationRequested();
 
-			if ( TryCompileProp( renderer, cache, groups ) )
+			if ( TryCompileProp( renderer, groups ) )
 			{
 				var go = renderer.GameObject;
 
@@ -339,7 +346,7 @@ partial class SceneCompiler
 
 			foreach ( var cluster in await Cluster( [.. chunks], MaxFragments( key.Material ), settings.AggregateCost, StepGeometry ) )
 			{
-				plans.Add( new AggregatePlan( key.Material, key.Tint, key.Tags, key.Transform, cluster ) );
+				plans.Add( new AggregatePlan( key.Material, key.Tint, key.Tags, key.Transform, key.Lightmapped, cluster ) );
 			}
 
 			await onProgress( ++done, total );
@@ -348,9 +355,14 @@ partial class SceneCompiler
 		return new CompilePlan( [.. plans], [.. collision], [.. shapes] );
 	}
 
-	static void Add( Dictionary<GroupKey, List<Chunk>> groups, Material material, Color tint, string tags, CompiledVertex[] vertices, int[] indices, CompiledStreams streams, Transform transform, BBox bounds )
+	static void Add( Dictionary<GroupKey, List<Chunk>> groups, Material material, Color tint, string tags, bool lightmapped, CompiledVertex[] vertices, int[] indices, CompiledStreams streams, Transform transform, BBox bounds )
 	{
-		var key = new GroupKey( material, tint, tags, IsTranslucent( material ) ? transform : Transform.Zero );
+		// Translucent geometry compiles to a ModelRenderer, which unwraps its own lightmap, so it drops the bake
+		var translucent = IsTranslucent( material );
+		lightmapped &= !translucent;
+		if ( lightmapped ) streams |= CompiledStreams.Lightmap;
+
+		var key = new GroupKey( material, tint, tags, translucent ? transform : Transform.Zero, lightmapped );
 
 		groups.GetOrCreate( key ).Add( new Chunk( vertices, indices, bounds.Transform( transform ), streams ) { Transform = transform, LocalBounds = bounds } );
 	}
@@ -746,6 +758,17 @@ partial class SceneCompiler
 				} ) );
 				break;
 
+			case CompiledStreams.Lightmap:
+				mesh.CreateVertexBuffer( vertexTotal, Pack( chunks, vertexTotal, static ( in CompiledVertex v ) => new Sandbox.Rendering.LightmapGeometry.PlainVertex
+				{
+					Position = v.Position,
+					Normal = v.Normal,
+					Tangent = v.Tangent,
+					Texcoord = v.Texcoord,
+					LightmapUv = v.LightmapUv,
+				} ) );
+				break;
+
 			default:
 				mesh.CreateVertexBuffer( vertexTotal, Pack( chunks, vertexTotal, static ( in CompiledVertex v ) => new FullVertex
 				{
@@ -754,6 +777,7 @@ partial class SceneCompiler
 					Tangent = v.Tangent,
 					Texcoord = v.Texcoord,
 					Texcoord1 = v.Texcoord1,
+					LightmapUv = v.LightmapUv,
 					Color = v.Color,
 					Blend = v.Blend,
 					SecondaryBlend = v.SecondaryBlend,
@@ -896,7 +920,8 @@ partial class SceneCompiler
 	}
 
 	/// <summary>
-	/// A compiled vertex for an aggregate that painted meshes and models both landed in.
+	/// A compiled vertex for an aggregate that combines streams - painted meshes and models, or
+	/// either of them lightmapped.
 	/// </summary>
 	[StructLayout( LayoutKind.Sequential )]
 	struct FullVertex
@@ -906,6 +931,7 @@ partial class SceneCompiler
 		[VertexLayout.Tangent] public Vector4 Tangent;
 		[VertexLayout.TexCoord] public Vector2 Texcoord;
 		[VertexLayout.TexCoord( 1 )] public Vector2 Texcoord1;
+		[VertexLayout.TexCoord( 3 )] public Vector2 LightmapUv;
 		[VertexLayout.Color] public Color32 Color;
 		[VertexLayout.TexCoord( 4 )] public Color32 Blend;
 		[VertexLayout.TexCoord( 5 )] public Color32 Paint;

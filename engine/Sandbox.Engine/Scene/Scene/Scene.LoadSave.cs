@@ -90,6 +90,8 @@ public partial class Scene : GameObject
 			NavMesh.Reset();
 			_navMeshLoadPending = !IsEditor && !options.ShowLoadingScreen;
 
+			Lightmap = null;
+
 			if ( HasPhysicsWorld )
 			{
 				var worldBody = _physicsWorld.Body;
@@ -268,6 +270,8 @@ public partial class Scene : GameObject
 		ProcessDeletes();
 		Clear();
 
+		Lightmap = null;
+
 		if ( node.TryGetPropertyValue( "Properties", out var props ) )
 		{
 			DeserializeProperties( props.AsObject() );
@@ -314,6 +318,8 @@ public partial class Scene : GameObject
 
 		if ( this is not PrefabScene )
 		{
+			if ( Lightmap is not null ) jso.Add( "Lightmap", Json.SerializeAsObject( Lightmap ) );
+
 			var serializedSystems = SerializeGameObjectSystems();
 			if ( serializedSystems is not null )
 			{
@@ -426,6 +432,16 @@ public partial class Scene : GameObject
 		if ( !isSystemScene )
 		{
 			NavMesh.Deserialize( data["NavMesh"] as JsonObject );
+
+			// A scene loaded on top of a baked one keeps that bake unless it brings its own
+			if ( data["Lightmap"] is JsonObject lightmap && (Lightmap?.Textures is null || lightmap["Textures"] is not null) )
+			{
+				// Older scenes could store fractional probe spacing.
+				if ( lightmap[nameof( BakedLightmap.ProbeSpacing )] is JsonValue spacing && !spacing.TryGetValue<int>( out _ ) )
+					lightmap[nameof( BakedLightmap.ProbeSpacing )] = Convert.ToInt32( Json.FromNode<float>( spacing ) );
+
+				Json.DeserializeToObject( Lightmap = new BakedLightmap( this ), lightmap );
+			}
 		}
 	}
 

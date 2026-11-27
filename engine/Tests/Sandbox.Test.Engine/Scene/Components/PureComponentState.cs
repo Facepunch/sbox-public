@@ -588,9 +588,9 @@ public class PureComponentStateTest : SceneTest
 	}
 
 	/// <summary>
-	/// VolumetricFogController carries no [Property] members at all - its
-	/// GlobalScale defaults to 1 but is deliberately not part of the serialized
-	/// component, and having it enabled in a ticking scene is inert.
+	/// VolumetricFogController's GlobalScale defaults to 1 but is deliberately
+	/// not part of the serialized component, only its baked fog texture is, and
+	/// having it enabled in a ticking scene is inert.
 	/// </summary>
 	[TestMethod]
 	public void VolumetricFogControllerStateNotSerialized()
@@ -608,7 +608,6 @@ public class PureComponentStateTest : SceneTest
 
 		var json = (JsonObject)controller.Serialize();
 		Assert.IsFalse( json.ContainsKey( "GlobalScale" ) );
-		Assert.IsFalse( json.ContainsKey( "BakedFogTexture" ) );
 
 		for ( int i = 0; i < 10; i++ ) scene.GameTick();
 

@@ -248,6 +248,8 @@ public partial class Scene : GameObject
 		NavMesh?.Dispose();
 		NavMesh = default;
 
+		Lightmap = null;
+
 		RenderAttributes.Clear();
 
 		DisposeListeners();

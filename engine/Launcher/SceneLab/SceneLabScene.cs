@@ -320,6 +320,7 @@ internal sealed record SceneLabScene
 		new() { Name = "Light Modulation Baked Sun", Group = "Effects", Game = () => LightModulatorScenes.Sun( 0 ), ValidateGame = LightModulatorScenes.ValidateSun },
 		new() { Name = "Light Modulation Dynamic Sun", Group = "Effects", Game = () => LightModulatorScenes.Sun( -1 ), ValidateGame = LightModulatorScenes.ValidateSun },
 		new() { Name = "Light Modulation Gallery", Group = "Effects", Game = LightModulatorScenes.Gallery, ChangeGame = LightModulatorScenes.ChangeGallery, Isolated = true },
+		new() { Name = "Lightmap", Group = "Lights", Game = LightmapScenes.Room, ChangeGame = LightmapScenes.Clear },
 		new() { Name = "Debug Overlay", Group = "GameObject", Game = GameScenes.DebugOverlay, ChangeGame = GameScenes.ChangeDebugOverlay, Frame = GameScenes.DrawDebugOverlay },
 		new() { Name = "Terrain and Clutter", Group = "GameObject", Game = TerrainScenes.TerrainAndClutter, ChangeGame = TerrainScenes.ChangeTerrainAndClutter, Ready = TerrainScenes.ClutterReady },
 		new() { Name = "Terrain Ambient Occlusion", Group = "GameObject", Game = TerrainScenes.TerrainAmbientOcclusion, ChangeGame = TerrainScenes.ChangeTerrainAndClutter, Ready = TerrainScenes.ClutterReady, Isolated = true },

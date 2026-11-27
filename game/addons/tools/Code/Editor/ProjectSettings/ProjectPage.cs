@@ -178,9 +178,9 @@ internal sealed class ProjectPage : ProjectSettingsWindow.Category
 		BodyLayout.Add( cs );
 
 		//
-		// Game targeting extension
+		// Maps and addons can run in a target game.
 		//
-		if ( project.Config.Type == "addon" )
+		if ( project.Config.Type is "addon" or "map" )
 		{
 			if ( project.Config.TryGetMeta<string>( "ParentPackage", out var value ) )
 			{

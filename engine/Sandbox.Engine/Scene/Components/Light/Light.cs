@@ -56,7 +56,7 @@ public abstract partial class Light : Component, IColorProvider, ExecuteInEditor
 			if ( value is < -1 or > 254 ) throw new ArgumentOutOfRangeException( nameof( value ) );
 			if ( field == value ) return;
 			field = value;
-			if ( _sceneObject.IsValid() ) _sceneObject.SetBakedLightIndex( value, MixedShadows );
+			UpdateBakedLightIndex();
 		}
 	} = -1;
 
@@ -72,9 +72,15 @@ public abstract partial class Light : Component, IColorProvider, ExecuteInEditor
 		{
 			if ( field == value ) return;
 			field = value;
-			if ( _sceneObject.IsValid() && BakeLightIndex >= 0 )
-				_sceneObject.SetBakedLightIndex( BakeLightIndex, value );
+			if ( BakeLightIndex >= 0 )
+				UpdateBakedLightIndex();
 		}
+	}
+
+	internal void UpdateBakedLightIndex()
+	{
+		if ( _sceneObject.IsValid() )
+			_sceneObject.SetBakedLightIndex( Scene.Lightmap?.PreviewEnabled == false ? -1 : BakeLightIndex, MixedShadows );
 	}
 
 	/// <summary>
@@ -443,7 +449,7 @@ public abstract partial class Light : Component, IColorProvider, ExecuteInEditor
 				legacy.ApplyTo( _sceneObject.lightNative );
 
 			if ( BakeLightIndex >= 0 )
-				_sceneObject.SetBakedLightIndex( BakeLightIndex, MixedShadows );
+				UpdateBakedLightIndex();
 
 			OnTransformChanged();
 			OnTagsChanged();

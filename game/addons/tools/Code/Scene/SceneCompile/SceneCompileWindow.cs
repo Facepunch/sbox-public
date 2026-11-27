@@ -28,7 +28,6 @@ internal sealed partial class SceneCompileWindow : Panel
 	readonly PanelButton clean;
 	readonly PanelButton clear;
 	readonly Sandbox.UI.TabPanel tabs;
-	readonly Sandbox.UI.Tab diagnosticsTab;
 	readonly Sandbox.UI.Tab compileTab;
 	readonly SceneCompileResults results;
 	readonly HashSet<string> excluded = new();
@@ -40,23 +39,18 @@ internal sealed partial class SceneCompileWindow : Panel
 	bool actionsEnabled;
 	Scene scene;
 
-	[Event( "scene.compile.show-report" )]
-	internal static void ShowReport( string page ) => Open( showResults: true );
-
-	internal static void Open( bool showResults = false )
+	internal static void Open()
 	{
 		SceneCompileSession.Current.Refresh();
 		var existing = PanelWindow.All.SelectMany( w => w.Root.Children ).OfType<SceneCompileWindow>().FirstOrDefault();
 		if ( existing is not null )
 		{
-			if ( showResults ) existing.tabs.TabBar.SelectTab( existing.diagnosticsTab );
 			existing.window.Focus();
 			return;
 		}
 
 		var window = new PanelWindow( "Scene Compiler", new Vector2( 840, 530 ) ) { MinSize = new Vector2( 640, 420 ) };
-		var panel = new SceneCompileWindow( window ) { Parent = window.Root };
-		if ( showResults ) panel.tabs.TabBar.SelectTab( panel.diagnosticsTab );
+		_ = new SceneCompileWindow( window ) { Parent = window.Root };
 		window.MoveToCenter();
 		window.Focus();
 	}
@@ -91,7 +85,7 @@ internal sealed partial class SceneCompileWindow : Panel
 
 		results = new SceneCompileResults();
 		results.AddClass( "diagnostics" );
-		diagnosticsTab = tabs.AddTab( "Diagnostics", results );
+		tabs.AddTab( "Diagnostics", results );
 		progress = AddChild<PanelProgressBar>();
 		status = AddChild<Sandbox.UI.StatusBar>();
 		status.AddClass( "footer" );
