@@ -176,8 +176,7 @@ public static class OfflineShaders
 		Path.GetRelativePath( folder, file ).Split( Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar ).SkipLast( 1 ).Any( d => d.StartsWith( '.' ) || d.Equals( "obj", StringComparison.OrdinalIgnoreCase ) );
 
 	/// <summary>The Slang sources under a folder: every <c>.slang</c>, and every <c>.shader</c> that's Slang by content (<see cref="ShaderFormat"/>).</summary>
-	static IEnumerable<string> SlangSources( string folder ) =>
-		Directory.GetFiles( folder, "*.slang", SearchOption.AllDirectories ).Concat( Directory.GetFiles( folder, "*.shader", SearchOption.AllDirectories ).Where( ShaderFormat.IsSlangSourceFile ) );
+	internal static IEnumerable<string> SlangSources( string folder ) => ShaderFormat.SlangSources( folder, SearchOption.AllDirectories );
 
 	/// <summary>
 	/// The Slang sources <see cref="CompileAll"/> compiles, each with where its offline compile goes (null: beside it): every
@@ -190,7 +189,7 @@ public static class OfflineShaders
 		var roots = ContentFiles.FindGame().Roots;
 		var library = Path.Combine( shaders, "sbox" ) + Path.DirectorySeparatorChar;
 		var sources = roots.Select( r => Path.Combine( r, "shaders" ) ).Prepend( shaders ).Distinct( StringComparer.OrdinalIgnoreCase ).Where( Directory.Exists )
-			.SelectMany( f => Directory.GetFiles( f, "*.slang", SearchOption.AllDirectories ).Concat( Directory.GetFiles( f, "*.shader", SearchOption.AllDirectories ).Where( ShaderFormat.IsSlangSourceFile ) ) )
+			.SelectMany( SlangSources )
 			.Where( f => !Path.GetFullPath( f ).StartsWith( library, StringComparison.OrdinalIgnoreCase ) )
 			.Select( f => (Source: f, Output: (string)null) )
 			.ToList();

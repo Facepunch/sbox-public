@@ -101,7 +101,8 @@ internal sealed partial class MapWorld : IDisposable
 
 		// A package's own Slang shaders, compiled as it mounts
 		var packageShaders = Path.Combine( folder, "shaders" );
-		if ( Directory.Exists( packageShaders ) && Directory.EnumerateFiles( packageShaders, "*.slang*" ).Any() ) _ = Backend.Surfaces.Mount( packageShaders, Path.GetFileName( folder ) );
+		if ( Directory.Exists( packageShaders ) && Directory.EnumerateFiles( packageShaders ).Any( f => Sandbox.ShaderCompiler.ShaderFormat.IsSlangSourcePath( f ) || Sandbox.ShaderCompiler.ShaderFormat.IsSlangCompiledPath( f ) ) )
+			_ = Backend.Surfaces.Mount( packageShaders, Path.GetFileName( folder ) );
 
 		previousHost = RenderHost.Current;
 		RenderHost.Current = new LabBackendRenderHost( Backend );

@@ -3,8 +3,9 @@ using System.IO;
 namespace Sandbox;
 
 /// <summary>
-/// A game's own shader sources (<c>shaders/rock.slang</c> and what it imports, with the offline compile the editor made
-/// beside it, <c>rock.slang_c</c>), found on disk for Borealis.Gpu (<see cref="Borealis.Source2.ContentFiles.ResolveSource"/>).
+/// A game's own shader sources (<c>shaders/rock.slang</c>, or a <c>rock.shader</c> that's Slang by content, and what it
+/// imports, with the offline compile the editor made beside it, <c>rock.slang_c</c> or <c>rock.shader_c</c>), found on
+/// disk for Borealis.Gpu (<see cref="Borealis.Source2.ContentFiles.ResolveSource"/>).
 /// A local project's are where they are. A package's are in the download cache, each named by its hash, so the folder
 /// they're in is laid out once by name under <c>.source2/gamesources</c>: there an import finds its file, and the compiler
 /// the offline compile beside its source.
@@ -13,6 +14,14 @@ internal sealed partial class BorealisGpuRenderBackend
 {
 	static readonly string[] SourceExtensions = [".slang", ".slangh", ".slang_c", ".hlsl"];
 	static readonly Dictionary<string, string> laidOut = new( StringComparer.OrdinalIgnoreCase );
+
+	/// <summary>A <c>.shader</c> or <c>.shader_c</c>: Slang or vfx, told by content (<see cref="IsSlangShader"/>).</summary>
+	static bool IsShaderFile( string name ) =>
+		name.EndsWith( ".shader", StringComparison.OrdinalIgnoreCase ) || name.EndsWith( ".shader_c", StringComparison.OrdinalIgnoreCase );
+
+	/// <summary>Whether a <c>.shader</c> on disk is Slang source, or a <c>.shader_c</c> a Slang compile (<c>SLGC</c>), by content.</summary>
+	static bool IsSlangShader( string full ) =>
+		full.EndsWith( "_c", StringComparison.OrdinalIgnoreCase ) ? Sandbox.ShaderCompiler.ShaderFormat.IsSlangCompiledFile( full ) : Sandbox.ShaderCompiler.ShaderFormat.IsSlangSourceFile( full );
 
 	internal static string MountedSource( string path )
 	{
@@ -41,7 +50,7 @@ internal sealed partial class BorealisGpuRenderBackend
 	{
 		var folder = Path.GetDirectoryName( path.Replace( '\\', '/' ) )?.Replace( '\\', '/' ) ?? "";
 		var files = mount.FindFile( folder, "*", recursive: true )
-			.Where( f => SourceExtensions.Contains( Path.GetExtension( f ), StringComparer.OrdinalIgnoreCase ) )
+			.Where( f => SourceExtensions.Contains( Path.GetExtension( f ), StringComparer.OrdinalIgnoreCase ) || IsShaderFile( f ) )
 			.Select( f => (Name: f.Replace( '\\', '/' ), Full: mount.GetFullPath( $"{folder}/{f}" )) )
 			.Where( f => f.Full is not null )
 			.OrderBy( f => f.Name, StringComparer.OrdinalIgnoreCase )
@@ -59,6 +68,9 @@ internal sealed partial class BorealisGpuRenderBackend
 		{
 			var copy = Path.Combine( target, name );
 			if ( File.Exists( copy ) ) continue;
+
+			// A .shader or .shader_c is laid out only when it's Slang: told by content, read here once per new folder
+			if ( IsShaderFile( name ) && !IsSlangShader( full ) ) continue;
 			Directory.CreateDirectory( Path.GetDirectoryName( copy ) );
 			File.Copy( full, copy + ".tmp", overwrite: true );
 			File.Move( copy + ".tmp", copy, overwrite: true );

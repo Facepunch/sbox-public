@@ -10,8 +10,9 @@ namespace Sandbox.BorealisLab;
 
 /// <summary>
 /// <c>-shadergraph-parity cases [-out folder] [-validation] [-tolerance N]</c>: ShaderGraph's output before and after it
-/// emitted surfaces, drawn side by side. Each case in the folder is a pair: <c>name.shader</c>, what the graph compiled to
-/// as a VFX shader, and <c>name.slang</c>, the surface it compiles to now. The VFX shader is drawn the way a local
+/// emitted surfaces, drawn side by side. Each case in the folder is a pair: <c>name.slang</c> (or a <c>name.shader</c> that's
+/// Slang by content), the surface it compiles to now, and what the graph compiled to as a VFX shader: <c>name.shader</c>
+/// when that's VFX, else <c>name.vfx.shader</c>. The VFX shader is drawn the way a local
 /// <c>.shader</c> without vfx is, as a standalone module made by <see cref="PassConverter"/>; the surface through the
 /// surface passes. Every 2D texture both name is the rope's colour texture, every cube texture the workshop sky. Writes each picture with a diff and a line per
 /// case, and exits 1 when a case doesn't compile or its mean difference is over <c>-tolerance</c> (default 0.5).
@@ -57,10 +58,11 @@ internal static class ShaderGraphParity
 			const string sky = "materials/skybox/skybox_workshop_exr_db800dad.generated.vtex";
 			var cube = (BackendTexture)device.LoadTexture( sky );
 
-			foreach ( var file in Directory.GetFiles( cases, "*.slang" ).Order( StringComparer.Ordinal ) )
+			foreach ( var file in ShaderFormat.SlangSources( cases ).Order( StringComparer.Ordinal ) )
 			{
 				var name = Path.GetFileNameWithoutExtension( file );
 				var vfx = Path.ChangeExtension( file, ".shader" );
+				if ( !ShaderFormat.IsVfxSourceFile( vfx ) ) vfx = Path.ChangeExtension( file, ".vfx.shader" );
 				var surfaceText = File.ReadAllText( file );
 
 				// The surface: every material texture the rope's colour, every cube the sky

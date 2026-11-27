@@ -22,9 +22,11 @@ internal static class GameSlangShaders
 	/// <summary>The asset folders of the active projects (the game and its libraries).</summary>
 	static IEnumerable<string> Folders() => Project.All.Where( p => p.Active && p.HasAssetsPath() ).Select( p => Path.GetFullPath( p.GetAssetsPath() ) ).Distinct( StringComparer.OrdinalIgnoreCase );
 
-	/// <summary>Whether <paramref name="file"/> is Slang source (<c>.slang</c> or <c>.slangh</c>), not an offline compile.</summary>
-	internal static bool IsSource( string file ) =>
-		file.EndsWith( ".slang", StringComparison.OrdinalIgnoreCase ) || file.EndsWith( ".slangh", StringComparison.OrdinalIgnoreCase );
+	/// <summary>
+	/// Whether the file at <paramref name="file"/> is Slang source (<c>.slang</c>, <c>.slangh</c>, or a <c>.shader</c> that's
+	/// Slang by content: <see cref="ShaderFormat"/>), not an offline compile.
+	/// </summary>
+	internal static bool IsSource( string file ) => ShaderFormat.IsSlangSourcePath( file );
 
 	/// <summary>
 	/// A content file changed: when it's a project's Slang source, compile that project's Slang again (what didn't change is
@@ -32,9 +34,12 @@ internal static class GameSlangShaders
 	/// </summary>
 	internal static void Changed( string filename )
 	{
-		if ( !IsSource( filename ) ) return;
+		// A .shader is told by content, so by its file once it's known to be a project's
+		var shader = filename.EndsWith( ".shader", StringComparison.OrdinalIgnoreCase );
+		if ( !shader && !IsSource( filename ) ) return;
 		var full = FileSystem.Content.GetFullPath( filename );
 		if ( full is null || !Folders().Any( f => Path.GetFullPath( full ).StartsWith( f + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase ) ) ) return;
+		if ( shader && !ShaderFormat.IsSlangSourceFile( full ) ) return;
 
 		if ( running is { IsCompleted: false } )
 		{
@@ -107,7 +112,7 @@ internal static class GameSlangShaders
 		if ( !Directory.Exists( folder ) ) yield break;
 		foreach ( var file in Directory.EnumerateFiles( folder, "*", SearchOption.AllDirectories ) )
 		{
-			if ( !IsSource( file ) && !file.EndsWith( ".slang" + SlangOutput.Suffix, StringComparison.OrdinalIgnoreCase ) ) continue;
+			if ( !IsSource( file ) && !ShaderFormat.IsSlangCompiledPath( file ) ) continue;
 			yield return (file, Path.GetRelativePath( folder, file ).Replace( '\\', '/' ));
 		}
 	}

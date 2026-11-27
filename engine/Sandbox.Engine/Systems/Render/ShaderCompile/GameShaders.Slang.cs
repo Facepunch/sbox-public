@@ -98,8 +98,12 @@ internal static partial class GameShaders
 			var name = file.Replace( '\\', '/' );
 			var path = folder.Length > 0 ? $"{folder}/{name}" : name;
 			if ( string.Equals( path, relativePath, StringComparison.OrdinalIgnoreCase ) ) continue;
-			if ( !name.EndsWith( ".slang", StringComparison.OrdinalIgnoreCase ) && !name.EndsWith( ".slangh", StringComparison.OrdinalIgnoreCase ) ) continue;
-			siblings.Add( (name, fileSystem.ReadAllBytes( path ).ToArray()) );
+			// A .shader beside it is Slang or vfx, told by content: only a Slang one can be imported
+			var shader = name.EndsWith( ".shader", StringComparison.OrdinalIgnoreCase );
+			if ( !shader && !name.EndsWith( ".slang", StringComparison.OrdinalIgnoreCase ) && !name.EndsWith( ".slangh", StringComparison.OrdinalIgnoreCase ) ) continue;
+			var data = fileSystem.ReadAllBytes( path ).ToArray();
+			if ( shader && !IsSlang( System.Text.Encoding.UTF8.GetString( data ) ) ) continue;
+			siblings.Add( (name, data) );
 		}
 
 		return siblings;
