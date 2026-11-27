@@ -279,7 +279,7 @@ public sealed partial class GraphCompiler
 		sb.Append( $"// {type}: a surface ShaderGraph generated from its graph. Edit the graph, not this file: saving the graph writes it again.\n" );
 		sb.Append( Comment( Graph.Description ) );
 		sb.Append( "import sbox.surface;\n" );
-		sb.Append( "#include \"procedural.hlsl\"\n" );
+		sb.Append( "#include \"sbox/procedural.slangh\"\n" );
 
 		// Functions, once each, then samplers
 		var functions = new StringBuilder();

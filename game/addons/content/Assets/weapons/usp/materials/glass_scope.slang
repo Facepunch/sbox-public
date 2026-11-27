@@ -38,7 +38,7 @@ public struct GlassScope : ICompositeSurface, IShadowSurface
 	[InputWith( "RedDot", "Sight Dot,10/10", "Srgb; _color; Default3( 0.0, 0.0, 0.0 )" ), InputWith( "RedDot2", "Sight Dot,10/10", "Srgb; _color; Default3( 0.0, 0.0, 0.0 )" ),
 		InputWith( "RedDot3", "Sight Dot,10/10", "Srgb; _color; Default3( 0.0, 0.0, 0.0 )" ), Pack( "R: RedDot Linear; G: RedDot2 Linear; B: RedDot3 Linear", "BC7" )] Texture2D RedDot;
 
-	/// common/BRDF.hlsl's CalcBRDFReflectionFactor: the environment's reflected share from the BRDF lookup.
+	/// sbox/brdf.slangh's CalcBRDFReflectionFactor: the environment's reflected share from the BRDF lookup.
 	static float3 ReflectionFactor( float nDotV, float roughness, float3 specular )
 	{
 		float2 terms = ScopeBrdfLookup.SampleLevel( ScopeTrilinearClamp, float2( nDotV, roughness ), 0.0 ).rg;

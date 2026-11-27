@@ -59,12 +59,12 @@ struct IrisTissue
 
 float Square( float x ) { return x * x; }
 
-// 1 / 289 whatever the modulus, as procedural.hlsl's SIMPLEX_MOD
+// 1 / 289 whatever the modulus, as sbox/procedural.slangh's SIMPLEX_MOD
 float2 SimplexMod( float2 x, float m ) { return x - floor( x * 0.0034602076124567 ) * m; }
 float3 SimplexMod( float3 x, float m ) { return x - floor( x * 0.0034602076124567 ) * m; }
 float3 SimplexPermute( float3 x ) { return SimplexMod( x * x * 34.0 + x, 289.0 ); }
 
-/// procedural.hlsl's Simplex2D.
+/// sbox/procedural.slangh's Simplex2D.
 float Simplex2D( float2 uv )
 {
 	const float4 constants = float4( 0.2113248654, 0.36602540378, -0.5773502692, 0.0243902439 );

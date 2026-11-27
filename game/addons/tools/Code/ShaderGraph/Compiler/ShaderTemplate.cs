@@ -16,23 +16,23 @@ public static class ShaderTemplate
 Mode( Forward );
 Mode( Depth );
 
-#include ""common/features.hlsl""
+#include ""sbox/common_features.slangh""
 
 {1}
-#include ""common/shared.hlsl""
-#include ""procedural.hlsl""
+#include ""sbox/shared.slangh""
+#include ""sbox/procedural.slangh""
 
 #define S_UV2 1
 
 struct VertexInput
 {{
-	#include ""common/vertexinput.hlsl""
+	#include ""sbox/common_vertex_input.slangh""
 	float4 vColor : COLOR0 < Semantic( Color ); >;
 }};
 
 struct PixelInput
 {{
-	#include ""common/pixelinput.hlsl""
+	#include ""sbox/common_pixel_input.slangh""
 	float3 vPositionOs : TEXCOORD14;
 	float3 vNormalOs : TEXCOORD15;
 	float4 vTangentUOs_flTangentVSign : TANGENT	< Semantic( TangentU_SignV ); >;
@@ -44,7 +44,7 @@ struct PixelInput
 }};
 
 #if ( PROGRAM == VFX_PROGRAM_VS )
-#include ""common/vertex.hlsl""
+#include ""sbox/vertex.slangh""
 {5}{2}{3}
 [shader( ""vertex"" )] PixelInput MainVs( VertexInput v )
 {{
@@ -53,7 +53,7 @@ struct PixelInput
 #endif // VS
 
 #if ( PROGRAM == VFX_PROGRAM_PS )
-#include ""common/pixel.hlsl""
+#include ""sbox/pixel.slangh""
 {6}{7}{8}
 [shader( ""pixel"" )] float4 MainPs( PixelInput i ) : SV_Target0
 {{
@@ -63,7 +63,7 @@ struct PixelInput
 #endif // PS
 ";
 
-	/// <summary>A lit surface's material before the graph's values: common/pixel.hlsl's defaults, the normal in tangent space.</summary>
+	/// <summary>A lit surface's material before the graph's values: sbox/pixel_material.slangh's defaults, the normal in tangent space.</summary>
 	public static string MaterialInit => @"Material m = Material.Init( i );
 m.Albedo = float3( 1, 1, 1 );
 m.Normal = float3( 0, 0, 1 );
@@ -88,7 +88,7 @@ m.Normal = TransformNormal( m.Normal, i.Normal, i.TangentU, i.TangentV );
 ";
 
 	/// <summary>
-	/// The scene's depth for a surface's Depth and Linear Depth nodes, as common/classes/Depth.hlsl reads it: the depth chain's
+	/// The scene's depth for a surface's Depth and Linear Depth nodes, as sbox/classes/depth.slangh reads it: the depth chain's
 	/// top mip at a pixel position, normalized by the viewport's depth range, then to view space at the view's centre.
 	/// </summary>
 	public static string SurfaceDepth => @"

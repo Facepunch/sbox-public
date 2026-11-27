@@ -872,8 +872,8 @@ public sealed partial class GraphCompiler
 		var pixelIncludes = new HashSet<string>( PixelIncludes );
 		if ( Graph.Domain == ShaderDomain.PostProcess )
 		{
-			pixelIncludes.Add( "postprocess/functions.hlsl" );
-			pixelIncludes.Add( "postprocess/common.hlsl" );
+			pixelIncludes.Add( "sbox/post/functions.slangh" );
+			pixelIncludes.Add( "sbox/post/common.slangh" );
 		}
 		foreach ( var include in pixelIncludes )
 		{
