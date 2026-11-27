@@ -7,7 +7,7 @@
 Mode( Default );
 Mode( Forward );
 
-    #include "postprocess/shared.hlsl"
+    #include "sbox/post/shared.slangh"
 
 struct VertexInput
 {
@@ -46,7 +46,7 @@ struct PixelInput
 #endif // VS
 
 #if ( PROGRAM == VFX_PROGRAM_PS )
-    #include "common/classes/Depth.hlsl"
+    #include "sbox/classes/depth.slangh"
 
     #define DOF_PASS_COMBINE_BACK 0
     #define DOF_PASS_COMBINE_FRONT 1

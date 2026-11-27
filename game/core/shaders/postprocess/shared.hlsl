@@ -1,8 +1,2 @@
-#ifndef PP_SHARED_H
-#define PP_SHARED_H
-
-#include "system.fxc"
-#include "common.fxc"
-#include "sbox_shared.fxc"
-
-#endif
+// postprocess/shared.hlsl: the include name old .shader code uses, kept for it; what it declares is ours, in sbox/post/shared.slangh.
+#include "sbox/post/shared.slangh"

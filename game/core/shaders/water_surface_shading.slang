@@ -14,7 +14,7 @@ import sbox.surface;
 [Engine( "ClipmapBaseCell" ), Default( 4 )] float ClipmapBaseCell;
 
 // The waves, shared with water.shader (they read the plane above)
-#include "water/waves.hlsl"
+#include "sbox/water/waves.slangh"
 
 // The waves' fade by footprint in the pixel stage, for the surface (a macro doesn't reach an importer)
 static const float2 WaterPixelFade = WATER_PIXEL_FADE;

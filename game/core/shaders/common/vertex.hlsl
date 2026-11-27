@@ -1,14 +1,2 @@
-#ifndef COMMON_VERTEX_H
-#define COMMON_VERTEX_H
-
-//Includes -----------------------------------------------------------------------------------------------------------------------------------------------
-#include "sbox_vertex.fxc"
-
-//-------------------------------------------------------------------------------------------------------------------------------------------------------------
-//
-// Common Vertex Shader Combos And Attributes
-//
-//-------------------------------------------------------------------------------------------------------------------------------------------------------------
-DynamicCombo( D_BAKED_LIGHTING_FROM_LIGHTMAP, 0..1, Sys( ALL ) ); // For Lightmap UV Vertex Input
-
-#endif // COMMON_VERTEX_H
+// common/vertex.hlsl: the include name old .shader code uses, kept for it; what it declares is ours, in sbox/vertex.slangh.
+#include "sbox/vertex.slangh"

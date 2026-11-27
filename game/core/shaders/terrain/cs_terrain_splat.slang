@@ -11,7 +11,7 @@ Mode( Default );
 #if ( PROGRAM == VFX_PROGRAM_CS )
 	#include "sbox/view.slangh"
     
-    #include "terrain/TerrainSplatFormat.hlsl"
+    #include "sbox/terrain/splat_format.slangh"
 
 	RWTexture2D<float> ControlMap < Attribute( "ControlMap" ); >;
 	

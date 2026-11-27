@@ -7,12 +7,12 @@ Mode( Forward );
 
 #if ( PROGRAM == VFX_PROGRAM_CS )
     #include "sbox/view.slangh"
-    #include "postprocess/shared.hlsl"
+    #include "sbox/post/shared.slangh"
 
     #include "sbox/classes/depth.slangh"
 
     #include "common\thirdparty\XeGTAO.h"
-    #include "common\thirdparty\XeGTAO.hlsl"
+    #include "sbox/thirdparty/xe_gtao.slangh"
 
     //-------------------------------------------------------------------------------------------------------------------
     //

@@ -6,7 +6,7 @@
 
 Mode( Default );
 
-#include "common/shared.hlsl"
+#include "sbox/shared.slangh"
 
 #if ( PROGRAM == VFX_PROGRAM_CS )
 struct Point

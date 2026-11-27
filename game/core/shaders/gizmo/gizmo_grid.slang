@@ -17,7 +17,7 @@ Mode( Depth );
     // Opt out of stupid shit
     #define CUSTOM_MATERIAL_INPUTS
 
-    #include "common/shared.hlsl"
+    #include "sbox/shared.slangh"
 	
 	// axis
 	#define AXIS_XY 0

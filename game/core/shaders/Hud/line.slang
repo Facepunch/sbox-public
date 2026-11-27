@@ -4,7 +4,7 @@
 
 Mode( Forward );
 
-#include "Hud/sdf.hlsl"
+#include "sbox/hud/sdf.slangh"
 
 struct VS_INPUT
 {
@@ -90,8 +90,8 @@ float4 ScreenToClipPos( float2 positionSs )
 #endif // VS
 
 #if ( PROGRAM == VFX_PROGRAM_PS )
-#include "common/blendmode.hlsl"
-#include "ui/gamma.hlsl"
+#include "sbox/blend_mode.slangh"
+#include "sbox/ui/gamma.slangh"
 
 RenderState( DepthEnable, true );
 RenderState( DepthWriteEnable, false );

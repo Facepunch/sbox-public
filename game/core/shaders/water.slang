@@ -5,13 +5,13 @@
 
 Mode( Forward );
 Mode( Depth, S_MODE_DEPTH );
-#include "common/features.hlsl"
+#include "sbox/common_features.slangh"
 Feature( F_CAUSTICS, 0..1, "Caustics" );
 
 // The material editor's view of the shader (docs/reference/borealis-standalone-modules.md, "Material editor")
 #if MATERIAL_INPUTS
 // The material editor's FEATURES lines, as the .shader declared them
-#include "common/features.hlsl"
+#include "sbox/common_features.slangh"
 // The material's parameters as the material editor shows them, with the feature states that use them
 float CausticsBrightness < Default( 1 ); Range( 0, 16 ); UiGroup( "Caustics,40/20" ); >;
 float CausticsContrast < Default( 1 ); Range( 0, 8 ); UiGroup( "Caustics,40/30" ); >;
@@ -37,7 +37,7 @@ BoolAttribute( NeedsLightProbe, false );
 #endif
 
 #define S_SPECULAR 1
-#include "common/shared.hlsl"
+#include "sbox/shared.slangh"
 float3 Origin < Attribute( "Origin" ); >;
 float3 AxisX < Attribute( "AxisX" ); Default3( 1, 0, 0 ); >;
 float3 AxisY < Attribute( "AxisY" ); Default3( 0, 1, 0 ); >;
@@ -48,7 +48,7 @@ float3 GridCamera < Attribute( "GridCamera" ); >;
 int ClipmapLevels < Attribute( "ClipmapLevels" ); Default( 0 ); >;
 int ClipmapCells < Attribute( "ClipmapCells" ); Default( 64 ); >;
 float ClipmapBaseCell < Attribute( "ClipmapBaseCell" ); Default( 4 ); >;
-#include "water/waves.hlsl"
+#include "sbox/water/waves.slangh"
 
 // The wave mesh is a clipmap: square levels of ClipmapCells cells around the camera, each with twice
 // the cell size of the one inside it. A level snaps to twice its own cell size, so its vertices stay
@@ -100,12 +100,12 @@ float WaterGridFootprintAtPoint( float2 point )
 
 struct VertexInput
 {
-	#include "common/vertexinput.hlsl"
+	#include "sbox/common_vertex_input.slangh"
 };
 
 struct PixelInput
 {
-	#include "common/pixelinput.hlsl"
+	#include "sbox/common_pixel_input.slangh"
 	float2 waterPoint : TEXCOORD8;
 	float2 waterRest : TEXCOORD9;
 	// One on the underside mesh: the same surface with its winding flipped, drawn for the faces looking down.
@@ -113,7 +113,7 @@ struct PixelInput
 };
 
 #if ( PROGRAM == VFX_PROGRAM_VS )
-#include "common/vertex.hlsl"
+#include "sbox/vertex.slangh"
 
 [shader( "vertex" )] PixelInput MainVs( VertexInput i )
 {
@@ -196,9 +196,9 @@ struct PixelInput
 // Use per-pixel DDGI/IBL instead of choosing one baked probe volume for the entire surface.
 #define NEEDS_LIGHT_PROBE false
 #define S_DIFFUSE_TWO_SIDED 1
-#include "common/pixel.hlsl"
-#include "water/detail.hlsl"
-#include "water/overlays.hlsl"
+#include "sbox/pixel.slangh"
+#include "sbox/water/detail.slangh"
+#include "sbox/water/overlays.slangh"
 
 // A WaterBody draws the surface twice, the underside with flipped winding, so each draw shows one side.
 RenderState( CullMode, BACK );
@@ -255,7 +255,7 @@ FloatAttribute( CausticsBrightness, CausticsBrightness );
 FloatAttribute( CausticsContrast, CausticsContrast );
 FloatAttribute( CausticsScale, CausticsScale );
 
-#include "water/lighting.hlsl"
+#include "sbox/water/lighting.slangh"
 #include "sbox/forward_normals.slangh"
 
 // Exact dielectric Fresnel for the surface viewed from air.

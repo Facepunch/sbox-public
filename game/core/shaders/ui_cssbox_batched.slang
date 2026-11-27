@@ -7,7 +7,7 @@
 Mode( Default );
 Mode( Forward );
 
-#include "ui/features.hlsl"
+#include "sbox/ui/features.slangh"
 
 #include "sbox/system.slangh"
 #include "sbox/view.slangh"
@@ -22,7 +22,7 @@ DynamicCombo( D_PAINTER_SCREENPIXELS, 0..1, Sys( ALL ) );
 float g_flUIPanelOpacity < Attribute( "UIPanelOpacity" ); Default( 1 ); >;
 
 #define BoxInstanceData TextInstanceData
-#include "ui/text.hlsl"
+#include "sbox/ui/text.slangh"
 #undef BoxInstanceData
 StructuredBuffer<TextInstanceData> PainterTextInstances < Attribute( "PainterTextInstances" ); >;
 
@@ -172,7 +172,7 @@ struct VS_INPUT
 #if ( PROGRAM == VFX_PROGRAM_VS )
 #include "sbox/math.slangh"
 #include "sbox/instancing.slangh"
-#include "ui/gamma.hlsl"
+#include "sbox/ui/gamma.slangh"
 
 #define EPSILON 0.000001
 
@@ -203,7 +203,7 @@ float2 QuadPosition( uint i )
 	return float2( ( i == 1 || i == 2 ) ? 1 : 0, i >= 2 ? 1 : 0 );
 }
 
-#include "ui/path_quad.hlsl"
+#include "sbox/ui/path_quad.slangh"
 
 // Quads are the box grown by a pixel so the outer half of the edge antialiasing has somewhere to land
 #define BOX_BLOAT 1.0
@@ -278,12 +278,12 @@ float2 QuadPosition( uint i )
 #endif // VS
 
 #if ( PROGRAM == VFX_PROGRAM_PS )
-#include "common/blendmode.hlsl"
-#include "ui/gamma.hlsl"
-#include "ui/rounded_rect.hlsl"
-#include "ui/batched_scissor.hlsl"
-#include "ui/shape_path.hlsl"
-#include "ui/lighting.hlsl"
+#include "sbox/blend_mode.slangh"
+#include "sbox/ui/gamma.slangh"
+#include "sbox/ui/rounded_rect.slangh"
+#include "sbox/ui/batched_scissor.slangh"
+#include "sbox/ui/shape_path.slangh"
+#include "sbox/ui/lighting.slangh"
 
 // Scissor is now per-instance via ScissorIndex into ScissorBuffer (defined in COMMON)
 
@@ -359,7 +359,7 @@ float4 BorderSideColor( float2 pos, float2 boxSize, float4 borderWidth, float4 c
 	return lerp( c1, c2, t );
 }
 
-#include "ui/border_style.hlsl"
+#include "sbox/ui/border_style.slangh"
 
 float4 AddImageBorder( float2 texCoord, float2 boxSize, float4 borderWidth, int borderImageIndex, int borderImageSamplerIndex, int borderImageMode, int borderImageFill, float4 borderImageSlice )
 {

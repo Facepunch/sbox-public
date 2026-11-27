@@ -5,7 +5,7 @@
 Mode( Default );
 
 #if ( PROGRAM == VFX_PROGRAM_CS )
-    #include "postprocess/shared.hlsl"
+    #include "sbox/post/shared.slangh"
 
     DynamicCombo( D_PASS, 0..3, Sys( All ) );
     DynamicCombo( D_SRGB, 0..1, Sys( All ) );
@@ -55,7 +55,7 @@ Mode( Default );
     #define g_workingDeferredBlendLocationList Cmaa2BlendLocations
     #define g_workingDeferredBlendItemList Cmaa2BlendItems
 
-    #include "common/thirdparty/cmaa2.hlsl"
+    #include "sbox/thirdparty/cmaa2.slangh"
 
     #if D_PASS == 0
         [numthreads( 16, 16, 1 )]

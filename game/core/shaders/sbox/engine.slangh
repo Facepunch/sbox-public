@@ -6,11 +6,11 @@
 #define SBOX_ENGINE_SLANGH
 
 #include "sbox/system.slangh"
-#include "common/shared.hlsl"
+#include "sbox/shared.slangh"
 
 struct VertexInput
 {
-	#include "common/vertexinput.hlsl"
+	#include "sbox/common_vertex_input.slangh"
 
 	// The mesh's vertex colour, for vertex surfaces (foliage); stripped from shaders that don't read it
 	float4 vSurfaceColor : COLOR0;
@@ -18,13 +18,13 @@ struct VertexInput
 
 struct PixelInput
 {
-	#include "common/pixelinput.hlsl"
+	#include "sbox/common_pixel_input.slangh"
 };
 
 #if ( PROGRAM == VFX_PROGRAM_VS )
-	#include "common/vertex.hlsl"
+	#include "sbox/vertex.slangh"
 #else
-	#include "common/pixel.hlsl"
+	#include "sbox/pixel.slangh"
 #endif
 
 // vfx's annotation macros would swallow a [Material] struct's [Default( ... )] and [Range( ... )] attributes: new-tier

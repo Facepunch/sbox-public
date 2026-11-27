@@ -1,0 +1,8 @@
+#ifndef PP_SHARED_H
+#define PP_SHARED_H
+
+#include "sbox/system.slangh"
+#include "sbox/view.slangh"
+#include "sbox/shared_names.slangh"
+
+#endif

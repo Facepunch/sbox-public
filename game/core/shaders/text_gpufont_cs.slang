@@ -17,7 +17,7 @@ Mode( Default );
 #include "sbox/system.slangh"
 
 #if ( PROGRAM == VFX_PROGRAM_CS )
-#include "ui/text.hlsl"
+#include "sbox/ui/text.slangh"
 
 RWTexture2D<float4> TextOutput < Attribute( "TextOutput" ); >;
 

@@ -22,7 +22,7 @@
 Mode( Default );
 Mode( Forward );
 
-    #include "postprocess/shared.hlsl"
+    #include "sbox/post/shared.slangh"
 
 struct VertexInput
 {
@@ -58,8 +58,8 @@ struct PixelInput
 #endif // VS
 
 #if ( PROGRAM == VFX_PROGRAM_PS )
-    #include "postprocess/common.hlsl"
-    #include "procedural.hlsl"
+    #include "sbox/post/common.slangh"
+    #include "sbox/procedural.slangh"
 
     // The effects drawn (UberPostEffect in PostProcessLayers.Uber.cs)
     #define UBER_SHARPEN        1

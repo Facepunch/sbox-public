@@ -17,10 +17,10 @@
 Mode( Forward );
 Mode( Default );
 
-#include "common/features.hlsl"
+#include "sbox/common_features.slangh"
 
 #define USE_CUSTOM_SHADING
-#include "common/shared.hlsl"
+#include "sbox/shared.slangh"
 
 DynamicCombo( D_COMPOSITE, 0..1, Sys( ALL ) );
 
@@ -40,12 +40,12 @@ struct PixelInput
 
 struct VertexInput
 {
-	#include "common/vertexinput.hlsl"
+	#include "sbox/common_vertex_input.slangh"
 };
 
 struct PixelInput
 {
-	#include "common/pixelinput.hlsl"
+	#include "sbox/common_pixel_input.slangh"
 };
 
 #endif
@@ -61,7 +61,7 @@ struct PixelInput
 	return o;
 }
 #else
-#include "common/vertex.hlsl"
+#include "sbox/vertex.slangh"
 
 [shader( "vertex" )] PixelInput MainVs( VertexInput i )
 {

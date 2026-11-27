@@ -1,0 +1,16 @@
+#ifndef COMMON_SHARED_H
+#define COMMON_SHARED_H
+
+#include "sbox/system.slangh" // This should always be the first include in COMMON
+#include "sbox/shared_names.slangh"
+#include "sbox/samplers.slangh"
+#include "sbox/classes.slangh"
+
+//
+// Helpers
+//
+
+static const float ToDegrees = 57.2958f;
+static const float ToRadians = 0.0174533f;
+
+#endif

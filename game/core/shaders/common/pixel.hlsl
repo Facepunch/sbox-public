@@ -1,20 +1,2 @@
-#ifndef COMMON_PIXEL_H
-#define COMMON_PIXEL_H
-
-//-----------------------------------------------------------------------------
-//
-// Combos
-//
-//-----------------------------------------------------------------------------
-
-//-----------------------------------------------------------------------------
-//
-// Includes
-//
-//-----------------------------------------------------------------------------
-#include "sbox_pixel.fxc"
-
-#include "common/material.hlsl"
-#include "common/shadingmodel.hlsl"
-
-#endif // COMMON_PIXEL_H
+// common/pixel.hlsl: the include name old .shader code uses, kept for it; what it declares is ours, in sbox/pixel.slangh.
+#include "sbox/pixel.slangh"

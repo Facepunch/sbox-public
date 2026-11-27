@@ -10,29 +10,29 @@ Mode( Default );
 Mode( Forward );
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
-#include "ui/features.hlsl"
+#include "sbox/ui/features.slangh"
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
-#include "ui/common.hlsl"
+#include "sbox/ui/common.slangh"
 
 DynamicCombo( D_PANEL_OPACITY, 0..1, Sys( ALL ) );
 DynamicCombo( D_PAINTER_SCREENPIXELS, 0..1, Sys( ALL ) );
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 #if ( PROGRAM == VFX_PROGRAM_VS )
-#include "ui/vertex.hlsl"  
+#include "sbox/ui/vertex.slangh"  
 
 #endif // VS
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 #if ( PROGRAM == VFX_PROGRAM_PS )
-	#include "ui/batched_scissor.hlsl"
+	#include "sbox/ui/batched_scissor.slangh"
 	int PainterScissorIndex < Default( -1 ); Attribute( "PainterScissorIndex" ); >;
 	float g_flUIPanelOpacity < Attribute( "UIPanelOpacity" ); Default( 1 ); >;
 
 	#define UI_SKIP_LIGHTING
-	#include "ui/pixel.hlsl"
-	#include "ui/rounded_rect.hlsl"
+	#include "sbox/ui/pixel.slangh"
+	#include "sbox/ui/rounded_rect.slangh"
 
 	float4 CornerRadius < Attribute( "BorderRadius" ); >;	// horizontal radii ( top-left, top-right, bottom-left, bottom-right )
 	float4 CornerRadiusV < Attribute( "BorderRadiusV" ); >;	// vertical radii, same order

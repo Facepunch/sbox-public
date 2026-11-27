@@ -6,13 +6,13 @@
 
 Mode( Forward );
 Mode( Depth, S_MODE_DEPTH );
-#include "common/features.hlsl"
+#include "sbox/common_features.slangh"
 
 #if ( D_OPAQUE == 0 )
 	#define S_TRANSLUCENT 1
 #endif
 
-#include "common/shared.hlsl"
+#include "sbox/shared.slangh"
 
 enum SpriteFlags
 {
@@ -71,7 +71,7 @@ SpriteData GetSprite( uint index )
 
 struct PixelInput
 {
-	#include "common/pixelinput.hlsl"
+	#include "sbox/common_pixel_input.slangh"
 	uint instanceID : TEXCOORD8;
 	float4 uv : TEXCOORD9;
 	float uvBlend : TEXCOORD10;
@@ -267,9 +267,9 @@ float4x4 BuildBillboardMatrix(float3 position, float3 rotation, float3 scale, fl
 
 #if ( PROGRAM == VFX_PROGRAM_PS )
 #define CUSTOM_MATERIAL_INPUTS 1
-#include "common/pixel.hlsl"
+#include "sbox/pixel.slangh"
 #if ( D_TEXT )
-	#include "ui/text.hlsl"
+	#include "sbox/ui/text.slangh"
 #endif
 
 #if ( D_BLEND == 1 ) 

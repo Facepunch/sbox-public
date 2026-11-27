@@ -19,7 +19,7 @@ BoolAttribute( NeedsLightProbe, true );
 // I don't want this, none of the features work for this shader.
 #include "sbox/features.slangh"
 
-#include "common/shared.hlsl"
+#include "sbox/shared.slangh"
 
 struct VertexInput
 {
@@ -32,7 +32,7 @@ struct VertexInput
 
 struct PixelInput
 {
-	#include "common/pixelinput.hlsl"
+	#include "sbox/common_pixel_input.slangh"
 };
 
 #if ( PROGRAM == VFX_PROGRAM_VS )
@@ -58,8 +58,8 @@ struct PixelInput
 #endif // VS
 
 #if ( PROGRAM == VFX_PROGRAM_PS )
-#include "common/pixel.hlsl"
-#include "common/blendmode.hlsl"
+#include "sbox/pixel.slangh"
+#include "sbox/blend_mode.slangh"
 
 DynamicCombo( D_OPAQUE, 0..1, Sys( ALL ) );
 DynamicCombo( D_WIREFRAME, 0..1, Sys( ALL ) );

@@ -30,7 +30,7 @@ Mode( Default );
 #define HARD_SHADOW_SAMPLES 4
 #define FADE_OUT_SAMPLES 8
 
-#include "common/thirdparty/bend_sss_gpu.hlsl"
+#include "sbox/thirdparty/bend_sss_gpu.slangh"
 
 // Pipeline depth chain, typed as <float> so it matches DispatchParameters.DepthTexture (reads .r).
 Texture2D<float> g_tSssDepth < Attribute( "DepthChainDownsample" ); SrgbRead( false ); >;

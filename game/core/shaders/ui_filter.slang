@@ -10,25 +10,25 @@ Mode( Default );
 Mode( Forward );
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
-#include "ui/features.hlsl"
+#include "sbox/ui/features.slangh"
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
-#include "ui/common.hlsl"
+#include "sbox/ui/common.slangh"
 #include "sbox/classes/bindless.slangh"
 DynamicCombo( D_PAINTER_SCREENPIXELS, 0..1, Sys( ALL ) );
 
   
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 #if ( PROGRAM == VFX_PROGRAM_VS )
-#include "ui/vertex.hlsl"  
+#include "sbox/ui/vertex.slangh"  
 
 #endif // VS
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 #if ( PROGRAM == VFX_PROGRAM_PS )
-#include "ui/pixel.hlsl"
-#include "ui/blur.hlsl"
-#include "ui/batched_scissor.hlsl"
+#include "sbox/ui/pixel.slangh"
+#include "sbox/ui/blur.slangh"
+#include "sbox/ui/batched_scissor.slangh"
 
 int PainterScissorIndex < Default( -1 ); Attribute( "PainterScissorIndex" ); >;
 

@@ -5,8 +5,8 @@
 Mode( Default );
 
 #if ( PROGRAM == VFX_PROGRAM_CS )
-    #include "postprocess/shared.hlsl"
-    #include "common/classes/Depth.hlsl"
+    #include "sbox/post/shared.slangh"
+    #include "sbox/classes/depth.slangh"
 
     //--------------------------------------------------------------------------------------
     // Depth of field - hexagonal bokeh blur at half resolution.

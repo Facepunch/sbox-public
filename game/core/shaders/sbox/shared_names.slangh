@@ -1,0 +1,44 @@
+// Internal functions for COMMON
+
+#ifndef SBOX_SHARED_H
+#define SBOX_SHARED_H
+
+#include "sbox/shading.slangh"
+
+//-----------------------------------------------------------------------------
+//
+// Connect our new data types to the existing ones for compatibility
+//
+//-----------------------------------------------------------------------------
+#define VertexInput VS_INPUT
+#define PixelInput PS_INPUT
+#define GeometryInput GS_INPUT
+#define HullInput HS_INPUT
+#define DomainInput DS_INPUT
+
+#define VertexOutput VS_OUTPUT
+#define PixelOutput PS_OUTPUT
+#define GeometryOutput GS_OUTPUT
+#define HullOutput HS_OUTPUT
+#define DomainOutput DS_OUTPUT
+
+#define VertexShader VS
+#define PixelShader PS
+#define GeometryShader GS
+#define HullShader HS
+#define DomainShader DS
+
+#define VertexShaderFunction VS_FUNC
+#define PixelShaderFunction PS_FUNC
+
+#define CombinerInput FinalCombinerInput_t
+
+//-----------------------------------------------------------------------------
+//
+// Set these up for convenience
+//
+//-----------------------------------------------------------------------------
+
+
+
+#endif // SBOX_SHARED_H

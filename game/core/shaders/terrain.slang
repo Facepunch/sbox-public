@@ -27,15 +27,15 @@ BoolAttribute( NeedsLightProbe, true );
     // Opt out of stupid shitCould
     #define CUSTOM_MATERIAL_INPUTS
 
-    #include "common/shared.hlsl"
+    #include "sbox/shared.slangh"
     #include "sbox/classes/bindless.slangh"
     // TerrainCommon.hlsl and TerrainSplat.hlsl include each other, which Slang refuses as a cyclic include: the splat
     // helpers come after the rest (nothing after TerrainCommon's own include of them uses them)
     #define TERRAIN_SPLAT_H
-    #include "terrain/TerrainCommon.hlsl"
+    #include "sbox/terrain/common.slangh"
     #undef TERRAIN_SPLAT_H
     #if PROGRAM == VFX_PROGRAM_PS
-        #include "terrain/TerrainSplat.hlsl"
+        #include "sbox/terrain/splat.slangh"
     #endif
 
     int g_nDebugView < Attribute( "DebugView" ); >;
@@ -74,7 +74,7 @@ struct PixelInput
 };
 
 #if ( PROGRAM == VFX_PROGRAM_VS )
-    #include "terrain/TerrainClipmap.hlsl"
+    #include "sbox/terrain/clipmap.slangh"
 
 	[shader( "vertex" )] PixelInput MainVs( VertexInput i )
 	{
@@ -181,9 +181,9 @@ struct PixelInput
 #if ( PROGRAM == VFX_PROGRAM_PS )
     DynamicCombo( D_GRID, 0..1, Sys( ALL ) );
 
-    #include "common/pixel.hlsl"
-    #include "common/material.hlsl"
-    #include "common/shadingmodel.hlsl"
+    #include "sbox/pixel.slangh"
+    #include "sbox/pixel_material.slangh"
+    #include "sbox/shading_model.slangh"
 
 	//
 	// Main

@@ -15,10 +15,10 @@ int2 TerrainTextureSize( Texture2D texture, int level )
 }
 
 // The control map's packing and the clipmap's meshlet placement, shared with terrain.shader
-#include "terrain/TerrainSplatFormat.hlsl"
+#include "sbox/terrain/splat_format.slangh"
 #define g_sBilinearClamp TerrainBilinearClamp
 #define TextureDimensions2D TerrainTextureSize
-#include "terrain/TerrainClipmap.hlsl"
+#include "sbox/terrain/clipmap.slangh"
 #undef g_sBilinearClamp
 #undef TextureDimensions2D
 

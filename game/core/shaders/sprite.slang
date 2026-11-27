@@ -6,9 +6,9 @@
 
 Mode( Forward );
 Mode( Depth );
-#include "common/features.hlsl"
+#include "sbox/common_features.slangh"
 
-#include "common/shared.hlsl"
+#include "sbox/shared.slangh"
 
 struct VS_INPUT
 {
@@ -43,7 +43,7 @@ float4 g_SheetData < Attribute( "BaseTextureSheet" ); >;
 
 #if ( PROGRAM == VFX_PROGRAM_PS )
 #define CUSTOM_MATERIAL_INPUTS 1
-#include "common/pixel.hlsl"
+#include "sbox/pixel.slangh"
 
 DynamicCombo( D_BLEND, 0..1, Sys( ALL ) );
 DynamicCombo( D_OPAQUE, 0..1, Sys( ALL ) );

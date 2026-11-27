@@ -1,0 +1,28 @@
+// Internal functions for VS
+
+#ifndef SBOX_VERTEX_H
+#define SBOX_VERTEX_H
+
+#include "sbox/vertex_processing.slangh"
+
+//-----------------------------------------------------------------------------
+//
+// Pass the common vertex data to the vertex shader
+//
+//-----------------------------------------------------------------------------
+PixelInput ProcessVertex( VertexInput i )
+{
+    return VS_CommonProcessing( i );
+}
+
+//-----------------------------------------------------------------------------
+//
+// Append here if we do any postprocessing
+//
+//-----------------------------------------------------------------------------
+PixelInput FinalizeVertex( PixelInput i )
+{
+    return VS_CommonProcessing_Post( i );
+}
+
+#endif // SBOX_VERTEX_H

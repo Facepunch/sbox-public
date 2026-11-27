@@ -6,7 +6,7 @@
 Mode( Default );
 Mode( Forward );
 
-#include "postprocess/shared.hlsl"
+#include "sbox/post/shared.slangh"
 
 struct VertexInput
 {
@@ -35,8 +35,8 @@ struct PixelInput
 #endif // VS
 
 #if ( PROGRAM == VFX_PROGRAM_PS )
-#include "postprocess/common.hlsl"
-#include "water/particles.hlsl"
+#include "sbox/post/common.slangh"
+#include "sbox/water/particles.slangh"
 
 Texture2D ColorBuffer < Attribute( "ColorBuffer" ); SrgbRead( true ); >;
 float Strength < Attribute( "Strength" ); Default( 1 ); >;

@@ -6,7 +6,7 @@
 
 Mode( Default );
 
-    #include "postprocess/shared.hlsl"
+    #include "sbox/post/shared.slangh"
 
     // 0 = Prefilter (threshold + karis average), 1 = Downsample, 2 = Upsample (accumulate)
     DynamicCombo( D_STAGE, 0..2, Sys( ALL ) );

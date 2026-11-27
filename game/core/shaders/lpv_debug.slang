@@ -6,7 +6,7 @@
 
 Mode( Forward );
 Mode( ToolsShadingComplexity, "tools_shading_complexity.shader" );
-    #include "common/features.hlsl"
+    #include "sbox/common_features.slangh"
 
     // Probe markers are absent from the scene depth used to calculate SSAO.
     #define AMBIENTOCCLUSION_HLSL
@@ -18,25 +18,25 @@ Mode( ToolsShadingComplexity, "tools_shading_complexity.shader" );
         }
     };
 
-    #include "common/shared.hlsl"
+    #include "sbox/shared.slangh"
 
     float flSampleSize < Attribute( "SampleSize" ); Default( 4 ); >;
     bool bProbeSpheres < Attribute( "ProbeSpheres" ); Default( 1 ); >;
 
 struct VertexInput
 {
-    #include "common/vertexinput.hlsl"
+    #include "sbox/common_vertex_input.slangh"
     float3 vProbePositionWs : TEXCOORD12 < Semantic( Uvwx ); >;
 };
 
 struct PixelInput
 {
-    #include "common/pixelinput.hlsl"
+    #include "sbox/common_pixel_input.slangh"
     nointerpolation float3 vProbePositionWs : TEXCOORD13;
 };
 
 #if ( PROGRAM == VFX_PROGRAM_VS )
-    #include "common/vertex.hlsl"
+    #include "sbox/vertex.slangh"
 
     [shader( "vertex" )] PixelInput MainVs( VertexInput i )
     {
@@ -61,7 +61,7 @@ struct PixelInput
 #endif // VS
 
 #if ( PROGRAM == VFX_PROGRAM_PS )
-    #include "common/pixel.hlsl"
+    #include "sbox/pixel.slangh"
 
     RenderState( CullMode, NONE );
     RenderState( BlendEnable, true );

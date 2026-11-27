@@ -8,7 +8,7 @@
 Mode( Forward );
     #include "sbox/features.slangh"
 
-#include "common/shared.hlsl"
+#include "sbox/shared.slangh"
 
 struct VertexInput
 {

@@ -2,7 +2,7 @@
 #define DECALS_HLSL
 
 #include "sbox/light_binner.slangh"
-#include "common/material.hlsl"
+#include "sbox/pixel_material.slangh"
 #include "sbox/utils/normal.slangh"
 #include "sbox/classes/sheet.slangh"
 #include "sbox/classes/bindless.slangh"

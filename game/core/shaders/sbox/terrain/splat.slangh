@@ -1,0 +1,294 @@
+//
+// Helper functions for terrain splat sampling, you shouldn't really use these directly,
+// if you just want a terrain splat then use Terrain::Sample( ... )
+//
+
+#ifndef TERRAIN_SPLAT_H
+#define TERRAIN_SPLAT_H
+
+// TerrainCommon.hlsl includes this file too: skipped when it's the one including us, as Slang refuses a cyclic include
+#ifndef TERRAIN_H
+#include "sbox/terrain/common.slangh"
+#endif
+
+#if PROGRAM == VFX_PROGRAM_PS
+
+    void Terrain_AddToStack( uint materialIndex, float weight, inout uint outIndices[4], inout float outWeights[4], inout int count )
+    {
+        for ( int i = 0; i < count; i++ )
+        {
+            if ( outIndices[i] == materialIndex )
+            {
+                outWeights[i] += weight;
+                return;
+            }
+        }
+
+        if ( weight <= 0.001 ) return;
+
+        if ( count < 4 )
+        {
+            outIndices[count] = materialIndex;
+            outWeights[count] = weight;
+            count++;
+        }
+    }
+
+    //
+    // Samples neighbors material stack(4 material and weight). Pick the top-4 heaviest material
+    //
+    void Terrain_MergeBilinearStacks(
+        uint indices00[4], float weights00[4], float blend00,
+        uint indices10[4], float weights10[4], float blend10,
+        uint indices01[4], float weights01[4], float blend01,
+        uint indices11[4], float weights11[4], float blend11,
+        out uint outIndices[4], out float outWeights[4] )
+    {
+        for( int i = 0; i < 4; i++ )
+        {
+            outIndices[i] = 0;
+            outWeights[i] = 0;
+        }
+        int count = 0;
+
+        // 0, 0
+        Terrain_AddToStack( indices00[0], weights00[0] * blend00, outIndices, outWeights, count );
+        Terrain_AddToStack( indices00[1], weights00[1] * blend00, outIndices, outWeights, count );
+        Terrain_AddToStack( indices00[2], weights00[2] * blend00, outIndices, outWeights, count );
+        Terrain_AddToStack( indices00[3], weights00[3] * blend00, outIndices, outWeights, count );
+
+        // 1, 0
+        Terrain_AddToStack( indices10[0], weights10[0] * blend10, outIndices, outWeights, count );
+        Terrain_AddToStack( indices10[1], weights10[1] * blend10, outIndices, outWeights, count );
+        Terrain_AddToStack( indices10[2], weights10[2] * blend10, outIndices, outWeights, count );
+        Terrain_AddToStack( indices10[3], weights10[3] * blend10, outIndices, outWeights, count );
+
+        // 0, 1
+        Terrain_AddToStack( indices01[0], weights01[0] * blend01, outIndices, outWeights, count );
+        Terrain_AddToStack( indices01[1], weights01[1] * blend01, outIndices, outWeights, count );
+        Terrain_AddToStack( indices01[2], weights01[2] * blend01, outIndices, outWeights, count );
+        Terrain_AddToStack( indices01[3], weights01[3] * blend01, outIndices, outWeights, count );
+
+        // 1, 1
+        Terrain_AddToStack( indices11[0], weights11[0] * blend11, outIndices, outWeights, count );
+        Terrain_AddToStack( indices11[1], weights11[1] * blend11, outIndices, outWeights, count );
+        Terrain_AddToStack( indices11[2], weights11[2] * blend11, outIndices, outWeights, count );
+        Terrain_AddToStack( indices11[3], weights11[3] * blend11, outIndices, outWeights, count );
+
+        // Sort by material index to maintain consistent blend order
+        for ( int pass = 0; pass < 3; pass++ )
+        {
+            for ( int i = 0; i < 3 - pass; i++ )
+            {
+                if ( outIndices[i] > outIndices[i + 1] && outWeights[i + 1] > 0 )
+                {
+                    uint tempIndex = outIndices[i];
+                    outIndices[i] = outIndices[i + 1];
+                    outIndices[i + 1] = tempIndex;
+
+                    float tempWeight = outWeights[i];
+                    outWeights[i] = outWeights[i + 1];
+                    outWeights[i + 1] = tempWeight;
+                }
+            }
+        }
+    }
+
+    Material Terrain_SampleLayer( TerrainMaterial mat, float2 tileUV, float2 tileDdx, float2 tileDdy, out float height )
+    {
+        float2 layerUV = tileUV * mat.uvscale;
+        float2x2 uvAngle = float2x2( 1, 0, 0, 1 );
+
+        if ( mat.HasFlag( TerrainFlags::NoTile ) )
+            layerUV = Terrain_SampleSeamlessUV( layerUV, uvAngle );
+
+        SamplerState materialSampler = Bindless::GetSampler( Terrain::Get().samplerindex );
+        float2 layerDdx = mul( uvAngle, tileDdx * mat.uvscale );
+        float2 layerDdy = mul( uvAngle, tileDdy * mat.uvscale );
+
+        float4 bcr = Bindless::GetTexture2D( mat.bcr_texid ).SampleGrad( materialSampler, layerUV, layerDdx, layerDdy );
+        float4 nho = Bindless::GetTexture2D( mat.nho_texid ).SampleGrad( materialSampler, layerUV, layerDdx, layerDdy );
+
+        float3 normal = ComputeNormalFromRGTexture( nho.rg );
+        normal.xy = mul( uvAngle, normal.xy );
+        normal.xz *= mat.normalstrength;
+        normal = normalize( normal );
+
+        Material o = Material::Init();
+        o.Albedo = SrgbGammaToLinear( bcr.rgb );
+        o.Normal = normal;
+        o.Roughness = bcr.a;
+        o.AmbientOcclusion = nho.a;
+        o.Metalness = mat.metalness;
+
+        height = nho.b * mat.heightstrength;
+        return o;
+    }
+
+    Material Terrain_SplatCompact( float2 localPos, float2 localDdx, float2 localDdy, CompactTerrainMaterial material )
+    {
+        float2 tileUV  = localPos  / TERRAIN_SPLAT_TILE_UNITS;
+        float2 tileDdx = localDdx / TERRAIN_SPLAT_TILE_UNITS;
+        float2 tileDdy = localDdy / TERRAIN_SPLAT_TILE_UNITS;
+
+        float baseHeight;
+        Material base = Terrain_SampleLayer( g_TerrainMaterials[material.BaseTextureId], tileUV, tileDdx, tileDdy, baseHeight );
+
+        float blend = material.GetNormalizedBlend();
+
+        if ( blend <= 0.0f && !Terrain::Get().HeightBlending )
+            return base;
+
+        float overlayHeight;
+        Material overlay = Terrain_SampleLayer( g_TerrainMaterials[material.OverlayTextureId], tileUV, tileDdx, tileDdy, overlayHeight );
+
+        if ( Terrain::Get().HeightBlending )
+            blend = Terrain_HeightBlendWeight( blend, baseHeight, overlayHeight, Terrain::Get().HeightBlendSharpness );
+
+        Material o = base;
+        o.Albedo = lerp( base.Albedo, overlay.Albedo, blend );
+        o.Normal = lerp( base.Normal, overlay.Normal, blend );
+        o.Roughness = lerp( base.Roughness, overlay.Roughness, blend );
+        o.AmbientOcclusion = lerp( base.AmbientOcclusion, overlay.AmbientOcclusion, blend );
+        o.Metalness = lerp( base.Metalness, overlay.Metalness, blend );
+        return o;
+    }
+
+    // Each layer is sampled and added in turn, so only the running blend stays live, not every layer's samples. The height
+    // blend weighs a layer by 2^((height - average) * sharpness) over the sum of those weights; the average's factor is the
+    // same for every layer and cancels, so a layer's height measured against the first layer's gives the same blend.
+    Material Terrain_SplatStack( float2 localPos, float2 localDdx, float2 localDdy, uint indices[4], float weights[4] )
+    {
+        float2 tileUV  = localPos  / TERRAIN_SPLAT_TILE_UNITS;
+        float2 tileDdx = localDdx / TERRAIN_SPLAT_TILE_UNITS;
+        float2 tileDdy = localDdy / TERRAIN_SPLAT_TILE_UNITS;
+
+        float sum = weights[0] + weights[1] + weights[2] + weights[3];
+        float scale = sum > 0 && sum != 1.0 ? 1.0 / sum : 1.0;
+        float sharpness = Terrain::Get().HeightBlendSharpness * 10.0; // Scale for better control
+
+        // The slots rotate through .x rather than being indexed by the counter, which would put them in scratch memory
+        uint4 slotIndices = uint4( indices[0], indices[1], indices[2], indices[3] );
+        float4 slotWeights = float4( weights[0], weights[1], weights[2], weights[3] );
+
+        Material o = Material::Init();
+        o.Albedo = 0;
+        o.Normal = 0;
+        o.Roughness = 0;
+        o.AmbientOcclusion = 0;
+        o.Metalness = 0;
+
+        float total = 0.0;
+        float reference = 0.0;
+        bool first = true;
+        [loop]
+        for ( int i = 0; i < 4; i++, slotIndices = slotIndices.yzwx, slotWeights = slotWeights.yzwx )
+        {
+            float weight = slotWeights.x * scale;
+            if ( slotWeights.x <= 0.0f )
+                continue;
+
+            float height;
+            Material layer = Terrain_SampleLayer( g_TerrainMaterials[ slotIndices.x ], tileUV, tileDdx, tileDdy, height );
+            if ( Terrain::Get().HeightBlending )
+            {
+                float sharpHeight = height * sharpness;
+                if ( first )
+                    reference = sharpHeight;
+                first = false;
+                weight *= exp2( sharpHeight - reference );
+                total += weight;
+            }
+
+            o.Albedo += layer.Albedo * weight;
+            o.Normal += layer.Normal * weight;
+            o.Roughness += layer.Roughness * weight;
+            o.AmbientOcclusion += layer.AmbientOcclusion * weight;
+            o.Metalness += layer.Metalness * weight;
+        }
+
+        if ( Terrain::Get().HeightBlending && total > 0.0 )
+        {
+            float inverse = 1.0 / total;
+            o.Albedo *= inverse;
+            o.Normal *= inverse;
+            o.Roughness *= inverse;
+            o.AmbientOcclusion *= inverse;
+            o.Metalness *= inverse;
+        }
+
+        return o;
+    }
+
+    Material Terrain_SplatControlQuad( float2 localPos, float2 localDdx, float2 localDdy, uint4 controlBits, float4 quadWeights )
+    {
+        CompactTerrainMaterial mat00 = CompactTerrainMaterial::Decode( controlBits.x );
+        CompactTerrainMaterial mat10 = CompactTerrainMaterial::Decode( controlBits.y );
+        CompactTerrainMaterial mat01 = CompactTerrainMaterial::Decode( controlBits.z );
+        CompactTerrainMaterial mat11 = CompactTerrainMaterial::Decode( controlBits.w );
+
+        if ( controlBits.x == controlBits.y && controlBits.x == controlBits.z && controlBits.x == controlBits.w )
+        {
+            return Terrain_SplatCompact( localPos, localDdx, localDdy, mat00 );
+        }
+
+        if ( Terrain::Get().HeightBlending )
+        {
+            // A corner whose texel matches an earlier one's is blended once, with the weights summed; one corner at a
+            // time, so only the running blend stays live
+            float4 cornerWeights = quadWeights;
+            if ( controlBits.y == controlBits.x ) { cornerWeights.x += cornerWeights.y; cornerWeights.y = 0.0; }
+            if ( controlBits.z == controlBits.x ) { cornerWeights.x += cornerWeights.z; cornerWeights.z = 0.0; }
+            else if ( controlBits.z == controlBits.y ) { cornerWeights.y += cornerWeights.z; cornerWeights.z = 0.0; }
+            if ( controlBits.w == controlBits.x ) { cornerWeights.x += cornerWeights.w; cornerWeights.w = 0.0; }
+            else if ( controlBits.w == controlBits.y ) { cornerWeights.y += cornerWeights.w; cornerWeights.w = 0.0; }
+            else if ( controlBits.w == controlBits.z ) { cornerWeights.z += cornerWeights.w; cornerWeights.w = 0.0; }
+
+            Material o = Material::Init();
+            o.Albedo = 0;
+            o.Normal = 0;
+            o.Roughness = 0;
+            o.AmbientOcclusion = 0;
+            o.Metalness = 0;
+
+            // The corners rotate through .x rather than being indexed by the counter, which would put them in scratch memory
+            uint4 cornerBits = controlBits;
+            [loop]
+            for ( int c = 0; c < 4; c++, cornerBits = cornerBits.yzwx, cornerWeights = cornerWeights.yzwx )
+            {
+                if ( cornerWeights.x <= 0.0 )
+                    continue;
+
+                Material corner = Terrain_SplatCompact( localPos, localDdx, localDdy, CompactTerrainMaterial::Decode( cornerBits.x ) );
+                o.Albedo += corner.Albedo * cornerWeights.x;
+                o.Normal += corner.Normal * cornerWeights.x;
+                o.Roughness += corner.Roughness * cornerWeights.x;
+                o.AmbientOcclusion += corner.AmbientOcclusion * cornerWeights.x;
+                o.Metalness += corner.Metalness * cornerWeights.x;
+            }
+
+            return o;
+        }
+
+        uint indices00[4], indices10[4], indices01[4], indices11[4];
+        float weights00[4], weights10[4], weights01[4], weights11[4];
+        mat00.GetMaterialStack( indices00, weights00 );
+        mat10.GetMaterialStack( indices10, weights10 );
+        mat01.GetMaterialStack( indices01, weights01 );
+        mat11.GetMaterialStack( indices11, weights11 );
+
+        uint mergedIndices[4];
+        float mergedWeights[4];
+        Terrain_MergeBilinearStacks(
+            indices00, weights00, quadWeights.x,
+            indices10, weights10, quadWeights.y,
+            indices01, weights01, quadWeights.z,
+            indices11, weights11, quadWeights.w,
+            mergedIndices, mergedWeights );
+
+        return Terrain_SplatStack( localPos, localDdx, localDdy, mergedIndices, mergedWeights );
+    }
+
+#endif // PROGRAM == VFX_PROGRAM_PS
+
+#endif // TERRAIN_SPLAT_H

@@ -5,7 +5,7 @@
 Mode( Default );
 
 #if ( PROGRAM == VFX_PROGRAM_CS )
-    #include "postprocess/shared.hlsl"
+    #include "sbox/post/shared.slangh"
 
     Texture2DMS<float4> Subframe       < Attribute("Subframe"); >;
     RWTexture2D<float4> Accumulated    < Attribute("Accumulated"); >;

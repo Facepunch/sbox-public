@@ -10,9 +10,9 @@ Mode( Default );
 
 #if ( PROGRAM == VFX_PROGRAM_CS )
     #include "sbox/view.slangh"
-    #include "procedural.hlsl"
+    #include "sbox/procedural.slangh"
     
-    #include "terrain/TerrainSplatFormat.hlsl"
+    #include "sbox/terrain/splat_format.slangh"
 
     DynamicCombo( D_SCULPT_MODE, 0..4, Sys( ALL ) );
         #define MODE_RAISE_LOWER    0

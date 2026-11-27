@@ -6,7 +6,7 @@
 Mode( Default );
 Mode( Forward );
 
-    #include "postprocess/shared.hlsl"
+    #include "sbox/post/shared.slangh"
 
 struct VertexInput
 {
@@ -32,7 +32,7 @@ struct PixelInput
 #endif // VS
 
 #if ( PROGRAM == VFX_PROGRAM_PS )
-    #include "postprocess/common.hlsl"
+    #include "sbox/post/common.slangh"
 
     SamplerState PointClamp < Filter( POINT ); AddressU( CLAMP ); AddressV( CLAMP ); AddressW( CLAMP ); >;
     Texture2D<float4> Cmaa2Color < Attribute( "Cmaa2Color" ); SrgbRead( true ); >;
