@@ -10,7 +10,7 @@ Mode( Default );
 #include "sbox/view.slangh"
 #include "sbox/shading.slangh"
 #include "sbox/math.slangh"
-#include "common/utils/normal_transform.hlsl"
+#include "sbox/utils/normal_transform.slangh"
 #include "sbox/transform.slangh"
 
 #if ( PROGRAM == VFX_PROGRAM_CS )
@@ -29,7 +29,7 @@ uint g_nMorphTextureAtlasWidth < Attribute( "MorphTextureAtlasWidth" ); >;
 
 #include "sbox/instancing.slangh"
 #include "sbox/morph.slangh"
-#include "common/classes/Deformation.hlsl"
+#include "sbox/classes/deformation.slangh"
 
 DynamicCombo( D_MORPH, 0..1, Sys( ALL ) );
 

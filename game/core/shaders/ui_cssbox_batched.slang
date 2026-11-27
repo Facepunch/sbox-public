@@ -12,7 +12,7 @@ Mode( Forward );
 #include "sbox/system.slangh"
 #include "sbox/view.slangh"
 #include "sbox/shading.slangh"
-#include "common/Bindless.hlsl"
+#include "sbox/classes/bindless.slangh"
 
 DynamicCombo( D_WORLDPANEL, 0..1, Sys( ALL ) );
 DynamicCombo( D_NO_ZTEST, 0..1, Sys( ALL ) );

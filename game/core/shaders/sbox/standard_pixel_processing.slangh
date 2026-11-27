@@ -55,7 +55,7 @@
 #include "sbox/detail_texture.slangh"
 
 #define MINIMAL_MATERIAL
-#include "common/classes/Decals.hlsl"
+#include "sbox/classes/decals.slangh"
 
 // Color, with translucency in its alpha when translucent or alpha tested. Opaque materials name it g_tColor1 (specular
 // without a metalness texture, as older materials have) or g_tColor2; g_tColor stands for whichever it is.

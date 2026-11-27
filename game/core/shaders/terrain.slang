@@ -28,7 +28,7 @@ BoolAttribute( NeedsLightProbe, true );
     #define CUSTOM_MATERIAL_INPUTS
 
     #include "common/shared.hlsl"
-    #include "common/Bindless.hlsl"
+    #include "sbox/classes/bindless.slangh"
     // TerrainCommon.hlsl and TerrainSplat.hlsl include each other, which Slang refuses as a cyclic include: the splat
     // helpers come after the rest (nothing after TerrainCommon's own include of them uses them)
     #define TERRAIN_SPLAT_H

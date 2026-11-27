@@ -9,7 +9,7 @@ Mode( Forward );
     #include "sbox/view.slangh"
     #include "postprocess/shared.hlsl"
 
-    #include "common\classes\Depth.hlsl"
+    #include "sbox/classes/depth.slangh"
 
     #include "common\thirdparty\XeGTAO.h"
     #include "common\thirdparty\XeGTAO.hlsl"

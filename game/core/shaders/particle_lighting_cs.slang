@@ -13,8 +13,8 @@ Mode( Default );
 #include "sbox/system.slangh"
 #include "sbox/shading.slangh"
 #include "sbox/light_probe_volume.slangh"
-#include "common/lightbinner.hlsl"
-#include "common/DDGI/DDGI.hlsl"
+#include "sbox/light_binner.slangh"
+#include "sbox/ddgi.slangh"
 
 #if ( PROGRAM == VFX_PROGRAM_CS )
 #include "sbox/math.slangh"

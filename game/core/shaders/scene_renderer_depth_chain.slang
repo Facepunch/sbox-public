@@ -43,7 +43,7 @@ struct VS_OUTPUT
 #if ( PROGRAM == VFX_PROGRAM_PS )
 #include "sbox/view.slangh"
 #include "sbox/math.slangh"
-#include "common/classes/Depth.hlsl"
+#include "sbox/classes/depth.slangh"
 
 RenderState( DepthEnable, false );
 RenderState( DepthWriteEnable, false );

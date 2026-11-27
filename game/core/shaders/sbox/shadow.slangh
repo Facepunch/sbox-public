@@ -1,0 +1,9 @@
+#ifndef SHADOW_HLSL
+#define SHADOW_HLSL
+
+#include "sbox/shadows/projected_shadow.slangh"
+#include "sbox/shadows/projected_shadow_cube.slangh"
+#include "sbox/shadows/directional_light_shadow.slangh"
+#include "sbox/shadows/obsolete.slangh"
+
+#endif // SHADOW_HLSL

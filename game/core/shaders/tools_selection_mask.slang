@@ -80,7 +80,7 @@ RenderState( DepthWriteEnable, false );
 RenderState( CullMode, NONE );
 RenderState( BlendEnable, true );
 
-#include "common/classes/Depth.hlsl"
+#include "sbox/classes/depth.slangh"
 
 #if ( D_COMPOSITE )
 

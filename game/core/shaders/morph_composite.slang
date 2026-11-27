@@ -17,7 +17,7 @@ Mode( Default );
 #include "sbox/system.slangh" // This should always be the first include in COMMON
 #include "sbox/view.slangh"
 #include "sbox/math.slangh"
-#include "common/classes/Bindless.hlsl"
+#include "sbox/classes/bindless.slangh"
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 struct VS_INPUT

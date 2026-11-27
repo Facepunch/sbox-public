@@ -104,7 +104,7 @@ float4x4 g_vEyeOcclusionViewProj < Attribute("EyeOcclusionViewProj"); >;
 #if ( PROGRAM == VFX_PROGRAM_PS )
 // Includes -----------------------------------------------------------------------------------------------------------------------------------------------
 #include "sbox/final_combiner.slangh"
-#include "common/classes/Fog.hlsl"
+#include "sbox/classes/fog.slangh"
 
 // Disable this warning since our tangent frame is computed with ddx/ddy instructions, and this is somehow tripping this warning when it shouldn't.
 #pragma warning( disable : 4121 ) // warning X4121: gradient-based operations must be moved out of flow control to prevent divergence

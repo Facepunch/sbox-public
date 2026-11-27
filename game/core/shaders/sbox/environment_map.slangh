@@ -9,7 +9,7 @@
 #include "sbox/system.slangh"
 #include "sbox/math.slangh"
 #include "sbox/samplers.slangh"
-#include "common/Bindless.hlsl"
+#include "sbox/classes/bindless.slangh"
 
 /// A cube's mip count.
 float EnvMapNumLevels( TextureCube tEnvMap )

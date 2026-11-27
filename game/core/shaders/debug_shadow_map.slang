@@ -15,7 +15,7 @@ Mode( Default );
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 #include "sbox/system.slangh" // This should always be the first include in COMMON
 #include "sbox/view.slangh"
-#include "common/classes/Bindless.hlsl"
+#include "sbox/classes/bindless.slangh"
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 #if ( PROGRAM == VFX_PROGRAM_VS )

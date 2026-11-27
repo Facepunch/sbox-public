@@ -25,7 +25,7 @@ Mode( Forward );
 #if ( PROGRAM == VFX_PROGRAM_PS )
 #include "ui/pixel.hlsl"
 #include "ui/text.hlsl"
-#include "common/classes/Fog.hlsl"
+#include "sbox/classes/fog.slangh"
 
 float g_FogStrength < Attribute( "g_FogStrength" ); >;
 

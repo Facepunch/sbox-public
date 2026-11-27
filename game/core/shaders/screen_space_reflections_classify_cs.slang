@@ -22,7 +22,7 @@ DynamicCombo( D_MSAA_NORMALS, 0..1, Sys( PC ) );
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 #if ( PROGRAM == VFX_PROGRAM_CS )
     #include "sbox/math.slangh"
-    #include "common/classes/ForwardNormals.hlsl"
+    #include "sbox/classes/forward_normals.slangh"
 
     static const uint TILE_COORD_MASK = 0xFFFFu;
     static const uint TILE_COORD_SHIFT = 16u;

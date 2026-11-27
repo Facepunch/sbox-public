@@ -17,7 +17,7 @@
 #include "sbox/math.slangh"
 
 // The view environment's fog, wind and volumetric fog constants (PerViewConstantBufferVR_t's block), and names for their parts
-#include "common/ViewEnvironment.hlsl"
+#include "sbox/view_environment.slangh"
 
 #define g_flCubeFogOffset g_vCubeFog_Offset_Scale_Bias_Exponent.x
 #define g_flCubeFogScale g_vCubeFog_Offset_Scale_Bias_Exponent.y

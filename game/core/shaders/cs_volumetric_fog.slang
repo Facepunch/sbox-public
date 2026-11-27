@@ -27,9 +27,9 @@ Mode( Default );
 	#include "sbox/volumetric_fog.slangh"
 	#include "sbox/light_probe_volume.slangh"
 	
-    #include "common/lightbinner.hlsl"
-    #include "common/classes/Depth.hlsl"
-	#include "common/DDGI/DDGI.hlsl"
+    #include "sbox/light_binner.slangh"
+    #include "sbox/classes/depth.slangh"
+	#include "sbox/ddgi.slangh"
 
 	//------------------------------------------------------------------------------------------------------------------------------
 	cbuffer VolumetricFogConstantBuffer_t

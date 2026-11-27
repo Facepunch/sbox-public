@@ -44,8 +44,8 @@ struct VS_OUTPUT
 RenderState( DepthWriteEnable, false );
 RenderState( DepthEnable, false );
 
-#include "common/classes/Depth.hlsl"
-#include "common/classes/Motion.hlsl"
+#include "sbox/classes/depth.slangh"
+#include "sbox/classes/motion.slangh"
 
 [shader( "pixel" )] float4 MainPs( float4 vPositionSs : SV_Position ) : SV_Target0
 {

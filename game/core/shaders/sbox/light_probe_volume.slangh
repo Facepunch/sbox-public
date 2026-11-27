@@ -10,7 +10,7 @@
 #include "sbox/math.slangh"
 #include "sbox/ambient_cube.slangh"
 #include "sbox/view.slangh"
-#include "common/classes/Bindless.hlsl"
+#include "sbox/classes/bindless.slangh"
 
 #ifdef SURFACE_GPU_DRIVEN
 #include "sbox/record_offsets.slangh"

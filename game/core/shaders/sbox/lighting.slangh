@@ -11,17 +11,17 @@
 #include "sbox/system.slangh"
 #include "sbox/samplers.slangh"
 #include "sbox/light_probe_volume.slangh"
-#include "Shadows/ProjectedShadow.hlsl"
-#include "Shadows/Obsolete.hlsl"
-#include "common/lightbinner.hlsl"
-#include "common/classes/Bindless.hlsl"
+#include "sbox/shadows/projected_shadow.slangh"
+#include "sbox/shadows/obsolete.slangh"
+#include "sbox/light_binner.slangh"
+#include "sbox/classes/bindless.slangh"
 
 /// The view's blue noise, through the bindless set by the view environment's index.
 #define g_tBlueNoise g_bindless_Texture2D[ g_vViewLookupIndices.y ]
 
-#include "common/classes/_classes.hlsl"
-#include "common/BRDF.hlsl"
-#include "common/DDGI/DDGI.hlsl"
+#include "sbox/classes.slangh"
+#include "sbox/brdf.slangh"
+#include "sbox/ddgi.slangh"
 
 // Set when no light the baked loop reaches has a shadow map (LightBinnerFeature). A specialization constant, so the baked loop
 // leaves the local lights' shadow filters out where none has: they cost the lit shaders registers, and spills, even when they

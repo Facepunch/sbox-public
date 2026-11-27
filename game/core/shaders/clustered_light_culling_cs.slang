@@ -11,8 +11,8 @@ Mode( Default );
 
     #include "sbox/system.slangh"
     #include "sbox/shading.slangh"
-    #include "common/classes/_classes.hlsl"
-    #include "common/classes/Decals.hlsl"
+    #include "sbox/classes.slangh"
+    #include "sbox/classes/decals.slangh"
 
 #if ( PROGRAM == VFX_PROGRAM_CS )
     // A group is a 4x4x4 block of clusters: one wave64, or two wave32. Each batch of items is loaded once per

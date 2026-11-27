@@ -160,7 +160,7 @@ RenderState( DepthFunc, GREATER_EQUAL );
 #endif
 
 #if ( D_OPAQUE_FADE )
-	#include "common/classes/Bindless.hlsl"
+	#include "sbox/classes/bindless.slangh"
 	#define g_tBlueNoise g_bindless_Texture2D[ g_vViewLookupIndices.y ]
 #endif
 

@@ -22,7 +22,7 @@ Mode( Default );
 #if ( PROGRAM == VFX_PROGRAM_CS )
 #include "sbox/view.slangh"
 #include "sbox/math.slangh"
-#include "common/classes/Depth.hlsl"
+#include "sbox/classes/depth.slangh"
 
 // Compile-time configuration for the Bend header (see bend_sss_gpu.h for meaning).
 #define WAVE_SIZE 64

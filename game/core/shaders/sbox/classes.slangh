@@ -1,0 +1,17 @@
+#include "sbox/samplers.slangh" // Move me to hlsl
+#include "sbox/gbuffer.slangh"
+
+#include "sbox/classes/cluster_culling.slangh"
+#include "sbox/classes/light.slangh"
+#include "sbox/classes/bindless.slangh"
+#include "sbox/classes/sheet.slangh"
+#include "sbox/classes/depth.slangh"
+#include "sbox/classes/normals.slangh"
+#include "sbox/classes/fog.slangh"
+#include "sbox/classes/dynamic_reflections.slangh"
+#include "sbox/classes/screen_space_ambient_occlusion.slangh"
+#include "sbox/classes/screen_space_trace.slangh"
+#include "sbox/classes/ambient_light.slangh"
+#include "sbox/classes/env_map.slangh"
+#include "sbox/classes/tools_vis.slangh"
+#include "sbox/classes/math.slangh"

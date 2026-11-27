@@ -1,8 +1,2 @@
-#ifndef COMMON_CLASSES_MATH_MATH_HLSL
-#define COMMON_CLASSES_MATH_MATH_HLSL
-
-#include "common/classes/Math/Plane.hlsl"
-#include "common/classes/Math/AABB.hlsl"
-#include "common/classes/Math/Frustum.hlsl"
-
-#endif
+// common/classes/Math/_math.hlsl: the include name old .shader code uses, kept for it; what it declares is ours, in sbox/classes/math.slangh.
+#include "sbox/classes/math.slangh"

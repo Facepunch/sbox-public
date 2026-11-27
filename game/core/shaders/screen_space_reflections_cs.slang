@@ -27,10 +27,10 @@ DynamicCombo( D_MSAA_NORMALS, 0..1, Sys( PC ) );
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 #if ( PROGRAM == VFX_PROGRAM_CS )
-    #include "common/classes/Depth.hlsl"
-    #include "common/classes/ForwardNormals.hlsl"
-    #include "common/classes/ScreenSpaceTrace.hlsl"
-    #include "common/classes/Motion.hlsl"
+    #include "sbox/classes/depth.slangh"
+    #include "sbox/classes/forward_normals.slangh"
+    #include "sbox/classes/screen_space_trace.slangh"
+    #include "sbox/classes/motion.slangh"
 
     int                    PreviousFrameColorIndex < Attribute( "PreviousFrameColorIndex" ); >;
     float                  RoughnessCutoff         < Attribute( "RoughnessCutoff" ); Default( 0.5 ); >;

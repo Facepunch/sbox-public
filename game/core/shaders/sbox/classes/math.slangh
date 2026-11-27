@@ -1,0 +1,8 @@
+#ifndef COMMON_CLASSES_MATH_MATH_HLSL
+#define COMMON_CLASSES_MATH_MATH_HLSL
+
+#include "sbox/classes/math/plane.slangh"
+#include "sbox/classes/math/aabb.slangh"
+#include "sbox/classes/math/frustum.slangh"
+
+#endif

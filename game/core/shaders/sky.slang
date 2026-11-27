@@ -95,7 +95,7 @@ struct PS_INPUT
 
 #include "sbox/lighting.slangh"
 #include "sbox/volumetric_fog.slangh"
-#include "common/classes/Fog.hlsl"
+#include "sbox/classes/fog.slangh"
 
 // Combos -------------------------------------------------------------------------------------------------------------------------------------------------
 StaticCombo( S_MODE_TOOLS_SHADING_COMPLEXITY, 0..1, Sys( ALL ) );

@@ -23,8 +23,8 @@ Mode( Default );
     #include "sbox/view.slangh"
     #include "sbox/math.slangh"
 
-    #include "common/classes/Depth.hlsl"
-    #include "common/classes/Motion.hlsl"
+    #include "sbox/classes/depth.slangh"
+    #include "sbox/classes/motion.slangh"
 
     // Input textures
     Texture2D DepthMask < Attribute("RefractionDepthTexture"); > ; // Depth mask for comparison, applied from pipeline

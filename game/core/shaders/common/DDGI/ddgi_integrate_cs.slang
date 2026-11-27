@@ -15,9 +15,9 @@ Mode( Default );
 #include "sbox/view.slangh"
 #include "sbox/math.slangh"
 #include "sbox/samplers.slangh"
-#include "common/DDGI/DDGI.hlsl"
-#include "common/Bindless.hlsl"
-#include "common/classes/Depth.hlsl"
+#include "sbox/ddgi.slangh"
+#include "sbox/classes/bindless.slangh"
+#include "sbox/classes/depth.slangh"
 
 TextureCube SourceProbe < Attribute( "SourceProbe" ); >;
 TextureCube SourceDepth < Attribute( "SourceDepth" ); >;

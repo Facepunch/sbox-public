@@ -164,8 +164,8 @@ struct PS_INPUT
 #if ( PROGRAM == VFX_PROGRAM_PS )
 #include "sbox/lighting.slangh"
 #include "sbox/volumetric_fog.slangh"
-#include "common/classes/Fog.hlsl"
-#include "common/Shadow.hlsl"
+#include "sbox/classes/fog.slangh"
+#include "sbox/shadow.slangh"
 
 // Combos -------------------------------------------------------------------------------------------------------------------------------------------------
 

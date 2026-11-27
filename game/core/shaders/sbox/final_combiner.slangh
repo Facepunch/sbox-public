@@ -9,7 +9,7 @@
 // The old header's includes, in its order: shaders that include this one may use any of them
 #include "sbox/math.slangh"
 #include "sbox/encoding.slangh"
-#include "common/classes/Fog.hlsl"
+#include "sbox/classes/fog.slangh"
 #include "sbox/lighting.slangh"
 #include "sbox/volumetric_fog.slangh"
 

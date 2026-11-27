@@ -9,7 +9,7 @@
 
 // The old header's includes, in its order: shaders that include this one may use any of them
 #include "sbox/math.slangh"
-#include "common/utils/normal_transform.hlsl"
+#include "sbox/utils/normal_transform.slangh"
 #include "sbox/instancing.slangh"
 #include "sbox/vertex_decompress.slangh"
 #include "sbox/morph.slangh"
