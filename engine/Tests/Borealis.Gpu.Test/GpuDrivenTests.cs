@@ -906,7 +906,7 @@ public class GpuDrivenTests : RenderGpuTest
 
 	/// <summary>
 	/// <see cref="BackendDevice.MergedMarks"/>: the resident prepass leaves its ids for the main view's own batches
-	/// (a box moved every frame) to mark. The 3D skybox draws without visibility passes. Merged and separate marks
+	/// (a box moved every frame) to mark, in the main view and in its 3D skybox, which keeps its visibility passes. Merged and separate marks
 	/// produce the same pixels, single-sampled and multisampled, serial and on workers, and with normals from the ids.
 	/// Both worlds contain resident aggregates, a seeded field of boxes with three LODs, and a moving box.
 	/// </summary>
@@ -1007,7 +1007,7 @@ public class GpuDrivenTests : RenderGpuTest
 					TestContext.WriteLine( $"{name}: {Differences( apart, merged )}, {backend.MarksMerged - none} marks merged" );
 					Assert.AreEqual( 0, Device.ValidationErrors, $"{name}: no validation errors" );
 					Assert.IsTrue( backend.ResidentCullCalls > mergedCalls, $"{name}: calls drew from the resident cull" );
-					Assert.AreEqual( 8L, backend.MarksMerged - none, $"{name}: the main view merges one mark per frame; the skybox does not write ids" );
+					Assert.AreEqual( 8L * 2, backend.MarksMerged - none, $"{name}: the main view and the skybox each merge one mark per frame" );
 					Assert.AreEqual( 0, Different( apart, merged ), $"{name}: the same pixels" );
 				}
 			}

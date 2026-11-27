@@ -308,9 +308,8 @@ internal sealed partial class AggregateRenderFeature : RenderFeature
 	internal MeshRenderFeature Meshes { get; set; }
 
 	/// <summary>
-	/// Drawing a 3D skybox, which shows only where the main world's depth left sky: its prepass draws no ids and its forward
-	/// pass lists none. The visibility passes' fixed costs (full-screen marks, compaction over every listed triangle) would
-	/// buy almost nothing there, as early depth already rejects the fragments the main world covers.
+	/// Drawing a 3D skybox, which shows only where the main world's depth left sky: its resident meshes don't fade their LODs.
+	/// Its prepass still draws ids and its forward pass lists, which cut the skybox's own overdraw.
 	/// </summary>
 	internal bool Skybox { get; set; }
 
@@ -563,10 +562,11 @@ internal sealed partial class AggregateRenderFeature : RenderFeature
 			CameraAndThreshold = SizeCull.ForPass( view ).CameraAndThreshold,
 			Shadow = view.IsShadow,
 			View = view,
-			// Not for captures: a probe's faces would hold visibility runs for all they see, leaving the views that list none
-			Ids = depth && !view.IsShadow && !view.View.Capture && !Skybox,
+			// Not for captures: a probe's faces would hold visibility runs for all they see, leaving the views that list none. A 3D
+			// skybox keeps them: its own overdraw is what they cut, and it can fill most of a wide view (Construct's overview)
+			Ids = depth && !view.IsShadow && !view.View.Capture,
 			// Nor in a geometric debug view: its tools pass draws every triangle, not only those that own a sample
-			Visibility = !depth && !view.IsShadow && !view.View.Capture && !Skybox && ToolsViews.PassOf( view.View ) == ToolsPass.None,
+			Visibility = !depth && !view.IsShadow && !view.View.Capture && ToolsViews.PassOf( view.View ) == ToolsPass.None,
 			Plan = plan,
 			PlanVersion = planVersion,
 			PlanBatches = planBatches,
