@@ -18,7 +18,7 @@ internal sealed partial class MeshRenderFeature
 	internal bool ResidentCandidate( MeshObject obj, GpuDevice device )
 	{
 		if ( obj.Mesh is not { } model || obj.IsSkinned || obj.MorphSource is not null ) return false;
-		if ( obj.Attributes is not null || obj.AttributesFrom is not null || obj.Callbacks is not null || obj.LayerMatch != LayerMatch.None ) return false;
+		if ( obj.Attributes is not null || obj.AttributesFrom is not null || obj.Callbacks is not null || obj.LayerMatch != LayerMatch.None || obj.ShadowTwoSided ) return false;
 		if ( obj.Tint.a < 1 || !obj.DepthPrepass || !obj.DrawsOpaque || obj.Overlay || obj.Bloom || obj.Decal || obj.AfterUI || (obj.WantsFrameBufferCopy && NoGpuDrivenReaders) ) return false;
 
 		// What needs a stencil is prepared, so its view's depth gets one (MeshRenderFeature.WantsStencil)

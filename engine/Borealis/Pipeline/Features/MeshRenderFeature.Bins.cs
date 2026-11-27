@@ -32,6 +32,11 @@ internal sealed partial class MeshRenderFeature
 		public readonly CustomObject Custom;
 
 		/// <summary>
+		/// Its objects cast shadows from both faces (<see cref="MeshObject.ShadowTwoSided"/>): shadow views draw them two-sided.
+		/// </summary>
+		public readonly bool ShadowTwoSided;
+
+		/// <summary>
 		/// Its batched lists' sort key (<see cref="OpaqueKey"/>), or a custom object's.
 		/// </summary>
 		public readonly ulong Key;
@@ -85,6 +90,7 @@ internal sealed partial class MeshRenderFeature
 			Morphable = key.Morphable;
 			Tinted = !Skinned && Mesh.HasDrawTints;
 			Callbacks = key.Callbacks;
+			ShadowTwoSided = key.ShadowTwoSided;
 			Key = batchKey;
 			Joins = Callbacks is null;
 			Partial = Override is null && Mesh.BlendForLod( Lod ) == MeshBlend.Partial;
@@ -125,7 +131,7 @@ internal sealed partial class MeshRenderFeature
 			if ( !Partial || filter == DrawFilter.All ) return this;
 
 			ref var bin = ref filter == DrawFilter.Opaque ? ref opaque : ref translucent;
-			if ( bin is null || bin.Dropped ) bin = feature.BinFor( new BinKey( Mesh, Lod, Override, OverrideBlends, filter, Attributes, Lightmap, Probe, ReadsFrameBuffer, Deformed, Morphable, Callbacks ) );
+			if ( bin is null || bin.Dropped ) bin = feature.BinFor( new BinKey( Mesh, Lod, Override, OverrideBlends, filter, Attributes, Lightmap, Probe, ReadsFrameBuffer, Deformed, Morphable, Callbacks, ShadowTwoSided ) );
 			return bin;
 		}
 	}
@@ -134,15 +140,15 @@ internal sealed partial class MeshRenderFeature
 	/// What a <see cref="Bin"/> is found by: the state objects must share to instance together, compared by reference.
 	/// </summary>
 	internal readonly record struct BinKey( RenderMesh Mesh, int Lod, GpuMaterial Override, bool OverrideBlends, DrawFilter Filter, ShaderParameters Attributes,
-		ShaderParameters Lightmap, ShaderParameters Probe, bool ReadsFrameBuffer, bool Deformed, bool Morphable, DrawCallbacks Callbacks )
+		ShaderParameters Lightmap, ShaderParameters Probe, bool ReadsFrameBuffer, bool Deformed, bool Morphable, DrawCallbacks Callbacks, bool ShadowTwoSided )
 	{
 		public bool Equals( BinKey other ) => ReferenceEquals( Mesh, other.Mesh ) && Lod == other.Lod && ReferenceEquals( Override, other.Override ) && OverrideBlends == other.OverrideBlends
 			&& Filter == other.Filter && ReferenceEquals( Attributes, other.Attributes ) && ReferenceEquals( Lightmap, other.Lightmap ) && ReferenceEquals( Probe, other.Probe )
-			&& ReadsFrameBuffer == other.ReadsFrameBuffer && Deformed == other.Deformed && Morphable == other.Morphable && ReferenceEquals( Callbacks, other.Callbacks );
+			&& ReadsFrameBuffer == other.ReadsFrameBuffer && Deformed == other.Deformed && Morphable == other.Morphable && ReferenceEquals( Callbacks, other.Callbacks ) && ShadowTwoSided == other.ShadowTwoSided;
 
 		public override int GetHashCode() => HashCode.Combine( RuntimeHelpers.GetHashCode( Mesh ), Lod, RuntimeHelpers.GetHashCode( Override ), RuntimeHelpers.GetHashCode( Attributes ),
 			RuntimeHelpers.GetHashCode( Lightmap ), RuntimeHelpers.GetHashCode( Probe ), RuntimeHelpers.GetHashCode( Callbacks ),
-			(int)Filter | (OverrideBlends ? 4 : 0) | (ReadsFrameBuffer ? 8 : 0) | (Deformed ? 16 : 0) | (Morphable ? 32 : 0) );
+			(int)Filter | (OverrideBlends ? 4 : 0) | (ReadsFrameBuffer ? 8 : 0) | (Deformed ? 16 : 0) | (Morphable ? 32 : 0) | (ShadowTwoSided ? 64 : 0) );
 	}
 
 	/// <summary>
@@ -158,7 +164,7 @@ internal sealed partial class MeshRenderFeature
 		var skinned = obj.IsSkinned;
 		var material = obj.MaterialOverride;
 		return BinFor( new BinKey( obj.Mesh, lod, material, material is not null && (obj.OverrideTranslucent || obj.OverrideAlphaTest), DrawFilter.All, obj.Attributes,
-			obj.LightmapAttributes, probe, obj.WantsFrameBufferCopy, skinned && obj.IsDeformed, obj.MorphSource is not null, obj.Callbacks ) );
+			obj.LightmapAttributes, probe, obj.WantsFrameBufferCopy, skinned && obj.IsDeformed, obj.MorphSource is not null, obj.Callbacks, obj.ShadowTwoSided ) );
 	}
 
 	Bin BinFor( in BinKey key )

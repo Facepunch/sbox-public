@@ -136,6 +136,13 @@ public abstract class GpuDevice
 	internal virtual bool TakesResident( GpuMaterial material ) => false;
 
 	/// <summary>
+	/// A copy of the material at <paramref name="path"/> that draws both faces (<c>F_RENDER_BACKFACES</c>): the depth fast
+	/// path draws a two-sided material's depth with depth-only's. Kept for good, as <see cref="LoadMaterial"/>'s are. Null
+	/// where the device has none, and those draws take their own material. Main thread only.
+	/// </summary>
+	internal virtual GpuMaterial LoadTwoSidedMaterial( string path ) => null;
+
+	/// <summary>
 	/// Raised each time a program the device was compiling in the background becomes ready: what <see cref="TakesResident"/>
 	/// and <see cref="TakesOverlay"/> said of its materials meanwhile is looked at again, and resident meshes whose draws it left
 	/// while compiling are taken back.

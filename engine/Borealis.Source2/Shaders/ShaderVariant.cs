@@ -215,6 +215,45 @@ public sealed class ShaderVariant
 		return info;
 	}
 
+	/// <summary>
+	/// This variant drawing both faces: the same stages, bindings and state but for its culling, which is off. A two-sided
+	/// material draws with it whatever its shader's render state says (<c>F_RENDER_BACKFACES</c>, which no shader has to
+	/// declare), as does a draw the device wants two-sided (an object casting shadows from both faces). Itself when it
+	/// doesn't cull. Made once; pipelines made from it are its own.
+	/// </summary>
+	public ShaderVariant TwoSided
+	{
+		get
+		{
+			if ( State.Cull == CullMode.None ) return this;
+			var known = System.Threading.Volatile.Read( ref twoSided );
+			if ( known is not null ) return known;
+			System.Threading.Interlocked.CompareExchange( ref twoSided, new ShaderVariant( this, State.WithCull( CullMode.None ) ), null );
+			return twoSided;
+		}
+	}
+
+	ShaderVariant twoSided;
+
+	/// <summary><paramref name="source"/> with another render state: <see cref="TwoSided"/>.</summary>
+	ShaderVariant( ShaderVariant source, ShaderPipelineState state )
+	{
+		Shader = source.Shader;
+		Mode = source.Mode;
+		Vertex = source.Vertex;
+		Pixel = source.Pixel;
+		Compute = source.Compute;
+		Task = source.Task;
+		Mesh = source.Mesh;
+		Sets = source.Sets;
+		resources = source.resources;
+		ReadsBindlessTextures = source.ReadsBindlessTextures;
+		UsesBindlessStorageTextures = source.UsesBindlessStorageTextures;
+		VertexInputs = source.VertexInputs;
+		FromModule = source.FromModule;
+		State = state;
+	}
+
 	/// <inheritdoc/>
 	public override string ToString() => $"{Shader.Name} {Mode?.Name}";
 }
@@ -850,6 +889,27 @@ public sealed class ShaderPipelineState
 
 		return !passesOnZero || Writes( face.Pass ) || Writes( face.Fail ) || Writes( face.DepthFail );
 	}
+
+	/// <summary>This state culling as <paramref name="cull"/> says, the rest as it is.</summary>
+	internal ShaderPipelineState WithCull( CullMode cull ) => new()
+	{
+		Cull = cull,
+		Wireframe = Wireframe,
+		DepthClip = DepthClip,
+		DepthBiasConstant = DepthBiasConstant,
+		DepthBiasSlope = DepthBiasSlope,
+		DepthTest = DepthTest,
+		DepthWrite = DepthWrite,
+		DepthCompare = DepthCompare,
+		StencilTest = StencilTest,
+		StencilFront = StencilFront,
+		StencilBack = StencilBack,
+		StencilReadMask = StencilReadMask,
+		StencilWriteMask = StencilWriteMask,
+		StencilReference = StencilReference,
+		Blend = Blend,
+		AlphaToCoverage = AlphaToCoverage,
+	};
 
 	internal static ShaderPipelineState Resolve( ShaderStage pixel ) => Resolve( pixel?.Dynamic.RenderState, pixel?.RenderStates, pixel?.EvaluatedRenderStates );
 

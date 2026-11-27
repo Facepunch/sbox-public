@@ -209,6 +209,7 @@ internal sealed partial class BackendContext
 	long lastEpoch = -1;
 	string lastLayerCombos = "";
 	ShaderVariant lastVariant;
+	bool lastTwoSided;
 	MaterialObjectCache.Key lastKey;
 	MaterialObject lastObject;
 	readonly Dictionary<(ShaderFile Shader, uint Mode), string> modeNames = new();
@@ -259,7 +260,7 @@ internal sealed partial class BackendContext
 		resolver.Begin( passEpoch );
 
 		ShaderVariant variant;
-		if ( ReferenceEquals( m, lastMaterial ) && shaderMode.Value == lastMode && passEpoch == lastEpoch && ReferenceEquals( layerCombos, lastLayerCombos ) )
+		if ( ReferenceEquals( m, lastMaterial ) && shaderMode.Value == lastMode && passEpoch == lastEpoch && ReferenceEquals( layerCombos, lastLayerCombos ) && TwoSided == lastTwoSided )
 		{
 			variant = lastVariant;
 		}
@@ -269,8 +270,8 @@ internal sealed partial class BackendContext
 			if ( mode is null ) return false;
 			comboLookup ??= name => LookupCombo( Token( name ) );
 			specializationLookup ??= name => Integer( Lookup( Token( name ) ) );
-			variant = m.Variant( device.Shaders, mode, ComboKey( m, mode ), comboLookup, specializationLookup );
-			(lastMaterial, lastMode, lastEpoch, lastLayerCombos, lastVariant) = (m, shaderMode.Value, passEpoch, layerCombos, variant);
+			variant = VariantFor( m, mode, ComboKey( m, mode ) );
+			(lastMaterial, lastMode, lastEpoch, lastLayerCombos, lastVariant, lastTwoSided) = (m, shaderMode.Value, passEpoch, layerCombos, variant, TwoSided);
 		}
 
 		if ( variant?.Vertex?.Bytecode is null ) return false;

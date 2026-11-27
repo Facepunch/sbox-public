@@ -202,6 +202,19 @@ struct ShadingModelStandard
         m.GeometricNormal *= i.face ? 1.0f : -1.0f;
     #endif
 
+        // A back face (a two-sided material's, F_RENDER_BACKFACES) is lit from its own side: the geometric normal turned,
+        // and the shading normal with it unless it already was (Material::Init turns it; a shader that made its own from
+        // i.vNormalWs didn't). A culled draw only has front faces. A shader with its own S_RENDER_BACKFACES combo has
+        // always turned them itself, so it still does, as does a package shader that reads its own front-face input
+        // (SBOX_TURNS_BACK_FACES, EmbeddedCompatibility)
+        #if !( S_RENDER_BACKFACES ) && !defined( SBOX_TURNS_BACK_FACES )
+            if ( !i.face )
+            {
+                m.GeometricNormal = -m.GeometricNormal;
+                if ( dot( m.Normal, m.GeometricNormal ) < 0.0 ) m.Normal = -m.Normal;
+            }
+        #endif
+
         return Shade( m );
     }
 #endif

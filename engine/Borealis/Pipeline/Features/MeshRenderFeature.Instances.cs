@@ -148,7 +148,7 @@ internal sealed partial class MeshRenderFeature
 				var length = lodCounts[lod];
 				if ( length == 0 ) continue;
 
-				var bin = BinFor( new BinKey( model, lod, null, false, DrawFilter.Opaque, null, null, null, false, false, false, null ) );
+				var bin = BinFor( new BinKey( model, lod, null, false, DrawFilter.Opaque, null, null, null, false, false, false, null, false ) );
 				bin.Used = mainPrepares;
 				var ids = instanceIds.AsSpan( at, length );
 				int start;

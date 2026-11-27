@@ -62,6 +62,8 @@ internal sealed class HeadlessContext : GpuContext
 
 	public override bool DepthDrawnFirst { get; set; }
 
+	public override bool TwoSided { get; set; }
+
 	public override GpuBuffer<uint> InstanceIds { get; set; }
 
 	public override OcclusionCuller Occlusion { get; set; }
@@ -385,7 +387,7 @@ internal sealed class HeadlessContext : GpuContext
 	}
 
 	GpuCommand Draw( GpuOp op, GpuMaterial material, StringToken shaderMode, RenderMesh mesh, int count )
-		=> Command( op ) with { Material = material, Mode = shaderMode, Mesh = mesh, Count = count, Texture = bound.Color, Depth = bound.Depth, DepthDrawnFirst = DepthDrawnFirst };
+		=> Command( op ) with { Material = material, Mode = shaderMode, Mesh = mesh, Count = count, Texture = bound.Color, Depth = bound.Depth, DepthDrawnFirst = DepthDrawnFirst, TwoSided = TwoSided };
 
 	public override bool DrawModel( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, int firstInstance, int instances, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false, bool skinned = false, int textureSize = TextureSizes.All )
 	{

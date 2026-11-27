@@ -37,7 +37,7 @@ internal sealed partial class AggregateRenderFeature : RenderFeature
 	int argGeneration = -1;
 	readonly UploadRing<GpuBuffer.IndirectDrawIndexedArguments> argsRing = new( "Borealis AggregateArgs", GpuBuffer.UsageFlags.Structured | GpuBuffer.UsageFlags.IndirectDrawArguments );
 
-	GpuMaterial depthOnlyMaterial;
+	GpuMaterial depthOnlyMaterial, depthOnlyTwoSided;
 	bool depthOnlyLoaded;
 	TransformBuffer transforms;
 
@@ -222,6 +222,7 @@ internal sealed partial class AggregateRenderFeature : RenderFeature
 		if ( !depthOnlyLoaded )
 		{
 			depthOnlyMaterial = MeshRenderFeature.LoadDepthOnly( RenderHost.Current.Device );
+			depthOnlyTwoSided = MeshRenderFeature.LoadDepthOnlyTwoSided( RenderHost.Current.Device, depthOnlyMaterial );
 			depthOnlyLoaded = true;
 		}
 		if ( statsSlot == 0 ) statsSlot = RenderHost.Current.Device.AcquireCullStats();
@@ -744,7 +745,8 @@ internal sealed partial class AggregateRenderFeature : RenderFeature
 	GpuMaterial MaterialFor( in RenderMesh.Draw draw, bool depth, bool forceDepthOnly, out bool stripPixelShader )
 	{
 		stripPixelShader = false;
-		if ( depth && (forceDepthOnly || draw.ShadowFastPath || draw.Material is { DepthOnlyNow: true }) && depthOnlyMaterial is not null ) return depthOnlyMaterial;
+		if ( depth && forceDepthOnly && depthOnlyMaterial is not null ) return depthOnlyMaterial;
+		if ( depth && (draw.ShadowFastPath || draw.Material is { DepthOnlyNow: true }) && MeshRenderFeature.DepthOnlyFor( draw.Material, depthOnlyMaterial, depthOnlyTwoSided ) is { } depthOnly ) return depthOnly;
 
 		stripPixelShader = depth && !draw.Translucent && !draw.AlphaTest;
 		return draw.Material;

@@ -146,6 +146,10 @@ internal sealed class ConvertedMaterial : SurfaceMaterial
 		}
 
 		featuresSet = features is { Count: > 0 } ? new Dictionary<string, int>( features, StringComparer.OrdinalIgnoreCase ) : null;
+
+		// A field of its own or not (Create)
+		var twoSided = Backfaces( values );
+		if ( TwoSided != twoSided ) TwoSided = twoSided;
 	}
 
 	Dictionary<string, bool> moduleAttributes;
@@ -281,7 +285,17 @@ internal sealed class ConvertedMaterial : SurfaceMaterial
 			}
 		}
 
+		// Two-sided whether or not the surface has a field for it: no shader has to declare F_RENDER_BACKFACES
+		material.TwoSided = Backfaces( features ?? file.Ints );
 		return material;
+	}
+
+	/// <summary>Whether feature values turn <c>F_RENDER_BACKFACES</c> on.</summary>
+	static bool Backfaces( IReadOnlyDictionary<string, int> values )
+	{
+		foreach ( var (name, value) in values ?? new Dictionary<string, int>() )
+			if ( string.Equals( name, BackendMaterial.RenderBackfaces, StringComparison.OrdinalIgnoreCase ) ) return value != 0;
+		return false;
 	}
 
 	/// <summary>

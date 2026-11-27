@@ -66,10 +66,24 @@ public static partial class EmbeddedCompatibility
 		// engine structs were classes once, and packages derive from them (class ShadingModelX : ShadingModelStandard).
 		body = ClassKeyword().Replace( body, "struct" );
 
-		// Older engines' pixel input had the face's side as bIsFrontFace in every pixel shader; today's has it as face, and
-		// only when back faces draw (S_RENDER_BACKFACES)
+		// Today's pixel input has the face's side as face in every pixel shader, as any material can be two-sided: a member of
+		// the shader's own for it beside the include is that one (two would be two members of one name, or two front-face
+		// inputs), and older engines' bIsFrontFace is too. A shader that reads its own turns its back faces' normals itself,
+		// so the engine's (Material::Init, ShadingModelStandard::Shade) leave them alone
+		var turnsFaces = false;
+		body = PixelInputStruct().Replace( body, s => OwnFrontFace().Replace( s.Value, d =>
+		{
+			turnsFaces = true;
+			return d.Groups["name"].Value == "face" ? "" : $"#define {d.Groups["name"].Value} face";
+		} ) );
+
 		if ( FrontFaceUse().IsMatch( body ) && !FrontFaceDeclaration().IsMatch( body ) )
+		{
 			body = PixelInputInclude().Replace( body, m => m.Value + FrontFaceMember, 1 );
+			turnsFaces = true;
+		}
+
+		if ( turnsFaces ) body = "#define SBOX_TURNS_BACK_FACES\n" + body;
 
 		var end = new StringBuilder();
 		end.Append( '\n' );
@@ -183,7 +197,14 @@ public static partial class EmbeddedCompatibility
 	[GeneratedRegex( @"\bfloat2\s+PCFDiscSamples(?:5|12|29)\s*\[" )]
 	private static partial Regex PcfDiscDeclaration();
 
-	const string FrontFaceMember = "#if ( S_RENDER_BACKFACES )\n#define bIsFrontFace face\n#elif ( PROGRAM == VFX_PROGRAM_PS )\n\tbool bIsFrontFace : SV_IsFrontFace;\n#endif\n";
+	const string FrontFaceMember = "#if ( PROGRAM == VFX_PROGRAM_PS )\n#define bIsFrontFace face\n#endif\n";
+
+	// A pixel input struct built on the engine's (no braces inside it), and a front-face member a shader declared in it
+	[GeneratedRegex( @"\bstruct\s+PixelInput\s*\{[^{}]*?#include\s+""common/pixelinput\.hlsl""[^{}]*\}" )]
+	private static partial Regex PixelInputStruct();
+
+	[GeneratedRegex( @"\bbool\s+(?<name>\w+)\s*:\s*SV_IsFrontFace\s*;" )]
+	private static partial Regex OwnFrontFace();
 
 	[GeneratedRegex( @"\.\s*bIsFrontFace\b" )]
 	private static partial Regex FrontFaceUse();

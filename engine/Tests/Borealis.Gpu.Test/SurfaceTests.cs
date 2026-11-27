@@ -314,7 +314,7 @@ public class SurfaceTests : GpuTest
 		rock.AlphaTest = false;
 
 		rock.TwoSided = true;
-		Assert.IsFalse( rock.DepthOnlyNow, "two-sided" );
+		Assert.IsTrue( rock.DepthOnlyNow, "two-sided, which takes the depth-only material that draws both faces" );
 		Moved( "two-sided" );
 		rock.TwoSided = false;
 

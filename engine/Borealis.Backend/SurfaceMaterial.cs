@@ -84,11 +84,14 @@ public abstract class SurfaceMaterial : GpuMaterial, IStreamDependent
 		SurfaceRenderState state;
 		lock ( record ) state = States.Resolve( record );
 		state = state with { AlphaTest = state.AlphaTest || alphaTest, TwoSided = state.TwoSided || twoSided };
-		var depthOnly = state is { Blend: SurfaceBlend.Opaque, DepthWrite: true, DepthTest: true, DepthBias: 0, SlopeDepthBias: 0, TwoSided: false, AlphaTest: false, Translucent: false };
+		var depthOnly = state is { Blend: SurfaceBlend.Opaque, DepthWrite: true, DepthTest: true, DepthBias: 0, SlopeDepthBias: 0, AlphaTest: false, Translucent: false };
 		return resolved = new Resolved( v, state, depthOnly );
 	}
 
 	sealed record Resolved( int Version, SurfaceRenderState State, bool DepthOnly );
+
+	/// <summary>Whether its render state draws both faces (<see cref="TwoSided"/>, or a field of its shader's).</summary>
+	public override bool DrawsTwoSided => RenderState.TwoSided;
 
 	Resolved resolved;
 
@@ -342,8 +345,8 @@ public abstract class SurfaceMaterial : GpuMaterial, IStreamDependent
 
 	/// <summary>
 	/// Once its program has compiled and doesn't move vertices (<see cref="SurfaceProgram.Displaces"/>), when it draws opaque,
-	/// one-sided, depth tested and written, without alpha test or depth bias: its depth is the shared depth-only material's,
-	/// as native's fast path draws a <c>ShadowFastPath</c> material's.
+	/// depth tested and written, without alpha test or depth bias: its depth is the shared depth-only material's (its copy
+	/// that draws both faces for a two-sided one), as native's fast path draws a <c>ShadowFastPath</c> material's.
 	/// </summary>
 	public override bool DepthOnlyNow => Program is { Displaces: false, Stale: false } && ResolveState().DepthOnly;
 

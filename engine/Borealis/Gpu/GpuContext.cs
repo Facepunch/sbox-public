@@ -85,6 +85,14 @@ internal abstract class GpuContext : IDisposable
 	/// </summary>
 	public abstract bool DepthDrawnFirst { get; set; }
 
+	/// <summary>
+	/// Draw meshes two-sided whatever their materials cull: a <c>.shader</c> material with its variant's two-sided twin
+	/// (<c>ShaderVariant.TwoSided</c>), a surface's depth with culling off. Set by the mesh feature around a
+	/// shadow view's draws of an object that casts from both faces (<see cref="MeshObject.ShadowTwoSided"/>); reset for each
+	/// recording and pass.
+	/// </summary>
+	public abstract bool TwoSided { get; set; }
+
 	/// <summary>The frame's instance ids, which draws bind at their first instance.</summary>
 	public abstract GpuBuffer<uint> InstanceIds { get; set; }
 

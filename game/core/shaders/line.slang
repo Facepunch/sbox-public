@@ -33,9 +33,6 @@ struct VertexInput
 struct PixelInput
 {
 	#include "common/pixelinput.hlsl"
-	#if ( PROGRAM == VFX_PROGRAM_PS )
-		bool face : SV_IsFrontFace;
-	#endif
 };
 
 #if ( PROGRAM == VFX_PROGRAM_VS )

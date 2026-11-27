@@ -30,9 +30,8 @@ centroid float2 vLightmapUV : TEXCOORD3; // Should be stubbed in specialization 
 	float4 vPositionPs : SV_Position;
 #else // PS only
 	float4 vPositionSs : SV_Position;
-	#if ( S_RENDER_BACKFACES )
-		bool face : SV_IsFrontFace;
-	#endif
+	// Whether the front face is drawn: any material can be two-sided (F_RENDER_BACKFACES), so every pixel shader has it
+	bool face : SV_IsFrontFace;
 #endif
 
 #ifndef COMMON_PS_INPUT_DEFINED

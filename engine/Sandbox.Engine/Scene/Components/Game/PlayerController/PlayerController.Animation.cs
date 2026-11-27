@@ -435,7 +435,8 @@ public sealed partial class PlayerController : Component, BaseCombatWeapon.IEven
 
 		so.Tags.SetFrom( renderer.GameObject.Tags );
 		var renderType = renderer.RenderType;
-		so.Flags.CastShadows = renderType is ModelRenderer.ShadowRenderType.On or ModelRenderer.ShadowRenderType.ShadowsOnly;
+		so.Flags.CastShadows = renderType != ModelRenderer.ShadowRenderType.Off;
+		so.Flags.CastShadowsTwoSided = renderType == ModelRenderer.ShadowRenderType.TwoSided;
 	}
 
 	/// <summary>

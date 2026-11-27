@@ -145,6 +145,8 @@ internal sealed partial class BackendContext : GpuContext
 
 	public override bool DepthDrawnFirst { get; set; }
 
+	public override bool TwoSided { get; set; }
+
 	public override GpuBuffer<uint> InstanceIds { get; set; }
 
 	public override OcclusionCuller Occlusion { get; set; }
@@ -214,6 +216,7 @@ internal sealed partial class BackendContext : GpuContext
 		OverlayStencil = OverlayStencil.None;
 		ToolsPass = ToolsPass.None;
 		DepthDrawnFirst = false;
+		TwoSided = false;
 		SetObjectAttributes( null );
 		recording.BindVersion = -1;
 		recording.Active = this;
@@ -1048,6 +1051,7 @@ internal sealed partial class BackendContext : GpuContext
 		OverlayStencil = OverlayStencil.None;
 		ToolsPass = ToolsPass.None;
 		DepthDrawnFirst = false;
+		TwoSided = false;
 	}
 
 	public override void SetConstants<T>( StringToken name, in T value ) => attributes.SetData( name, value );
@@ -1217,7 +1221,17 @@ internal sealed partial class BackendContext : GpuContext
 		// The key DrawWithMaterialObject uses, made once per values; the lookups made once per context
 		comboLookup ??= name => LookupCombo( Token( name ) );
 		specializationLookup ??= name => Integer( Lookup( Token( name ) ) );
-		return material.Variant( device.Shaders, mode, ComboKeyByValue( material.Inputs, mode ), comboLookup, specializationLookup );
+		return VariantFor( material, mode, ComboKeyByValue( material.Inputs, mode ) );
+	}
+
+	/// <summary>
+	/// The material's variant for a mode and combo key, with the lookups made: two-sided while the context draws two-sided
+	/// (<see cref="TwoSided"/>, <see cref="ShaderVariant.TwoSided"/>).
+	/// </summary>
+	ShaderVariant VariantFor( BackendMaterial material, string mode, string key )
+	{
+		var variant = material.Variant( device.Shaders, mode, key, comboLookup, specializationLookup );
+		return TwoSided ? variant?.TwoSided : variant;
 	}
 
 	static int? Integer( object value ) => value switch

@@ -87,10 +87,11 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	/// </summary>
 	public bool ReloadMaterial( string path )
 	{
-		GpuMaterial loaded;
+		GpuMaterial loaded, twoSided;
 		lock ( sharedMaterials )
 		{
 			if ( !sharedMaterials.TryGetValue( path, out loaded ) ) return false;
+			twoSidedMaterials.TryGetValue( path, out twoSided );
 		}
 
 		if ( loaded is not BackendMaterial material ) return false;
@@ -102,6 +103,15 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 		material.Reload( shader, file, file is null ? null : Textures( file ) );
 		material.FellBack = why;
 		lock ( tracked ) tracked.AddOrUpdate( material, asked );
+
+		// Its two-sided copy (LoadTwoSidedMaterial) with it, keeping the feature set in code
+		if ( twoSided is BackendMaterial copy )
+		{
+			copy.Reload( shader, file, file is null ? null : Textures( file ) );
+			copy.FellBack = why;
+			lock ( tracked ) tracked.AddOrUpdate( copy, asked );
+		}
+
 		return true;
 	}
 
@@ -1656,6 +1666,25 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 		// Used outside the material's draws, which are what ask for its mips
 		if ( texture.Stream is { } stream ) stream.Pinned = true;
 		return texture;
+	}
+
+	// LoadTwoSidedMaterial's, by path, under sharedMaterials' lock
+	readonly Dictionary<string, GpuMaterial> twoSidedMaterials = new( StringComparer.OrdinalIgnoreCase );
+
+	/// <summary>
+	/// A second <see cref="LoadMaterial(string)"/> of <paramref name="path"/> with <c>F_RENDER_BACKFACES</c> set in code,
+	/// which draws its variants' two-sided twins: the same compiled shaders, culling nothing. Reloaded with the first.
+	/// </summary>
+	internal override GpuMaterial LoadTwoSidedMaterial( string path )
+	{
+		lock ( sharedMaterials )
+		{
+			if ( twoSidedMaterials.TryGetValue( path, out var material ) ) return material;
+			LifeOf( path ).Pinned = true;
+			material = Converted( path ) ?? Material( path, null );
+			SetFeaturesOnMaterial( material, new Dictionary<string, int> { [BackendMaterial.RenderBackfaces] = 1 } );
+			return twoSidedMaterials[path] = material;
+		}
 	}
 
 	/// <summary>

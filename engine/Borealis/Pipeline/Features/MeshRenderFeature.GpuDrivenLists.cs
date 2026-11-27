@@ -36,7 +36,7 @@ internal sealed partial class MeshRenderFeature
 	/// Whether a run of the faded or translucent list can be drawn GPU-driven: as the opaque list's are taken, frame-buffer
 	/// readers only with <paramref name="readers"/> (the translucent list's colour layers, in order, and the refraction list).
 	/// </summary>
-	static bool ListTakes( in Run run, bool skinned, bool readers ) => TakesGpuDriven( run, skinned ) && (readers || !run.ReadsFrameBuffer);
+	static bool ListTakes( in Run run, bool skinned, bool readers, bool shadow ) => TakesGpuDriven( run, skinned, shadow ) && (readers || !run.ReadsFrameBuffer);
 
 	/// <summary>A faded or translucent list's <paramref name="items"/>: GPU-driven calls of those the path takes, the rest the classic way.</summary>
 	void DrawListGpuDriven( GpuContext context, ViewPass view, ReadOnlySpan<Run> runs, ReadOnlySpan<DrawItem> items, MeshLayer layer, ref RenderStats stats, MeshRuns list )
@@ -45,6 +45,7 @@ internal sealed partial class MeshRenderFeature
 
 		var skinned = RenderHost.Current?.Device is { DrawsSkinnedGpuDriven: true };
 		var inOrder = list == MeshRuns.Translucent && !layer.Depth;
+		var shadow = layer.LayerType == MeshLayerType.Shadow;
 		var batches = ArrayPool<GpuContext.GpuDrivenBatch>.Shared.Rent( items.Length );
 		var taken = ArrayPool<int>.Shared.Rent( items.Length );
 		var drawn = ArrayPool<bool>.Shared.Rent( items.Length );
@@ -65,11 +66,11 @@ internal sealed partial class MeshRenderFeature
 			for ( int i = 0; i < items.Length; )
 			{
 				var j = i;
-				while ( j < items.Length && !ListTakes( runs[items[j].Run], skinned, readers ) ) j++;
+				while ( j < items.Length && !ListTakes( runs[items[j].Run], skinned, readers, shadow ) ) j++;
 				if ( j > i ) DrawItems( context, view, runs, items[i..j], layer, ref stats, list );
 
 				i = j;
-				while ( j < items.Length && ListTakes( runs[items[j].Run], skinned, readers ) )
+				while ( j < items.Length && ListTakes( runs[items[j].Run], skinned, readers, shadow ) )
 				{
 					if ( !copied && runs[items[j].Run].ReadsFrameBuffer )
 					{
@@ -110,7 +111,7 @@ internal sealed partial class MeshRenderFeature
 		for ( int k = 0; k < items.Length; k++ )
 		{
 			ref readonly var run = ref runs[items[k].Run];
-			if ( !ListTakes( run, skinned, readers ) || !TryBatchOf( run, items[k], depth, forceDepthOnly, out batches[count] ) )
+			if ( !ListTakes( run, skinned, readers, shadow ) || !TryBatchOf( run, items[k], depth, forceDepthOnly, out batches[count] ) )
 			{
 				if ( inOrder ) break;
 				continue;

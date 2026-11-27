@@ -44,6 +44,12 @@ public abstract class GpuMaterial : IDisposable
 	public abstract bool ShadowFastPath { get; }
 
 	/// <summary>
+	/// Whether it draws both faces (its <c>F_RENDER_BACKFACES</c>, which its shader needn't declare): its back faces lit from
+	/// their own side, in every pass, shadows too, whatever its shader's render state culls.
+	/// </summary>
+	public virtual bool DrawsTwoSided => false;
+
+	/// <summary>
 	/// Whether its depth draws take the shared depth-only material now, whatever their draws' own fast-path flags: a material
 	/// whose shader, once compiled, is known to place vertices from their positions alone, and that draws opaque, one-sided,
 	/// without alpha test or depth bias of its own. Read as draw lists are built.

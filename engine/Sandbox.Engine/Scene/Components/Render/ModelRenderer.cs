@@ -243,7 +243,8 @@ public partial class ModelRenderer : Renderer, ExecuteInEditor, ITintable, IMate
 		_sceneObject.ColorTint = Tint;
 		_sceneObject.Model = model;
 		_sceneObject.MeshGroupMask = BodyGroups;
-		_sceneObject.Flags.CastShadows = RenderType == ShadowRenderType.On || RenderType == ShadowRenderType.ShadowsOnly;
+		_sceneObject.Flags.CastShadows = RenderType != ShadowRenderType.Off;
+		_sceneObject.Flags.CastShadowsTwoSided = RenderType == ShadowRenderType.TwoSided;
 		_sceneObject.Flags.IsStatic = GameObject.IsStatic && !_hasActiveDeformations;
 		_sceneObject.RenderingEnabled = model.HasRenderMeshes();
 
@@ -347,6 +348,11 @@ public partial class ModelRenderer : Renderer, ExecuteInEditor, ITintable, IMate
 		[Icon( "hide_source" )]
 		[Title( "Shadows Only" )]
 		ShadowsOnly,
+		// Render the model with shadows cast from both sides of its faces, whatever its materials cull: for a model
+		// built inside out (a room, a tunnel) or a single-sided wall, which would otherwise let light through
+		[Icon( "flip" )]
+		[Title( "Two Sided" )]
+		TwoSided,
 	}
 
 	void Update()

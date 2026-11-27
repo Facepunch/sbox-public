@@ -105,7 +105,7 @@ public class EmbeddedCompatibilityTests
 
 	/// <summary>
 	/// An older engine's pixel input had the face's side as <c>bIsFrontFace</c> (My Summer Cottage's shaders read it); today's
-	/// has it as <c>face</c>, and only when back faces draw. Both compile, with back faces and without.
+	/// has it as <c>face</c>, in every pixel shader. Both compile, with back faces and without.
 	/// </summary>
 	[TestMethod]
 	public void FrontFaceOfAnOlderPixelInputCompiles()
@@ -124,6 +124,38 @@ public class EmbeddedCompatibilityTests
 			""";
 		Compiles( pixel, "embedded_front_face" );
 		Compiles( "#define S_RENDER_BACKFACES 1\n" + pixel, "embedded_front_face_backfaces" );
+	}
+
+	/// <summary>
+	/// A package's pixel input that declares a front-face member of its own beside the engine's include, which has
+	/// <c>face</c> in every pixel shader now (any material can be two-sided), compiles: its member is the engine's, and as it
+	/// reads it, it turns its back faces' normals itself and the engine's code leaves them alone.
+	/// </summary>
+	[TestMethod]
+	public void AnOwnFrontFaceBesideTheEnginesCompiles()
+	{
+		const string pixel = """
+			#include "system.fxc"
+			#include "common.fxc"
+			struct PixelInput
+			{
+				#include "common/pixelinput.hlsl"
+				#if ( S_RENDER_BACKFACES )
+					bool face : SV_IsFrontFace;
+				#endif
+				bool vFrontFacing : SV_IsFrontFace;
+			};
+			float4 MainPs( PixelInput i ) : SV_Target0
+			{
+				return i.vFrontFacing ? float4( 1, 1, 1, 1 ) : float4( 0, 0, 0, 1 );
+			}
+			""";
+		var applied = EmbeddedCompatibility.Apply( pixel );
+		StringAssert.Contains( applied, "#define vFrontFacing face" );
+		StringAssert.Contains( applied, "#define SBOX_TURNS_BACK_FACES" );
+		Assert.IsFalse( applied.Contains( "bool face" ), "its own face is the engine's" );
+		Compiles( pixel, "embedded_own_front_face" );
+		Compiles( "#define S_RENDER_BACKFACES 1\n" + pixel, "embedded_own_front_face_backfaces" );
 	}
 
 	/// <summary>

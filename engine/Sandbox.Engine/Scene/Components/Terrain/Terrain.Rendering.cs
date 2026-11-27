@@ -109,7 +109,7 @@ public partial class Terrain
 		_so.Batchable = false;
 
 		_so.Flags.ExcludeGameLayer = RenderType == ShadowRenderType.ShadowsOnly;
-		_so.Flags.CastShadows = RenderType == ShadowRenderType.On || RenderType == ShadowRenderType.ShadowsOnly;
+		_so.Flags.CastShadows = RenderType != ShadowRenderType.Off;
 
 		RestoreRenderAttributes( _so.Attributes );
 

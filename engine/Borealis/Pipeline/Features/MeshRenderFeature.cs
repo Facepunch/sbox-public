@@ -38,6 +38,20 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 	}
 
 	/// <summary>
+	/// The shared depth-only material's copy that draws both faces, which two-sided materials' depth takes on the fast path
+	/// (<see cref="DepthOnlyFor"/>); null without the culled one, or where the device makes none, and their depth is their own.
+	/// </summary>
+	internal static GpuMaterial LoadDepthOnlyTwoSided( GpuDevice device, GpuMaterial depthOnly )
+		=> depthOnly is null ? null : device.LoadTwoSidedMaterial( DepthOnlyMaterial ) is { FellBack: null } material ? material : null;
+
+	/// <summary>
+	/// The depth-only material a draw of <paramref name="material"/> takes on the fast path: the one that draws both faces
+	/// for a two-sided material, as its own depth would. Null when there's none to take.
+	/// </summary>
+	internal static GpuMaterial DepthOnlyFor( GpuMaterial material, GpuMaterial culled, GpuMaterial twoSided )
+		=> material is { DrawsTwoSided: true } ? twoSided : culled;
+
+	/// <summary>
 	/// The combo native's Fade layers set: dithered opacity, or alpha to coverage with MSAA.
 	/// </summary>
 	internal static readonly StringToken OpaqueFade = new( "D_OPAQUE_FADE" );
@@ -81,6 +95,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 		public bool Deformed => Bin.Deformed;
 		public bool Morphable => Bin.Morphable;
 		public DrawCallbacks Callbacks => Bin.Callbacks;
+		public bool ShadowTwoSided => Bin.ShadowTwoSided;
 	}
 
 	/// <summary>
@@ -405,7 +420,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 	internal static int MinParallelClassify { get; set; } = 32_000;
 
 	GpuMaterial defaultMaterial;
-	GpuMaterial depthOnlyMaterial;
+	GpuMaterial depthOnlyMaterial, depthOnlyTwoSided;
 	bool depthOnlyLoaded;
 
 	// One default material for every render system, made by the first: a child view's system starts in the middle of its
@@ -621,7 +636,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 
 		// Static opaque draws go with the aggregates when the device draws them GPU-driven, as one run (so not while
 		// occlusion culls, which the aggregates' feature then draws batch by batch)
-		if ( Occlusion is null && RenderHost.Current?.Device is { DrawsMeshesGpuDriven: true } device ) TakeGpuDriven( layers, device.DrawsSkinnedGpuDriven );
+		if ( Occlusion is null && RenderHost.Current?.Device is { DrawsMeshesGpuDriven: true } device ) TakeGpuDriven( layers, device.DrawsSkinnedGpuDriven, pass.IsShadow );
 		if ( (layers.Custom & MeshRuns.Opaque) != 0 ) TakeCustom( layers );
 	}
 
@@ -630,9 +645,10 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 	/// instances with nothing per object but their lighting (no attributes, callbacks, skinning or culled arguments),
 	/// which the aggregates' feature hands the device with its own batches. Frame-buffer readers too: colour layers take
 	/// the frame copy before the call that draws them (<see cref="RunLists.ReadersTaken"/>). With <paramref name="skinned"/>,
-	/// skinned meshes' runs too, morphed and deformed ones included: their instances are their members' base entries.
+	/// skinned meshes' runs too, morphed and deformed ones included: their instances are their members' base entries. In a
+	/// <paramref name="shadow"/> view, not those that cast from both faces, which draw two-sided (<see cref="Run.ShadowTwoSided"/>).
 	/// </summary>
-	static void TakeGpuDriven( RunLists layers, bool skinned )
+	static void TakeGpuDriven( RunLists layers, bool skinned, bool shadow )
 	{
 		var runs = CollectionsMarshal.AsSpan( layers.Opaque );
 		var items = layers.ItemsByBit[0];
@@ -641,7 +657,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 		{
 			var item = items[i];
 			ref readonly var run = ref runs[item.Run];
-			if ( TakesGpuDriven( run, skinned ) && !(run.ReadsFrameBuffer && NoGpuDrivenReaders) )
+			if ( TakesGpuDriven( run, skinned, shadow ) && !(run.ReadsFrameBuffer && NoGpuDrivenReaders) )
 			{
 				layers.GpuDriven.Add( item );
 				layers.ReadersTaken |= run.ReadsFrameBuffer;
@@ -663,7 +679,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 	/// as here, with their object attributes (a dresser gives every citizen's renderers some, mostly shared sets): those
 	/// split buckets.
 	/// </summary>
-	static bool TakesGpuDriven( in Run run, bool skinned ) => run.Custom is null && run.Callbacks is null && run.CullDraw < 0
+	static bool TakesGpuDriven( in Run run, bool skinned, bool shadow ) => run.Custom is null && run.Callbacks is null && run.CullDraw < 0 && !(shadow && run.ShadowTwoSided)
 		&& (skinned && run.Skinned || !run.Skinned && !run.Deformed && !run.Morphable && run.Attributes is null);
 
 	/// <summary>Whether a draw <see cref="TakeGpuDriven"/> took reads the frame buffer.</summary>
@@ -1290,6 +1306,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 		if ( !depthOnlyLoaded )
 		{
 			depthOnlyMaterial = LoadDepthOnly( RenderHost.Current.Device );
+			depthOnlyTwoSided = LoadDepthOnlyTwoSided( RenderHost.Current.Device, depthOnlyMaterial );
 			depthOnlyLoaded = true;
 		}
 
@@ -1549,6 +1566,9 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 		// Skinned draws' vertex-cache combo, set only when it changes: setting it costs the material bind
 		var vertexAnimation = 0;
 
+		// Two-sided while drawing the shadows of objects that cast from both faces (MeshObject.ShadowTwoSided), set when it changes
+		var twoSided = false;
+
 		// The object whose stretch of draws is being recorded, if it has callbacks (CRenderBatchList::m_pLastCallbackBeforeObject)
 		DrawCallbacks open = null;
 
@@ -1632,7 +1652,11 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 			// Forward draws use lightmaps or probes (CBaseSceneObjectDesc::DrawArray, CalculateBatchFlags).
 			// Shared attributes preserve material binds between draws.
 
-			var material = MaterialFor( run, draw, depth, layer.ForceDepthFastPath, out var stripPixelShader );
+			// Two-sided casters draw whatever material they take two-sided, the depth-only one too
+			var drawsTwoSided = shadow && run.ShadowTwoSided;
+			if ( drawsTwoSided != twoSided ) context.TwoSided = twoSided = drawsTwoSided;
+
+			var material = MaterialFor( run.Override, run.OverrideBlends, draw, depth, layer.ForceDepthFastPath, out var stripPixelShader );
 
 			// A translucent surface that casts no shadow has nothing to draw in a depth-only pass
 			if ( depth && material is { DrawsNoDepth: true } ) continue;
@@ -1697,6 +1721,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 		if ( open is { Counts: true } ) context.EndCount();
 		if ( open is not null ) SwitchCallbacks( context, view, layer, open, null, ref vertexAnimation );
 
+		if ( twoSided ) context.TwoSided = false;
 		if ( vertexAnimation != 0 ) context.SetCombo( CsVertexAnimation, 0 );
 		context.SetObjectAttributes( null );
 	}
@@ -1751,7 +1776,8 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 
 	/// <summary>
 	/// <see cref="MaterialFor(in Run, in RenderMesh.Draw, bool, bool, out bool)"/> for an object's override (and whether it
-	/// blends or alpha tests) rather than its run's.
+	/// blends or alpha tests) rather than its run's. A two-sided material's fast path takes the depth-only material that
+	/// draws both faces (<see cref="DepthOnlyFor"/>).
 	/// </summary>
 	internal GpuMaterial MaterialFor( GpuMaterial materialOverride, bool overrideBlends, in RenderMesh.Draw draw, bool depth, bool forceDepthOnly, out bool stripPixelShader )
 	{
@@ -1767,7 +1793,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 			return material;
 		}
 
-		if ( depth && (draw.ShadowFastPath || draw.Material is { DepthOnlyNow: true }) && depthOnlyMaterial is not null ) return depthOnlyMaterial;
+		if ( depth && (draw.ShadowFastPath || draw.Material is { DepthOnlyNow: true }) && DepthOnlyFor( draw.Material, depthOnlyMaterial, depthOnlyTwoSided ) is { } depthOnly ) return depthOnly;
 
 		stripPixelShader = depth && !draw.Translucent && !draw.AlphaTest;
 		return draw.Material ?? defaultMaterial;

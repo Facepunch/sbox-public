@@ -45,6 +45,9 @@ public partial class SceneObject
 	/// </summary>
 	internal bool CastsShadows => (CurrentFlags & ObjectFlags.CastShadows) == ObjectFlags.CastShadows;
 
+	// SceneObjectFlagAccessor.CastShadowsTwoSided: managed only, native has no such flag
+	bool _castShadowsTwoSided;
+
 	/// <summary>Change flags in <paramref name="mask"/> to <paramref name="value"/>'s, here and on a native object native code made.</summary>
 	internal void ChangeFlags( ObjectFlags value, ObjectFlags mask )
 	{

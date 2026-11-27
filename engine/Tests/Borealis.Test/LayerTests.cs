@@ -124,6 +124,41 @@ public class LayerTests
 	}
 
 	/// <summary>
+	/// An object casting from both faces (<see cref="MeshObject.ShadowTwoSided"/>) draws its shadows two-sided, with its own
+	/// material rather than the fast path's, and culls everywhere else; one beside it with the same mesh casts as its
+	/// material culls, in a run of its own.
+	/// </summary>
+	[TestMethod]
+	public void TwoSidedCastersDrawOnlyTheirShadowsTwoSided()
+	{
+		using var material = new HeadlessMaterial( "box", "complex" ) { FastPath = true };
+		var mesh = new RenderMesh( new HeadlessMesh( "box" ), UnitBox, [[new RenderMesh.Draw( 0, 0, 0, 36, 24, 0, material )]] );
+		var world = new RenderWorld();
+		world.Add( new MeshObject( mesh, new Transform( new Vector3( 30, 2, 0 ) ) ) { ShadowTwoSided = true } );
+		world.Add( new MeshObject( mesh, new Transform( new Vector3( 30, -2, 0 ) ) ) );
+		world.Add( new LightObject( LightObject.LightKind.Spot, new Transform( new Vector3( 10, 0, 0 ) ) ) { Radius = 200, ConeOuter = 45 } );
+
+		using var target = ViewTarget.Create( new Vector2Int( 64, 64 ) );
+		using var system = new RenderSystem();
+		Borealis.Shadows.ShadowMapper.ResetCache();
+		System.Collections.Generic.List<GpuCommand> commands;
+		using ( var frame = HeadlessRenderHost.Headless.Capture() )
+		{
+			RenderHost.Current.NextFrame();
+			system.Render( world, LookingDownX(), target );
+			commands = frame.Commands.ToList();
+		}
+
+		var draws = commands.Where( c => c.IsDraw && c.Mesh == mesh ).ToList();
+		var shadow = draws.Where( c => c.In( "Shadow" ) ).ToList();
+		var twoSided = shadow.Where( c => c.TwoSided ).ToList();
+		Assert.IsTrue( twoSided.Count > 0, "the two-sided caster's shadows" );
+		Assert.IsTrue( twoSided.All( c => c.Material == material && c.Count == 1 ), "its own material, not instanced with the other" );
+		Assert.IsTrue( shadow.Any( c => !c.TwoSided ), "the other's shadows cull" );
+		Assert.IsTrue( draws.Where( c => !c.In( "Shadow" ) ).All( c => !c.TwoSided ), "nothing else is two-sided" );
+	}
+
+	/// <summary>
 	/// Native's overlay layers have no fade layer, so a faded overlay only draws in the world's.
 	/// </summary>
 	[TestMethod]

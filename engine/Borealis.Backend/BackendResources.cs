@@ -616,6 +616,7 @@ internal sealed class BackendMaterial : GpuMaterial, IStreamDependent
 		Streamed();
 
 		Features = FeatureValues( shader, file, featuresSetInCode );
+		drawsTwoSided = TwoSidedValue( shader, file, featuresSetInCode, Features );
 	}
 
 	static readonly System.Runtime.CompilerServices.ConditionalWeakTable<ShaderFile, ShaderInputs> shaderInputs = new();
@@ -780,16 +781,20 @@ internal sealed class BackendMaterial : GpuMaterial, IStreamDependent
 	/// </summary>
 	public void SetFeatures( IReadOnlyDictionary<string, int> features )
 	{
+		bool sidesChanged;
 		lock ( variantsGate )
 		{
 			if ( SameFeatures( featuresSetInCode, features ) ) return;
 			featuresSetInCode = features is { Count: > 0 } ? new Dictionary<string, int>( features, StringComparer.OrdinalIgnoreCase ) : null;
 			var next = FeatureValues( Shader, File, featuresSetInCode );
-			if ( Features is { } current && current.AsSpan().SequenceEqual( next ) ) return;
+			var twoSided = TwoSidedValue( Shader, File, featuresSetInCode, next );
+			sidesChanged = twoSided != drawsTwoSided;
+			if ( Features is { } current && current.AsSpan().SequenceEqual( next ) && !sidesChanged ) return;
 
 			Volatile.Write( ref variants, new() );
 			Volatile.Write( ref gpuDrivenVariants, new() );
 			Features = next;
+			drawsTwoSided = twoSided;
 			needsLightProbe = 0;
 			Volatile.Write( ref needsStencil, -1 );
 			loads++;
@@ -797,6 +802,9 @@ internal sealed class BackendMaterial : GpuMaterial, IStreamDependent
 
 		Interlocked.Increment( ref layoutVersion );
 		Interlocked.Increment( ref version );
+
+		// Which depth-only material its fast path takes
+		if ( sidesChanged ) DepthOnlyMayHaveChanged();
 	}
 
 	// Feature values set in code (SetFeatures), over the file's
@@ -837,6 +845,34 @@ internal sealed class BackendMaterial : GpuMaterial, IStreamDependent
 		if ( shader?.Features is { } program ) ShaderRule.Apply( program.StaticRules, ShaderRuleType.Feature, features );
 		return features;
 	}
+
+	/// <summary>The material key a two-sided material sets, whether or not its shader declares it.</summary>
+	internal const string RenderBackfaces = "F_RENDER_BACKFACES";
+
+	/// <summary>
+	/// Whether a material draws both faces: its <c>F_RENDER_BACKFACES</c> among <paramref name="features"/> (after the shader's
+	/// feature rules) when its shader declares it, else set in code over its file's: no shader has to declare it.
+	/// </summary>
+	internal static bool TwoSidedValue( ShaderFile shader, MaterialFile file, IReadOnlyDictionary<string, int> setInCode, int[] features )
+	{
+		var index = shader?.FeatureIndex( RenderBackfaces ) ?? -1;
+		if ( index >= 0 && index < features.Length ) return features[index] != 0;
+
+		int? value = null;
+		foreach ( var (name, v) in file?.Ints ?? new Dictionary<string, int>() )
+			if ( string.Equals( name, RenderBackfaces, StringComparison.OrdinalIgnoreCase ) ) value = v;
+		foreach ( var (name, v) in setInCode ?? new Dictionary<string, int>() )
+			if ( string.Equals( name, RenderBackfaces, StringComparison.OrdinalIgnoreCase ) ) value = v;
+		return value is not null and not 0;
+	}
+
+	/// <summary>
+	/// Its <c>F_RENDER_BACKFACES</c> (<see cref="TwoSidedValue"/>): every variant it draws with is two-sided
+	/// (<see cref="ShaderVariant.TwoSided"/>), and its depth never takes the shared depth-only material, which culls.
+	/// </summary>
+	public override bool DrawsTwoSided => Volatile.Read( ref drawsTwoSided );
+
+	bool drawsTwoSided;
 
 	/// <summary>The modes <see cref="NeedsStencil"/> reads.</summary>
 	internal static readonly string[] StencilModes = ["Forward", "Depth"];
@@ -921,13 +957,16 @@ internal sealed class BackendMaterial : GpuMaterial, IStreamDependent
 		ShaderFile shader;
 		int[] features;
 		int loaded;
-		lock ( variantsGate ) (shader, features, loaded) = (Shader, Features, loads);
+		bool twoSided;
+		lock ( variantsGate ) (shader, features, loaded, twoSided) = (Shader, Features, loads, drawsTwoSided);
 
 		// Made outside the lock: making one loads the shader's combos and reads the attributes, which take locks of their own.
-		// Not kept while its module compiles: its programs draw until then
+		// Not kept while its module compiles: its programs draw until then. A two-sided material's is two-sided whatever its
+		// shader's state says
 		ShaderVariant variant;
 		bool pending;
 		using ( Zones.VariantLoad.Start() ) variant = library.Variant( shader, mode, features, combos, attributes, false, out pending );
+		if ( twoSided ) variant = variant?.TwoSided;
 		return pending ? variant : Keep( ref variants, key, variant, loaded );
 	}
 
@@ -956,13 +995,15 @@ internal sealed class BackendMaterial : GpuMaterial, IStreamDependent
 		ShaderFile shader;
 		int[] features;
 		int loaded;
-		lock ( variantsGate ) (shader, features, loaded) = (Shader, Features, loads);
+		bool twoSided;
+		lock ( variantsGate ) (shader, features, loaded, twoSided) = (Shader, Features, loads, drawsTwoSided);
 
-		// Made outside the lock, as Variant's are
+		// Made outside the lock, as Variant's are; two-sided as they are
 		ShaderVariant variant;
 		try
 		{
 			variant = library.Variant( shader, mode, features, combos, attributes, gpuDriven: true );
+			if ( twoSided ) variant = variant?.TwoSided;
 		}
 		catch ( System.IO.InvalidDataException )
 		{
@@ -1034,7 +1075,8 @@ internal sealed class BackendMaterial : GpuMaterial, IStreamDependent
 	/// Whether its depth draws with the shared depth-only material: only a shader that says its vertices are plain with
 	/// <c>BoolAttribute( ShadowFastPath, true )</c> (complex, simple and the other standard shaders), as native's. Any other
 	/// shader's depth comes from its own depth program, which moves its vertices as its colour pass does: a colour pass that
-	/// tests depth EQUAL against the prepass (Sandblocks' voxels) matches it only then. Worked out once per load.
+	/// tests depth EQUAL against the prepass (Sandblocks' voxels) matches it only then. A two-sided one takes the depth-only
+	/// material's copy that draws both faces. Worked out once per load.
 	/// </summary>
 	public override bool ShadowFastPath
 	{

@@ -98,17 +98,15 @@ FinalCombinerInput_t PS_InitFinalCombiner()
 
 #ifdef COMMON_PS_INPUT_DEFINED
 
-/// The interpolated world normal, turned to face the viewer on the back faces of two-sided materials, normalized.
+/// The interpolated world normal, turned to face the viewer on back faces, normalized. Only a two-sided draw has back faces
+/// (a material's F_RENDER_BACKFACES, which the engine draws without culling whatever the shader says, or an object casting
+/// shadows from both faces); a culled one only ever sees front faces, which this leaves alone.
 float3 PS_SboxFacingNormalWs( const PS_INPUT i )
 {
 	float3 vNormalWs = i.vNormalWs.xyz;
-#if defined( MATERIAL_CONTROLLED_BACKFACES ) || S_RENDER_BACKFACES
-	bool bTwoSided = true;
-	#if defined( MATERIAL_CONTROLLED_BACKFACES )
-		bTwoSided = ( F_RENDER_BACKFACES != 0 );
-	#endif
-	if ( bTwoSided )
-		vNormalWs *= ( i.face ? 1.0 : -1.0 );
+#if !defined( SBOX_TURNS_BACK_FACES )
+	// Not for a package shader that reads its own front-face input and turns them itself (EmbeddedCompatibility)
+	vNormalWs *= ( i.face ? 1.0 : -1.0 );
 #endif
 	return normalize( vNormalWs );
 }

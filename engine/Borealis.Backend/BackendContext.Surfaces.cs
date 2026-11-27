@@ -63,7 +63,7 @@ internal sealed partial class BackendContext
 		// The targets are this scope's only once it's open
 		var r = recording;
 		var noColor = stripPixelShader || r.Color is null;
-		var state = material.RenderState;
+		var state = DrawState( material, noColor );
 		string name;
 		if ( noColor )
 		{
@@ -142,6 +142,16 @@ internal sealed partial class BackendContext
 		return true;
 	}
 
+	/// <summary>
+	/// A surface's render state for this draw: two-sided for a depth-only draw while the context draws two-sided
+	/// (<see cref="TwoSided"/>: a shadow view's draws of an object casting from both faces).
+	/// </summary>
+	SurfaceRenderState DrawState( SurfaceMaterial material, bool noColor )
+	{
+		var state = material.RenderState;
+		return noColor && TwoSided && !state.TwoSided ? state with { TwoSided = true } : state;
+	}
+
 	/// <summary>Whether a surface's vertex stage reads nothing of these vertices but their positions.</summary>
 	static bool ReadsOnlyPositions( CompiledStage stage, VertexLayout layout )
 	{
@@ -164,7 +174,7 @@ internal sealed partial class BackendContext
 	/// </summary>
 	GpuDrivenBucket SurfaceBucket( SurfaceMaterial material, StringToken shaderMode, bool noColor, ShaderParameters attributes, long key, OverlayStencil stencil, bool skinned = false, bool vertexCache = false, ShaderParameters own = null )
 	{
-		var state = material.RenderState;
+		var state = DrawState( material, noColor );
 		if ( noColor && (!state.DepthWrite || state.Translucent) ) return null;
 		if ( !noColor && shaderMode.Value != ForwardMode.Value ) return null;
 		if ( device.Surfaces.For( material ) is not { } program ) return null;

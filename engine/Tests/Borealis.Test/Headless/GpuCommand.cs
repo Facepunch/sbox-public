@@ -61,6 +61,9 @@ internal sealed record GpuCommand( GpuOp Op, string Scope )
 	/// <summary>Whether a draw was told its depth had been drawn first (<see cref="GpuContext.DepthDrawnFirst"/>).</summary>
 	public bool DepthDrawnFirst { get; init; }
 
+	/// <summary>Whether a draw was drawn two-sided whatever its material culls (<see cref="GpuContext.TwoSided"/>).</summary>
+	public bool TwoSided { get; init; }
+
 	/// <summary>The texture size a draw asked streaming for (<see cref="TextureSizes"/>).</summary>
 	public int TextureSize { get; init; } = TextureSizes.All;
 

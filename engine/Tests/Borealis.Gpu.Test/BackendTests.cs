@@ -1,4 +1,5 @@
 using Borealis;
+using Borealis.Features;
 using Sandbox;
 using Borealis.Gpu;
 using BorealisGpuSample;
@@ -388,5 +389,114 @@ public class BackendTests : RenderGpuTest
 		}
 
 		return pixels;
+	}
+
+	/// <summary>
+	/// Any material is two-sided by its <c>F_RENDER_BACKFACES</c>, whatever its shader's render state culls: depth_only's
+	/// culling follows a draw's combo, not the feature, yet a material of it that sets the feature draws its variant's
+	/// two-sided twin, which shares its stages and differs only in culling. Its depth stays on the fast path, which takes the
+	/// depth-only material's copy that draws both faces.
+	/// </summary>
+	[TestMethod]
+	public void MaterialsDrawTwoSidedByTheirRenderBackfacesWhateverTheirShaderCulls()
+	{
+		using var backend = new Borealis.Backend.BackendDevice( Device );
+		if ( backend.CreateRawMaterial( "Two-sided test", "shaders/depth_only.shader" ) is not Borealis.Backend.BackendMaterial { Shader: not null } material )
+		{
+			Assert.Inconclusive( "No compiled depth_only shader" );
+			return;
+		}
+
+		var culled = material.Variant( backend.Shaders, "Depth", "Depth", static _ => null, static _ => null );
+		Assert.AreEqual( CullMode.Back, culled.State.Cull, "depth_only culls by default" );
+		Assert.IsFalse( material.DrawsTwoSided );
+		var fastPath = material.ShadowFastPath;
+
+		var twin = culled.TwoSided;
+		Assert.AreEqual( CullMode.None, twin.State.Cull, "the twin doesn't cull" );
+		Assert.AreSame( culled.Vertex, twin.Vertex, "the same vertex stage" );
+		Assert.AreSame( culled.Pixel, twin.Pixel, "the same pixel stage" );
+		Assert.AreSame( culled.Sets, twin.Sets, "the same binding layouts" );
+		Assert.AreEqual( culled.State.DepthWrite, twin.State.DepthWrite, "the rest of its state is the same" );
+		Assert.AreSame( twin, culled.TwoSided, "made once" );
+		Assert.AreSame( twin, twin.TwoSided, "a variant that doesn't cull is its own" );
+
+		backend.SetFeaturesOnMaterial( material, new Dictionary<string, int> { ["F_RENDER_BACKFACES"] = 1 } );
+		Assert.IsTrue( material.DrawsTwoSided, "set in code" );
+		Assert.AreEqual( CullMode.None, material.Variant( backend.Shaders, "Depth", "Depth", static _ => null, static _ => null ).State.Cull, "its variants are two-sided" );
+		Assert.AreEqual( fastPath, material.ShadowFastPath, "its depth stays on the fast path" );
+
+		backend.SetFeaturesOnMaterial( material, null );
+		Assert.IsFalse( material.DrawsTwoSided, "and taken back" );
+		Assert.AreEqual( CullMode.Back, material.Variant( backend.Shaders, "Depth", "Depth", static _ => null, static _ => null ).State.Cull );
+	}
+
+	/// <summary>
+	/// The fast path's depth-only material has a copy that draws both faces, for two-sided materials' depth: the same
+	/// material, its variants the culled one's twins. Which one a material takes follows its two-sidedness, and a change of
+	/// it moves the epoch that lists made from every material's choice ask again by.
+	/// </summary>
+	[TestMethod]
+	public void TwoSidedMaterialsTakeTheDepthOnlyMaterialThatDrawsBothFaces()
+	{
+		using var backend = new Borealis.Backend.BackendDevice( Device );
+		if ( MeshRenderFeature.LoadDepthOnly( backend ) is not Borealis.Backend.BackendMaterial { Shader: not null } culled )
+		{
+			Assert.Inconclusive( "No compiled depth_only material" );
+			return;
+		}
+
+		var twoSided = MeshRenderFeature.LoadDepthOnlyTwoSided( backend, culled ) as Borealis.Backend.BackendMaterial;
+		Assert.IsNotNull( twoSided );
+		Assert.AreNotSame( culled, twoSided );
+		Assert.AreSame( twoSided, backend.LoadTwoSidedMaterial( MeshRenderFeature.DepthOnlyMaterial ), "made once" );
+		Assert.AreSame( culled, backend.LoadMaterial( MeshRenderFeature.DepthOnlyMaterial ), "the shared one is as it was" );
+		Assert.IsFalse( culled.DrawsTwoSided );
+		Assert.IsTrue( twoSided.DrawsTwoSided );
+
+		var variant = culled.Variant( backend.Shaders, "Depth", "Depth", static _ => null, static _ => null );
+		Assert.AreEqual( CullMode.Back, variant.State.Cull );
+		Assert.AreSame( variant.TwoSided, twoSided.Variant( backend.Shaders, "Depth", "Depth", static _ => null, static _ => null ), "the culled one's twin" );
+
+		if ( backend.CreateRawMaterial( "Fast path test", "shaders/depth_only.shader" ) is not Borealis.Backend.BackendMaterial material ) return;
+		Assert.AreSame( culled, MeshRenderFeature.DepthOnlyFor( material, culled, twoSided ) );
+
+		var epoch = GpuMaterial.DepthOnlyEpoch;
+		backend.SetFeaturesOnMaterial( material, new Dictionary<string, int> { ["F_RENDER_BACKFACES"] = 1 } );
+		Assert.AreNotEqual( epoch, GpuMaterial.DepthOnlyEpoch, "made two-sided" );
+		Assert.AreSame( twoSided, MeshRenderFeature.DepthOnlyFor( material, culled, twoSided ) );
+		Assert.IsNull( MeshRenderFeature.DepthOnlyFor( material, culled, null ), "without the copy, its own" );
+	}
+
+	/// <summary>
+	/// A material's <c>F_RENDER_BACKFACES</c> counts whether or not its shader declares it: from its file, with code's over it.
+	/// Where the shader declares it, its feature value (after the shader's rules) is the one.
+	/// </summary>
+	[TestMethod]
+	public void RenderBackfacesNeedsNoDeclaration()
+	{
+		var undeclared = Borealis.Source2.Shaders.ShaderFile.FromModule( "shaders/undeclared_for_test.shader", [], [], [] );
+		static Borealis.Source2.Materials.MaterialFile File( int? backfaces ) => new()
+		{
+			Name = "materials/test/backfaces_for_test.vmat",
+			Shader = "shaders/undeclared_for_test.shader",
+			Ints = backfaces is { } value ? new Dictionary<string, int> { ["F_RENDER_BACKFACES"] = value } : new Dictionary<string, int>(),
+			Floats = new Dictionary<string, float>(),
+			Vectors = new Dictionary<string, float[]>(),
+			Textures = new Dictionary<string, string>(),
+			IntAttributes = new Dictionary<string, int>(),
+		};
+
+		bool TwoSided( int? file, int? code ) => Borealis.Backend.BackendMaterial.TwoSidedValue( undeclared, File( file ),
+			code is { } value ? new Dictionary<string, int> { ["f_render_backfaces"] = value } : null, [] );
+
+		Assert.IsFalse( TwoSided( null, null ), "off by default" );
+		Assert.IsTrue( TwoSided( 1, null ), "from the file, undeclared" );
+		Assert.IsTrue( TwoSided( null, 1 ), "set in code, undeclared" );
+		Assert.IsFalse( TwoSided( 1, 0 ), "code's over the file's" );
+
+		var declared = Borealis.Source2.Shaders.ShaderFile.FromModule( "shaders/declared_for_test.shader", [],
+			[new Borealis.Source2.Shaders.ShaderCombo { Name = "F_RENDER_BACKFACES", Min = 0, Max = 1 }], [] );
+		Assert.IsTrue( Borealis.Backend.BackendMaterial.TwoSidedValue( declared, File( 0 ), null, [1] ), "a declared feature's value is the one" );
 	}
 }

@@ -730,6 +730,22 @@ public partial class SceneObject : IHandle
 			set => SetFlag( Rendering.SceneObjectFlags.CastShadows, value );
 		}
 
+		/// <summary>
+		/// Cast shadows from both faces of its triangles, whatever its materials cull, while it still culls everywhere else:
+		/// for a shell modelled inside out, whose roof faces away from the light, or a single-sided wall. Only has an effect
+		/// while it <see cref="CastShadows"/>. Two-sided casters don't instance with ones that cull.
+		/// </summary>
+		public bool CastShadowsTwoSided
+		{
+			get => Object._castShadowsTwoSided;
+			set
+			{
+				if ( Object._castShadowsTwoSided == value ) return;
+				Object._castShadowsTwoSided = value;
+				Object.NotifyChanged( Rendering.SceneObjectChange.Flags );
+			}
+		}
+
 		public bool IsOpaque
 		{
 			get => HasFlag( Rendering.SceneObjectFlags.IsOpaque );

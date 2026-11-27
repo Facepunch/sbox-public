@@ -208,6 +208,24 @@ public sealed class MeshObject : RenderObject
 	} = true;
 
 	/// <summary>
+	/// Cast shadows from both faces (Unity's <c>ShadowCastingMode.TwoSided</c>): shadow views draw it two-sided
+	/// (<see cref="Gpu.GpuContext.TwoSided"/>), whatever its materials cull, while every other pass culls as they do. For a
+	/// shell modelled inside out, whose roof faces away from the sun, or a single-sided wall. Not instanced with objects
+	/// that cull, nor drawn GPU-driven or resident.
+	/// </summary>
+	public bool ShadowTwoSided
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+			field = value;
+			DrawChanged();
+			ShadowChanged();
+		}
+	}
+
+	/// <summary>
 	/// Enable opaque draws in colour, prepass and shadows (<c>SCENEOBJECTFLAG_IS_OPAQUE</c>).
 	/// </summary>
 	public bool DrawsOpaque

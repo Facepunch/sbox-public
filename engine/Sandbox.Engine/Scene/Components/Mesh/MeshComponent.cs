@@ -121,7 +121,8 @@ public sealed partial class MeshComponent : Collider, ExecuteInEditor, ITintable
 			field = value;
 			if ( _sceneObject.IsValid() )
 			{
-				_sceneObject.Flags.CastShadows = RenderType == ShadowRenderType.On || RenderType == ShadowRenderType.ShadowsOnly;
+				_sceneObject.Flags.CastShadows = RenderType != ShadowRenderType.Off;
+				_sceneObject.Flags.CastShadowsTwoSided = RenderType == ShadowRenderType.TwoSided;
 				_sceneObject.Flags.ExcludeGameLayer = RenderType == ShadowRenderType.ShadowsOnly;
 			}
 		}
@@ -435,7 +436,8 @@ public sealed partial class MeshComponent : Collider, ExecuteInEditor, ITintable
 		_sceneObject.ColorTint = Color;
 		if ( RenderOrder != 0 ) _sceneObject.Attributes.Set( "RenderOrder", RenderOrder );
 		if ( DisabledInLowQuality ) _sceneObject.Flags.SetFlag( Rendering.SceneObjectFlags.DisabledInLowQuality, true );
-		_sceneObject.Flags.CastShadows = RenderType == ShadowRenderType.On || RenderType == ShadowRenderType.ShadowsOnly;
+		_sceneObject.Flags.CastShadows = RenderType != ShadowRenderType.Off;
+		_sceneObject.Flags.CastShadowsTwoSided = RenderType == ShadowRenderType.TwoSided;
 		_sceneObject.Flags.ExcludeGameLayer = RenderType == ShadowRenderType.ShadowsOnly;
 		_sceneObject.Flags.IsStatic = GameObject.IsStatic;
 	}

@@ -103,8 +103,15 @@ struct Material
 #else
         Material m = Material::Init(i.vPositionWithOffsetWs.xyz, i.vPositionSs);
 
-        m.Normal = i.vNormalWs.xyz;
-        m.GeometricNormal = i.vNormalWs.xyz;
+        // A back face (a two-sided material's, F_RENDER_BACKFACES) is lit from its own side; a culled draw only has front
+        // faces. A shader with its own S_RENDER_BACKFACES combo has always turned its shading normal itself, so it still does
+        float3 vNormalWs = i.vNormalWs.xyz;
+        #if !( S_RENDER_BACKFACES ) && !defined( SBOX_TURNS_BACK_FACES )
+            vNormalWs *= ( i.face ? 1.0 : -1.0 );
+        #endif
+
+        m.Normal = vNormalWs;
+        m.GeometricNormal = vNormalWs;
     #if ( S_RENDER_BACKFACES )
         m.GeometricNormal *= i.face ? 1.0f : -1.0f; // Shadow normal offset goes towards the side we're seeing
     #endif

@@ -196,7 +196,7 @@ public partial class Terrain
 				return;
 
 			_so.Flags.ExcludeGameLayer = RenderType == ShadowRenderType.ShadowsOnly;
-			_so.Flags.CastShadows = RenderType == ShadowRenderType.On || RenderType == ShadowRenderType.ShadowsOnly;
+			_so.Flags.CastShadows = RenderType != ShadowRenderType.Off;
 		}
 	}
 }

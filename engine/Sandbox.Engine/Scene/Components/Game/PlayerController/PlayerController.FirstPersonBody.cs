@@ -108,6 +108,7 @@ public sealed partial class PlayerController
 
 			var target = copy.Object;
 			target.Transform = source.Transform;
+			target.Flags.CastShadowsTwoSided = source.Flags.CastShadowsTwoSided;
 			CopyRenderState( source, target );
 			CopyTags( copy, renderer.GameObject.Tags, dropViewer: true, firstPerson: false );
 

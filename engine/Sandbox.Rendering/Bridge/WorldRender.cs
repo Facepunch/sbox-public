@@ -554,6 +554,7 @@ internal sealed partial class WorldRender : ISceneWorldRender, IAttributeSource,
 			// Static state controls shadow caching and world-tag filtering.
 			var flags = sceneObject.Flags;
 			mesh.CastShadows = sceneObject.CastsShadows;
+			mesh.ShadowTwoSided = flags.CastShadowsTwoSided;
 			mesh.IsStatic = flags.IsStatic;
 			mesh.IsWorld = mesh.IsStatic || flags.HasFlag( SceneObjectFlags.IsHammerGeometry );
 
