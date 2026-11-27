@@ -22,12 +22,15 @@ public sealed partial class BackendDevice
 	// A texture read ahead and any image and upload buffer made for it on the worker, under loadedTextures' lock.
 	readonly Dictionary<string, (TextureFile File, Borealis.Gpu.TextureHandle Image, Borealis.Gpu.BufferHandle Staged, long ReadAt)> readTextures = new( StringComparer.OrdinalIgnoreCase );
 
-	// Keep read-ahead data through the build backlog, but not indefinitely if nothing loads its exact path.
-	const int ReadAheadSeconds = 30;
+	/// <summary>
+	/// Read-ahead data is kept through the build backlog, but not indefinitely if nothing loads its exact path: this many
+	/// seconds. For tests.
+	/// </summary>
+	internal static double ReadAheadSeconds { get; set; } = 30;
 
 	void FreeIdleReadAhead()
 	{
-		var due = Stopwatch.GetTimestamp() - ReadAheadSeconds * Stopwatch.Frequency;
+		var due = Stopwatch.GetTimestamp() - (long)(ReadAheadSeconds * Stopwatch.Frequency);
 		foreach ( var entry in readMaterials )
 		{
 			if ( entry.Value.ReadAt <= due ) readMaterials.TryRemove( entry );
@@ -41,6 +44,39 @@ public sealed partial class BackendDevice
 				readTextures.Remove( path );
 				ReleaseAhead( ahead );
 			}
+		}
+
+		FreeUnmadeModelReads( due );
+	}
+
+	// Model reads no model was made from, by when they were first seen so, and the paths of the models made (reused)
+	readonly Dictionary<string, long> unmadeReads = new( StringComparer.OrdinalIgnoreCase );
+	readonly HashSet<string> madePaths = new( StringComparer.OrdinalIgnoreCase );
+
+	/// <summary>
+	/// Let go of model reads nothing has made a model from for <see cref="ReadAheadSeconds"/>: a map left while its models were
+	/// still being made (328 MiB of Construct's vertices and indices stayed at the menu for good), or a model read for its file
+	/// alone (a trace's, an aggregate's draw calls). A made model's read goes when it's freed; these only went with the device.
+	/// The next ask reads it again. On the frame's thread, as <see cref="LoadModelAsync"/>.
+	/// </summary>
+	void FreeUnmadeModelReads( long due )
+	{
+		if ( modelReads.IsEmpty && unmadeReads.Count == 0 ) return;
+		madePaths.Clear();
+		foreach ( var key in streamedModels.Keys ) madePaths.Add( key.Path );
+
+		var now = Stopwatch.GetTimestamp();
+		foreach ( var (path, read) in modelReads )
+		{
+			if ( !read.IsCompleted || madePaths.Contains( path ) ) continue;
+			if ( !unmadeReads.TryGetValue( path, out var since ) ) unmadeReads[path] = now;
+			else if ( since <= due ) modelReads.TryRemove( new KeyValuePair<string, Task<ModelFile>>( path, read ) );
+		}
+
+		// Forget those made since, or gone
+		foreach ( var path in unmadeReads.Keys )
+		{
+			if ( madePaths.Contains( path ) || !modelReads.ContainsKey( path ) ) unmadeReads.Remove( path );
 		}
 	}
 

@@ -156,6 +156,47 @@ public class ContentLifetimeTests : RenderGpuTest
 	}
 
 	/// <summary>
+	/// A model read that no model is made from (a map left while its models were still being made, a trace's read) is let go
+	/// after the read-ahead time, its file with it: 328 MiB of Construct's vertices and indices stayed at the menu for good. A
+	/// made model's read stays while the model does.
+	/// </summary>
+	[TestMethod]
+	public void AnUnmadeModelReadGoes()
+	{
+		const string box = "models/dev/box.vmdl", sphere = "models/dev/sphere.vmdl";
+		using var backend = new BackendDevice( Device ) { GpuDrivenGeometry = true };
+		if ( backend.Content.TryRead( box ) is null || backend.Content.TryRead( sphere ) is null ) { Assert.Inconclusive( "the dev models aren't built" ); return; }
+
+		RenderMesh mesh = null;
+		for ( int i = 0; i < 500 && mesh is null; i++ )
+		{
+			backend.BeginFrame();
+			mesh = backend.LoadModelAsync( box, ulong.MaxValue, out var pending, pin: false );
+			if ( mesh is null && !pending ) break;
+			if ( pending ) System.Threading.Thread.Sleep( 2 );
+		}
+		Assert.IsNotNull( mesh, "the model loads" );
+		Assert.IsNotNull( backend.ReadModel( sphere ).GetAwaiter().GetResult(), "the other is read, not made" );
+
+		var idle = BackendDevice.ReadAheadSeconds;
+		BackendDevice.ReadAheadSeconds = 0;
+		try
+		{
+			// Seen unmade on one pass (every 64 frames), let go on the next
+			for ( int i = 0; i < 130; i++ ) backend.BeginFrame();
+			Assert.IsFalse( backend.ModelRead( sphere ), "the unmade read is let go" );
+			Assert.IsTrue( backend.ModelRead( box ), "the made model's read stays" );
+			Assert.IsNotNull( backend.ReadModel( sphere ).GetAwaiter().GetResult(), "asked again, it's read again" );
+		}
+		finally
+		{
+			BackendDevice.ReadAheadSeconds = idle;
+		}
+
+		Device.WaitIdle();
+	}
+
+	/// <summary>
 	/// A model's bytes with its first mesh's buffers (its <c>MBUF</c> block) empty: one vertex and one index buffer of
 	/// 0 x 0 bytes, as an empty run-time mesh saves them (a voxel chunk with no faces).
 	/// </summary>
