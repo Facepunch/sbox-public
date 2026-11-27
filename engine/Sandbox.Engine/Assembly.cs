@@ -28,7 +28,6 @@ using System.Runtime.CompilerServices;
 [assembly: InternalsVisibleTo( "sbox-dev" )]
 [assembly: InternalsVisibleTo( "sbox" )]
 [assembly: InternalsVisibleTo( "sbox-standalone" )]
-[assembly: InternalsVisibleTo( "sbox-profiler" )]
 [assembly: InternalsVisibleTo( "benchmark" )]
 
 [assembly: TasksPersistOnContextReset]

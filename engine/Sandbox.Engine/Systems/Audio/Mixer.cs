@@ -429,7 +429,7 @@ public partial class Mixer
 		Meter.Add( _outputBuffer, _voiceCount );
 	}
 
-	static Superluminal _mixVoice = new( "Mix Voice", "#4d5e73" );
+	static readonly ProfileScope _mixVoice = new( "Audio.MixVoice" );
 	MultiChannelBuffer mixBuffer = new( AudioEngine.ChannelCount );
 	readonly MultiChannelBuffer[] _directBuffers = new MultiChannelBuffer[AudioEngine.ChannelCount + 1];
 	readonly MultiChannelBuffer _reverbMonoBuffer = new( 1 );

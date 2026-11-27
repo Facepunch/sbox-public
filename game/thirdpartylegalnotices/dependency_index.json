@@ -578,19 +578,6 @@
 			]
 		},
 		{
-			"Name": "Superluminal",
-			"Comment": "PerformanceAPI.dll, used for sampling and instrumentation profiler integration.",
-			"UsedBy": [
-				"engine2"
-			],
-			"License": "BSD-2-Clause",
-			"ProjectUrl": "https://superluminal.eu/eula",
-			"Linkage": "dynamic",
-			"Copyright": [
-				"2025 Superluminal"
-			]
-		},
-		{
 			"Name": "tinyexr",
 			"Comment": "Tiny OpenEXR loader/saver.",
 			"UsedBy": [

@@ -103,7 +103,7 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 		}
 	}
 
-	static Superluminal _executeCommandList = new Superluminal( "ExecuteCommandList", Color.Cyan );
+	static readonly ProfileScope _executeCommandList = new( "Camera.ExecuteCommandList" );
 
 	/// <summary>
 	/// Custom command lists may read the normals G-buffer without declaring it. Keep it for those cameras.
@@ -151,7 +151,7 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 			for ( var i = 0; i < count; i++ )
 			{
 				var entry = entries[i];
-				using ( _executeCommandList.Start( entry.List.DebugName ) )
+				using ( _executeCommandList.Start() )
 				{
 					// The view decides too: a reflection or other secondary view can turn post processing off.
 					if ( entry.List.Flags.Contains( CommandList.Flag.PostProcess )

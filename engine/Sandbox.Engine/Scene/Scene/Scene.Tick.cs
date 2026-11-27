@@ -179,11 +179,11 @@ public partial class Scene : GameObject
 		}
 	}
 
-	static Superluminal _updateTimer = new Superluminal( "Scene.Update", Color.Cyan );
-	static Superluminal _preRenderTimer = new Superluminal( "Scene.PreRender", Color.Cyan );
-	static Superluminal _signalUpdateBones = new Superluminal( "Signal.UpdateBones", Color.Cyan );
-	static Superluminal _signalStarthUpdate = new Superluminal( "Signal.StartUpdate", Color.Cyan );
-	static Superluminal _signalFinishUpdate = new Superluminal( "Signal.FinishUpdate", Color.Cyan );
+	static readonly ProfileScope CpuFixedUpdate = new( "Scene.FixedUpdate" );
+	static readonly ProfileScope CpuProcessDeletes = new( "Scene.ProcessDeletes" );
+	static readonly ProfileScope CpuSignalStartUpdate = new( "Scene.Signal.StartUpdate" );
+	static readonly ProfileScope CpuSignalUpdateBones = new( "Scene.Signal.UpdateBones" );
+	static readonly ProfileScope CpuSignalFinishUpdate = new( "Scene.Signal.FinishUpdate" );
 
 	Action _internalFixedUpdate;
 
@@ -231,19 +231,18 @@ public partial class Scene : GameObject
 		{
 			ProcessDeletes();
 
-			using ( _signalStarthUpdate.Start() )
+			using ( CpuSignalStartUpdate.Start() )
 			{
 				Signal( GameObjectSystem.Stage.StartUpdate );
 			}
 
-			using ( _updateTimer.Start() )
 			using ( PerformanceStats.Timings.Update.Scope() )
 			{
 				PreTickReset();
 				InternalUpdate();
 			}
 
-			using ( _signalUpdateBones.Start() )
+			using ( CpuSignalUpdateBones.Start() )
 			{
 				Signal( GameObjectSystem.Stage.UpdateBones );
 			}
@@ -253,7 +252,6 @@ public partial class Scene : GameObject
 
 			if ( !Application.IsHeadless )
 			{
-				using ( _preRenderTimer.Start() )
 				using ( PerformanceStats.Timings.Render.Scope() )
 				{
 					PreRender();
@@ -262,7 +260,7 @@ public partial class Scene : GameObject
 
 			ProcessDeletes();
 
-			using ( _signalFinishUpdate.Start() )
+			using ( CpuSignalFinishUpdate.Start() )
 			{
 				Signal( GameObjectSystem.Stage.FinishUpdate );
 			}
@@ -360,20 +358,17 @@ public partial class Scene : GameObject
 
 	Input.Context FixedUpdateInputContext { get; set; } = Input.Context.Create( "Scene.FixedUpdate" );
 
-	static Superluminal _fixedUpdateTimer = new Superluminal( "Scene.FixedUpdate", Color.Cyan );
-	static Superluminal _processDeletesTimer = new Superluminal( "ProcessDeletes", Color.Orange );
-
 	internal void InternalFixedUpdate()
 	{
 		if ( !IsValid )
 			return;
 
+		using var cpu = CpuFixedUpdate.Start();
 		FixedUpdateInputContext.Flip();
 		using var _ = FixedUpdateInputContext.Push();
 
 		try
 		{
-			using var timing = _fixedUpdateTimer.Start();
 			Signal( GameObjectSystem.Stage.StartFixedUpdate );
 
 			// All components that have not had OnStart() called yet
@@ -405,7 +400,7 @@ public partial class Scene : GameObject
 				}
 			}
 
-			using ( _processDeletesTimer.Start() )
+			using ( CpuProcessDeletes.Start() )
 			{
 				ProcessDeletes();
 			}

@@ -5,8 +5,8 @@ namespace Sandbox.Engine;
 
 internal sealed partial class GameWindow
 {
-	static readonly Superluminal gameRender = new( "Game Render", "#3a6e4d" );
-	static readonly Superluminal menuRender = new( "Menu Render", "#6e3a6e" );
+	static readonly ProfileScope gameRender = new( "Game.Render" );
+	static readonly ProfileScope menuRender = new( "Menu.Render" );
 
 	// Scene views derive their dimensions and MSAA from this swapchain; scratch textures are pooled on demand.
 	internal void InitializeRendering()

@@ -32,7 +32,7 @@ The candidates live only in the benchmark project. This comparison tests the ins
   and reinserts 10% after movement.
 - All three implementations' final visible sets are checked against brute force for every query,
   before movement, after movement and after churn. Structural invariants are also checked.
-- No graphics/native engine, frame preparation, draw submission, parallel shadow jobs or Tracy capture.
+- No graphics/native engine, frame preparation, draw submission or parallel shadow jobs.
   These are isolated CPU costs, not FPS measurements or captured game-world workloads.
 
 Candidates:

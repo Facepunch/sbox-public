@@ -31,7 +31,6 @@ public partial class BenchmarkSystem
 	/// </summary>
 	public void Start( string name )
 	{
-		BenchmarkOrchestrator.EnsureTracyCaptureStarted();
 
 		// A repeat of the same test keeps the existing samplers/allocations so every repeat
 		// accumulates into one result, instead of each Finish overwriting the previous in `results`.

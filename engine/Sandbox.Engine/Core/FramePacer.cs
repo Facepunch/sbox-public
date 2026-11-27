@@ -10,7 +10,7 @@ namespace Sandbox.Engine;
 [SkipHotload]
 internal sealed class FramePacer
 {
-	static readonly Superluminal sleepScope = new( "Sleep For Max FPS", Color.Gray );
+	static readonly ProfileScope CpuWait = new( "Engine.FrameCapWait" );
 	readonly FastTimer clock = FastTimer.StartNew();
 	double nextFrameDeadlineMs;
 
@@ -21,7 +21,7 @@ internal sealed class FramePacer
 		double deadlineMs = GetNextDeadline( nowMs, framesPerSecond );
 		if ( nowMs >= deadlineMs ) return 0;
 
-		using var _ = sleepScope.Start();
+		using var cpu = CpuWait.Start();
 		// SDL handles high-resolution sleeping and the final spin; our deadlines absorb any oversleep.
 		Sdl.DelayPrecise( (ulong)((deadlineMs - nowMs) * 1_000_000) );
 

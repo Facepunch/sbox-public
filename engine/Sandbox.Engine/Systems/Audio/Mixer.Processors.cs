@@ -36,7 +36,7 @@ public partial class Mixer
 
 	public T GetProcessor<T>() where T : AudioProcessor => _processorList.OfType<T>().FirstOrDefault();
 
-	static readonly Superluminal _processors = new Superluminal( "ApplyProcessors", "#4d5e73" );
+	static readonly ProfileScope _processors = new( "Audio.ApplyProcessors" );
 
 	// Instance field: each Mixer has its own processor scratch buffer.
 	// Previously static, which was a data race when multiple mixers ran on the mix thread.

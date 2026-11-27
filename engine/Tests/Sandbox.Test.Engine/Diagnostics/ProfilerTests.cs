@@ -217,6 +217,28 @@ public class ProfilerTests
 	}
 
 	[TestMethod]
+	public void LegacyTimingScopesParticipateInProfilerCaptures()
+	{
+		var timing = PerformanceStats.Timings.Get( "Test.Profiler.LegacyTiming" );
+		var task = StartCapture( 2 );
+		using ( Parent.Start() )
+		{
+			using ( timing.Scope() )
+			using ( timing.Scope() )
+			{
+				using var child = Child.Start();
+			}
+		}
+		Profiler.StopCapture();
+		var capture = task.GetAwaiter().GetResult();
+		Assert.AreEqual( 4, capture.Spans.Length );
+		CollectionAssert.AreEqual( new[] { -1, 0, 1, 2 }, capture.Spans.Select( x => x.Parent ).ToArray() );
+		Assert.AreEqual( 0, capture.IncompleteScopes );
+		Assert.AreEqual( 0UL, capture.DroppedEvents );
+		Assert.AreEqual( 2, timing.CurrentCalls );
+	}
+
+	[TestMethod]
 	public void RingOverflowPreservesOtherThreadsAndRecoversAfterTheGap()
 	{
 		var outer = new ProfileScope( "Test.Profiler.OverflowOuter" );

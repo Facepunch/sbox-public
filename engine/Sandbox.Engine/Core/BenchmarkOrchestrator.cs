@@ -1,6 +1,3 @@
-using System.Diagnostics;
-using System.IO;
-using System.Threading;
 using Sandbox.Engine.Settings;
 using Sandbox.Modals;
 using Sandbox.Utility;
@@ -24,9 +21,6 @@ internal static class BenchmarkOrchestrator
 	private static string[] _testFilter;
 	private static string _repeatArg;
 	private static string _durationArg;
-	private static Process _tracyCapture;
-	private static string _tracyOutputPath;
-	private static string _tracyExePath;
 
 	internal static string ExportPath { get; private set; }
 	internal static bool IsRunning { get; set; }
@@ -56,12 +50,6 @@ internal static class BenchmarkOrchestrator
 
 		_preRunSnapshot = RenderSettings.Instance.CaptureSnapshot();
 		RenderSettings.Instance.ApplySettingsForBenchmarks();
-
-		if ( CommandLine.HasSwitch( "+benchmark-tracy" ) && !string.IsNullOrEmpty( ExportPath ) )
-		{
-			_tracyOutputPath = Path.ChangeExtension( ExportPath, ".tracy" );
-			_tracyExePath = CommandLine.GetSwitch( "+benchmark-tracy-exe", null );
-		}
 
 		if ( !TryLoadNextPackage() )
 		{
@@ -136,46 +124,6 @@ internal static class BenchmarkOrchestrator
 		_currentIndex++;
 
 		return true;
-	}
-
-	internal static void EnsureTracyCaptureStarted()
-	{
-		if ( string.IsNullOrEmpty( _tracyOutputPath ) || _tracyCapture != null ) return;
-		StartTracyCapture( _tracyOutputPath, _tracyExePath );
-	}
-
-	private static void StartTracyCapture( string outputPath, string captureExe = null )
-	{
-		string exePath;
-		if ( !string.IsNullOrEmpty( captureExe ) )
-		{
-			exePath = captureExe;
-		}
-		else
-		{
-			var exeDir = Path.GetDirectoryName( Environment.ProcessPath ) ?? ".";
-			var localExe = Path.Combine( exeDir, "tracy-capture.exe" );
-			exePath = File.Exists( localExe ) ? localExe : "tracy-capture.exe";
-		}
-
-		var startInfo = new ProcessStartInfo
-		{
-			FileName = exePath,
-			Arguments = $"-o \"{outputPath}\" -f",
-			UseShellExecute = false,
-			CreateNoWindow = true,
-		};
-
-		try
-		{
-			_tracyCapture = Process.Start( startInfo );
-			Log.Info( $"[Benchmark] Tracy capture started → {outputPath}" );
-			Thread.Sleep( 1000 );
-		}
-		catch ( Exception ex )
-		{
-			Log.Warning( $"[Benchmark] Could not start tracy-capture: {ex.Message}" );
-		}
 	}
 
 	private static string[] ParseFilter( string value ) =>

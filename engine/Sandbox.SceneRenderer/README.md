@@ -214,7 +214,7 @@ when testing resource lifetime.
 
 Use `overlay_scene_plan 1` in a game, or **View > Frame Plan** in SceneLab, to see active layers,
 resource dependencies, recording segments and timings. Level `2` also shows skipped layers.
-Tracy zones are defined in [Diagnostics/Zones.cs](Diagnostics/Zones.cs); they cover collection,
+Profiler capture scopes are defined in [Diagnostics/Zones.cs](Diagnostics/Zones.cs); they cover collection,
 preparation, setup, recording, worker waits and submission. SceneLab's `-serialrecording` switch helps
 compare serial and parallel execution.
 

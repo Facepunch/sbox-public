@@ -12,9 +12,9 @@ namespace Sandbox.Audio;
 /// </summary>
 static class MixingThread
 {
-	static readonly Superluminal _sampleVoices = new( "SampleVoices", "#4d5e73" );
-	static readonly Superluminal _mixVoices = new( "Mix", "#4d5e73" );
-	static readonly Superluminal _finishVoices = new( "FinishVoices", "#4d5e73" );
+	static readonly ProfileScope _sampleVoices = new( "Audio.SampleVoices" );
+	static readonly ProfileScope _mixVoices = new( "Audio.Mix" );
+	static readonly ProfileScope _finishVoices = new( "Audio.FinishVoices" );
 
 	// Set to 1 by main after publishing; atomically read-and-cleared by mix thread.
 	// int (not volatile) — all accesses go through Interlocked which provides full memory barriers.

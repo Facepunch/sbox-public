@@ -11,7 +11,7 @@ public class SensitiveConVarTests
 {
 	[TestMethod]
 	[DataRow( typeof( ScreenshotService ), "screenshot_prefix" )]
-	[DataRow( typeof( Sandbox.Diagnostics.EtwProfiler ), "profiler" )]
+	[DataRow( typeof( Sandbox.Diagnostics.DevTools ), "devtools" )]
 	public void GameCodeCantReach( Type type, string name )
 	{
 		var attribute = type.GetMembers( BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic )

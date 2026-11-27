@@ -4,7 +4,7 @@ using Sandbox.UI;
 namespace Sandbox.Diagnostics;
 
 /// <summary>
-/// The frame on one clock, laid out the way Unreal Insights, PIX and Tracy lay out a capture: an overview of the whole
+/// The frame on one clock, laid out the way Unreal Insights and PIX lay out a capture: an overview of the whole
 /// frame with the part in view outlined, a ruler, the GPU's passes nested under their parents - graphics, then async
 /// compute - and, through the managed renderer, the CPU making the frame under them, lined up at its first submit.
 /// It opens fitted to the GPU's work. The wheel zooms about the cursor, dragging pans, dragging the ruler measures,

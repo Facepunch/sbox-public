@@ -93,7 +93,7 @@ internal static partial class VoiceManager
 	/// </summary>
 	public static string GetDefaultRecordingDevice() => VoiceGlue.GetDefaultRecordingDeviceName() ?? "";
 
-	static Superluminal _voiceTick = new Superluminal( "VoiceTick", Color.Yellow );
+	static readonly ProfileScope _voiceTick = new( "Audio.VoiceTick" );
 
 	static RealTimeSince timeSinceLastTick = 0;
 	public static void Tick()

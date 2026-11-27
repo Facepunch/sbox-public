@@ -22,7 +22,6 @@
     <Project Path="Launcher/SboxBench/SboxBench.csproj" />
     <Project Path="Launcher/SboxCli/Sbox-Cli.csproj" />
     <Project Path="Launcher/SboxDev/Sbox-Dev.csproj" />
-    <Project Path="Launcher/SboxProfiler/SboxProfiler.csproj" />
     <Project Path="Launcher/SboxServer/Sbox-Server.csproj" />
     <Project Path="Launcher/SboxStandalone/Sbox-Standalone.csproj" />
     <Project Path="Launcher/SceneLab/SceneLab.csproj" />

@@ -22,10 +22,11 @@ internal static class EngineLoop
 	internal static long LoopFrames;
 	internal static long RenderedFrames;
 
-	static Superluminal _runFrame = new Superluminal( "RunFrame", "#4d5e73" );
-	static Superluminal _frameStart = new Superluminal( "FrameStart", "#2c3541" );
-	static Superluminal _frameEnd = new Superluminal( "FrameEnd", "#2c3541" );
 	static readonly ProfileScope CpuFrame = new( Diagnostics.Profiler.FrameScopeName );
+	static readonly ProfileScope CpuFrameStart = new( "Engine.FrameStart" );
+	static readonly ProfileScope CpuFrameEnd = new( "Engine.FrameEnd" );
+	static readonly ProfileScope CpuOutput = new( "Engine.ClientOutput" );
+	static readonly ProfileScope CpuToolsRender = new( "Engine.ToolsRender" );
 
 	internal static void RunFrame( CMaterialSystem2AppSystemDict appDict, out bool wantsQuit )
 	{
@@ -47,7 +48,6 @@ internal static class EngineLoop
 		double time = RealTime.NowDouble;
 		FastTimer frameTimer = FastTimer.StartNew();
 
-		using ( _runFrame.Start() )
 		using ( CpuFrame.Start() )
 		{
 			Application.FrameCount++;
@@ -58,7 +58,7 @@ internal static class EngineLoop
 
 			try
 			{
-				using ( _frameStart.Start() )
+				using ( CpuFrameStart.Start() )
 				{
 					FrameStart();
 				}
@@ -90,7 +90,7 @@ internal static class EngineLoop
 
 			try
 			{
-				using ( _frameEnd.Start() )
+				using ( CpuFrameEnd.Start() )
 				{
 					FrameEnd();
 				}
@@ -306,8 +306,8 @@ internal static class EngineLoop
 	}
 
 
-	static Superluminal _simulateUiGame = new Superluminal( "Simulate GameUI", "#2c3541" );
-	static Superluminal _simulateUiMenu = new Superluminal( "Simulate GameUI", "#2c3541" );
+	static readonly ProfileScope CpuGameUi = new( "Engine.SimulateGameUI" );
+	static readonly ProfileScope CpuMenuUi = new( "Engine.SimulateMenuUI" );
 
 	private static void SimulateUI()
 	{
@@ -315,12 +315,12 @@ internal static class EngineLoop
 		VideoTextureLoader.TickVideoPlayers();
 		PanelRealTime.Update();
 
-		using ( _simulateUiGame.Start() )
+		using ( CpuGameUi.Start() )
 		{
 			IGameInstanceDll.Current?.SimulateUI();
 		}
 
-		using ( _simulateUiMenu.Start() )
+		using ( CpuMenuUi.Start() )
 		{
 			IMenuDll.Current?.SimulateUI();
 		}
@@ -328,14 +328,10 @@ internal static class EngineLoop
 		StandaloneLoadingScreen.Tick();
 	}
 
-	static Superluminal _clientOutput = new Superluminal( "OnClientOutput", "#3a6ea5" );
-	static Superluminal _toolsRender = new Superluminal( "Tools Render", "#6e6e3a" );
-
 	internal static void OnClientOutput()
 	{
+		using var cpu = CpuOutput.Start();
 		RenderedFrames++;
-
-		using var _outputScope = _clientOutput.Start();
 
 		// Choose g_flTime before rendering, independently of temporary menu and preview scene scopes.
 		var renderTime = Game.IsPlaying && GlobalContext.Game.ActiveScene is { IsValid: true } gameScene
@@ -358,7 +354,7 @@ internal static class EngineLoop
 		{
 			Sandbox.UI.ScenePanel.RenderPending();
 
-			using ( _toolsRender.Start() )
+			using ( CpuToolsRender.Start() )
 				IToolsDll.Current?.OnRender();
 			return;
 		}

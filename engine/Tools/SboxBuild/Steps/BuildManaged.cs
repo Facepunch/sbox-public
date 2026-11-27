@@ -127,7 +127,9 @@ internal class BuildManaged( bool clean = false )
 				var staleFiles = new[] { "sbox", "sbox-dev", "sbox-launcher", "sbox-server", "benchmark" }
 					.SelectMany( name => new[] { $"{name}.dll", $"{name}.runtimeconfig.json" } )
 					// sbox-standalone belongs in bin/managed; a copy in the root would match the depot's *.exe
-					.Concat( ["sbox-standalone", "sbox-standalone.exe", "sbox-standalone.dll", "sbox-standalone.runtimeconfig.json"] );
+					.Concat( ["sbox-standalone", "sbox-standalone.exe", "sbox-standalone.dll", "sbox-standalone.runtimeconfig.json"] )
+					// sbox-profiler was removed
+					.Concat( new[] { "", ".exe", ".dll", ".pdb", ".deps.json", ".runtimeconfig.json" }.Select( x => Path.Combine( "bin", "managed", $"sbox-profiler{x}" ) ) );
 
 				foreach ( var file in staleFiles )
 				{
