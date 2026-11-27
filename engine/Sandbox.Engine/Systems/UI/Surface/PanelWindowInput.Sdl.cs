@@ -162,8 +162,6 @@ internal static partial class PanelWindowInput
 				if ( PanelWindows.Find( window ) is not { } target ) return;
 				// An STA wait pumps messages mid-frame, so draw on the next frame instead. Borealis.Gpu's frames are ours, not the scene system's
 				if ( Graphics.IsActive || BorealisGpuWindow.IsDrawing ) { target.Resized(); return; }
-				// Modal resize loops park the normal frame update, including scratch-target expiry.
-				CSceneSystem.FrameUpdate();
 				OnResized( window );
 			} );
 		}
@@ -209,7 +207,7 @@ internal static partial class PanelWindowInput
 	[UnmanagedCallersOnly( CallConvs = [typeof( CallConvCdecl )] )]
 	static void DragFrame()
 	{
-		try { CSceneSystem.FrameUpdate(); OnDragFrame(); }
+		try { OnDragFrame(); }
 		catch ( Exception e ) { Log.Warning( e, "Panel window drag frame failed" ); }
 	}
 }

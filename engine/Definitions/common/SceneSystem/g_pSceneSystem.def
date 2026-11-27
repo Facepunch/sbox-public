@@ -3,8 +3,6 @@
 
 native accessor g_pSceneSystem as NativeEngine.CSceneSystem
 {
-	void FrameUpdate();
-
     void DeleteSceneObject( CSceneObject pObj );
     void DeleteSceneObjectAtFrameEnd( CSceneObject pObj );
 
@@ -15,6 +13,6 @@ native accessor g_pSceneSystem as NativeEngine.CSceneSystem
 
     void PerformEndOfFrameDeletes();
 
-    // End a frame that renders no views: deletes, dirty objects and the frame counter
+    // End a frame that renders no views: deletes and dirty objects
     void FinishFrameWithoutViews();
 }

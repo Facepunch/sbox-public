@@ -5,7 +5,6 @@
 native class ISceneWorld as NativeEngine.ISceneWorld
 {
 	void Release();
-	bool IsEmpty();
 
 	void DeleteEndOfFrameObjects();
 }

@@ -18,7 +18,7 @@ namespace Borealis.Gpu;
 internal sealed class TransformBuffer : IDisposable
 {
 	/// <summary>
-	/// Native <c>SceneSystemTransformEntry_t</c>: row-major 3x4 transform and instance data.
+	/// One instance: row-major 3x4 transform and instance data.
 	/// </summary>
 	[StructLayout( LayoutKind.Sequential )]
 	internal struct Entry
