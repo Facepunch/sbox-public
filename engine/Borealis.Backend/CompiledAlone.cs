@@ -47,13 +47,12 @@ internal static class CompiledAlone
 		return null;
 	}
 
-	/// <summary>The name materials give the shader of a compiled file: <c>shaders/foo.shader</c> for <c>.../shaders/foo.slang_c</c>.</summary>
+	/// <summary>The name materials give the shader of a compiled file: <c>shaders/foo.shader</c> for <c>.../shaders/foo.slang_c</c> or <c>.../shaders/foo.shader_c</c>.</summary>
 	internal static string ShaderName( string compiled )
 	{
 		var path = compiled.Replace( '\\', '/' );
 		var at = path.LastIndexOf( "/shaders/", StringComparison.OrdinalIgnoreCase );
 		var relative = at >= 0 ? path[(at + 1)..] : Path.GetFileName( path );
-		var stem = relative.EndsWith( ".slang" + SlangOutput.Suffix, StringComparison.OrdinalIgnoreCase ) ? relative[..^(".slang".Length + SlangOutput.Suffix.Length)] : relative;
-		return stem + ".shader";
+		return relative.EndsWith( SlangOutput.Suffix, StringComparison.OrdinalIgnoreCase ) ? ShaderFormat.ShaderNameOf( relative ) : relative + ".shader";
 	}
 }

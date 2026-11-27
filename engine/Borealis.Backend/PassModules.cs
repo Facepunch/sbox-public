@@ -158,11 +158,11 @@ public sealed partial class PassModules : IShaderModules
 	/// </summary>
 	public System.Threading.Tasks.Task Warm()
 	{
-		var shaders = Path.Combine( Core, "shaders" );
+		var core = Core;
 		return System.Threading.Tasks.Task.Run( () =>
 		{
 			using var zone = Zones.PassModulesRead.Start();
-			foreach ( var file in Directory.GetFiles( shaders, "*.slang", SearchOption.AllDirectories ) )
+			foreach ( var file in WarmSources( core ) )
 			{
 				ModuleBeside( Path.ChangeExtension( file, ".shader_c" ) );
 
@@ -171,6 +171,9 @@ public sealed partial class PassModules : IShaderModules
 			}
 		} );
 	}
+
+	/// <summary>The core Slang sources <see cref="Warm"/> reads: every <c>.slang</c> under its shaders, and every <c>.shader</c> that's Slang by content.</summary>
+	internal static IEnumerable<string> WarmSources( string core ) => ShaderFormat.SlangSources( Path.Combine( core, "shaders" ), SearchOption.AllDirectories );
 
 	/// <summary>
 	/// The pass module beside a shader's source, or null. Its file is looked at again at most once a second, and read again

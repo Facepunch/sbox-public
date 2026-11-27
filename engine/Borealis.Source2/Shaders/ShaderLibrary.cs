@@ -180,6 +180,9 @@ public sealed class ShaderLibrary : IDisposable
 
 		if ( full is not null )
 		{
+			// A Slang compile (SLGC, told by content) named .shader_c: its module describes it, not a vfx resource
+			if ( Modules is { } compiledModules && IsSlangCompiled( full ) ) return compiledModules.Describe( full ) is { } slang ? (slang, true) : (null, false);
+
 			// A standalone module describes its shader itself: the compiled file beside it is only Source 2's renderer's
 			if ( !CompiledFirst && Modules?.DescribeStandalone( full ) is { } standalone ) return (standalone, true);
 			return (LoadOrUpgrade( full ), true);
@@ -193,11 +196,12 @@ public sealed class ShaderLibrary : IDisposable
 			if ( modules.Describe( Path.GetFullPath( compiled ) ) is { } described ) return (described, true);
 		}
 
-		// A game's own module (in its files, not a content folder), unless a .shader stands where it would, as native decides
-		if ( shaderPath.EndsWith( ".shader", StringComparison.OrdinalIgnoreCase ) && Files.FindSource( shaderPath ) is null
-			&& Files.FindSource( shaderPath[..^".shader".Length] + ".slang" ) is { } source
+		// A game's own module (in its files, not a content folder): the .shader itself when it's Slang by content, else a
+		// .slang in its place unless a VFX .shader stands where it would, as native decides
+		if ( shaderPath.EndsWith( ".shader", StringComparison.OrdinalIgnoreCase )
+			&& (Files.FindSource( shaderPath ) is { } shaderFile ? (IsVfxSource( shaderFile ) ? null : shaderFile) : Files.FindSource( shaderPath[..^".shader".Length] + ".slang" )) is { } source
 			&& !Files.Roots.Any( r => source.StartsWith( r, StringComparison.OrdinalIgnoreCase ) )
-			&& modules.Describe( source[..^".slang".Length] + ".shader_c" ) is { } game )
+			&& modules.Describe( Path.ChangeExtension( source, ".shader_c" ) ) is { } game )
 			return (game, true);
 
 		return (null, false);
@@ -236,6 +240,12 @@ public sealed class ShaderLibrary : IDisposable
 	/// unless set (the device sets <c>ShaderFormat.IsVfxSourceFile</c>).
 	/// </summary>
 	public Func<string, bool> IsVfxSource { get; set; } = _ => true;
+
+	/// <summary>
+	/// Whether the compiled file at a path is a Slang compile (<c>SLGC</c>) rather than a vfx resource, by its content: none
+	/// is, unless set (the device sets <c>ShaderFormat.IsSlangCompiledFile</c>).
+	/// </summary>
+	public Func<string, bool> IsSlangCompiled { get; set; } = _ => false;
 
 	/// <summary>
 	/// Recompiles a shader an older engine compiled (<see cref="ShaderOutdatedException"/>, a package's) from the source

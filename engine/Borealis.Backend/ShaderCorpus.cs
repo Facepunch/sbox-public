@@ -12,9 +12,9 @@ namespace Borealis.Backend;
 /// <summary>
 /// The shader corpus gate (spec 2.3, docs/reference/shader-api.md): every shader authors' code depends on, compiled with
 /// this engine's library and compiler and compared with the last accepted run. A shader that compiled then and doesn't
-/// now is a break. The corpus is the core shaders (every <c>.slang</c> under <c>core/shaders</c> but the library), the
-/// BorealisLab surfaces, and what folders given by path hold: published Slang shaders (<c>.slang</c>, or <c>.slang_c</c>
-/// alone, from the source it embeds) and package <c>.shader_c</c> files (the pass module made from their embedded source,
+/// now is a break. The corpus is the core shaders (every Slang source under <c>core/shaders</c> but the library), the
+/// BorealisLab surfaces, and what folders given by path hold: published Slang shaders (a <c>.slang</c> or a Slang
+/// <c>.shader</c>, or its compile alone, from the source it embeds) and package <c>.shader_c</c> files (the pass module made from their embedded source,
 /// as Borealis.Gpu draws them). Run by <c>ShaderCompiler -slang-corpus</c>, which <c>SboxBuild shader-corpus</c> runs in CI.
 /// </summary>
 public static class ShaderCorpus
@@ -37,36 +37,8 @@ public static class ShaderCorpus
 		var native = EngineFolders.NativeIn( game );
 		SlangCompiler.CompileThreads = Environment.ProcessorCount;
 
-		var slang = new List<(string Id, string Path)>();
-		var packages = new List<(string Id, string Path, string Root)>();
-		var library = Path.Combine( shaders, "sbox" ) + Path.DirectorySeparatorChar;
-		foreach ( var file in Directory.GetFiles( shaders, "*.slang", SearchOption.AllDirectories ).Where( f => !f.StartsWith( library, StringComparison.OrdinalIgnoreCase ) ) )
-			slang.Add( ($"core/{Relative( shaders, file )}", file) );
-
-		var lab = Path.Combine( Path.GetDirectoryName( game ), "engine", "Launcher", "BorealisLab", "Surfaces" );
-		if ( Directory.Exists( lab ) )
-		{
-			foreach ( var file in Directory.GetFiles( lab, "*.slang" ) ) slang.Add( ($"lab/{Path.GetFileName( file )}", file) );
-		}
-
+		var (slang, packages) = Collect( game, folders, log );
 		var extracted = Path.Combine( work, "extracted" );
-		foreach ( var folder in folders.Select( Path.GetFullPath ) )
-		{
-			if ( !Directory.Exists( folder ) )
-			{
-				log?.Invoke( $"Shader corpus: no folder {folder}" );
-				continue;
-			}
-
-			var name = Path.GetFileName( Path.TrimEndingDirectorySeparator( folder ) );
-			foreach ( var file in Directory.EnumerateFiles( folder, "*", SearchOption.AllDirectories ).Order( StringComparer.Ordinal ) )
-			{
-				var id = $"{name}/{Relative( folder, file )}";
-				if ( file.EndsWith( ".slang", StringComparison.OrdinalIgnoreCase ) ) slang.Add( ($"slang/{id}", file) );
-				else if ( file.EndsWith( ".slang" + SlangOutput.Suffix, StringComparison.OrdinalIgnoreCase ) && !File.Exists( file[..^SlangOutput.Suffix.Length] ) ) slang.Add( ($"slang/{id[..^SlangOutput.Suffix.Length]}", file) );
-				else if ( file.EndsWith( ".shader_c", StringComparison.OrdinalIgnoreCase ) ) packages.Add( ($"package/{id}", file, folder) );
-			}
-		}
 
 		var found = new ConcurrentBag<Result>();
 		var compiler = new SlangCompiler( native, [shaders] ) { CacheFolder = Path.Combine( work, "cache" ), UseOffline = false };
@@ -114,6 +86,50 @@ public static class ShaderCorpus
 		}
 
 		return breaks.Count;
+	}
+
+	/// <summary>
+	/// What the corpus of <paramref name="game"/> and <paramref name="folders"/> holds, by id: the Slang shaders (sources, a
+	/// <c>.slang</c> or a <c>.shader</c> that's Slang by content, and compiles shipped alone, compiled from the source they
+	/// embed) and the package <c>.shader_c</c> files (vfx compiles, not <c>SLGC</c>). Told by content, never by extension.
+	/// </summary>
+	internal static (List<(string Id, string Path)> Slang, List<(string Id, string Path, string Root)> Packages) Collect( string game, IReadOnlyList<string> folders, Action<string> log )
+	{
+		game = Path.GetFullPath( game );
+		var shaders = Path.Combine( game, "core", "shaders" );
+		var slang = new List<(string Id, string Path)>();
+		var packages = new List<(string Id, string Path, string Root)>();
+		var library = Path.Combine( shaders, "sbox" ) + Path.DirectorySeparatorChar;
+		foreach ( var file in ShaderFormat.SlangSources( shaders, SearchOption.AllDirectories ).Where( f => !f.StartsWith( library, StringComparison.OrdinalIgnoreCase ) ).Order( StringComparer.Ordinal ) )
+			slang.Add( ($"core/{Relative( shaders, file )}", file) );
+
+		var lab = Path.Combine( Path.GetDirectoryName( game ), "engine", "Launcher", "BorealisLab", "Surfaces" );
+		foreach ( var file in ShaderFormat.SlangSources( lab ).Order( StringComparer.Ordinal ) ) slang.Add( ($"lab/{Path.GetFileName( file )}", file) );
+
+		foreach ( var folder in folders.Select( Path.GetFullPath ) )
+		{
+			if ( !Directory.Exists( folder ) )
+			{
+				log?.Invoke( $"Shader corpus: no folder {folder}" );
+				continue;
+			}
+
+			var name = Path.GetFileName( Path.TrimEndingDirectorySeparator( folder ) );
+			foreach ( var file in Directory.EnumerateFiles( folder, "*", SearchOption.AllDirectories ).Order( StringComparer.Ordinal ) )
+			{
+				var id = $"{name}/{Relative( folder, file )}";
+				var compiled = file.EndsWith( SlangOutput.Suffix, StringComparison.OrdinalIgnoreCase );
+				if ( file.EndsWith( ".slang", StringComparison.OrdinalIgnoreCase ) || (file.EndsWith( ".shader", StringComparison.OrdinalIgnoreCase ) && ShaderFormat.IsSlangSourceFile( file )) ) slang.Add( ($"slang/{id}", file) );
+				else if ( compiled && ShaderFormat.IsSlangCompiledPath( file ) )
+				{
+					// A Slang compile: its source beside it is in the corpus already; alone, it compiles from the source it embeds
+					if ( !File.Exists( file[..^SlangOutput.Suffix.Length] ) ) slang.Add( ($"slang/{id[..^SlangOutput.Suffix.Length]}", file) );
+				}
+				else if ( file.EndsWith( ".shader_c", StringComparison.OrdinalIgnoreCase ) ) packages.Add( ($"package/{id}", file, folder) );
+			}
+		}
+
+		return (slang, packages);
 	}
 
 	/// <summary>A Slang source (or a compiled one shipped alone) compiled offline, every pass or combo, into a scratch output.</summary>

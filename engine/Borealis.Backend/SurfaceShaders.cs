@@ -190,8 +190,9 @@ public sealed partial class SurfaceShaders : IDisposable
 	readonly Dictionary<string, string> gameSurfaces = new( StringComparer.OrdinalIgnoreCase );
 
 	/// <summary>
-	/// A game's own surface or raw module for <paramref name="shader"/> (<c>shaders/rock.shader</c>): its <c>shaders/rock.slang</c>
-	/// where there's no <c>.shader</c> for it, as native's material system finds a shader only a module describes, found in
+	/// A game's own surface or raw module for <paramref name="shader"/> (<c>shaders/rock.shader</c>): that <c>.shader</c> when it's
+	/// Slang by content, else its <c>shaders/rock.slang</c> where there's no <c>.shader</c> for it, as native's material system
+	/// finds a shader only a module describes, found in
 	/// the content and the game's files (<see cref="Borealis.Source2.ContentFiles.FindSource"/>), so its offline compile
 	/// (<c>rock.slang_c</c>, which the editor makes) is beside it. Null for anything else: pass modules draw through their
 	/// shader (<see cref="PassModules"/>). Kept once found; looked for again while not.
@@ -205,7 +206,9 @@ public sealed partial class SurfaceShaders : IDisposable
 		if ( DefaultSurfaces.ContainsKey( ShaderKey( name ) ) ) return null;
 
 		var content = device.Content;
-		if ( content.FindSource( name ) is not null || content.FindSource( name[..^".shader".Length] + ".slang" ) is not { } path ) return null;
+		// The .shader itself when it's Slang (told by content below: a VFX one isn't ours), else a .slang in its place
+		var shaderFile = content.FindSource( name );
+		if ( (shaderFile ?? content.FindSource( name[..^".shader".Length] + ".slang" )) is not { } path ) return null;
 		lock ( gameSurfaces )
 		{
 			// Kept by the file found, a surface or not: a pass module's materials ask again on every load
@@ -216,7 +219,7 @@ public sealed partial class SurfaceShaders : IDisposable
 		try
 		{
 			var text = File.ReadAllText( path );
-			if ( !text.Contains( "sbox/pass.slangh", StringComparison.Ordinal ) && MaterialStruct().IsMatch( text ) ) surface = path;
+			if ( (shaderFile is null || !ShaderFormat.IsVfxSource( text )) && !text.Contains( "sbox/pass.slangh", StringComparison.Ordinal ) && MaterialStruct().IsMatch( text ) ) surface = path;
 		}
 		catch ( Exception e ) when ( e is IOException or UnauthorizedAccessException )
 		{
@@ -682,7 +685,7 @@ public sealed partial class SurfaceShaders : IDisposable
 	/// <summary>
 	/// A package's shader folder: searched like <see cref="AddFolder"/>, watched for changes, and every surface and raw
 	/// module in it compiled now on a worker, so its materials' first draws find them ready. A module shipped compiled alone
-	/// (<c>.slang_c</c>) compiles from the source it embeds when this compiler didn't make it (<see cref="CompiledAlone"/>).
+	/// (<c>.slang_c</c>, or a <c>.shader_c</c> that's a Slang compile) compiles from the source it embeds when this compiler didn't make it (<see cref="CompiledAlone"/>).
 	/// Errors go to <see cref="Error"/>, naming <paramref name="package"/> when given.
 	/// </summary>
 	public System.Threading.Tasks.Task Mount( string folder, string package = null )
@@ -695,11 +698,7 @@ public sealed partial class SurfaceShaders : IDisposable
 
 		AddFolder( folder );
 		Watch( folder );
-		var sources = Directory.Exists( folder ) ? Directory.GetFiles( folder, "*.slang" ) : [];
-		var alone = Directory.Exists( folder ) ? Directory.GetFiles( folder, "*.slang" + SlangOutput.Suffix ).Select( f => f[..^SlangOutput.Suffix.Length] ).Where( f => !File.Exists( f ) ) : [];
-
-		// Pass modules (sbox/pass.slangh) aren't surfaces: they compile per variant where their shader draws
-		var files = sources.Concat( alone.Where( f => SlangOutput.At( SlangOutput.PathOf( f ) ) is not { Sources: [var module, ..] } || !module.Text.Contains( "sbox/pass.slangh", StringComparison.Ordinal ) ) ).ToArray();
+		var files = MountFiles( folder );
 		Task<SurfaceProgram>[] started;
 		lock ( programs )
 		{
@@ -707,6 +706,19 @@ public sealed partial class SurfaceShaders : IDisposable
 		}
 
 		return Task.WhenAll( started );
+	}
+
+	/// <summary>
+	/// What <see cref="Mount"/> compiles in <paramref name="folder"/>: its Slang sources (a <c>.slang</c>, or a <c>.shader</c>
+	/// that's Slang by content) and the sources its compiles shipped alone stand for (<c>x.slang</c> for <c>x.slang_c</c>,
+	/// <c>x.shader</c> for a <c>SLGC</c> <c>x.shader_c</c>), but pass modules (<c>sbox/pass.slangh</c>), which aren't surfaces
+	/// and compile per variant where their shader draws.
+	/// </summary>
+	internal static string[] MountFiles( string folder )
+	{
+		var sources = ShaderFormat.SlangSources( folder );
+		var alone = ShaderFormat.CompiledAlone( folder ).Where( f => SlangOutput.At( f ) is not { Sources: [var module, ..] } || !module.Text.Contains( "sbox/pass.slangh", StringComparison.Ordinal ) );
+		return sources.Concat( alone.Select( f => f[..^SlangOutput.Suffix.Length] ) ).ToArray();
 	}
 
 	/// <summary>Compile a shader by file name (or path) and keep it, waiting for it; null, after reporting, when it doesn't compile.</summary>

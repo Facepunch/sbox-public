@@ -114,6 +114,55 @@ public static class ShaderFormat
 	}
 
 	/// <summary>
+	/// The Slang sources in <paramref name="folder"/>: every <c>.slang</c>, and every <c>.shader</c> that's Slang by content
+	/// (<see cref="IsSlangSourceFile"/>; a VFX one isn't). Nothing when the folder doesn't exist.
+	/// </summary>
+	public static IEnumerable<string> SlangSources( string folder, SearchOption option = SearchOption.TopDirectoryOnly )
+	{
+		if ( !Directory.Exists( folder ) ) return [];
+		return Directory.GetFiles( folder, "*.slang", option ).Concat( Directory.GetFiles( folder, "*.shader", option ).Where( IsSlangSourceFile ) );
+	}
+
+	/// <summary>
+	/// The Slang compiles in <paramref name="folder"/> shipped without their source (a package's): every <c>.slang_c</c> with
+	/// no <c>.slang</c> beside it, and every <c>.shader_c</c> that's a Slang compile by content (<c>SLGC</c>) with no
+	/// <c>.shader</c> beside it. The compiled files' paths; nothing when the folder doesn't exist.
+	/// </summary>
+	public static IEnumerable<string> CompiledAlone( string folder, SearchOption option = SearchOption.TopDirectoryOnly )
+	{
+		if ( !Directory.Exists( folder ) ) return [];
+		return Directory.GetFiles( folder, "*.slang" + SlangOutput.Suffix, option ).Concat( Directory.GetFiles( folder, "*.shader" + SlangOutput.Suffix, option ).Where( IsSlangCompiledFile ) )
+			.Where( f => !File.Exists( f[..^SlangOutput.Suffix.Length] ) );
+	}
+
+	/// <summary>
+	/// Whether the file at <paramref name="path"/> is a Slang compile by its name and content: a <c>.slang_c</c>, or a
+	/// <c>.shader_c</c> starting <c>SLGC</c>.
+	/// </summary>
+	public static bool IsSlangCompiledPath( string path ) =>
+		path.EndsWith( ".slang" + SlangOutput.Suffix, StringComparison.OrdinalIgnoreCase )
+		|| (path.EndsWith( ".shader" + SlangOutput.Suffix, StringComparison.OrdinalIgnoreCase ) && IsSlangCompiledFile( path ));
+
+	/// <summary>
+	/// Whether the file at <paramref name="path"/> is Slang source by its name and content: a <c>.slang</c> or <c>.slangh</c>,
+	/// or a <c>.shader</c> that isn't a VFX source.
+	/// </summary>
+	public static bool IsSlangSourcePath( string path ) =>
+		path.EndsWith( ".slang", StringComparison.OrdinalIgnoreCase ) || path.EndsWith( ".slangh", StringComparison.OrdinalIgnoreCase )
+		|| (path.EndsWith( ".shader", StringComparison.OrdinalIgnoreCase ) && IsSlangSourceFile( path ));
+
+	/// <summary>
+	/// The shader name a Slang file stands for, <c>x.shader</c>, from its source or compile (<c>x.slang</c>,
+	/// <c>x.slang_c</c>, <c>x.shader</c>, <c>x.shader_c</c>); anything else as it is.
+	/// </summary>
+	public static string ShaderNameOf( string path )
+	{
+		foreach ( var extension in (ReadOnlySpan<string>)[".slang" + SlangOutput.Suffix, ".shader" + SlangOutput.Suffix, ".slang", ".shader"] )
+			if ( path.EndsWith( extension, StringComparison.OrdinalIgnoreCase ) ) return path[..^extension.Length] + ".shader";
+		return path;
+	}
+
+	/// <summary>
 	/// The Slang module source of a shader named by any of its paths (<c>x.shader</c>, <c>x.shader_c</c>, <c>x.slang</c>): the
 	/// <c>.slang</c> beside it, else a <c>.shader</c> beside it that isn't a VFX source; null when there's neither.
 	/// </summary>
