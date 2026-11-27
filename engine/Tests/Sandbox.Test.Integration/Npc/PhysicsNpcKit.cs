@@ -52,13 +52,24 @@ static class PhysicsNpcKit
 	public static Rigidbody Body( Component component ) => component.GetComponent<Rigidbody>();
 	public static bool Arrived( BaseNpc npc ) => Navigation( npc ).Status == MovementLayer.MovementStatus.Arrived;
 
+	// One tick, then the tile rebuilds it started, which finish on worker threads, so they land on the same tick every run
+	public static void Step( Scene scene )
+	{
+		scene.GameTick( Tick );
+		for ( int i = 0; i < 5000 && scene.NavMesh.mesh?.PendingTiles > 0; i++ )
+		{
+			System.Threading.Thread.Sleep( 1 );
+			scene.NavMesh.UpdateCache( scene.PhysicsWorld );
+		}
+	}
+
 	// Ticks until done, calling each before every tick, and fails if it never is
 	public static void Run( Scene scene, Func<bool> done, string what, int ticks = 600, Action each = null )
 	{
 		for ( int i = 0; i < ticks; i++ )
 		{
 			each?.Invoke();
-			scene.GameTick( Tick );
+			Step( scene );
 			if ( done() ) return;
 		}
 
@@ -70,7 +81,7 @@ static class PhysicsNpcKit
 	{
 		for ( int i = 0; i < ticks; i++ )
 		{
-			scene.GameTick( Tick );
+			Step( scene );
 			check?.Invoke();
 		}
 	}
