@@ -756,6 +756,14 @@ public sealed class SurfaceShaders : IDisposable
 		return CompiledAlone.SourceFor( alone, Path.GetDirectoryName( Path.GetDirectoryName( CoreShaders() ) ), Error, package );
 	}
 
+	/// <summary>Whether a shader has only its compiled file (<c>.slang_c</c>) where <see cref="Find"/> looks.</summary>
+	bool CompiledOnly( string file )
+	{
+		string[] searched;
+		lock ( programs ) searched = folders.ToArray();
+		return (Path.IsPathRooted( file ) ? new[] { file } : searched.Select( f => Path.Combine( f, file ) )).Any( c => File.Exists( SlangOutput.PathOf( c ) ) );
+	}
+
 	/// <summary>The package each mounted folder is (<see cref="Mount"/>), for naming it in messages.</summary>
 	readonly Dictionary<string, string> packages = new( StringComparer.OrdinalIgnoreCase );
 
@@ -819,7 +827,8 @@ public sealed class SurfaceShaders : IDisposable
 				var path = Find( file );
 				if ( path is null )
 				{
-					Error?.Invoke( $"{file}: no such shader in {string.Join( ", ", folders )}" );
+					// One shipped compiled alone that can't be used was reported by name already (CompiledAlone)
+					if ( !CompiledOnly( file ) ) Error?.Invoke( $"{file}: no such shader in {string.Join( ", ", folders )}" );
 				}
 				else
 				{
