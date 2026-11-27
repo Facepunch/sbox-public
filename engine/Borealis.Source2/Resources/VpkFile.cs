@@ -120,32 +120,30 @@ public sealed class VpkFile : IDisposable
 	}
 
 	/// <summary>
-	/// As <see cref="ReadPrefix"/>, into a <see cref="ContentBuffers"/> array whose first <paramref name="length"/> bytes
-	/// are the file's: give it back with <see cref="ContentBuffers.Return"/>.
+	/// As <see cref="ReadPrefix"/>, into a <see cref="ContentBuffers"/> piece of the bytes read: give it back with
+	/// <see cref="ContentBuffers.Return"/>. None when there's no such file.
 	/// </summary>
-	public byte[] ReadPrefixPooled( string file, long most, out int length )
+	public ContentBuffer ReadPrefixPooled( string file, long most )
 	{
-		length = 0;
-		if ( !entries.TryGetValue( Normalise( file ), out var entry ) ) return null;
+		if ( !entries.TryGetValue( Normalise( file ), out var entry ) ) return default;
 
-		length = (int)Math.Min( entry.PreloadLength + (long)entry.Length, Math.Max( most, 0 ) );
+		var length = (int)Math.Min( entry.PreloadLength + (long)entry.Length, Math.Max( most, 0 ) );
 		var data = ContentBuffers.Rent( length );
 		try
 		{
+			var span = data.Span;
 			var preload = Math.Min( (int)entry.PreloadLength, length );
-			tree.AsSpan( entry.PreloadOffset, preload ).CopyTo( data );
-			if ( preload == length || ReadAt( entry, data.AsSpan( preload, length - preload ) ) ) return data;
+			tree.AsSpan( entry.PreloadOffset, preload ).CopyTo( span );
+			if ( preload == length || ReadAt( entry, span[preload..] ) ) return data;
 		}
 		catch
 		{
 			ContentBuffers.Return( data );
-			length = 0;
 			throw;
 		}
 
 		ContentBuffers.Return( data );
-		length = 0;
-		return null;
+		return default;
 	}
 
 	// An entry's bytes after its preload, read at its offset: positional reads on a shared handle, so readers on many threads

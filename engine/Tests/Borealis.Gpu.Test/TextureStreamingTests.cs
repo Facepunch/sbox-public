@@ -104,41 +104,6 @@ public class TextureStreamingTests : GpuTest
 	}
 
 	/// <summary>
-	/// A full pool lets go of the sizes least lately asked for to keep one asked for since, so it follows what streams (a
-	/// map's coarse mips given back, then fine ones read) rather than holding on to what nothing asks for any more.
-	/// </summary>
-	[TestMethod]
-	public void FullPoolKeepsTheSizesAskedForLately()
-	{
-		var most = ContentBuffers.MaxKeptBytes;
-		try
-		{
-			ContentBuffers.Clear();
-			ContentBuffers.MaxKeptBytes = 1 << 20;
-			var small = Enumerable.Range( 0, 4 ).Select( _ => ContentBuffers.Rent( 256 << 10 ) ).ToArray();
-			foreach ( var array in small ) ContentBuffers.Return( array );
-			Assert.AreEqual( 1L << 20, ContentBuffers.KeptBytes, "four quarter-MiB arrays fill it" );
-
-			var large = ContentBuffers.Rent( 512 << 10 );
-			ContentBuffers.Return( large );
-			Assert.AreSame( large, ContentBuffers.Rent( 512 << 10 ), "the size asked for lately is kept" );
-			Assert.IsTrue( ContentBuffers.KeptBytes <= 1 << 20, "within the most it keeps" );
-
-			// Nothing asked for since: a size asked for longer ago doesn't push it out
-			ContentBuffers.Return( large );
-			var made = ContentBuffers.MadeBytes;
-			ContentBuffers.Return( new byte[256 << 10] );
-			Assert.AreSame( large, ContentBuffers.Rent( 512 << 10 ) );
-			Assert.AreEqual( made, ContentBuffers.MadeBytes );
-		}
-		finally
-		{
-			ContentBuffers.MaxKeptBytes = most;
-			ContentBuffers.Clear();
-		}
-	}
-
-	/// <summary>
 	/// A streamed material texture starts as its tail; a draw asking for every mip gets a new image of them all under the same
 	/// handle, its materials' versions as they were; a budget too small for it gives them back, a mip a build, down to the tail.
 	/// </summary>

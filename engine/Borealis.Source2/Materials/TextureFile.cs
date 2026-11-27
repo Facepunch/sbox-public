@@ -48,31 +48,49 @@ public sealed class TextureFile
 
 	/// <summary>
 	/// Each mip's data (all its slices, tightly packed), largest first; null for the mips finer than <see cref="TopMip"/>
-	/// when only some were read. Read pooled, each array may be longer than its mip (<see cref="Mip"/> is exactly it), and
-	/// they're gone once <see cref="Release"/>d.
+	/// when only some were read. Read pooled, each array may be longer than its mip and a mip stored raw is a slice of the
+	/// file's own array (<see cref="Mip"/> is exactly it), and they're gone once <see cref="Release"/>d.
 	/// </summary>
 	public byte[][] MipData { get; private init; }
 
 	/// <summary>Whether its mips are in <see cref="ContentBuffers"/> arrays, until <see cref="Release"/>.</summary>
 	public bool Pooled { get; private set; }
 
+	// A pooled read's file (ReadPooled), held while a mip is a slice of it or isn't decoded yet; each mip's piece when it's
+	// one of its own; where each mip is in its array, and where each is stored in the file and how many bytes
+	ContentBuffer file;
+	ContentBuffer[] pooledMips;
+	int[] mipOffsets, filePositions, fileStored;
+	int compression;
+
 	/// <summary>Bytes of the arrays its mips are held in, until <see cref="Release"/> for a pooled read.</summary>
 	public long HeldBytes
 	{
 		get
 		{
-			long bytes = 0;
-			foreach ( var mip in MipData ) bytes += mip?.Length ?? 0;
+			if ( pooledMips is null )
+			{
+				long whole = 0;
+				foreach ( var mip in MipData ) whole += mip?.Length ?? 0;
+				return whole;
+			}
+
+			long bytes = file.Capacity;
+			foreach ( var piece in pooledMips ) bytes += piece.Capacity;
 			return bytes;
 		}
 	}
 
-	/// <summary>A read mip's bytes, every slice.</summary>
-	public ReadOnlySpan<byte> Mip( int mip ) => MipData[mip].AsSpan( 0, MipBytes( mip ) );
+	/// <summary>A read mip's bytes, every slice; decoded now if <see cref="ReadPooled"/> left it to be.</summary>
+	public ReadOnlySpan<byte> Mip( int mip )
+	{
+		if ( MipData[mip] is null && !file.IsNull && mip >= TopMip ) DecodeMip( mip );
+		return MipData[mip].AsSpan( mipOffsets?[mip] ?? 0, MipBytes( mip ) );
+	}
 
 	/// <summary>
-	/// Give a pooled read's mip arrays back (<see cref="ContentBuffers"/>) once they've been written to the GPU: its mips
-	/// are gone after. Nothing for one that isn't pooled; once only.
+	/// Give a pooled read's mips back (<see cref="ContentBuffers"/>) once they've been written to the GPU: its mips are gone
+	/// after. Nothing for one that isn't pooled; once only.
 	/// </summary>
 	public void Release()
 	{
@@ -80,9 +98,68 @@ public sealed class TextureFile
 		Pooled = false;
 		for ( int mip = 0; mip < MipData.Length; mip++ )
 		{
-			ContentBuffers.Return( MipData[mip] );
+			ContentBuffers.Return( pooledMips[mip] );
+			pooledMips[mip] = default;
 			MipData[mip] = null;
 		}
+
+		ContentBuffers.Return( file );
+		file = default;
+	}
+
+	/// <summary>
+	/// Decode every mip <see cref="ReadPooled"/> left to be decoded, into <see cref="ContentBuffers"/> pieces, and let the
+	/// file go once no mip is in it.
+	/// </summary>
+	public void Decode()
+	{
+		if ( file.IsNull ) return;
+		for ( int mip = TopMip; mip < Mips; mip++ )
+		{
+			if ( MipData[mip] is null ) DecodeMip( mip );
+		}
+
+		LetFileGo();
+	}
+
+	void DecodeMip( int mip )
+	{
+		var size = MipBytes( mip );
+		var piece = ContentBuffers.Rent( size );
+		try
+		{
+			Decompress( file.Span.Slice( filePositions[mip], fileStored[mip] ), piece.Span, compression );
+		}
+		catch
+		{
+			ContentBuffers.Return( piece );
+			throw;
+		}
+
+		pooledMips[mip] = piece;
+		MipData[mip] = piece.Array;
+		mipOffsets[mip] = piece.Offset;
+	}
+
+	// The file's piece back once no mip is read from it
+	void LetFileGo()
+	{
+		if ( file.IsNull ) return;
+		for ( int mip = TopMip; mip < Mips; mip++ )
+		{
+			if ( pooledMips[mip].IsNull ) return;
+		}
+
+		ContentBuffers.Return( file );
+		file = default;
+	}
+
+	static void Decompress( ReadOnlySpan<byte> source, Span<byte> into, int compression )
+	{
+		var size = into.Length;
+		if ( source.Length == size || compression == 0 ) source[..Math.Min( source.Length, size )].CopyTo( into );
+		else if ( compression == 1 && Lz4.Decompress( source, into ) is var lz4 && lz4 != size ) throw new InvalidDataException( $"LZ4 block held {lz4} bytes, expected {size}" );
+		else if ( compression != 1 && Zstd.Decompress( source, into ) is var zstd && zstd != size ) throw new InvalidDataException( $"Zstandard data held {zstd} bytes, expected {size}" );
 	}
 
 	/// <summary>The finest mip read: 0 unless it was read from <see cref="Tail"/> or a mip further down, or the file holds only coarser ones.</summary>
@@ -125,12 +202,37 @@ public sealed class TextureFile
 	/// arrays, given back with <see cref="Release"/> once they're written, so streaming makes no garbage. A PNG's mips are
 	/// never pooled.
 	/// </summary>
-	public static TextureFile Read( ReadOnlySpan<byte> data, int top, bool pooled )
+	public static TextureFile Read( ReadOnlySpan<byte> data, int top, bool pooled ) => Read( data, top, pooled, default, true );
+
+	/// <summary>
+	/// As <see cref="Read(ReadOnlySpan{byte}, int, bool)"/> pooled, from a <see cref="ContentBuffers"/> piece of the file's
+	/// bytes, which it takes (given back now, or with <see cref="Release"/>). Mips
+	/// stored raw are read where they are in it rather than copied; <paramref name="decode"/> false leaves the compressed
+	/// ones in it too, for <see cref="Stage"/> to decode straight into its upload buffer (or <see cref="Decode"/>, or
+	/// <see cref="Mip"/> as it's asked for).
+	/// </summary>
+	public static TextureFile ReadPooled( ContentBuffer file, int top, bool decode = true )
+	{
+		try
+		{
+			return Read( file.Span, top, true, file, decode );
+		}
+		catch
+		{
+			ContentBuffers.Return( file );
+			throw;
+		}
+	}
+
+	static TextureFile Read( ReadOnlySpan<byte> data, int top, bool pooled, ContentBuffer owned, bool decode )
 	{
 		var header = new Header( data );
 		top = Math.Clamp( top < 0 ? header.TailTop : top, 0, header.Mips - 1 );
 
 		var mipData = new byte[header.Mips][];
+		ContentBuffer[] pieces = null;
+		int[] offsets = null, positions = null, storedSizes = null;
+		var inFile = false;
 		if ( header.Png )
 		{
 			var (width, height, rgba) = Png.Decode( data[header.HeaderBytes..] );
@@ -142,6 +244,18 @@ public sealed class TextureFile
 		}
 		else if ( header.GpuFormat != Format.Unknown )
 		{
+			if ( pooled )
+			{
+				pieces = new ContentBuffer[header.Mips];
+				offsets = new int[header.Mips];
+			}
+
+			if ( !owned.IsNull )
+			{
+				positions = new int[header.Mips];
+				storedSizes = new int[header.Mips];
+			}
+
 			try
 			{
 				var position = header.HeaderBytes;
@@ -160,24 +274,57 @@ public sealed class TextureFile
 					}
 
 					var source = data.Slice( position, stored );
-					var bytes = pooled ? ContentBuffers.Rent( size ) : new byte[size];
-					mipData[mip] = bytes;
-					var into = bytes.AsSpan( 0, size );
-					if ( stored == size || header.Compression == 0 ) source[..Math.Min( stored, size )].CopyTo( into );
-					else if ( header.Compression == 1 && Lz4.Decompress( source, into ) is var lz4 && lz4 != size ) throw new InvalidDataException( $"LZ4 block held {lz4} bytes, expected {size}" );
-					else if ( header.Compression != 1 && Zstd.Decompress( source, into ) is var zstd && zstd != size ) throw new InvalidDataException( $"Zstandard data held {zstd} bytes, expected {size}" );
+					if ( !owned.IsNull )
+					{
+						positions[mip] = position;
+						storedSizes[mip] = stored;
+					}
+
+					// Stored raw in a file it was given: read where it is. Compressed, left there when not decoding now
+					if ( !owned.IsNull && (stored == size || header.Compression == 0) )
+					{
+						mipData[mip] = owned.Array;
+						offsets[mip] = owned.Offset + position;
+						inFile = true;
+					}
+					else if ( !owned.IsNull && !decode )
+					{
+						inFile = true;
+					}
+					else if ( pooled )
+					{
+						var piece = ContentBuffers.Rent( size );
+						pieces[mip] = piece;
+						mipData[mip] = piece.Array;
+						offsets[mip] = piece.Offset;
+						Decompress( source, piece.Span, header.Compression );
+					}
+					else
+					{
+						var bytes = new byte[size];
+						mipData[mip] = bytes;
+						Decompress( source, bytes, header.Compression );
+					}
+
 					position += stored;
 				}
 			}
 			catch when ( pooled )
 			{
-				foreach ( var bytes in mipData ) ContentBuffers.Return( bytes );
+				foreach ( var piece in pieces ) ContentBuffers.Return( piece );
 				throw;
 			}
 		}
 		else
 		{
 			pooled = false;
+		}
+
+		// A file nothing is read from any more goes back at once (its caller gave it up)
+		if ( !owned.IsNull && !inFile )
+		{
+			ContentBuffers.Return( owned );
+			owned = default;
 		}
 
 		return new TextureFile
@@ -194,6 +341,12 @@ public sealed class TextureFile
 			TopMip = header.GpuFormat == Format.Unknown ? 0 : top,
 			TailTop = header.TailTop,
 			Pooled = pooled,
+			pooledMips = pooled ? pieces : null,
+			file = owned,
+			mipOffsets = offsets,
+			filePositions = positions,
+			fileStored = storedSizes,
+			compression = header.Compression,
 		};
 	}
 
@@ -440,16 +593,52 @@ public sealed class TextureFile
 
 	static long Staged( long at ) => (at + 15) & ~15L;
 
+	// An upload buffer's memory, or none where it isn't mapped (it's written through the device then)
+	static Span<byte> Mapped( Device gpu, BufferHandle buffer )
+	{
+		try
+		{
+			return gpu.Map( buffer );
+		}
+		catch ( InvalidOperationException )
+		{
+			return default;
+		}
+	}
+
 	/// <summary>
 	/// Copy every mip read and slice into <paramref name="staging"/>, an upload buffer of at least <see cref="StagedBytes"/>,
 	/// for <see cref="CopyStaged"/> to copy into <see cref="CreateEmpty"/>'s texture later. Any thread: what reads a big
-	/// texture ahead stages it too, so the frame that makes it only records copies.
+	/// texture ahead stages it too, so the frame that makes it only records copies. Mips <see cref="ReadPooled"/> left
+	/// compressed are decoded straight into it where it's mapped and their slices lie end to end there.
 	/// </summary>
 	public void Stage( Device gpu, BufferHandle staging )
 	{
 		long at = 0;
+		var mapped = !file.IsNull ? Mapped( gpu, staging ) : default;
 		for ( int mip = TopMip; mip < Mips; mip++ )
 		{
+			var bytes = MipBytes( mip );
+			if ( MipData[mip] is null && !file.IsNull && mapped.Length > 0 && (Slices == 1 || bytes / Slices % 16 == 0) )
+			{
+				// Decoded in a scratch array given back at once (upload memory is slow to read, and decoders read what they
+				// wrote), then copied
+				at = Staged( at );
+				var scratch = ContentBuffers.Rent( bytes );
+				try
+				{
+					Decompress( file.Span.Slice( filePositions[mip], fileStored[mip] ), scratch.Span, compression );
+					scratch.Span.CopyTo( mapped.Slice( (int)at, bytes ) );
+				}
+				finally
+				{
+					ContentBuffers.Return( scratch );
+				}
+
+				at += bytes;
+				continue;
+			}
+
 			var data = Mip( mip );
 			var size = data.Length / Slices;
 			for ( int slice = 0; slice < Slices; slice++ )

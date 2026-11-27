@@ -212,23 +212,23 @@ public sealed class ContentFiles
 	}
 
 	/// <summary>
-	/// As <see cref="TryReadPrefix"/>, into a <see cref="ContentBuffers"/> array whose first <paramref name="length"/>
-	/// bytes are the file's (give it back with <see cref="ContentBuffers.Return"/>), or null: for streaming reads, which
-	/// mustn't make garbage. <see cref="long.MaxValue"/> reads the whole file.
+	/// As <see cref="TryReadPrefix"/>, into a <see cref="ContentBuffers"/> piece of the bytes read (give it back with
+	/// <see cref="ContentBuffers.Return"/>), or none: for streaming reads, which mustn't make garbage.
+	/// <see cref="long.MaxValue"/> reads the whole file.
 	/// </summary>
-	public byte[] TryReadPrefixPooled( string path, long most, out int length )
+	public ContentBuffer TryReadPrefixPooled( string path, long most )
 	{
-		length = 0;
 		if ( Find( path ) is { } file )
 		{
 			using var handle = File.OpenHandle( file, FileMode.Open, FileAccess.Read, FileShare.Read, FileOptions.SequentialScan );
-			length = (int)Math.Min( RandomAccess.GetLength( handle ), Math.Max( most, 0 ) );
+			var length = (int)Math.Min( RandomAccess.GetLength( handle ), Math.Max( most, 0 ) );
 			var data = ContentBuffers.Rent( length );
 			try
 			{
+				var span = data.Span;
 				for ( int read = 0; read < length; )
 				{
-					var got = RandomAccess.Read( handle, data.AsSpan( read, length - read ), read );
+					var got = RandomAccess.Read( handle, span[read..], read );
 					if ( got <= 0 ) throw new EndOfStreamException( $"{file} ended while it was read" );
 					read += got;
 				}
@@ -236,7 +236,6 @@ public sealed class ContentFiles
 			catch
 			{
 				ContentBuffers.Return( data );
-				length = 0;
 				throw;
 			}
 
@@ -244,15 +243,15 @@ public sealed class ContentFiles
 		}
 
 		var packages = this.packages;
-		if ( packages.Length == 0 || string.IsNullOrEmpty( path ) ) return null;
+		if ( packages.Length == 0 || string.IsNullOrEmpty( path ) ) return default;
 
 		path = path.Replace( '\\', '/' ).TrimStart( '/' );
 		if ( !path.EndsWith( "_c", StringComparison.OrdinalIgnoreCase ) ) path += "_c";
 		foreach ( var package in packages )
 		{
-			if ( package.ReadPrefixPooled( path, most, out length ) is { } data ) return data;
+			if ( package.ReadPrefixPooled( path, most ) is { IsNull: false } data ) return data;
 		}
 
-		return null;
+		return default;
 	}
 }

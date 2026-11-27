@@ -773,7 +773,7 @@ public sealed partial class BackendDevice
 			{
 				ahead.File?.Release();
 				ahead.File = null;
-				ahead.File = TextureStreamer.ReadWhole( Content, path );
+				ahead.File = TextureStreamer.ReadWhole( Content, path, decode: false );
 			}
 
 			if ( ahead.File is not { } texture ) return;
@@ -787,6 +787,9 @@ public sealed partial class BackendDevice
 				// held half a gigabyte of a map's lightmaps and big textures at once through Construct's load
 				if ( ahead.Staged.IsValid ) texture.Release();
 			}
+
+			// Not staged: its mips decoded now, as what makes it writes them
+			texture.Decode();
 
 			lock ( loadedTextures )
 			{

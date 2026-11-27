@@ -917,18 +917,25 @@ internal sealed class TextureStreamer
 	/// </summary>
 	internal static TextureFile ReadMips( ContentFiles content, string path, int top )
 	{
-		byte[] data = null;
+		ContentBuffer data = default;
 		try
 		{
 			// The header and the tail fit the first read of most textures; finer mips read the header, then on to them
-			data = content.TryReadPrefixPooled( path, top < 0 ? TextureFile.TailBytes + 16384 : 16384, out var length );
-			for ( int i = 0; data is not null && i < 4; i++ )
+			data = content.TryReadPrefixPooled( path, top < 0 ? TextureFile.TailBytes + 16384 : 16384 );
+			for ( int i = 0; !data.IsNull && i < 4; i++ )
 			{
-				var needed = TextureFile.PrefixNeeded( data.AsSpan( 0, length ), top );
-				if ( needed <= length ) return TextureFile.Read( data.AsSpan( 0, length ), top, pooled: true );
+				var needed = TextureFile.PrefixNeeded( data.Span, top );
+				if ( needed <= data.Length )
+				{
+					// The file's piece is the texture's now (its raw mips are read where they are in it)
+					var file = data;
+					data = default;
+					return TextureFile.ReadPooled( file, top );
+				}
+
 				ContentBuffers.Return( data );
-				data = null;
-				data = content.TryReadPrefixPooled( path, needed, out length );
+				data = default;
+				data = content.TryReadPrefixPooled( path, needed );
 			}
 
 			return null;
@@ -946,18 +953,12 @@ internal sealed class TextureStreamer
 	/// <summary>
 	/// A texture's every mip, read and decoded into <see cref="ContentBuffers"/> as <see cref="ReadMips"/> reads them, or
 	/// null when there's no file; throws for one that can't be read. <see cref="TextureFile.Release"/> it once written.
+	/// <paramref name="decode"/> false leaves compressed mips in the file's piece for <see cref="TextureFile.Stage"/> to
+	/// decode into its upload buffer (<see cref="TextureFile.ReadPooled"/>).
 	/// </summary>
-	internal static TextureFile ReadWhole( ContentFiles content, string path )
+	internal static TextureFile ReadWhole( ContentFiles content, string path, bool decode = true )
 	{
-		var data = content.TryReadPrefixPooled( path, long.MaxValue, out var length );
-		if ( data is null ) return null;
-		try
-		{
-			return TextureFile.Read( data.AsSpan( 0, length ), 0, pooled: true );
-		}
-		finally
-		{
-			ContentBuffers.Return( data );
-		}
+		var data = content.TryReadPrefixPooled( path, long.MaxValue );
+		return data.IsNull ? null : TextureFile.ReadPooled( data, 0, decode );
 	}
 }
