@@ -93,7 +93,14 @@ internal sealed unsafe class SlangRequest : IDisposable
 	string Load( string path )
 	{
 		var full = Path.GetFullPath( path );
-		if ( !File.Exists( full ) ) return null;
+		if ( !File.Exists( full ) )
+		{
+			// A module named x.shader (Slang by content, not a VFX one): what an import of x, which Slang looks for as x.slang, finds
+			if ( !full.EndsWith( ".slang", StringComparison.OrdinalIgnoreCase ) ) return null;
+			full = Path.ChangeExtension( full, ".shader" );
+			if ( !ShaderFormat.IsSlangSourceFile( full ) ) return null;
+		}
+
 		return rewrite( full, File.ReadAllText( full ) );
 	}
 
