@@ -79,6 +79,7 @@ public static partial class EmbeddedCompatibility
 		if ( ExtraDataFromInput().Match( body ) is { Success: true } extra && Regex.IsMatch( body, $@"\b(?:VS_INPUT|VertexInput)\s+{extra.Groups["arg"].Value}\b" ) )
 			end.Append( "#define SBOX_EMBEDDED_EXTRA_DATA_FROM_INPUT\n" );
 		if ( !body.Contains( "g_nMorphTextureAtlasWidth", StringComparison.Ordinal ) ) end.Append( "#define SBOX_EMBEDDED_MORPH_ATLAS_WIDTH\n" );
+		if ( InvProjectPositionUse().IsMatch( body ) && !InvProjectPositionDeclaration().IsMatch( body ) ) end.Append( "#define SBOX_EMBEDDED_INV_PROJECT_POSITION\n" );
 		end.Append( "#include \"sbox/embedded_end.slangh\"\n" );
 		return body + end;
 	}
@@ -196,6 +197,12 @@ public static partial class EmbeddedCompatibility
 	// GetExtraPerInstanceShaderData called with a variable (an older engine took the vertex input) rather than a member
 	[GeneratedRegex( @"\bGetExtraPerInstanceShaderData\(\s*(?<arg>\w+)\s*\)" )]
 	private static partial Regex ExtraDataFromInput();
+
+	[GeneratedRegex( @"\bInvProjectPosition\s*\(" )]
+	private static partial Regex InvProjectPositionUse();
+
+	[GeneratedRegex( @"\bfloat3\s+InvProjectPosition\s*\(" )]
+	private static partial Regex InvProjectPositionDeclaration();
 
 	[GeneratedRegex( @"\bTextureFiltering\b" )]
 	private static partial Regex TextureFilteringUse();

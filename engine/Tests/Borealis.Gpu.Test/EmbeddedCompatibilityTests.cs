@@ -431,6 +431,32 @@ public class EmbeddedCompatibilityTests
 		Compiles( pixel, "embedded_older_terrain" );
 	}
 
+	/// <summary>
+	/// An older engine's bindless lookup with an sRGB flag (MTL's sauna shaders, Heartland's grass), its DDGI volume lookup
+	/// (Galaxy Wars RP's characters) and the base library's <c>InvProjectPosition</c> (an SSGI pass): each compiles as HLSL
+	/// took it.
+	/// </summary>
+	[TestMethod]
+	public void OlderBindlessDdgiAndBaseLibraryNamesCompile()
+	{
+		const string pixel = """
+			#include "system.fxc"
+			#include "common.fxc"
+			#include "common/classes/Bindless.hlsl"
+			#include "common/DDGI/DDGI.hlsl"
+			int g_nMaskIdx < Attribute( "MaskIdx" ); >;
+			struct PS_INPUT { float4 vPositionPs : SV_Position; float3 vPositionWs : TEXCOORD1; float2 vUv : TEXCOORD0; };
+			float4 MainPs( PS_INPUT i ) : SV_Target0
+			{
+				Texture2D mask = Bindless::GetTexture2D( NonUniformResourceIndex( g_nMaskIdx ), false );
+				float3 gi = DDGI::Evaluate( DDGI::GetVolume( i.vPositionWs ), i.vPositionWs, float3( 0, 0, 1 ), float3( 1, 0, 0 ) );
+				float3 back = InvProjectPosition( float3( i.vUv, 0.5 ), g_matProjectionToWorld );
+				return float4( gi + back, 1 ) * mask.Sample( g_sBilinearClamp, i.vUv );
+			}
+			""";
+		Compiles( pixel, "embedded_older_bindless_ddgi" );
+	}
+
 	/// <summary>The samplers the converter leaves to the engine are sbox/samplers.slangh's (common_samplers.fxc's).</summary>
 	[TestMethod]
 	public void EngineSamplersAreCommonSamplers()

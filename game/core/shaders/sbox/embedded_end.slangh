@@ -83,6 +83,17 @@ ExtraShaderData_t GetExtraPerInstanceShaderData( VS_INPUT i )
 }
 #endif
 
+// The base library's screen uv and depth back to a position through a matrix, before it went
+#ifdef SBOX_EMBEDDED_INV_PROJECT_POSITION
+float3 InvProjectPosition( float3 coord, float4x4 mat )
+{
+	coord.y = 1 - coord.y;
+	coord.xy = coord.xy * 2 - 1;
+	float4 p = mul( mat, float4( coord, 1 ) );
+	return p.xyz / p.w;
+}
+#endif
+
 // morph.fxc's morphs read the atlas width from a declaration its includer makes (skinning_cs's). An older engine's vertex
 // code had a morph combo, which a package's compiled shader keeps: its morph combos declare the width here
 #ifdef SBOX_EMBEDDED_MORPH_ATLAS_WIDTH
@@ -224,6 +235,35 @@ extension TraceResult
 extension TerrainStruct
 {
 	property float Resolution { get { return UnitsPerTexel; } }
+}
+#endif
+
+// common/classes/Bindless.hlsl's texture lookup before the sRGB view had its own (GetTexture2DSrgb): a flag that took the
+// view after the slot's
+#ifdef BINDLESS_H
+extension Bindless
+{
+	static Texture2D GetTexture2D( int nIndex, bool srgb ) { return GetTexture2D( nIndex + ( srgb ? 1 : 0 ) ); }
+}
+#endif
+
+// common/DDGI/DDGI.hlsl's volume lookup before volumes blended (EvaluateVolumes): the first volume around the position,
+// or none
+#ifdef DDGI_HLSL
+extension DDGI
+{
+	static DDGIVolume GetVolume( float3 positionWs )
+	{
+		[loop]
+		for ( uint volumeIdx = 0u; volumeIdx < DDGIVolumeCount; ++volumeIdx )
+		{
+			DDGIVolume candidate = DDGIVolumes[volumeIdx];
+			if ( candidate.IsValid() && candidate.GetBlendWeight( positionWs ) > 0.0f ) return candidate;
+		}
+
+		DDGIVolume none = {};
+		return none;
+	}
 }
 #endif
 

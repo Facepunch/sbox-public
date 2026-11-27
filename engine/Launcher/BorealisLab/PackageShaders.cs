@@ -6,6 +6,7 @@ using Borealis.Source2.Shaders;
 using Sandbox.ShaderCompiler;
 using System.IO;
 using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 using GpuDevice = Borealis.Gpu.Device;
 
 namespace Sandbox.BorealisLab;
@@ -17,7 +18,8 @@ namespace Sandbox.BorealisLab;
 /// (today's route), and whether <see cref="ShaderConverter"/> makes a surface of it (<see cref="ShaderConverter.FromEmbedded"/>)
 /// that compiles. <c>-package-draw</c> also draws each surface that compiles beside its <c>.shader_c</c> on a Borealis.Gpu
 /// device, with the rope's textures in every texture. <c>-package-list file</c> takes only the files it names (one path a
-/// line), <c>-package-skip-today</c> leaves the module compile out. Writes <c>results.tsv</c>, the converted surfaces and
+/// line), <c>-package-skip-today</c> leaves the module compile out, <c>-package-skip-surfaces</c> the surface conversion;
+/// <c>-package-threads n</c> surveys n files at once (the cores by default). Writes <c>results.tsv</c>, the converted surfaces and
 /// the pictures into the folder. Nothing of the engine starts.
 /// </summary>
 internal static class PackageShaders
@@ -68,11 +70,13 @@ internal static class PackageShaders
 		Directory.CreateDirectory( converted );
 		Directory.CreateDirectory( modules );
 
-		foreach ( var row in rows )
+		Parallel.ForEach( rows, new ParallelOptions { MaxDegreeOfParallelism = Math.Max( 1, Args.Int( "-package-threads", Environment.ProcessorCount ) ) }, row =>
 		{
 			try
 			{
-				Survey( row, CompilerFor( row.Root ), shaders, converted, modules );
+				SlangCompiler compiler;
+				lock ( compilers ) compiler = CompilerFor( row.Root );
+				Survey( row, compiler, shaders, converted, modules );
 			}
 			catch ( Exception e )
 			{
@@ -80,7 +84,7 @@ internal static class PackageShaders
 			}
 
 			Console.WriteLine( $"{row.Name}\t{row.Kind}\t{row.Today}\t{row.Convert}\t{row.Surface}" );
-		}
+		} );
 
 		if ( Args.Has( "-package-draw" ) ) Draw( rows, folder );
 
@@ -121,7 +125,7 @@ internal static class PackageShaders
 			if ( errors is not null ) File.WriteAllText( Path.ChangeExtension( path, ".errors.txt" ), errors );
 		}
 
-		if ( row.Kind != "pixel" ) return;
+		if ( row.Kind != "pixel" || Args.Has( "-package-skip-surfaces" ) ) return;
 
 		// The converter over the .shader made again from the embedded source
 		var reconstructed = ShaderConverter.FromEmbedded( source, features );
