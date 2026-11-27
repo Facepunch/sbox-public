@@ -728,7 +728,7 @@ public sealed unsafe partial class Device : IDisposable
 		if ( Allocator.SystemFallbackBytes > 0 ) heaps.Add( $"{Allocator.SystemFallbackBytes >> 20} MiB of device allocations in system memory" );
 
 		// Blocks drained and what moved out of them (Device.Relocation): the last move's frame, for a loss soon after one
-		if ( Allocator.DrainsBegun > 0 ) heaps.Add( $"blocks drained: {Allocator.DrainsBegun} begun, {Allocator.DrainsEmptied} emptied, {Allocator.DrainsAbandoned} given up" );
+		if ( Allocator.DrainsBegun > 0 ) heaps.Add( $"blocks drained: {Allocator.DrainsBegun} begun, {Allocator.DrainsEmptied} emptied, {Allocator.DrainsAbandoned} given up, {Allocator.TailDrains} into a block their size" );
 		if ( Relocations > 0 )
 		{
 			var last = RelocationFrames[(int)((Relocations - 1) & (RelocationHistory - 1))];

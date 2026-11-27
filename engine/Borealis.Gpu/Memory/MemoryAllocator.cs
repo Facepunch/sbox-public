@@ -973,11 +973,22 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 				emptiestCompacts = compacts;
 			}
 
+			// None: the part-used block with the most to give back may drain into one block the size of what it holds (TailDrain)
+			if ( emptiest is null )
+			{
+				if ( TailFor( kind ) is not { } tail ) continue;
+				kind.DrainMayMake = true;
+				kind.DrainMakes = TailBlockFor( tail );
+				kind.DrainMade = false;
+				StartDrain( kind, tail );
+				TailDrains++;
+				continue;
+			}
+
 			// Only when the rest of the kind has room for what it holds (moves never make a block), and the kind has a block's
 			// worth free in all, so emptying one leaves fewer. A block whose contents fit in the others' room and one smaller
 			// block (with a quarter to spare for what doesn't pack) is worth it too: 128 MiB back for 32, or for 64, and a
 			// small block a load grew to 16 MiB that's left holding a menu's 3 for one of 4
-			if ( emptiest is null ) continue;
 			var elsewhere = free - (emptiest.Size - emptiest.Used);
 			var mayMake = false;
 			if ( !emptiestPacks || elsewhere < emptiest.Used || free < emptiest.Size )
@@ -1008,6 +1019,51 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 		}
 
 		return 0;
+	}
+
+	/// <summary>
+	/// Whether a kind's part-used small block that no other drain takes may be drained into one new block just the size of
+	/// what it holds (on), when that gives back at least <see cref="TailGain"/> or an eighth of it. A kind's blocks fill one
+	/// after another, and what a loaded map had left was each kind's last block part-used with less than a block free in
+	/// all, which nothing drained: Construct's views and cube captures 4.4 MiB short of a 16 MiB block, the GPU-driven
+	/// tables 5-7 MiB, content images 2-4 MiB in each of a few. Each such drain gives back more than it makes, so they
+	/// end. <c>BOREALIS_TAIL_DRAIN=0</c> turns it off, for comparisons.
+	/// </summary>
+	public bool TailDrain { get; set; } = Environment.GetEnvironmentVariable( "BOREALIS_TAIL_DRAIN" ) != "0";
+
+	/// <summary>The least a drain into a block the size of what it holds (<see cref="TailDrain"/>) gives back, and the size its block is rounded up to.</summary>
+	public const ulong TailGain = 2ul << 20, TailRounding = 1ul << 20;
+
+	/// <summary>Drains into a block the size of what the drained one held (<see cref="TailDrain"/>) so far.</summary>
+	public long TailDrains { get; private set; }
+
+	/// <summary>
+	/// The size of the block a drain of <paramref name="block"/> into one of its own size makes (<see cref="TailDrain"/>):
+	/// what it holds and a sixteenth for alignment, rounded up to <see cref="TailRounding"/>; 0 when that doesn't give back
+	/// <see cref="TailGain"/> and an eighth of the block, or for a large block. Allocates nothing.
+	/// </summary>
+	ulong TailBlockFor( MemoryBlock block )
+	{
+		if ( !TailDrain || block.Large || block.Dedicated || block.Used == 0 ) return 0;
+		var makes = (block.Used + block.Used / 16 + TailRounding - 1) & ~(TailRounding - 1);
+		return makes + Math.Max( TailGain, block.Size / 8 ) <= block.Size ? makes : 0;
+	}
+
+	/// <summary>The part-used block of a kind whose drain into one of its own size gives back most (<see cref="TailBlockFor"/>), or null; under the lock.</summary>
+	MemoryBlock TailFor( Kind kind )
+	{
+		MemoryBlock tail = null;
+		ulong most = 0;
+		foreach ( var block in kind.Blocks )
+		{
+			if ( block.Used == 0 || block.Pinned || block.Draining || block == movesInto || frame < block.DrainFrame ) continue;
+			var makes = TailBlockFor( block );
+			if ( makes == 0 || block.Size - makes <= most ) continue;
+			tail = block;
+			most = block.Size - makes;
+		}
+
+		return tail;
 	}
 
 	readonly List<ulong> packSizes = new();

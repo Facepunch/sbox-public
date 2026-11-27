@@ -402,7 +402,8 @@ public class MemoryAllocatorTests : GpuTest
 	[TestMethod]
 	public void FullContentBlocksWithSmallHolesCompact()
 	{
-		using var allocator = new MemoryAllocator( Device.Vk, Device.Allocator.MemoryProperties, false ) { QuietSeconds = 0, GrowBlocks = false, MakeBlocksAhead = false };
+		// Without the drain into a block the size of what's left (TailDrain), which would then take the last block's quarter
+		using var allocator = new MemoryAllocator( Device.Vk, Device.Allocator.MemoryProperties, false ) { QuietSeconds = 0, GrowBlocks = false, MakeBlocksAhead = false, TailDrain = false };
 		var quarter = new VkMemoryRequirements { size = allocator.BlockSize / 4, alignment = 256, memoryTypeBits = ~0u };
 		var eighth = quarter with { size = allocator.BlockSize / 8 };
 		var live = new List<Allocation>();
@@ -453,7 +454,7 @@ public class MemoryAllocatorTests : GpuTest
 		Assert.IsTrue( allocator.DriverAllocations <= 5 + drains );
 
 		// Off, nothing over half full drains
-		using var off = new MemoryAllocator( Device.Vk, Device.Allocator.MemoryProperties, false ) { QuietSeconds = 0, GrowBlocks = false, MakeBlocksAhead = false, CompactContent = false };
+		using var off = new MemoryAllocator( Device.Vk, Device.Allocator.MemoryProperties, false ) { QuietSeconds = 0, GrowBlocks = false, MakeBlocksAhead = false, CompactContent = false, TailDrain = false };
 		var kept = new List<Allocation>();
 		for ( int i = 0; i < 40; i++ ) kept.Add( off.Allocate( eighth, MemoryLocation.Device, image: true, content: true ) );
 		for ( int i = 0; i < 40; i += 4 ) off.Free( kept[i] );
@@ -751,6 +752,68 @@ public class MemoryAllocatorTests : GpuTest
 			Assert.IsFalse( allocator.Draining( moved[0] ), "the smaller block isn't drained again" );
 			foreach ( var allocation in moved ) allocator.Free( allocation );
 		}
+	}
+
+	/// <summary>
+	/// A kind's last block left part-used, with less than a block free in all and no room for what it holds elsewhere (what
+	/// each kind of a loaded map ends with), drains into one block the size of what it holds, for content (the streamer
+	/// moves it) and what the device moves alike, and that block isn't drained again. One that wouldn't give back an eighth
+	/// isn't drained at all; with <see cref="MemoryAllocator.TailDrain"/> off, neither is.
+	/// </summary>
+	[TestMethod]
+	public void PartUsedLastBlocksDrainIntoOneTheirSize()
+	{
+		var mebibyte = new VkMemoryRequirements { size = 1 << 20, alignment = 256, memoryTypeBits = ~0u };
+		foreach ( var content in new[] { true, false } )
+		{
+			using var allocator = new MemoryAllocator( Device.Vk, Device.Allocator.MemoryProperties, false ) { QuietSeconds = 0, GrowBlocks = false, MakeBlocksAhead = false };
+			var full = new List<Allocation>();
+			for ( int i = 0; i < 16; i++ ) full.Add( allocator.Allocate( mebibyte, MemoryLocation.Device, image: true, content: content ) );
+			var last = new List<Allocation>();
+			for ( int i = 0; i < 10; i++ ) last.Add( allocator.Allocate( mebibyte, MemoryLocation.Device, image: true, content: content ) );
+			Assert.AreEqual( 2 * allocator.BlockSize, allocator.Reserved );
+
+			allocator.Trim( MemoryAllocator.QuietFrames + 30 );
+			Assert.IsTrue( allocator.Draining( last[0] ), $"the last block drains ({(content ? "content" : "moved by the device")})" );
+			Assert.IsFalse( allocator.Draining( full[0] ) );
+
+			var moved = new List<Allocation>();
+			MemoryAllocator.ExistingBlocksOnly = true;
+			try
+			{
+				for ( int i = 0; i < 10; i++ ) moved.Add( allocator.Allocate( mebibyte, MemoryLocation.Device, image: true, content: content ) );
+			}
+			finally
+			{
+				MemoryAllocator.ExistingBlocksOnly = false;
+			}
+
+			Assert.IsTrue( moved.All( m => m.Block.Size == 11 << 20 ), "into one block of 10 MiB and a sixteenth, rounded up to 11" );
+			foreach ( var allocation in last ) allocator.Free( allocation );
+			allocator.Trim( 2 * MemoryAllocator.SpareFrames );
+			Assert.AreEqual( allocator.BlockSize + (11ul << 20), allocator.Reserved, "16 MiB back for 11" );
+			Assert.AreEqual( 1, allocator.TailDrains );
+
+			allocator.Trim( 3 * MemoryAllocator.SpareFrames );
+			Assert.IsFalse( allocator.AnyDraining, "the block made isn't drained again" );
+			foreach ( var allocation in full.Concat( moved ) ) allocator.Free( allocation );
+		}
+
+		// Fourteen of sixteen: a block its size would give back only one
+		using var nearlyFull = new MemoryAllocator( Device.Vk, Device.Allocator.MemoryProperties, false ) { QuietSeconds = 0, GrowBlocks = false, MakeBlocksAhead = false };
+		var fourteen = new List<Allocation>();
+		for ( int i = 0; i < 14; i++ ) fourteen.Add( nearlyFull.Allocate( mebibyte, MemoryLocation.Device, image: true, content: true ) );
+		nearlyFull.Trim( MemoryAllocator.QuietFrames + 30 );
+		Assert.IsFalse( nearlyFull.AnyDraining, "under an eighth to give back" );
+		foreach ( var allocation in fourteen ) nearlyFull.Free( allocation );
+
+		// Off
+		using var off = new MemoryAllocator( Device.Vk, Device.Allocator.MemoryProperties, false ) { QuietSeconds = 0, GrowBlocks = false, MakeBlocksAhead = false, TailDrain = false };
+		var ten = new List<Allocation>();
+		for ( int i = 0; i < 10; i++ ) ten.Add( off.Allocate( mebibyte, MemoryLocation.Device, image: true, content: true ) );
+		off.Trim( MemoryAllocator.QuietFrames + 30 );
+		Assert.IsFalse( off.AnyDraining );
+		foreach ( var allocation in ten ) off.Free( allocation );
 	}
 
 	/// <summary>
