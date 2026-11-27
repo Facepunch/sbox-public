@@ -53,27 +53,25 @@ public class LoggedStackTest
 	[TestMethod]
 	public void InfoLogStackHasSourceLines()
 	{
+		// The event is global: tests running alongside log through it too, so only this test's line is kept
+		var message = $"hello {Guid.NewGuid()}";
 		LogEvent logged = default;
 		void OnEmitted( LogEvent e )
 		{
-			// In case other stuff logs
-			if ( e.Logger == nameof( LoggedStackTest ) )
-			{
-				logged = e;
-			}
+			if ( e.Message == message ) logged = e;
 		}
 
 		Logging.OnEmitted += OnEmitted;
 		try
 		{
-			new Logger( nameof( LoggedStackTest ) ).Info( "hello" );
+			new Logger( "LoggedStackTest" ).Info( message );
 		}
 		finally
 		{
 			Logging.OnEmitted -= OnEmitted;
 		}
 
-		Assert.IsNotNull( logged.Stack, $"no {nameof( LoggedStackTest )} event was emitted" );
+		Assert.AreEqual( message, logged.Message, "the test's own line was emitted" );
 		StringAssert.Contains( logged.Stack, $"{nameof( LoggedStackTest )}.cs:line " );
 		StringAssert.Contains( logged.Stack, nameof( InfoLogStackHasSourceLines ) );
 	}

@@ -7,13 +7,40 @@ namespace Sandbox.Diagnostics;
 internal static partial class Logging
 {
 	static bool _initialized;
+	static bool _initializing;
+	static readonly object InitializeLock = new();
+
+	/// <summary>
+	/// Set up NLog and the default rule, once. Every <see cref="Logger"/> calls this: one made on another thread while the
+	/// first is still setting up waits for the rules, rather than logging against none (<see cref="ShouldLog"/> said no and
+	/// kept saying it for that logger).
+	/// </summary>
 	internal static void InitializeConfig()
 	{
-		if ( _initialized )
+		if ( System.Threading.Volatile.Read( ref _initialized ) )
 			return;
 
-		_initialized = true;
+		lock ( InitializeLock )
+		{
+			// A logger made by the set-up itself (the same thread, the lock being reentrant) carries on
+			if ( _initialized || _initializing )
+				return;
 
+			_initializing = true;
+			try
+			{
+				Configure();
+			}
+			finally
+			{
+				_initializing = false;
+				System.Threading.Volatile.Write( ref _initialized, true );
+			}
+		}
+	}
+
+	static void Configure()
+	{
 		var config = new NLog.Config.LoggingConfiguration();
 
 #pragma warning disable CA2000 // Dispose objects before losing scope
@@ -123,8 +150,12 @@ internal static partial class Logging
 
 	public static void SetRule( string wildcard, LogLevel minimumLevel )
 	{
-		Rules[wildcard] = minimumLevel;
-		RuleCache.Clear();
+		// Under the cache's lock, as ShouldLog reads both: an answer worked out against the old rules can't land after the clear
+		lock ( RuleCache )
+		{
+			Rules[wildcard] = minimumLevel;
+			RuleCache.Clear();
+		}
 	}
 
 	internal static Dictionary<string, LogLevel> Rules = new();
