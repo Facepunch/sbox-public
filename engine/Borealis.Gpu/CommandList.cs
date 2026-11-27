@@ -1496,7 +1496,7 @@ public sealed unsafe class CommandList
 		var layout = layouts[lastBindPoint];
 		fixed ( T* p = &data )
 		{
-			vk.vkCmdPushConstants( Handle, layout, device.StageAll, (uint)offset, (uint)sizeof( T ), p );
+			vk.vkCmdPushConstants( Handle, layout, device.PushStages( lastBindPoint ), (uint)offset, (uint)sizeof( T ), p );
 			if ( device.Capabilities.PipelineLibraries )
 			{
 				var first = offset / sizeof( uint );
@@ -1526,7 +1526,7 @@ public sealed unsafe class CommandList
 			{
 				var first = System.Numerics.BitOperations.TrailingZeroCount( words );
 				var count = System.Numerics.BitOperations.TrailingZeroCount( ~(words >> first) );
-				vk.vkCmdPushConstants( Handle, layout, device.StageAll, (uint)first * sizeof( uint ), (uint)count * sizeof( uint ), data + first );
+				vk.vkCmdPushConstants( Handle, layout, device.PushStages( bindPoint ), (uint)first * sizeof( uint ), (uint)count * sizeof( uint ), data + first );
 				words &= ~PushConstantMask( first, count );
 			}
 			while ( words != 0 );

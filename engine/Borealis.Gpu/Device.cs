@@ -53,6 +53,17 @@ public sealed unsafe partial class Device : IDisposable
 	/// </summary>
 	internal uint StageAll { get; }
 
+	/// <summary>
+	/// The stages compute layouts' push constants are visible to: <see cref="StageAll"/> on a device with graphics pipeline
+	/// libraries, compute alone on one without. AMD's driver (26.11.2) keeps compute pipelines in its shader cache, on
+	/// disk too, by their layout but not by whether the device has pipeline libraries, which moves push constants: a
+	/// pipeline made first on one kind of device read zeros on the other. Different layouts keep the two apart.
+	/// </summary>
+	internal uint ComputePushStages { get; }
+
+	/// <summary>The stages push constants are visible to in the layouts of pipelines bound at <paramref name="bindPoint"/>.</summary>
+	internal uint PushStages( int bindPoint ) => bindPoint == Vulkan.Vk.BindPointCompute ? ComputePushStages : StageAll;
+
 	/// <summary>Frames the CPU may record ahead of the GPU.</summary>
 	public int FramesInFlight { get; }
 
@@ -235,6 +246,7 @@ public sealed unsafe partial class Device : IDisposable
 			deviceExtensions = DeviceExtensions( PhysicalDevice );
 			Vk = CreateLogicalDevice( options, out var features, out var computeFamily );
 			StageAll = Vulkan.Vk.StageVertex | Vulkan.Vk.StageFragment | Vulkan.Vk.StageCompute | (features.meshShaders ? Vulkan.Vk.StageTask | Vulkan.Vk.StageMesh : 0);
+			ComputePushStages = pipelineLibraries ? StageAll : Vulkan.Vk.StageCompute;
 			graphicsQueue = new DeviceQueue( this, Vk, queueFamilies[0], QueueType.Graphics );
 			computeQueue = computeFamily ? new DeviceQueue( this, Vk, queueFamilies[1], QueueType.Compute ) : graphicsQueue;
 			if ( AddressReports ) ListenForAddressBindings();

@@ -144,6 +144,68 @@ public class PipelineLibraryTests : GpuTest
 		AssertSame( fast, Draw( libraries: false, meshShaders: false ), "pipelines made whole without mesh shaders" );
 	}
 
+	/// <summary>
+	/// A compute shader made first on a device with pipeline libraries, then on one without, reads its push constants on
+	/// both, and the other way round. AMD's driver keeps compute pipelines in its shader cache, on disk too, by their layout
+	/// but not by the device's pipeline libraries; with the same layouts on both, the second device's dispatch read zeros
+	/// and wrote nothing. Each order patches the shader's 0.8 to a value of its own, so it is new to the driver's cache.
+	/// </summary>
+	[TestMethod]
+	public void ComputeReadsItsPushConstantsOnDevicesWithAndWithoutLibraries()
+	{
+		RequireLibraries();
+		foreach ( var librariesFirst in new[] { true, false } )
+		{
+			var spirv = Load( "pattern.cs.spv" );
+			var words = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, uint>( spirv.AsSpan() );
+			var at = words.IndexOf( 0x3F4CCCCCu );
+			Assert.IsTrue( at > 0, "the pattern shader's 0.8" );
+			words[at] -= (uint)Random.Shared.Next( 1, 0x10000 );
+
+			var first = Pattern( spirv, librariesFirst );
+			var second = Pattern( spirv, !librariesFirst );
+			Assert.IsTrue( first.Distinct().Count() > 50, $"the first device (libraries {librariesFirst}) wrote the pattern" );
+			CollectionAssert.AreEqual( first, second, $"the second device (libraries {!librariesFirst}) wrote the same pattern" );
+		}
+	}
+
+	/// <summary>The pattern compute shader's texture, written on a device of its own, as one colour per pixel.</summary>
+	static uint[] Pattern( byte[] spirv, bool libraries )
+	{
+		var errors = new List<string>();
+		var options = new DeviceOptions { Presentation = false, PipelineLibraries = libraries, Validation = true, Message = m => { if ( m.Severity == MessageSeverity.Error ) lock ( errors ) errors.Add( $"{m.Id}: {m.Text}" ); } };
+		uint[] pixels;
+		using ( var device = Device.Create( options ) )
+		{
+			Assert.AreEqual( libraries, device.Capabilities.PipelineLibraries );
+			var info = TextureInfo.Texture2D( SampleScene.PatternSize, SampleScene.PatternSize, Format.RGBA8Unorm, name: "Pattern" );
+			info.Usage |= TextureUsage.Storage;
+			var texture = device.CreateTexture( info );
+			var shader = device.CreateShader( spirv, "pattern" );
+			var pipeline = device.CreateComputePipeline( new ComputePipelineInfo { Shader = shader, Entry = "MainCs", Name = "Pattern" } );
+
+			var list = device.BeginCommandList( QueueType.Graphics, "Pattern" );
+			list.Barrier( TextureBarrier.Transition( texture, ImageLayout.Undefined, ImageLayout.CopyDestination, PipelineStage.TopOfPipe, MemoryAccess.None, PipelineStage.Transfer, MemoryAccess.TransferWrite ) );
+			list.ClearTexture( texture );
+			list.Barrier( TextureBarrier.Transition( texture, ImageLayout.CopyDestination, ImageLayout.General, PipelineStage.Transfer, MemoryAccess.TransferWrite, PipelineStage.ComputeShader, MemoryAccess.ShaderWrite ) );
+			list.SetPipeline( pipeline );
+			list.PushConstants( new PatternConstants { Target = (uint)device.StorageIndex( texture ), Time = 0.5f, Width = SampleScene.PatternSize, Height = SampleScene.PatternSize } );
+			list.Dispatch( SampleScene.PatternSize / 8, SampleScene.PatternSize / 8 );
+			device.Wait( device.Submit( list ) );
+			pixels = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, uint>( GpuTest.ReadBack( device, texture, ImageLayout.General ) ).ToArray();
+		}
+
+		Assert.AreEqual( 0, errors.Count, string.Join( "\n", errors.Take( 5 ) ) );
+		return pixels;
+	}
+
+	struct PatternConstants
+	{
+		public uint Target;
+		public float Time;
+		public uint Width, Height;
+	}
+
 	/// <summary>The sample scene drawn on a device of its own, with the validation layer, which must report nothing.</summary>
 	byte[] Draw( bool libraries, bool meshShaders )
 	{

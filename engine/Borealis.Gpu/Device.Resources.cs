@@ -150,7 +150,7 @@ public sealed unsafe partial class Device
 	/// shaders read as no lights, no sun and no volumes.
 	/// </summary>
 	public BindingSetHandle DefaultViewSet { get; private set; }
-	readonly Dictionary<((ulong, ulong, ulong, ulong) Sets, bool Independent), ulong> pipelineLayouts = new();
+	readonly Dictionary<((ulong, ulong, ulong, ulong) Sets, bool Independent, uint PushStages), ulong> pipelineLayouts = new();
 	readonly Dictionary<ulong, PipelineSetLayouts> pipelineLayoutSets = new();
 	readonly List<ulong> retiredPipelineLayouts = new();
 
@@ -945,20 +945,21 @@ public sealed unsafe partial class Device
 	/// <summary>
 	/// The pipeline layout of pipelines with these sets. With graphics pipeline libraries enabled, graphics layouts use
 	/// <c>VK_PIPELINE_LAYOUT_CREATE_INDEPENDENT_SETS_BIT_EXT</c> even for pipelines made whole: AMD's driver read push
-	/// constants wrong otherwise. Vulkan forbids the flag for compute pipelines.
+	/// constants wrong otherwise. Vulkan forbids the flag for compute pipelines. Push constants are visible to
+	/// <see cref="ComputePushStages"/> in compute layouts and to <see cref="StageAll"/> in graphics ones.
 	/// </summary>
 	ulong PipelineLayout( BindingLayoutHandle[] sets, bool graphics )
 	{
 		if ( sets is { Length: > ShaderAbi.BindlessSet } ) throw new ArgumentException( $"Sets 0 to {ShaderAbi.BindlessSet - 1} are the pipeline's; set {ShaderAbi.BindlessSet} is the bindless table" );
 
 		var metadata = new PipelineSetLayouts( SetLayoutOf( sets, 0 ), SetLayoutOf( sets, 1 ), SetLayoutOf( sets, 2 ), SetLayoutOf( sets, 3 ), graphics && pipelineLibraries );
-		var key = (Sets: (metadata.First.Handle, metadata.Second.Handle, metadata.Third.Handle, metadata.Fourth.Handle), metadata.Independent);
+		var key = (Sets: (metadata.First.Handle, metadata.Second.Handle, metadata.Third.Handle, metadata.Fourth.Handle), metadata.Independent, PushStages: graphics ? StageAll : ComputePushStages);
 		lock ( pipelineLayouts )
 		{
 			if ( pipelineLayouts.TryGetValue( key, out var existing ) ) return existing;
 
 			var setLayouts = stackalloc ulong[ShaderAbi.SetCount] { key.Sets.Item1, key.Sets.Item2, key.Sets.Item3, key.Sets.Item4, Bindless.SetLayout, Get( ViewSetLayout ).SetLayout };
-			var push = new VkPushConstantRange { stageFlags = StageAll, size = ShaderAbi.PushConstantSize };
+			var push = new VkPushConstantRange { stageFlags = key.PushStages, size = ShaderAbi.PushConstantSize };
 			var info = new VkPipelineLayoutCreateInfo
 			{
 				sType = VkStructureType.PipelineLayoutCreateInfo,
@@ -1461,7 +1462,7 @@ public sealed unsafe partial class Device
 		// layout found by it would point at this one once it's gone. They live on, for pipelines made with them, until shutdown
 		lock ( pipelineLayouts )
 		{
-			List<((ulong, ulong, ulong, ulong) Sets, bool Independent)> stale = null;
+			List<((ulong, ulong, ulong, ulong) Sets, bool Independent, uint PushStages)> stale = null;
 			foreach ( var key in pipelineLayouts.Keys )
 			{
 				var (a, b, c, d) = key.Sets;
