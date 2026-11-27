@@ -124,14 +124,14 @@ public static class SurfaceClassWriter
 	/// <summary>The C# type a field reads and writes as, as the engine's classes have it; null where there's none.</summary>
 	static string TypeOf( Field field ) => (field.Kind, field.Components) switch
 	{
-		("float", 1) => "float",
-		("float", 2) => "global::Vector2",
-		("float", 3) => "global::Vector3",
-		("float", 4) => "global::Vector4",
-		("int", 1) => "int",
-		("uint", 1) => "int",
-		("bool", 1) => "bool",
-		("texture", _) => "global::Sandbox.Texture",
+		("float", 1 ) => "float",
+		("float", 2 ) => "global::Vector2",
+		("float", 3 ) => "global::Vector3",
+		("float", 4 ) => "global::Vector4",
+		("int", 1 ) => "int",
+		("uint", 1 ) => "int",
+		("bool", 1 ) => "bool",
+		("texture", _ ) => "global::Sandbox.Texture",
 		_ => null,
 	};
 
@@ -141,11 +141,11 @@ public static class SurfaceClassWriter
 		string At( int i ) => Number( i < field.Default.Length ? field.Default[i] : 0 );
 		return (field.Kind, field.Components) switch
 		{
-			("float", 1) => At( 0 ),
-			("float", 2) => $"new global::Vector2( {At( 0 )}, {At( 1 )} )",
-			("float", 3) => $"new global::Vector3( {At( 0 )}, {At( 1 )}, {At( 2 )} )",
-			("float", 4) => $"new global::Vector4( {At( 0 )}, {At( 1 )}, {At( 2 )}, {At( 3 )} )",
-			("bool", _) => field.Default.Length > 0 && field.Default[0] != 0 ? "true" : "false",
+			("float", 1 ) => At( 0 ),
+			("float", 2 ) => $"new global::Vector2( {At( 0 )}, {At( 1 )} )",
+			("float", 3 ) => $"new global::Vector3( {At( 0 )}, {At( 1 )}, {At( 2 )} )",
+			("float", 4 ) => $"new global::Vector4( {At( 0 )}, {At( 1 )}, {At( 2 )}, {At( 3 )} )",
+			("bool", _ ) => field.Default.Length > 0 && field.Default[0] != 0 ? "true" : "false",
 			_ => ((int)(field.Default.Length > 0 ? field.Default[0] : 0)).ToString( CultureInfo.InvariantCulture ),
 		};
 	}
