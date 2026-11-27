@@ -941,6 +941,52 @@ public class ProfilerTests
 		Assert.AreEqual( dropped, NativeProfiler.DroppedEvents() );
 	}
 
+	static Profiler.RawGpuSpan Pass( ulong start, ulong end, uint scope, int parent ) => new( start, end, scope, parent, false );
+
+	[TestMethod]
+	public void GpuPassesUnderAnUnplacedPassKeepTheirParentsLaterPasses()
+	{
+		// B hides C, so C and its child D can't be placed; E still belongs under A
+		Profiler.RawGpuSpan[] raw = [Pass( 0, 100, 1, -1 ), Pass( 10, 50, 2, 0 ), Pass( 20, 30, 3, 0 ), Pass( 22, 25, 4, 2 ), Pass( 60, 70, 5, 0 )];
+		var (graphics, compute) = Profiler.GpuLanes( raw, 0, 100, int.MaxValue, out var lost );
+		Assert.AreEqual( 0, compute.Count );
+		Assert.AreEqual( 0, lost );
+		CollectionAssert.AreEqual( new uint[] { 1, 2, 5 }, graphics.Select( x => x.Scope ).ToArray() );
+		var e = graphics.Single( x => x.Scope == 5 );
+		Assert.AreEqual( 1, e.Depth );
+		Assert.AreEqual( 0, e.Parent );
+		Assert.AreEqual( 60ul, e.Start );
+
+		var limited = Profiler.GpuLanes( raw, 0, 100, 2, out lost );
+		Assert.AreEqual( 2, limited.Graphics.Count );
+		Assert.AreEqual( 1, lost );
+	}
+
+	[TestMethod]
+	public void GpuTrackWindowsKeepOnlyTheirPassesWithinTheLimit()
+	{
+		var site = new Profiler.Site( 0x10001, "GPU.Test", "", 0 );
+		// Children listed before their parents, as a frame's snapshot can have them
+		Profiler.RawGpuSpan[] raw = [Pass( 12, 14, site.Id, 1 ), Pass( 10, 20, site.Id, -1 ), Pass( 100, 120, site.Id, -1 ), Pass( 105, 110, site.Id, 2 ), Pass( 200, 210, site.Id, -1 )];
+		using var stream = new System.IO.MemoryStream();
+		using ( var writer = new System.IO.BinaryWriter( stream, System.Text.Encoding.UTF8, true ) ) Profiler.WriteGpuTrack( writer, new( [site], raw ) );
+
+		stream.Position = 0;
+		var window = Profiler.ReadGpuTrack( stream, 90, 150, int.MaxValue, out var lost );
+		Assert.AreEqual( 0, lost );
+		CollectionAssert.AreEqual( new ulong[] { 100, 105 }, window.Spans.Select( x => x.Start ).ToArray() );
+		Assert.AreEqual( 0, window.Spans[1].Parent );
+
+		stream.Position = 0;
+		var first = Profiler.ReadGpuTrack( stream, 0, 50, int.MaxValue, out _ );
+		CollectionAssert.AreEqual( new[] { 1, -1 }, first.Spans.Select( x => x.Parent ).ToArray() );
+
+		stream.Position = 0;
+		var limited = Profiler.ReadGpuTrack( stream, 0, 1000, 3, out lost );
+		Assert.AreEqual( 3, limited.Spans.Length );
+		Assert.AreEqual( 2, lost );
+	}
+
 	[TestMethod]
 	public void CompareCountsOnlyCpuWorkInsideCompleteFrames()
 	{
@@ -956,10 +1002,13 @@ public class ProfilerTests
 			};
 			// Work cut by the capture's start or end, outside any complete frame
 			if ( boundaryWork ) main.Add( new( 4, 2, 1, -1, 0, 20, 29, 9, false ) );
-			var spans = main.ToArray();
-			return new Profiler.Capture( id, 30, 0, false, 0, [new( 1, 1, "Main" )], sites, spans, [] )
+			var spans = main.ToList();
+			var gpuStart = spans.Count;
+			spans.Add( new( gpuStart, 2, Profiler.GpuGraphicsKey, -1, 0, 0, boundaryWork ? 9 : 1, boundaryWork ? 9 : 1, false ) );
+			return new Profiler.Capture( id, 30, 0, false, 0,
+				[new( 1, 1, "Main" ), new( Profiler.GpuGraphicsKey, 0, "GPU graphics" )], sites, spans.ToArray(), [] )
 			{
-				ThreadSpans = new() { [1] = new( spans, 0, spans.Length ) },
+				ThreadSpans = new() { [1] = new( spans.ToArray(), 0, main.Count ), [Profiler.GpuGraphicsKey] = new( spans.ToArray(), gpuStart, 1 ) },
 				Frames = [new( 0, 0, 0, 10, false ), new( 1, 2, 10, 10, false )]
 			};
 		}
@@ -969,5 +1018,37 @@ public class ProfilerTests
 		Assert.AreEqual( "per frame", json.GetProperty( "Unit" ).GetString() );
 		Assert.AreEqual( 0, json.GetProperty( "TotalRegressions" ).GetInt32() );
 		Assert.AreEqual( 0, json.GetProperty( "TotalImprovements" ).GetInt32() );
+		Assert.IsTrue( json.GetProperty( "GpuBusyMs" ).GetProperty( "Baseline" ).GetDouble() > json.GetProperty( "GpuBusyMs" ).GetProperty( "Candidate" ).GetDouble() );
+	}
+
+	[TestMethod]
+	public void StreamedCapturesKeepCountersPastTheirInMemoryLimit()
+	{
+		string path = null;
+		try
+		{
+			var task = Profiler.StartCapture( 10, 16, collector: false, streamToDisk: true );
+			for ( int i = 0; i < 20; i++ )
+			{
+				Profiler.Update( frameBoundary: true );
+				using ( ProfileScope_Frame.Start() )
+				using ( Parent.Start() )
+				using ( Child.Start() )
+					Thread.Sleep( 1 );
+				Profiler.Update();
+			}
+			Profiler.Update( frameBoundary: true );
+			Profiler.StopCapture();
+			var capture = task.GetAwaiter().GetResult();
+			Assert.IsNotNull( capture.SourceFile, capture.StorageError );
+			path = Profiler.CapturePath( capture.SourceFile );
+			Assert.IsTrue( capture.EventLimitReached, "the in-memory part should stop at its limit" );
+
+			var loaded = Profiler.LoadCapture( capture.SourceFile ).GetAwaiter().GetResult();
+			Assert.AreEqual( 20, loaded.Frames.Length );
+			Assert.AreEqual( 21, loaded.CounterSamples.Length );
+			Assert.IsTrue( Enumerable.Range( 0, 20 ).All( x => Profiler.FrameCounters( loaded, x ) is not null ) );
+		}
+		finally { if ( path is not null ) System.IO.File.Delete( path ); }
 	}
 }

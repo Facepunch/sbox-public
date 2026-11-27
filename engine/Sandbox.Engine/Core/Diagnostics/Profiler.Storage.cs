@@ -241,7 +241,7 @@ internal static partial class Profiler
 		var instanceLimit = reader.ReadInt32();
 		var reason = ReadText( reader );
 		if ( !double.IsFinite( duration ) || duration < 0 || flags is < 0 or > 3 || flags == 2 || count < 0 || count > MaxEvents / 2
-			|| siteCount is < 0 or > 16384 || threadCount is < 0 or > 65536 || instanceLimit < 0 || instanceLimit > MaxEvents / 2
+			|| siteCount is < 0 or > 32768 || threadCount is < 0 or > 65536 || instanceLimit < 0 || instanceLimit > MaxEvents / 2
 			|| (instanceLimit > 0 && count > instanceLimit) || (long)count * SpanBytes > stream.Length - stream.Position ) throw new InvalidDataException( "Invalid profiler capture header." );
 		if ( count > maximumSpans ) throw new InvalidDataException( "Capture exceeds available profiler memory. Increase profiler_memory_mb or load a shorter window." );
 		var sites = new Site[siteCount];

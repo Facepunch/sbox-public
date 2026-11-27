@@ -5,7 +5,7 @@ namespace Editor.Mcp;
 internal static partial class PerfTools
 {
 	[McpTool.ReadOnly( "profiler_compare" )]
-	[Description( "Compare two profiler captures, recorded or loaded with profiler_load: frame time stats of both, the scopes whose self time per frame grew or shrank most (matched by name, all CPU threads), and allocation and GC changes. Per frame means work inside each capture's complete frames divided by their count, or per second over the whole capture when either has none. Page the scope lists with offset." )]
+	[Description( "Compare two profiler captures, recorded or loaded with profiler_load: frame time stats of both, the scopes whose self time per frame grew or shrank most (matched by name, all CPU threads), GPU busy time, and allocation and GC changes. Per frame means work inside each capture's complete frames divided by their count, or per second over the whole capture when either has none. Page the scope lists with offset." )]
 	internal static async Task<object> ProfilerCompare(
 		[Description( "Capture ID of the baseline." )] long baselineId,
 		[Description( "Capture ID of the candidate. 0 for the latest." )] long candidateId = 0,
@@ -37,6 +37,8 @@ internal static partial class PerfTools
 		var start = Math.Max( 0, offset );
 		var regressions = rows.Where( x => x.DeltaSelfMs > 0 ).OrderByDescending( x => x.DeltaSelfMs ).ToArray();
 		var improvements = rows.Where( x => x.DeltaSelfMs < 0 ).OrderBy( x => x.DeltaSelfMs ).ToArray();
+		var gpuBaseline = GpuBusy( baseline, inBaseline );
+		var gpuCandidate = GpuBusy( candidate, inCandidate );
 
 		return (object)new
 		{
@@ -44,6 +46,7 @@ internal static partial class PerfTools
 			CandidateId = candidate.Id,
 			Unit = perFrame ? "per frame" : "per second",
 			Frames = new { Baseline = CaptureFrameStats( baseline ), Candidate = CaptureFrameStats( candidate ) },
+			GpuBusyMs = gpuBaseline is not null && gpuCandidate is not null ? new { Baseline = Round( gpuBaseline.Value, 3 ), Candidate = Round( gpuCandidate.Value, 3 ) } : null,
 			Regressions = regressions.Skip( start ).Take( take ).ToArray(),
 			Improvements = improvements.Skip( start ).Take( take ).ToArray(),
 			TotalRegressions = regressions.Length,
@@ -88,12 +91,19 @@ internal static partial class PerfTools
 		}
 	}
 
+	static double? GpuBusy( Profiler.Capture capture, CompareWindow window )
+	{
+		if ( !capture.ThreadSpans.TryGetValue( Profiler.GpuGraphicsKey, out var lane ) ) return null;
+		if ( window.Frames is null ) return lane.Where( x => x.Depth == 0 ).Sum( x => x.DurationMs ) / window.Units;
+		return Enumerable.Range( 0, capture.Frames.Length ).Where( i => !capture.Frames[i].Incomplete ).Sum( i => Profiler.FrameGpuBusyMs( capture, i ) ?? 0 ) / window.Units;
+	}
+
 	static IEnumerable<Profiler.AllocationSample> SampledBytes( Profiler.Capture capture, CompareWindow window ) =>
 		window.Frames is null || !Profiler.AllocationsHaveTimes( capture ) ? capture.Allocations : capture.Allocations.Where( x => window.Contains( x.TimeMs ) );
 
 	sealed record ScopeDelta( string Name, double BaselineSelfMs, double CandidateSelfMs, double DeltaSelfMs, double DeltaTotalMs, double BaselineCalls, double CandidateCalls );
 
-	// CPU threads only: GC pauses are compared on their own
+	// CPU threads only: GC pauses and GPU passes are compared on their own
 	static Dictionary<string, (double Self, double Total, double Calls)> ScopeTotals( Profiler.Capture capture, CompareWindow window )
 	{
 		var names = CaptureSiteNames( capture );
@@ -101,7 +111,7 @@ internal static partial class PerfTools
 		var units = window.Units;
 		foreach ( ref readonly var span in capture.Spans.AsSpan() )
 		{
-			if ( span.ThreadKey == Profiler.GcThreadKey || !window.Contains( span.StartMs ) ) continue;
+			if ( span.ThreadKey == Profiler.GcThreadKey || Profiler.IsGpuLane( span.ThreadKey ) || !window.Contains( span.StartMs ) ) continue;
 			var name = names[span.ScopeId];
 			var total = totals.GetValueOrDefault( name );
 			totals[name] = (total.Self + (span.SelfMs ?? 0) / units, total.Total + span.DurationMs / units, total.Calls + 1 / units);

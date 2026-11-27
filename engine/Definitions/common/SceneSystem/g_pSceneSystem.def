@@ -276,6 +276,20 @@ native accessor g_pSceneSystem as NativeEngine.CSceneSystem
 		return pEvent->m_sName.Get();
 	}
 
+	// The same without copying the name, which stays valid until the next snapshot refresh
+	inline void* GetGpuTimestampEventName( int index, out GpuTimestampEventData data )
+	{
+		const auto *pEvent = g_pSceneSystem->GetTimestampEvent( index );
+		if ( !pEvent )
+		{
+			*data = {};
+			return nullptr;
+		}
+
+		*data = *pEvent;
+		return (void*)pEvent->m_sName.Get();
+	}
+
 	// begin returns a scope handle to pass to end
 	inline void* BeginManagedPerfMarker( IRenderContext ctx, void* markerName, bool pass, bool managedRenderer )
 	{

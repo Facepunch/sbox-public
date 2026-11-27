@@ -53,7 +53,7 @@ internal static partial class Profiler
 
 	static LogMarker[] RelocateMarkers( Capture capture, LogMarker[] markers )
 	{
-		var byOsThread = capture.Threads.Where( x => x.Key != GcThreadKey ).ToLookup( x => x.Id );
+		var byOsThread = capture.Threads.Where( x => x.Key != GcThreadKey && !IsGpuLane( x.Key ) ).ToLookup( x => x.Id );
 		return markers.Select( x => capture.Threads.FirstOrDefault( t => t.Key == x.ThreadKey ) is { } thread
 			? x with { ThreadKey = FindThread( capture, byOsThread[thread.Id], x.Ms ) } : x ).ToArray();
 	}

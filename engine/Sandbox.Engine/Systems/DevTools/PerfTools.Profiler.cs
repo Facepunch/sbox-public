@@ -73,7 +73,7 @@ internal static partial class PerfTools
 	}
 
 	[McpTool.ReadOnly( "profiler_frames" )]
-	[Description( "Frames of a profiler capture with their duration and main thread allocations, slowest first by default. CounterMedians sums up the capture's render counters (draw calls, triangles, batches, primitives, objects tested and drawn, material changes, constant buffer updates and bytes, GPU ms, working set MiB); counters: true adds each frame's, in CounterColumns order. Pass a frame's SpanIndex to profiler_call_tree to see what it spent its time on." )]
+	[Description( "Frames of a profiler capture with their duration, main thread allocations and GPU busy time, slowest first by default. CounterMedians sums up the capture's render counters (draw calls, triangles, batches, primitives, objects tested and drawn, material changes, constant buffer updates and bytes, GPU ms, working set MiB); counters: true adds each frame's, in CounterColumns order. Pass a frame's SpanIndex to profiler_call_tree to see what it spent its time on." )]
 	internal static async Task<object> ProfilerFrames(
 		[Description( "Capture ID from profiler_capture. 0 for the latest." )] long captureId = 0,
 		[Description( "\"slowest\" (default) or \"time\" for capture order." )] string order = "slowest",
@@ -105,7 +105,8 @@ internal static partial class PerfTools
 					Round( x.DurationMs, 3 ),
 					x.AllocatedBytes is { } bytes ? KiB( bytes ) : null,
 					x.Incomplete,
-					counters ? FrameCounterValues( Profiler.FrameCounters( capture, x.Index ) ) : null ) ).ToArray()
+					counters ? FrameCounterValues( Profiler.FrameCounters( capture, x.Index ) ) : null,
+					Profiler.FrameGpuBusyMs( capture, x.Index ) is { } busy ? Round( busy, 3 ) : null ) ).ToArray()
 			};
 		} );
 	}
@@ -226,7 +227,8 @@ internal static partial class PerfTools
 		[Description( "Window end, in ms from the start of the capture. 0 for the end." )] double endMs = 0,
 		[Description( "Only instances at least this long, in ms." )] double minMs = 0,
 		[Description( "How many instances. Default 200, max 5000." )] int limit = 200,
-		[Description( "Instances to skip, for paging." )] int offset = 0 )
+		[Description( "Instances to skip, for paging." )] int offset = 0,
+		[Description( "Also list GPU passes (the GPU lanes' threads). Passing a GPU lane's threadKey lists only its passes either way." )] bool gpu = false )
 	{
 		var capture = FindCapture( captureId );
 		ValidateThread( capture, threadKey );
@@ -243,7 +245,7 @@ internal static partial class PerfTools
 			var total = 0;
 			foreach ( var x in source )
 			{
-				if ( x.EndMs < startMs || x.StartMs > endMs || x.DurationMs < minMs ) continue;
+				if ( x.EndMs < startMs || x.StartMs > endMs || x.DurationMs < minMs || (!gpu && threadKey == 0 && Profiler.IsGpuLane( x.ThreadKey )) ) continue;
 				if ( total >= start && page.Count < take ) page.Add( x );
 				total++;
 			}
@@ -390,6 +392,7 @@ internal static partial class PerfTools
 		if ( capture.Frames.Length == 0 ) warnings.Add( $"No {Profiler.FrameScopeName} scopes, so no frame stats." );
 		if ( !capture.HasGcData ) warnings.Add( "No GC pauses or allocation samples were recorded, so empty GC and allocation tables mean unknown, not none. Streamed files hold scopes and frame counters only." );
 		if ( capture.AllocationCutoffMs is { } cutoff ) warnings.Add( $"Allocation samples stop at {cutoff:0} ms, where the capture hit its sample limit; later allocations aren't in the tables." );
+		if ( capture.GpuPassesLost > 0 ) warnings.Add( $"{capture.GpuPassesLost} GPU passes were left out at the capture's instance limit." );
 		return warnings.Count > 0 ? warnings.ToArray() : null;
 	}
 
@@ -409,8 +412,14 @@ internal static partial class PerfTools
 		};
 	}
 
+	// Rows with a label leave it out when there's none, which is most of them
+	sealed record RootRow( string Name, [property: JsonIgnore( Condition = JsonIgnoreCondition.WhenWritingNull )] string Label, string Thread, double StartMs, double DurationMs, bool Incomplete );
+	sealed record TreeRow( int SpanIndex, int Depth, string Name, [property: JsonIgnore( Condition = JsonIgnoreCondition.WhenWritingNull )] string Label, double InclusiveMs, double? SelfMs, double? PercentOfRoot, double? PercentOfParent );
+	sealed record ScopeInstanceRow( int SpanIndex, string Name, [property: JsonIgnore( Condition = JsonIgnoreCondition.WhenWritingNull )] string Label, string Thread, double StartMs, double DurationMs, double? SelfMs );
+	sealed record TimelineRow( int SpanIndex, int Parent, int Depth, ulong ThreadKey, string Name, [property: JsonIgnore( Condition = JsonIgnoreCondition.WhenWritingNull )] string Label, double StartMs, double DurationMs, double? SelfMs, bool Incomplete );
 	sealed record FrameRow( int SpanIndex, int Index, double StartMs, double DurationMs, double? AllocatedKiB, bool Incomplete,
-		[property: JsonIgnore( Condition = JsonIgnoreCondition.WhenWritingNull )] double?[] Counters );
+		[property: JsonIgnore( Condition = JsonIgnoreCondition.WhenWritingNull )] double?[] Counters,
+		[property: JsonIgnore( Condition = JsonIgnoreCondition.WhenWritingNull )] double? GpuBusyMs );
 
 	// One value per counter in enum order, null where not measured
 	static double?[] FrameCounterValues( float[] values ) => values?.Select( x => float.IsFinite( x ) ? Round( x, 2 ) : (double?)null ).ToArray();
@@ -452,12 +461,6 @@ internal static partial class PerfTools
 		if ( threadKey != 0 && !capture.ThreadSpans.ContainsKey( threadKey ) )
 			throw ProfilerError( $"No thread {threadKey} in capture {capture.Id}. Keys: {string.Join( ", ", capture.Threads.Select( x => $"{x.Key} ({x.Name})" ) )}." );
 	}
-
-	// Rows with a label leave it out when there's none, which is most of them
-	sealed record RootRow( string Name, [property: JsonIgnore( Condition = JsonIgnoreCondition.WhenWritingNull )] string Label, string Thread, double StartMs, double DurationMs, bool Incomplete );
-	sealed record TreeRow( int SpanIndex, int Depth, string Name, [property: JsonIgnore( Condition = JsonIgnoreCondition.WhenWritingNull )] string Label, double InclusiveMs, double? SelfMs, double? PercentOfRoot, double? PercentOfParent );
-	sealed record ScopeInstanceRow( int SpanIndex, string Name, [property: JsonIgnore( Condition = JsonIgnoreCondition.WhenWritingNull )] string Label, string Thread, double StartMs, double DurationMs, double? SelfMs );
-	sealed record TimelineRow( int SpanIndex, int Parent, int Depth, ulong ThreadKey, string Name, [property: JsonIgnore( Condition = JsonIgnoreCondition.WhenWritingNull )] string Label, double StartMs, double DurationMs, double? SelfMs, bool Incomplete );
 
 	static int? NextOffset( int offset, int count, int total ) => offset + count < total ? offset + count : null;
 

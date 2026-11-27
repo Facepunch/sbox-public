@@ -21,14 +21,12 @@ internal static partial class Profiler
 	struct RawCounters
 	{
 		public ulong Ticks;
-		public long Presents;
-		public uint GpuFrame;
-		public float GpuMs, WorkingSetMiB;
+		public float WorkingSetMiB;
 		public float DrawCalls, Triangles, Batches, Primitives, ObjectsTested, ObjectsDrawn, MaterialChanges, ConstantBufferUpdates, ConstantBufferBytes;
 		public bool SceneStats;
 	}
 
-	// About a day of frames at 60 fps
+	// About a day of frames at 60 fps; a streamed capture keeps sampling past its in-memory part
 	const int MaxCounterSamples = 1 << 22;
 
 	static void SampleCounters( Builder builder, ulong ticks )
@@ -37,9 +35,6 @@ internal static partial class Profiler
 		var sample = new RawCounters
 		{
 			Ticks = ticks,
-			Presents = Sandbox.Engine.GameWindow.Presents,
-			GpuFrame = PerformanceStats.GpuFrameNumber,
-			GpuMs = PerformanceStats.GpuFrametime,
 			WorkingSetMiB = PerformanceStats.ApproximateProcessMemoryUsage / (1024f * 1024f),
 		};
 		// Unit tests have no scene system
@@ -63,20 +58,30 @@ internal static partial class Profiler
 	}
 
 	/// <summary>
-	/// The raw samples as counters. GPU frame times come a few frames late, numbered by the present they timed: each
-	/// goes to the frame that made that present, which is the sample at that frame's end.
+	/// The raw samples as counters. A GPU frame's time goes to the frame its first submission was made in: the first
+	/// sample at or after that host time, which closes that frame.
 	/// </summary>
-	static CounterSample[] ResolveCounters( List<RawCounters> raw, ulong start, double toMs )
+	static CounterSample[] ResolveCounters( List<RawCounters> raw, IReadOnlyList<(ulong HostTicks, float Ms)> gpuFrames, ulong start, double toMs )
 	{
-		var gpu = new Dictionary<long, float>();
-		foreach ( var x in raw )
-			if ( x.GpuFrame != 0 && x.GpuMs > 0 ) gpu[x.GpuFrame] = x.GpuMs;
+		var gpu = new float[raw.Count];
+		Array.Fill( gpu, float.NaN );
+		foreach ( var (hostTicks, ms) in gpuFrames )
+		{
+			int lo = 0, hi = raw.Count;
+			while ( lo < hi )
+			{
+				var mid = (lo + hi) / 2;
+				if ( raw[mid].Ticks < hostTicks ) lo = mid + 1;
+				else hi = mid;
+			}
+			if ( lo == 0 || lo >= raw.Count ) continue;
+			gpu[lo] = float.IsNaN( gpu[lo] ) ? ms : gpu[lo] + ms;
+		}
 
 		var result = new CounterSample[raw.Count];
 		for ( int i = 0; i < raw.Count; i++ )
 		{
 			var x = raw[i];
-			var presented = i > 0 && x.Presents > raw[i - 1].Presents;
 			var values = new float[FrameCounterCount];
 			Array.Fill( values, float.NaN );
 			if ( x.SceneStats )
@@ -91,7 +96,7 @@ internal static partial class Profiler
 				values[(int)FrameCounter.ConstantBufferUpdates] = x.ConstantBufferUpdates;
 				values[(int)FrameCounter.ConstantBufferBytes] = x.ConstantBufferBytes;
 			}
-			if ( presented && gpu.TryGetValue( x.Presents - 1, out var ms ) ) values[(int)FrameCounter.GpuMs] = ms;
+			values[(int)FrameCounter.GpuMs] = gpu[i];
 			if ( x.WorkingSetMiB > 0 ) values[(int)FrameCounter.WorkingSetMiB] = x.WorkingSetMiB;
 			result[i] = new( ((double)x.Ticks - start) * toMs, values );
 		}

@@ -9,7 +9,7 @@ namespace Sandbox.Diagnostics;
 internal static partial class Profiler
 {
 	const ulong ContainerMagic = 0x3143454352544253;
-	const uint SnapshotSection = 1, MetadataSection = 2, IndexSection = 3, EventsSection = 4, MemorySection = 5, CountersSection = 6, MarkersSection = 7, DirectorySection = 0xffff;
+	const uint SnapshotSection = 1, MetadataSection = 2, IndexSection = 3, EventsSection = 4, MemorySection = 5, CountersSection = 6, MarkersSection = 7, GpuSection = 8, DirectorySection = 0xffff;
 	const int ContainerHeaderBytes = 48;
 	readonly record struct FileSection( uint Kind, uint Version, long Offset, long Length );
 	readonly record struct EventBlock( FileSection Section, ulong Thread, ulong First, ulong Last );
@@ -337,12 +337,13 @@ internal static partial class Profiler
 	}
 
 	/// <summary>
-	/// Sections beside the scopes, in saved and streamed files alike: frame counters and log markers.
+	/// Sections beside the scopes, in saved and streamed files alike: frame counters and log markers, and a stream's GPU passes.
 	/// </summary>
 	static void WriteTracks( BinaryWriter writer, Capture capture, List<FileSection> sections )
 	{
 		if ( capture.CounterSamples.Length > 0 ) sections.Add( WriteSection( writer, CountersSection, () => WriteCounters( writer, capture.CounterSamples ) ) );
 		if ( capture.Markers.Length > 0 || capture.MarkersLost > 0 ) sections.Add( WriteSection( writer, MarkersSection, () => WriteMarkers( writer, capture ) ) );
+		if ( capture.Gpu is { } gpu ) sections.Add( WriteSection( writer, GpuSection, () => WriteGpuTrack( writer, gpu ) ) );
 	}
 
 	static Capture ReadTracks( Stream stream, Dictionary<uint, FileSection> sections, Capture capture )
@@ -391,11 +392,21 @@ internal static partial class Profiler
 			}
 			// A window cut short by the span limit ends where it was cut
 			var captureEnd = builder.RejectedTick != 0 ? Math.Clamp( builder.RejectedTick, windowStart, windowEnd ) : windowEnd;
-			var capture = Finish( builder, captureEnd, metadata.DroppedEvents, 1000.0 / frequency, metadata.Sites, metadata.Threads );
+			var (laneSites, laneThreads) = (metadata.Sites, metadata.Threads);
+			var gpuLost = 0;
+			if ( sections.TryGetValue( GpuSection, out var gpuSection ) && gpuSection.Version == 1 )
+			{
+				var gpu = ReadSection( stream, gpuSection, s => ReadGpuTrack( s, windowStart, captureEnd, Math.Max( 0, maximumSpans - builder.SpanCount ), out gpuLost ) );
+				builder.GpuSpans.AddRange( gpu.Spans );
+				AddGpuLanes( builder, captureEnd, ref laneSites, ref laneThreads, gpu.Sites.ToDictionary( x => x.Id ) );
+				gpuLost += builder.GpuLost;
+			}
+			var capture = Finish( builder, captureEnd, metadata.DroppedEvents, 1000.0 / frequency, laneSites, laneThreads );
 			var (markers, markersLost) = sections.TryGetValue( MarkersSection, out var markerSection ) && markerSection.Version == 1
 				? ReadSection( stream, markerSection, s => ReadMarkers( s, startMs, endMs - startMs ) ) : (Array.Empty<LogMarker>(), 0);
 			return capture with
 			{
+				GpuPassesLost = gpuLost,
 				SourceOffsetMs = startMs,
 				RecordedDurationMs = metadata.DurationMs,
 				Labels = metadata.Labels,

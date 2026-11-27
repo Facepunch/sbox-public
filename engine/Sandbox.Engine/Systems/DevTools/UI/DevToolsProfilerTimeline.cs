@@ -284,8 +284,8 @@ internal sealed class DevToolsProfilerTimeline : Panel
 			foreach ( var thread in capture.Threads )
 			{
 				var name = thread.Key == MainThread ? "Main thread" : IsRenderThread( thread ) ? "Render thread" : thread.Name;
-				_threadLabels.Add( thread.Key, thread.Key == Profiler.GcThreadKey ? name : $"{name} · {thread.Id}" );
-				if ( thread.Key != MainThread && !IsRenderThread( thread ) && thread.Key != Profiler.GcThreadKey ) _collapsed.Add( thread.Key );
+				_threadLabels.Add( thread.Key, thread.Key == Profiler.GcThreadKey || Profiler.IsGpuLane( thread.Key ) ? name : $"{name} · {thread.Id}" );
+				if ( thread.Key != MainThread && !IsRenderThread( thread ) && thread.Key != Profiler.GcThreadKey && !Profiler.IsGpuLane( thread.Key ) ) _collapsed.Add( thread.Key );
 			}
 			_overview.SetCapture( capture );
 			_ruler.Style.Height = TickHeight + (DevToolsProfilerGc.Pauses( capture ).Count > 0 ? GcStripHeight : 0);
@@ -327,7 +327,7 @@ internal sealed class DevToolsProfilerTimeline : Panel
 		_drawWidth = -1;
 		_threadY.Clear();
 		float y = 0;
-		foreach ( var thread in _capture.Threads.OrderBy( x => x.Key == MainThread ? 0 : IsRenderThread( x ) ? 1 : 2 ).ThenBy( x => x.Name ).ThenBy( x => x.Key ) )
+		foreach ( var thread in _capture.Threads.OrderBy( x => x.Key == MainThread ? 0 : x.Key == Profiler.GpuGraphicsKey ? 1 : IsRenderThread( x ) ? 2 : x.Key == Profiler.GpuComputeKey ? 3 : 4 ).ThenBy( x => x.Name ).ThenBy( x => x.Key ) )
 		{
 			if ( (_mainOnly && thread.Key != MainThread) || thread.Key == Profiler.GcThreadKey ) continue;
 			if ( !_showEmpty && _threads.GetValueOrDefault( thread.Key ).Count == 0 ) continue;

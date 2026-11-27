@@ -133,8 +133,12 @@ internal static partial class Profiler
 		public double? AllocationCutoffMs { get; init; }
 		public CounterSample[] CounterSamples { get; init; } = [];
 		public LogMarker[] Markers { get; init; } = [];
+		// A streamed recording's raw GPU passes, only while its file is written
+		internal GpuTrack Gpu { get; init; }
 		// Warnings and errors past MaxMarkers
 		public int MarkersLost { get; init; }
+		// GPU passes left out at the capture's instance limit
+		public int GpuPassesLost { get; init; }
 		// Instance labels by Span.Label; 0 is no label
 		public string[] Labels { get; init; } = [null];
 
@@ -215,6 +219,16 @@ internal static partial class Profiler
 		public GcPauseListener GcPauses;
 		public readonly List<(ulong Ticks, long Bytes)> FrameAllocations = new( 4096 );
 		public readonly List<RawCounters> Counters = new( 4096 );
+		public readonly List<RawGpuSpan> GpuSpans = new();
+		// Each GPU frame's first host submit and its GPU time
+		public readonly List<(ulong HostTicks, float Ms)> GpuFrameTimes = new();
+		public ulong GpuFrame, GpuStopTicks;
+		public int GpuFrames, GpuFramesAtStop, GpuLost;
+		// GPU passes held for an in-memory capture, which count against its instance limit
+		public volatile int GpuReserved;
+		// Main thread bytes the profiler allocated at frame boundaries, left out of frame allocations
+		public long ProfilerBytes;
+		public Action FinishAfterGpu;
 		// Locked: any thread logs
 		public readonly List<RawMarker> Markers = new();
 		public int MarkersLost;
@@ -251,11 +265,12 @@ internal static partial class Profiler
 			if ( e.Scope != 0 )
 			{
 				if ( stack.Count >= ushort.MaxValue ) { Reject( e.Ticks, "nesting limit" ); return; }
-				if ( SpanCount >= EventLimit / 2 ) { Reject( e.Ticks, null ); return; }
+				var reserved = GpuReserved;
+				if ( SpanCount + reserved >= EventLimit / 2 ) { Reject( e.Ticks, null ); return; }
 				var scope = e.Scope & ScopeMask;
 				var label = e.Scope >> LabelShift;
 				if ( label >= MaxLabels ) label = 0;
-				if ( AllocatedPendingBytes + spans.NextAllocationBytes + (SpanCount + 1L) * (RecordingBytesPerSpan - PendingSpanBytes) > PendingBudgetBytes )
+				if ( AllocatedPendingBytes + spans.NextAllocationBytes + (SpanCount + reserved + 1L) * (RecordingBytesPerSpan - PendingSpanBytes) > PendingBudgetBytes )
 				{ Reject( e.Ticks, "memory limit" ); return; }
 				AllocatedPendingBytes += spans.NextAllocationBytes;
 				var index = spans.Count;
@@ -393,16 +408,21 @@ internal static partial class Profiler
 	internal static void Update( bool frameBoundary = false )
 	{
 		ScopesActive = Native.ScopesActive();
+		if ( frameBoundary ) DrainGpu();
 		var builder = _builder;
 		if ( builder is null ) return;
 
-		// Frames past the limit aren't in the capture: one more sample closes the last one, then stop
-		if ( frameBoundary && !builder.FrameAllocationsDone )
+		// Frames past the limit aren't in the capture: one more sample closes the last one, then stop. A streamed
+		// capture keeps its counters and GPU passes going for the file.
+		if ( frameBoundary && (!builder.FrameAllocationsDone || builder.Archive is not null) )
 		{
+			var allocated = GC.GetAllocatedBytesForCurrentThread();
 			var now = Native.Now();
-			builder.FrameAllocations.Add( (now, GC.GetAllocatedBytesForCurrentThread()) );
+			if ( !builder.FrameAllocationsDone ) builder.FrameAllocations.Add( (now, allocated - builder.ProfilerBytes) );
 			SampleCounters( builder, now );
-			builder.FrameAllocationsDone = builder.LimitReached;
+			SampleGpu( builder );
+			builder.ProfilerBytes += GC.GetAllocatedBytesForCurrentThread() - allocated;
+			builder.FrameAllocationsDone |= builder.LimitReached;
 		}
 		if ( builder.CollectorError is not null || builder.Finished || (frameBoundary && Native.Now() >= builder.Deadline) )
 		{
@@ -445,7 +465,16 @@ internal static partial class Profiler
 			foreach ( var id in builder.LabelIds ) labels[id] = Native.GetLabel( id );
 			var threads = builder.Threads.Values.Select( x => new ThreadInfo( x.Info.Key, x.Info.Id, string.IsNullOrWhiteSpace( x.Name ) ? $"Thread {x.Info.Id}" : x.Name ) ).ToArray();
 			var snapshotMs = Stopwatch.GetElapsedTime( snapshotStart ).TotalMilliseconds;
-			_ = Task.Run( () => FinishOnWorker( builder, end, dropped, clockToMs, sites, labels, threads, snapshotMs ) );
+			void FinishNow() => Task.Run( () => FinishOnWorker( builder, end, dropped, clockToMs, sites, labels, threads, snapshotMs ) );
+			// The last frames' GPU results come in over the next frames, also for a capture that stopped before its first
+			if ( !GpuProfilerStats.Enabled || _shuttingDown ) FinishNow();
+			else
+			{
+				builder.GpuStopTicks = Native.Now();
+				builder.GpuFramesAtStop = builder.GpuFrames;
+				builder.FinishAfterGpu = FinishNow;
+				_gpuDraining = builder;
+			}
 		}
 		catch ( Exception e )
 		{
@@ -465,7 +494,13 @@ internal static partial class Profiler
 		var streaming = (_builder ?? _finishing)?.Archive is not null ? PendingCompletion : null;
 		try
 		{
+			_shuttingDown = true;
 			StopCapture();
+			if ( _gpuDraining is { } draining )
+			{
+				_gpuDraining = null;
+				draining.FinishAfterGpu();
+			}
 			streaming?.Wait( TimeSpan.FromSeconds( 5 ) );
 		}
 		catch ( Exception e ) { Log.Warning( $"Profiler capture shutdown: {e.Message}" ); }
@@ -479,14 +514,14 @@ internal static partial class Profiler
 		{
 			var start = Stopwatch.GetTimestamp();
 			string archiveFile = null, storageError = null;
-			var counters = ResolveCounters( builder.Counters, builder.Start, clockToMs );
+			var counters = ResolveCounters( builder.Counters, builder.GpuFrameTimes, builder.Start, clockToMs );
 			List<RawMarker> markers;
 			int markersLost;
 			lock ( builder.Markers ) { markers = builder.Markers.ToList(); markersLost = builder.MarkersLost; }
 			if ( builder.Archive is not null )
 			{
 				var metadata = new Capture( builder.Id, (end - builder.Start) * clockToMs, dropped, false, 0, threads, sites, [], [] )
-				{ ThreadSpans = threads.ToDictionary( x => x.Key, _ => ArraySegment<Span>.Empty ), Labels = labels, CounterSamples = counters, MarkersLost = markersLost };
+				{ ThreadSpans = threads.ToDictionary( x => x.Key, _ => ArraySegment<Span>.Empty ), Labels = labels, CounterSamples = counters, MarkersLost = markersLost, Gpu = RecordedGpu( builder ) };
 				metadata = metadata with { Markers = ResolveMarkers( metadata, markers, builder.Start, end, clockToMs ) };
 				try { archiveFile = builder.Archive.Finish( metadata, end ); }
 				catch ( Exception e ) { storageError = e.Message; }
@@ -496,6 +531,7 @@ internal static partial class Profiler
 			var limited = builder.LimitEnd != 0;
 			var captureEnd = limited ? Math.Min( builder.LimitEnd, end ) : end;
 			var rawAllocations = AddGcPauses( builder, captureEnd, ref sites, ref threads, out var allocationCutoff );
+			AddGpuLanes( builder, captureEnd, ref sites, ref threads );
 			capture = Finish( builder, captureEnd, limited ? builder.LimitDropped - builder.DroppedAtStart : dropped, clockToMs, sites, threads ) with { Labels = labels };
 
 			var frameAllocations = builder.FrameAllocations.Select( x => ((double)((long)x.Ticks - (long)builder.Start) * clockToMs, x.Bytes) ).ToList();
@@ -512,6 +548,7 @@ internal static partial class Profiler
 				CounterSamples = counters.Where( x => x.Ms <= capture.DurationMs + 0.001 ).ToArray(),
 				Markers = ResolveMarkers( capture, markers, builder.Start, captureEnd, clockToMs ),
 				MarkersLost = markersLost,
+				GpuPassesLost = builder.GpuLost,
 				Overhead = new( builder.DrainCount, drains.P50Ms, drains.P95Ms, builder.MaxDrainMs, snapshotMs, Stopwatch.GetElapsedTime( start ).TotalMilliseconds )
 			};
 			Publish( capture );

@@ -18,17 +18,7 @@ internal sealed partial class GameWindow
 		renderingInitialized = true;
 	}
 
-	/// <summary>
-	/// Presents of the game window so far, which number its GPU frame times.
-	/// </summary>
-	internal static long Presents;
-
-	internal static bool Present()
-	{
-		if ( Current is not { } game ) return true;
-		Presents++;
-		return game.window.Present();
-	}
+	internal static bool Present() => Current is not { } game || game.window.Present();
 
 	internal void Render()
 	{
