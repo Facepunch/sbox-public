@@ -231,7 +231,7 @@ internal sealed class MorphAtlas( BackendDevice device )
 		public System.Numerics.Vector4 RangesNormalWrinkle;
 	}
 
-	static readonly VertexStreamLayout Layout = new( Marshal.SizeOf<Vertex>(),
+	internal static readonly VertexStreamLayout Layout = new( Marshal.SizeOf<Vertex>(),
 		new VertexField( Source2.Shaders.VertexSemantic.Position, 0, VertexFormat.Float4, 0 ),
 		new VertexField( Source2.Shaders.VertexSemantic.TexCoord, 0, VertexFormat.Float4, 16 ),
 		new VertexField( Source2.Shaders.VertexSemantic.TexCoord, 1, VertexFormat.Float4, 32 ),
@@ -291,7 +291,7 @@ internal sealed class MorphAtlas( BackendDevice device )
 	ShaderAttributes compositeAttributes;
 
 	/// <summary>The composite shader (<c>SCENESYSTEMMAT_MORPH_MATERIAL</c>).</summary>
-	const string Shader = "shaders/morph_composite.shader";
+	internal const string Shader = "shaders/morph_composite.shader";
 
 	/// <summary>
 	/// Every weighted morph's rectangles for one pass, as native lays them out: from the morph set's texels into the

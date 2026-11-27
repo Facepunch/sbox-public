@@ -25,6 +25,66 @@ public class LoadPipelinesTests : GpuTest
 		Assert.IsTrue( MadeWhereDispatched( queue: false ) >= 3, "without it they're made where they're dispatched" );
 	}
 
+	/// <summary>
+	/// A load starting queues the parts of the composite morph atlas's two graphics pipelines (<see cref="MorphAtlas"/>), so
+	/// its draws, as <see cref="MorphAtlas.Generate"/> makes them, only link them: no part made where drawn. With it off, the
+	/// draws make their parts.
+	/// </summary>
+	[TestMethod]
+	public void ALoadMakesTheMorphCompositePartsAhead()
+	{
+		Assert.AreEqual( 0, PartsMadeWhereDrawn( queue: true ), "the composite's draws linked the parts the load made" );
+		Assert.IsTrue( PartsMadeWhereDrawn( queue: false ) >= 2, "without it they're made where they're drawn" );
+	}
+
+	static int PartsMadeWhereDrawn( bool queue )
+	{
+		var folder = Path.Combine( Path.GetTempPath(), $"borealis-load-parts-{Environment.ProcessId}-{Guid.NewGuid():n}" );
+		var was = BackendDevice.QueuesLoadPipelines;
+		BackendDevice.QueuesLoadPipelines = queue;
+		try
+		{
+			using var device = Device.Create( new DeviceOptions { Presentation = false, Validation = true, PipelineCacheFolder = folder, PipelinePartManifest = true } );
+			if ( !device.Capabilities.PipelineLibraries ) Assert.Inconclusive( "The device has no fast-linking graphics pipeline libraries" );
+			using var backend = new BackendDevice( device );
+			var shader = (backend.MaterialFromShader( MorphAtlas.Shader ) as BackendMaterial)?.Shader;
+			if ( shader is null ) Assert.Inconclusive( "morph_composite isn't built" );
+
+			backend.Loading = true;
+			backend.WaitForLoadPipelinesQueued();
+			Assert.IsTrue( device.WaitForPendingPipelines( TimeSpan.FromSeconds( 120 ) ) );
+			var before = device.PipelineLibraryCreation.Parts;
+
+			// As MorphAtlas.Generate draws: both passes into the RGBA16F atlas, through a drawer of its own; the vertices have
+			// no area, so nothing is drawn
+			using var drawer = new ShaderDrawer( backend );
+			var target = device.CreateTexture( TextureInfo.RenderTarget( 64, 64, Format.RGBA16Float, name: "Atlas" ) );
+			backend.BeginFrame();
+			var list = device.BeginCommandList( QueueType.Graphics, "Morph composite" );
+			list.Barrier( TextureBarrier.Transition( target, ImageLayout.Undefined, ImageLayout.ColorTarget, PipelineStage.TopOfPipe, MemoryAccess.None, PipelineStage.ColorTargetOutput, MemoryAccess.ColorTargetWrite ) );
+			list.BeginRendering( [ColorTarget.Of( target, default )] );
+			var upload = list.AllocateUpload( MorphAtlas.Layout.Stride * 6, 16 );
+			upload.Data.Clear();
+			var attributes = new ShaderAttributes();
+			foreach ( var pass in new[] { 0, 1 } )
+			{
+				attributes.SetCombo( "D_COMPOSITETYPE", pass );
+				Assert.IsTrue( drawer.Draw( list, shader, attributes, Format.RGBA16Float, 1, upload.Buffer, upload.Offset, MorphAtlas.Layout, 6, PrimitiveTopology.TriangleList, new System.Numerics.Vector4( 0, 0, 64, 64 ) ) );
+			}
+
+			list.EndRendering();
+			device.Submit( list );
+			device.WaitIdle();
+			device.Destroy( target );
+			return device.PipelineLibraryCreation.Parts - before;
+		}
+		finally
+		{
+			BackendDevice.QueuesLoadPipelines = was;
+			if ( Directory.Exists( folder ) ) Directory.Delete( folder, recursive: true );
+		}
+	}
+
 	static int MadeWhereDispatched( bool queue )
 	{
 		var folder = Path.Combine( Path.GetTempPath(), $"borealis-load-pipelines-{Environment.ProcessId}-{Guid.NewGuid():n}" );

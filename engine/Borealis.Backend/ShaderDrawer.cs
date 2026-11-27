@@ -1638,6 +1638,20 @@ public sealed partial class ShaderDrawer : IDisposable
 		var key = new PipelineKey( variant, color, depth, samples, layout, topology, ids, tools, redrawn, stencil );
 		if ( sets is null && pipelines.TryGetValue( key, out var pipeline ) ) return pipeline;
 
+		var info = GraphicsInfo( variant, color, depth, samples, layout, topology, sets, ids, stencil );
+		if ( tools != ToolsPass.None ) ToolsViewStage.Apply( shaders, ref info, tools, ToolsViews.ShaderColor( variant.Shader?.Name ) );
+		info.SkipUntilReady = redrawn;
+		using ( Zones.PipelineCreate.Start() ) pipeline = gpu.CreateGraphicsPipeline( info );
+		if ( sets is null ) pipelines[key] = pipeline;
+		return pipeline;
+	}
+
+	/// <summary>
+	/// What a draw's graphics pipeline is made from (<see cref="Pipeline"/>) outside a tools view: also what a load gives
+	/// <see cref="Device.QueuePipelineParts"/> to make its parts ahead (<see cref="BackendDevice.QueueLoadPipelines"/>).
+	/// </summary>
+	internal static GraphicsPipelineInfo GraphicsInfo( ShaderVariant variant, Format color, Format depth, int samples, VertexStreamLayout layout, PrimitiveTopology topology, BindingLayoutHandle[] sets, bool ids, OverlayStencil stencil )
+	{
 		// Inputs the stream lacks (or every input, with no stream) read the default stream. No colour format draws into
 		// depth alone. With instance ids, TEXCOORD13 reads them from a stream after the default one, per instance
 		GraphicsPipelineInfo info;
@@ -1684,11 +1698,7 @@ public sealed partial class ShaderDrawer : IDisposable
 		info.Topology = topology;
 		if ( sets is not null ) info.Sets = sets;
 		BackendDevice.ApplyOverlayStencil( ref info, stencil );
-		if ( tools != ToolsPass.None ) ToolsViewStage.Apply( shaders, ref info, tools, ToolsViews.ShaderColor( variant.Shader?.Name ) );
-		info.SkipUntilReady = redrawn;
-		using ( Zones.PipelineCreate.Start() ) pipeline = gpu.CreateGraphicsPipeline( info );
-		if ( sets is null ) pipelines[key] = pipeline;
-		return pipeline;
+		return info;
 	}
 
 	// A field the shader reads as the other kind (integers as floats, or the other way round) reads the default stream, as a

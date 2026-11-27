@@ -7,8 +7,9 @@ using System.Threading.Tasks;
 namespace Borealis.Backend;
 
 /// <summary>
-/// Compute pipelines the frames after a load make whatever the map, queued as the load starts so the device's builders make
-/// them behind the loading screen (<see cref="QueueLoadPipelines"/>).
+/// Compute pipelines the frames after a load make whatever the map, and the parts of graphics pipelines they draw with
+/// (the composite morph atlas's), queued as the load starts so the device's builders make them behind the loading screen
+/// (<see cref="QueueLoadPipelines"/>).
 /// </summary>
 public sealed partial class BackendDevice
 {
@@ -69,6 +70,14 @@ public sealed partial class BackendDevice
 		("shaders/borealis_meshlet_cull_cs.shader", []),
 	];
 
+	// Graphics draws a frame after a load makes whatever the map, drawn through a material object (ShaderDrawer.Draw): the
+	// composite morph atlas's two passes (MorphAtlas.Generate), 47 + 62 ms of the render thread in a capture face after a load
+	static readonly (string Shader, (string Name, int Value)[] Combos, Format Color, VertexStreamLayout Layout)[] objectDraws =
+	[
+		(MorphAtlas.Shader, [("D_COMPOSITETYPE", 0)], Format.RGBA16Float, MorphAtlas.Layout),
+		(MorphAtlas.Shader, [("D_COMPOSITETYPE", 1)], Format.RGBA16Float, MorphAtlas.Layout),
+	];
+
 	Task loadPipelines;
 	volatile bool stopLoadPipelines;
 
@@ -107,7 +116,12 @@ public sealed partial class BackendDevice
 				if ( !stopLoadPipelines && library.Load( path ) is { } shader ) Queue( gpu, library, shader, combos, objects );
 			}
 
-			info?.Invoke( $"Borealis.Gpu: a load queued {loadPipelinesSaid.Count} compute pipelines ahead: {string.Join( "; ", loadPipelinesSaid )}" );
+			foreach ( var (path, combos, color, layout) in objectDraws )
+			{
+				if ( !stopLoadPipelines && library.Load( path ) is { } shader ) QueueParts( gpu, library, shader, combos, color, layout, objects );
+			}
+
+			info?.Invoke( $"Borealis.Gpu: a load queued {loadPipelinesSaid.Count} pipelines ahead: {string.Join( "; ", loadPipelinesSaid )}" );
 			loadPipelinesSaid.Clear();
 		} );
 	}
@@ -163,6 +177,39 @@ public sealed partial class BackendDevice
 		catch ( Exception e ) when ( e is not OutOfMemoryException )
 		{
 			// Made where it's dispatched instead, which reports what's wrong
+			loadPipelinesSaid.Add( $"{System.IO.Path.GetFileNameWithoutExtension( shader.Name )}: {e.GetType().Name} {e.Message}" );
+		}
+	}
+
+	// The parts of the pipeline a draw with these combos makes through a material object (ShaderDrawer.BindForDraw: one
+	// colour target, no depth, one sample, a triangle list, no instance ids), queued on the builders once its variant is made,
+	// so the draw only links them
+	void QueueParts( Device gpu, ShaderLibrary library, ShaderFile shader, (string Name, int Value)[] combos, Format color, VertexStreamLayout layout, MaterialObjectCache objects )
+	{
+		try
+		{
+			for ( var tries = 0; tries < 2400 && !stopLoadPipelines; tries++ )
+			{
+				var variant = library.Variant( shader, shader.Modes[0].Name, [], name => Combo( combos, name ), static _ => null, false, out var pending );
+				if ( !pending && variant?.Vertex?.Bytecode is null )
+				{
+					loadPipelinesSaid.Add( $"{System.IO.Path.GetFileNameWithoutExtension( shader.Name )}: no graphics variant" );
+					return;
+				}
+				if ( !pending )
+				{
+					var info = ShaderDrawer.GraphicsInfo( variant, color, Format.Unknown, 1, layout, PrimitiveTopology.TriangleList, objects.LayoutOf( variant, immediate: true ).Sets, false, OverlayStencil.None );
+					gpu.QueuePipelineParts( info, PipelineParts.All, speculative: false, order: int.MinValue );
+					loadPipelinesSaid.Add( $"{System.IO.Path.GetFileNameWithoutExtension( shader.Name )} {string.Join( ' ', combos.Select( c => $"{c.Name}={c.Value}" ) )} (parts)" );
+					return;
+				}
+
+				Thread.Sleep( 50 );
+			}
+		}
+		catch ( Exception e ) when ( e is not OutOfMemoryException )
+		{
+			// Made where it's drawn instead, which reports what's wrong
 			loadPipelinesSaid.Add( $"{System.IO.Path.GetFileNameWithoutExtension( shader.Name )}: {e.GetType().Name} {e.Message}" );
 		}
 	}
