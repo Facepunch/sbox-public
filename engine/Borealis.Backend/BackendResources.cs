@@ -1025,7 +1025,7 @@ internal sealed class BackendMaterial : GpuMaterial, IStreamDependent
 	/// Whether it blends: its translucency features, or the <c>translucent</c> attribute its shader exports, as native reads a
 	/// material's (a shader that defines <c>S_TRANSLUCENT</c> itself, as Rubble's glass does, exports it from sbox_pixel.fxc
 	/// with no feature). A translucency feature its shader only declares and never reads (blendable.shader's
-	/// <c>F_ADDITIVE_BLEND</c>, from common/features.hlsl) doesn't count: a value left in the material by another shader
+	/// <c>F_ADDITIVE_BLEND</c>, from sbox/common_features.slangh) doesn't count: a value left in the material by another shader
 	/// draws nothing differently on native. Worked out once per load: draws ask for every draw.
 	/// </summary>
 	public override bool IsTranslucent

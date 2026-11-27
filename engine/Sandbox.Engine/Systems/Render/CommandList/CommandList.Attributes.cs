@@ -498,7 +498,7 @@ public enum RenderValue
 /// Bindless texture slots within each view's pipeline texture range. AO/SSR producers publish
 /// into their view's range; consumers use its PipelineTextureOffset to read the same slots.
 /// New ranges start at index 0 ("none"), so skipped producers cannot inherit another view's results.
-/// Values must match the <c>PipelineTextureSlot</c> enum in common/classes/Bindless.hlsl and fit
+/// Values must match the <c>PipelineTextureSlot</c> enum in sbox/classes/bindless.slangh and fit
 /// CSceneSystem's per-view stride.
 /// </summary>
 internal enum PipelineTextureSlot

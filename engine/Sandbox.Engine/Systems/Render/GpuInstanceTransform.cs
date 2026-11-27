@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 namespace Sandbox.Rendering;
 
 /// <summary>
-/// GPU instance transform - matches TransformBufferData_t in transform_buffer.fxc. Feed a buffer of
+/// GPU instance transform - matches TransformBufferData_t in sbox/transform.slangh. Feed a buffer of
 /// these to <see cref="Graphics.DrawModelInstancedIndirect(Model, GpuBuffer, GpuBuffer, int, int, RenderAttributes)"/>.
 /// </summary>
 [StructLayout( LayoutKind.Sequential )]

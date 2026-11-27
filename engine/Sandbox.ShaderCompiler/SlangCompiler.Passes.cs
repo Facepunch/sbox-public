@@ -137,7 +137,7 @@ public sealed partial class SlangCompiler
 			arguments.Add( name.Groups[1].Value );
 		}
 
-		// Shade keeps them while FORWARD_NORMALS_KEEP is defined (common/shadingmodel.hlsl), before anything is included; Slang
+		// Shade keeps them while FORWARD_NORMALS_KEEP is defined (sbox/shading_model.slangh), before anything is included; Slang
 		// finds the keeping, declared at the end, from there
 		var name0 = definition.Groups["name"];
 		var renamed = source[..name0.Index] + "MainPsLit" + source[(name0.Index + name0.Length)..];

@@ -53,7 +53,7 @@ public static class ShaderAbi
 	];
 
 	/// <summary>
-	/// The view set's one cbuffer (<c>common/ViewEnvironment.hlsl</c>): the blocks set as constant buffers by
+	/// The view set's one cbuffer (<c>sbox/view_environment.slangh</c>): the blocks set as constant buffers by
 	/// <see cref="ViewEnvironmentBlocks"/>' names, back to back. A block nothing set reads as zeros.
 	/// </summary>
 	public const string ViewEnvironment = "ViewEnvironment";

@@ -6,7 +6,7 @@
 	[Expose]
 	public enum BlendMode
 	{
-		// these match web stuff. I haven't implemented them all in the shader. See ui/features.hlsl
+		// these match web stuff. I haven't implemented them all in the shader. See sbox/ui/features.slangh
 
 		Normal = 0,
 		Multiply = 1,

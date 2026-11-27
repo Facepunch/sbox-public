@@ -241,7 +241,7 @@ public sealed class ShaderFile
 
 	/// <summary>
 	/// Whether a feature (by <see cref="FeatureIndex"/>) selects code: a program's static combo follows it. A feature the
-	/// shader only declares changes nothing it draws, as <c>common/features.hlsl</c>'s <c>F_ADDITIVE_BLEND</c> in
+	/// shader only declares changes nothing it draws, as <c>sbox/common_features.slangh</c>'s <c>F_ADDITIVE_BLEND</c> in
 	/// blendable.shader, which no combo reads: a material's value for it is ignored, as native ignores it.
 	/// </summary>
 	public bool FeatureSelectsCode( int index )

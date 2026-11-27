@@ -162,7 +162,7 @@ internal struct BorderRadii
 
 	/// <summary>
 	/// Horizontal radii packed as (top-left, top-right, bottom-left, bottom-right) - the order
-	/// ui/rounded_rect.hlsl takes.
+	/// sbox/ui/rounded_rect.slangh takes.
 	/// </summary>
 	public readonly Vector4 Horizontal => new( TopLeft.x, TopRight.x, BottomLeft.x, BottomRight.x );
 

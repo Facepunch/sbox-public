@@ -2,7 +2,7 @@ namespace Sandbox;
 
 /// <summary>
 /// Gerstner surface evaluation shared by gameplay queries and the wave regression tests.
-/// Keep the band weights, phase offsets and compression limit in water/waves.hlsl in sync.
+/// Keep the band weights, phase offsets and compression limit in sbox/water/waves.slangh in sync.
 /// </summary>
 internal static class WaterWaveMath
 {

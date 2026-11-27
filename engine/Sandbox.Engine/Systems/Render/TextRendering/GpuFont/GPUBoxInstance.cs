@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 namespace Sandbox.UI;
 
 /// <summary>
-/// GPU text instance shared by glyph composition and Painter. Matches BoxInstanceData in ui/text.hlsl.
+/// GPU text instance shared by glyph composition and Painter. Matches BoxInstanceData in sbox/ui/text.slangh.
 /// </summary>
 [StructLayout( LayoutKind.Sequential )]
 struct GPUBoxInstance

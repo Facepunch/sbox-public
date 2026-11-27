@@ -4,7 +4,7 @@ using System.Runtime.InteropServices;
 namespace Borealis.Gpu;
 
 /// <summary>
-/// Mirrors <c>PerViewConstantBuffer_t</c> (common_shader_defs.h, common.fxc).
+/// Mirrors <c>PerViewConstantBuffer_t</c> (common_shader_defs.h, sbox/view.slangh).
 /// Row-vector matrices appear transposed to column-major HLSL, matching <c>mul( M, v )</c>.
 /// </summary>
 [StructLayout( LayoutKind.Sequential, Pack = 4 )]

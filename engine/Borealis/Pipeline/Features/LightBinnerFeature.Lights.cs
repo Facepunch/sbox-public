@@ -8,7 +8,7 @@ namespace Borealis.Features;
 internal sealed partial class LightBinnerFeature
 {
 	/// <summary>
-	/// 156-byte scalar-layout mirror of <c>GPULight</c>/<c>BinnedLight</c> (lightbinner_standard.h, common/lightbinner.hlsl).
+	/// 156-byte scalar-layout mirror of <c>GPULight</c>/<c>BinnedLight</c> (lightbinner_standard.h, sbox/light_binner.slangh).
 	/// </summary>
 	[StructLayout( LayoutKind.Sequential, Pack = 4 )]
 	internal struct GpuLight

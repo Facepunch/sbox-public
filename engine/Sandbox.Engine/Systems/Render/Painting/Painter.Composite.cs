@@ -8,7 +8,7 @@ public readonly ref partial struct Painter
 	internal void Composite( RenderTargetHandle source, Rect bounds, Filter filter, Mask? mask, MaskScope maskScope,
 		ReadOnlySpan<UI.Shadow> shadows, float borderWidth, Color borderColor )
 	{
-		// Native quads apply the scene object's transform in ui/vertex.hlsl.
+		// Native quads apply the scene object's transform in sbox/ui/vertex.slangh.
 		var commands = NativeCommands( objectSpace: true );
 		var attributes = commands.Attributes;
 		attributes.Set( "Texture", source.ColorTexture );
@@ -65,7 +65,7 @@ public readonly ref partial struct Painter
 		attributes.Set( "TransformMat", transform );
 		attributes.SetCombo( "D_WORLDPANEL", target.WorldPanelCombo );
 		attributes.SetCombo( "D_PAINTER_SCREENPIXELS", target.MapScreenPixels );
-		// Native quads apply the scene object's transform in ui/vertex.hlsl.
+		// Native quads apply the scene object's transform in sbox/ui/vertex.slangh.
 		if ( target.WorldMatrix.HasValue ) attributes.Set( "WorldMat", ScenePanelObject.BuildPanelToObjectMatrix() );
 		if ( target.GammaOutput.HasValue ) attributes.Set( "UIGammaOutput", target.GammaOutput.Value );
 		attributes.Set( "BoxPosition", bounds.Position );

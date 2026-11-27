@@ -7,7 +7,7 @@ namespace Sandbox;
 
 /// <summary>
 /// Turns a laid-out RichTextKit block into UI box instances that draw text straight from the glyph outlines
-/// (modes 4 and 5 of ui_cssbox_batched.shader, evaluated by ui/text.hlsl). The walk follows the order Skia
+/// (modes 4 and 5 of ui_cssbox_batched.shader, evaluated by sbox/ui/text.slangh). The walk follows the order Skia
 /// painted in: run backgrounds and effects first, then selection, fills and decoration lines. The UI batches
 /// these like any other box, so text draws live every frame; <see cref="Render"/> composites the same
 /// instances into a texture for the consumers that need one.
@@ -16,9 +16,9 @@ internal static class GpuFontText
 {
 	const int ModeGlyph = 4;
 	const int ModeLine = 5;
-	internal const int FlagAliased = 1; // TEXT_ALIASED in ui/text.hlsl
+	internal const int FlagAliased = 1; // TEXT_ALIASED in sbox/ui/text.slangh
 	const int FlagGradient = 2;
-	const int TileSize = 16; // TEXT_TILE_SIZE in ui/text.hlsl
+	const int TileSize = 16; // TEXT_TILE_SIZE in sbox/ui/text.slangh
 
 	internal record struct Options
 	{
@@ -416,7 +416,7 @@ internal static class GpuFontText
 
 	/// <summary>
 	/// Put a block's instances in this frame's buffers, binned into 16px tiles over a width by height pixel area, for
-	/// a shader that composites the whole block per pixel with ui/text.hlsl. A block that doesn't change keeps its
+	/// a shader that composites the whole block per pixel with sbox/ui/text.slangh. A block that doesn't change keeps its
 	/// list and only pays for the append.
 	/// </summary>
 	public static Placement Upload( List<GPUBoxInstance> instances, int width, int height )

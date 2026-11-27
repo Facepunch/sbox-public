@@ -546,7 +546,7 @@ public sealed class ShaderStage
 		var integer = variable.Type is >= VariableType.Int and <= VariableType.Bool4;
 
 		// A matrix nothing sets is identity, as native's material parameters default it (CMaterialShaderParams): world text
-		// sets neither of ui/vertex.hlsl's LayerMat and TransformMat
+		// sets neither of sbox/ui/vertex.slangh's LayerMat and TransformMat
 		var matrix = components > 4;
 		for ( int i = 0; i < components; i++ )
 		{

@@ -26,7 +26,7 @@ internal sealed class ViewEnvironment : IDisposable
 	];
 
 	/// <summary>
-	/// Fog/wind constants: native <c>PerViewConstantBuffer_t</c>, shader <c>PerViewConstantBufferVR_t</c> (vr_common.fxc).
+	/// Fog/wind constants: native <c>PerViewConstantBuffer_t</c>, shader <c>PerViewConstantBufferVR_t</c> (sbox/shading.slangh).
 	/// </summary>
 	[StructLayout( LayoutKind.Sequential )]
 	internal struct ViewConstantsVRData
@@ -47,7 +47,7 @@ internal sealed class ViewEnvironment : IDisposable
 	}
 
 	/// <summary>
-	/// Mirror of <c>cbuffer ViewLightingConfigV2</c> (common/lightbinner.hlsl).
+	/// Mirror of <c>cbuffer ViewLightingConfigV2</c> (sbox/light_binner.slangh).
 	/// </summary>
 	[StructLayout( LayoutKind.Sequential )]
 	unsafe struct LightingConfigData

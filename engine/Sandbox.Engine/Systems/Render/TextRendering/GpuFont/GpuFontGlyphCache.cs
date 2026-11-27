@@ -7,7 +7,7 @@ namespace Sandbox;
 
 /// <summary>
 /// Glyph outlines as quadratic Béziers in em space (y down), each glyph with Lengyel's bands listing the curves a
-/// horizontal or vertical ray can cross. Everything is appended into three growing GPU buffers that ui/text.hlsl
+/// horizontal or vertical ray can cross. Everything is appended into three growing GPU buffers that sbox/ui/text.slangh
 /// reads, so a glyph is encoded once per process and shared by every text block.
 /// </summary>
 internal static class GpuFontGlyphCache

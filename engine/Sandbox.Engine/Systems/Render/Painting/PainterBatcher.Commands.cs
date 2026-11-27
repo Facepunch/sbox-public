@@ -407,7 +407,7 @@ internal partial class PainterBatcher
 	static readonly string[] ScissorMatAttribute = ["ScissorMat0", "ScissorMat1", "ScissorMat2", "ScissorMat3"];
 
 	/// <summary>
-	/// The clip stack for shaders that draw one quad at a time, see ui/scissor.hlsl. Invert isn't carried - only
+	/// The clip stack for shaders that draw one quad at a time, see sbox/ui/scissor.slangh. Invert isn't carried - only
 	/// the batched shadow path uses it.
 	/// </summary>
 	internal static void SetScissorAttributes( CommandList commandList, in Painter.Scissoring scissor )

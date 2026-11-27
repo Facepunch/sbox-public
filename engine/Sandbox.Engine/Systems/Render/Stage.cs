@@ -14,7 +14,7 @@ public enum Stage
 
 	/// <summary>
 	/// The screen-space UI layer that renders before post-processing. Blends in gamma space: write sRGB-encoded color
-	/// (the UI shaders do; custom shaders call UIEncodeOutput from ui/gamma.hlsl).
+	/// (the UI shaders do; custom shaders call UIEncodeOutput from sbox/ui/gamma.slangh).
 	/// </summary>
 	EarlyUI = 5500,
 
@@ -24,7 +24,7 @@ public enum Stage
 
 	/// <summary>
 	/// The screen-space UI layer. Blends in gamma space like a browser: write sRGB-encoded color
-	/// (the UI shaders do; custom shaders call UIEncodeOutput from ui/gamma.hlsl).
+	/// (the UI shaders do; custom shaders call UIEncodeOutput from sbox/ui/gamma.slangh).
 	/// </summary>
 	UI = 7500,
 

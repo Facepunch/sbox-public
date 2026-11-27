@@ -499,7 +499,7 @@ internal static unsafe class MeshletCensus
 	}
 
 	/// <summary>
-	/// Framebuffer position. s&amp;box's vertex shaders negate clip-space y (<c>common/vertex.hlsl</c>) and the viewport's height
+	/// Framebuffer position. s&amp;box's vertex shaders negate clip-space y (<c>sbox/vertex.slangh</c>) and the viewport's height
 	/// is positive, so clip y up is framebuffer y down; winding is decided after that flip.
 	/// </summary>
 	static (double X, double Y) Screen( V4 v, int width, int height ) => ((v.X / v.W * 0.5 + 0.5) * width, (0.5 - v.Y / v.W * 0.5) * height);

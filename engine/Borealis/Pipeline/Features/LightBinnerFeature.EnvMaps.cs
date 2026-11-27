@@ -8,7 +8,7 @@ namespace Borealis.Features;
 internal sealed partial class LightBinnerFeature
 {
 	/// <summary>
-	/// 128-byte mirror of <c>EnvironmentMapConstants</c>/<c>BinnedEnvMap</c> (lightbinner_standard.h, common/lightbinner.hlsl).
+	/// 128-byte mirror of <c>EnvironmentMapConstants</c>/<c>BinnedEnvMap</c> (lightbinner_standard.h, sbox/light_binner.slangh).
 	/// </summary>
 	[StructLayout( LayoutKind.Sequential, Pack = 4 )]
 	internal struct GpuEnvMap

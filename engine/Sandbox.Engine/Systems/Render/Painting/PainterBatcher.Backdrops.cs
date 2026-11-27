@@ -46,7 +46,7 @@ internal partial class PainterBatcher
 		attributes.Set( "LayerMat", target.LayerMatrix );
 		attributes.SetCombo( "D_WORLDPANEL", target.WorldPanelCombo );
 		attributes.Set( "UIInPanelLayer", target.Layered );
-		// Native quads apply the scene object's transform in ui/vertex.hlsl.
+		// Native quads apply the scene object's transform in sbox/ui/vertex.slangh.
 		if ( target.WorldMatrix.HasValue ) attributes.Set( "WorldMat", ScenePanelObject.BuildPanelToObjectMatrix() );
 		if ( target.GammaOutput.HasValue )
 		{

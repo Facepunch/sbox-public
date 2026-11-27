@@ -912,7 +912,7 @@ public sealed class LightModulator : Component, Component.ExecuteInEditor
 }
 
 /// <summary>
-/// Scalar-layout GPU rectangle. Keep synchronized with common/classes/LightModulators.hlsl.
+/// Scalar-layout GPU rectangle. Keep synchronized with sbox/classes/light_modulators.slangh.
 /// </summary>
 [StructLayout( LayoutKind.Sequential, Pack = 4 )]
 internal struct LightModulatorData

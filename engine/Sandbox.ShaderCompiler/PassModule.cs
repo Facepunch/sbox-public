@@ -100,7 +100,7 @@ public sealed partial class PassModule
 					continue;
 				}
 
-				// An entry point marked [shader], or one an include defines (UI shaders' MainVs comes from ui/vertex.hlsl)
+				// An entry point marked [shader], or one an include defines (UI shaders' MainVs comes from sbox/ui/vertex.slangh)
 				// A GPU-driven form: its define is a combo of the stage, allowed only where the condition holds
 				if ( GpuDrivenLine().Match( line ) is { Success: true } variant )
 				{

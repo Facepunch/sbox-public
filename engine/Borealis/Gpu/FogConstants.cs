@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 namespace Borealis.Gpu;
 
 /// <summary>
-/// Per-view analytic fog buffer, matching FogConstants in common/classes/Fog.hlsl.
+/// Per-view analytic fog buffer, matching FogConstants in sbox/classes/fog.slangh.
 /// </summary>
 [StructLayout( LayoutKind.Sequential )]
 internal struct FogConstants
