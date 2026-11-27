@@ -654,6 +654,34 @@ public class ProfilerTests
 	}
 
 	[TestMethod]
+	public void CompareListsTheScopeThatGrewAsARegression()
+	{
+		static Profiler.Capture Record( int childMs )
+		{
+			var task = StartCapture( 10 );
+			for ( int i = 0; i < 3; i++ )
+			{
+				using ( ProfileScope_Frame.Start() )
+				using ( Parent.Start() )
+				using ( Child.Start() )
+					Thread.Sleep( childMs );
+			}
+			Profiler.StopCapture();
+			return task.GetAwaiter().GetResult();
+		}
+
+		var baseline = Record( 1 );
+		var candidate = Record( 8 );
+		var result = Editor.Mcp.PerfTools.ProfilerCompare( baseline.Id, candidate.Id ).GetAwaiter().GetResult();
+		var json = System.Text.Json.JsonSerializer.SerializeToElement( result );
+		Assert.AreEqual( "per frame", json.GetProperty( "Unit" ).GetString() );
+		var regressions = json.GetProperty( "Regressions" );
+		Assert.AreEqual( "Test.Profiler.Child", regressions[0].GetProperty( "Name" ).GetString() );
+		Assert.IsTrue( regressions[0].GetProperty( "DeltaSelfMs" ).GetDouble() > 0 );
+		Assert.ThrowsException<Editor.Mcp.McpException>( () => Editor.Mcp.PerfTools.ProfilerCompare( baseline.Id, baseline.Id ).GetAwaiter().GetResult() );
+	}
+
+	[TestMethod]
 	public void LabelsInternByContentAndCutOnACharacterBoundary()
 	{
 		Assert.AreEqual( 0u, NativeProfiler.Label( "" ) );
@@ -911,5 +939,35 @@ public class ProfilerTests
 		NativeProfiler.Stop();
 		Assert.AreEqual( NativeProfiler.ThreadSlots() + 8, keys.Count );
 		Assert.AreEqual( dropped, NativeProfiler.DroppedEvents() );
+	}
+
+	[TestMethod]
+	public void CompareCountsOnlyCpuWorkInsideCompleteFrames()
+	{
+		Profiler.Site[] sites = [new( 1, Profiler.FrameScopeName, "", 0 ), new( 2, "Test.Work", "", 0 ), new( 3, "GC.Pause.Gen0", "", 0 )];
+		static Profiler.Capture Make( Profiler.Site[] sites, bool boundaryWork, long id )
+		{
+			var main = new List<Profiler.Span>
+			{
+				new( 0, 1, 1, -1, 0, 0, 10, 5, false ),
+				new( 1, 2, 1, 0, 1, 2, 7, 5, false ),
+				new( 2, 1, 1, -1, 0, 10, 20, 5, false ),
+				new( 3, 2, 1, 2, 1, 12, 17, 5, false )
+			};
+			// Work cut by the capture's start or end, outside any complete frame
+			if ( boundaryWork ) main.Add( new( 4, 2, 1, -1, 0, 20, 29, 9, false ) );
+			var spans = main.ToArray();
+			return new Profiler.Capture( id, 30, 0, false, 0, [new( 1, 1, "Main" )], sites, spans, [] )
+			{
+				ThreadSpans = new() { [1] = new( spans, 0, spans.Length ) },
+				Frames = [new( 0, 0, 0, 10, false ), new( 1, 2, 10, 10, false )]
+			};
+		}
+
+		var result = Editor.Mcp.PerfTools.CompareCaptures( Make( sites, true, 1 ), Make( sites, false, 2 ) );
+		var json = System.Text.Json.JsonSerializer.SerializeToElement( result );
+		Assert.AreEqual( "per frame", json.GetProperty( "Unit" ).GetString() );
+		Assert.AreEqual( 0, json.GetProperty( "TotalRegressions" ).GetInt32() );
+		Assert.AreEqual( 0, json.GetProperty( "TotalImprovements" ).GetInt32() );
 	}
 }

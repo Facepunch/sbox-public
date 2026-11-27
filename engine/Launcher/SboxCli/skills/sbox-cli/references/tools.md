@@ -44,6 +44,8 @@ To profile something you trigger with other tools, wrap it in `profiler_start` a
 file: percentiles and slowest instances) and `profiler_timeline` (raw instances by `threadKey`,
 `startMs`/`endMs`, `minMs`). `profiler_save`, `profiler_load` and `profiler_files` manage `.sprof`
 files; `streamToDisk` writes the scopes to one past the in-memory limit, loaded in windows with `startMs`/`durationMs`.
+`profiler_compare` (`baselineId`, `candidateId`) puts two captures side by side, also loaded ones: frame stats, the scopes
+whose self time per frame grew or shrank most, and allocation and GC changes. Record both the same way, warmed up.
 Times are wall time including waits; take a second capture if the first ran cold.
 
 ## Editor toolsets
