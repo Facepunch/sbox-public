@@ -379,14 +379,28 @@ public static class ContentBuilder
 				}
 
 				var deleted = new Dictionary<RootState, List<AssetRecord>>();
+				TimeSpan recordsTime = default, typesTime = default, scanTime = default, deletedTime = default;
 				void Load()
 				{
+					var step = new Stopwatch();
 					foreach ( var root in roots )
 					{
+						step.Restart();
 						root.Store = new RecordStore( root.Resolve, root.Def.StateDirectory );
 						DeleteStaging( Path.Combine( root.Def.StateDirectory, "staging" ) );
-						Inventory( root );
-						if ( request.Select is null ) deleted[root] = root.Store.All.Values.Where( x => !File.Exists( Path.Combine( root.Def.Path, x.Source ) ) ).ToList();
+						recordsTime += step.Elapsed;
+
+						step.Restart();
+						var classify = Inventory( root );
+						typesTime += classify;
+						scanTime += step.Elapsed - classify;
+
+						if ( request.Select is null )
+						{
+							step.Restart();
+							deleted[root] = root.Store.All.Values.Where( x => !File.Exists( Path.Combine( root.Def.Path, x.Source ) ) ).ToList();
+							deletedTime += step.Elapsed;
+						}
 					}
 				}
 
@@ -426,7 +440,7 @@ public static class ContentBuilder
 							report.Log.AppendLine( $"{Name( root, record.Source )}: not built as a child source: {error}" );
 					}
 				}
-				Phase( "inventory" );
+				Phase( $"inventory (records {recordsTime.TotalSeconds:F1}s, types {typesTime.TotalSeconds:F1}s, scan {scanTime.TotalSeconds:F1}s, deleted {deletedTime.TotalSeconds:F1}s)" );
 
 				await Plan();
 				Phase( "describe and adopt" );
@@ -528,14 +542,18 @@ public static class ContentBuilder
 
 		string Name( RootState root, string source ) => roots.Count == 1 ? source : $"{root.Def.Mod}:{source}";
 
-		void Inventory( RootState root )
+		TimeSpan Inventory( RootState root )
 		{
+			TimeSpan classifyTime = default;
+			var sw = new Stopwatch();
 			foreach ( var file in Directory.EnumerateFiles( root.Def.Path, "*", SearchOption.AllDirectories ) )
 			{
 				var source = root.Relative( file );
 				if ( source.EndsWith( "_c", StringComparison.OrdinalIgnoreCase ) ) continue;
 
+				sw.Restart();
 				var kind = compiler.Classify( Path.GetExtension( source ), out var outputExtension );
+				classifyTime += sw.Elapsed;
 				var output = kind is AssetKind.None or AssetKind.Unsupported ? null : Path.ChangeExtension( source, outputExtension );
 				root.Store.CheckSource( source, output );
 
@@ -553,6 +571,7 @@ public static class ContentBuilder
 				root.SourceOf[output] = source;
 				root.Inventory[source] = (output, kind);
 			}
+			return classifyTime;
 		}
 
 		/// <summary>
