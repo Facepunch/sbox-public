@@ -864,7 +864,6 @@
 				"Functional Software, Inc."
 			]
 		},
-
 		{
 			"Name": "NVIDIA Nsight Aftermath",
 			"Comment": "GPU crash dump/diagnostics library (GFSDK_Aftermath_Lib.x64.dll).",
