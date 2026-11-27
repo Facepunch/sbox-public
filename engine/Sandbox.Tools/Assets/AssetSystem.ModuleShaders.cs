@@ -30,14 +30,14 @@ public static partial class AssetSystem
 
 	/// <summary>
 	/// The engine's module of a core shader only a module describes (<c>shaders/standard.shader</c>, or
-	/// <c>shaders/complex.shader</c> standing for it: <see cref="ShaderAliases"/>), as materialsystem2 finds it: no
-	/// <c>.shader</c> for either, a <c>.slang</c> for the one it stands for. Null for any other shader.
+	/// <c>shaders/complex.shader</c> standing for it: <see cref="ShaderAliases"/>), as materialsystem2 finds it: a
+	/// <c>.slang</c> for the one it stands for (a VFX <c>.shader</c> in core is left from an older engine and doesn't count).
+	/// Null for any other shader.
 	/// </summary>
 	internal static PassModule CoreModuleOf( string shader )
 	{
 		if ( MaterialCompile.ShaderName( shader ) is not { } name || EngineFileSystem.Root?.GetFullPath( "/core" ) is not { } core ) return null;
 		var standsFor = ShaderAliases.Resolve( name );
-		if ( ShaderFormat.IsVfxSourceFile( Path.Combine( core, name ) ) || ShaderFormat.IsVfxSourceFile( Path.Combine( core, standsFor ) ) ) return null;
 		var path = ShaderFormat.SlangSourceBeside( Path.Combine( core, standsFor ) ) ?? ShaderFormat.SlangSourceBeside( Path.Combine( core, name ) );
 		return path is not null ? DescribedModule( path ) : null;
 	}

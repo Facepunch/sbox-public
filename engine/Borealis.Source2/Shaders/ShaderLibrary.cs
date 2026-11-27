@@ -209,7 +209,9 @@ public sealed class ShaderLibrary : IDisposable
 
 	/// <summary>
 	/// Whether no root has <paramref name="shader"/>'s source and one has a Slang file in its place, or in the place of the
-	/// shader it stands for (<see cref="ShaderAliases"/>: complex's is standard's).
+	/// shader it stands for (<see cref="ShaderAliases"/>: complex's is standard's). A VFX source in the engine's own content
+	/// folder doesn't count: the engine's shaders are all Slang, so one there is left from an older engine, and its compiled
+	/// file (no source embedded) can't be recompiled.
 	/// </summary>
 	bool Leftover( string shader )
 	{
@@ -225,7 +227,12 @@ public sealed class ShaderLibrary : IDisposable
 			foreach ( var source in (ReadOnlySpan<string>)[Path.Combine( root, relative ), Path.Combine( root, standsFor )] )
 			{
 				if ( !File.Exists( source ) ) continue;
-				if ( IsVfxSource( source ) ) return false;
+				if ( IsVfxSource( source ) )
+				{
+					if ( IsEngineRoot( root ) ) continue;
+					return false;
+				}
+
 				module = true;
 			}
 
@@ -233,6 +240,18 @@ public sealed class ShaderLibrary : IDisposable
 		}
 
 		return module;
+	}
+
+	readonly Dictionary<string, bool> engineRoots = new( StringComparer.OrdinalIgnoreCase );
+
+	/// <summary>Whether a root is the engine's own content folder (<c>game/core</c>): the one with the engine's pass headers.</summary>
+	bool IsEngineRoot( string root )
+	{
+		lock ( engineRoots )
+		{
+			if ( !engineRoots.TryGetValue( root, out var engine ) ) engineRoots[root] = engine = File.Exists( Path.Combine( root, "shaders", "sbox", "pass.slangh" ) );
+			return engine;
+		}
 	}
 
 	/// <summary>

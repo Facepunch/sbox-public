@@ -328,6 +328,42 @@ public class ShaderDrawTests : GpuTest
 	}
 
 	/// <summary>
+	/// In the engine's own content folder (the one with its pass headers) a VFX .shader beside a Slang file is left from an
+	/// older engine (a copy that never deleted it, as skin.shader was on bench-low): the compiled file beside it, built with no
+	/// source embedded, isn't loaded, and the module stands in its place. Elsewhere the VFX source still wins.
+	/// </summary>
+	[TestMethod]
+	public void VfxLeftoversInEngineContentDontHideTheModule()
+	{
+		var folder = System.IO.Path.Combine( System.IO.Path.GetTempPath(), $"borealis-coreleftover-{Guid.NewGuid():N}" );
+		var shaders = System.IO.Path.Combine( folder, "shaders" );
+		System.IO.Directory.CreateDirectory( System.IO.Path.Combine( shaders, "sbox" ) );
+		try
+		{
+			System.IO.File.WriteAllBytes( System.IO.Path.Combine( shaders, "leftover_test.shader_c" ), ShaderFileTests.Files.Read( "shaders/unlit.shader" ) );
+			System.IO.File.WriteAllText( System.IO.Path.Combine( shaders, "leftover_test.slang" ), "import sbox.surface;\n" );
+			System.IO.File.WriteAllText( System.IO.Path.Combine( shaders, "leftover_test.shader" ), "MODES\n{\n\tDefault();\n}\nPS\n{\n}\n" );
+			using ( var backend = new Borealis.Backend.BackendDevice( Device ) )
+			{
+				backend.Content.Add( folder );
+				Assert.IsNotNull( backend.Shaders.Load( "shaders/leftover_test.shader" ), "outside the engine's content the VFX source wins" );
+			}
+
+			System.IO.File.WriteAllText( System.IO.Path.Combine( shaders, "sbox", "pass.slangh" ), "// the engine's pass header\n" );
+			Assert.IsTrue( Sandbox.ShaderCompiler.ShaderFormat.IsEngineContent( folder ) );
+			using ( var backend = new Borealis.Backend.BackendDevice( Device ) )
+			{
+				backend.Content.Add( folder );
+				Assert.IsNull( backend.Shaders.Load( "shaders/leftover_test.shader" ), "a VFX source left in the engine's content, beside a module" );
+			}
+		}
+		finally
+		{
+			System.IO.Directory.Delete( folder, true );
+		}
+	}
+
+	/// <summary>
 	/// A shader that's a surface alone (standard: a Slang file, no .shader, no compiled file) loads as nothing, so nothing is
 	/// kept and every material of it loads it again: that mustn't ask every mounted file system for a compiled file, which
 	/// would be a leftover anyway.

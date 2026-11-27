@@ -123,13 +123,14 @@ internal class SlangMaterialCompiler : ResourceCompiler
 	/// <c>.shader</c> in any root, a <c>.slang</c> in one, where the shader would be or, for a name standing for another
 	/// (<see cref="ShaderAliases"/>: complex is standard), where that one would be. With it, the shader the material compiles
 	/// for: the one the name stands for. Null otherwise. A <c>.shader_c</c> without its <c>.shader</c> is a leftover (a build
-	/// machine's or a checkout's from before the <c>.shader</c> went) and doesn't count.
+	/// machine's or a checkout's from before the <c>.shader</c> went) and doesn't count, nor does a VFX <c>.shader</c> in the
+	/// engine's own content folder: the engine's shaders are all Slang, so one there is left from an older engine.
 	/// </summary>
 	static (string Path, string Shader)? ModuleOnly( string shader, List<string> roots )
 	{
 		var standsFor = ShaderAliases.Resolve( shader );
 		// A .shader in the way is a VFX source; a Slang one (told by content, ShaderFormat) is the module itself
-		if ( roots.Exists( r => ShaderFormat.IsVfxSourceFile( Path.Combine( r, shader ) ) || ShaderFormat.IsVfxSourceFile( Path.Combine( r, standsFor ) ) ) ) return null;
+		if ( roots.Exists( r => !ShaderFormat.IsEngineContent( r ) && (ShaderFormat.IsVfxSourceFile( Path.Combine( r, shader ) ) || ShaderFormat.IsVfxSourceFile( Path.Combine( r, standsFor ) )) ) ) return null;
 		return roots.Select( r => ShaderFormat.SlangSourceBeside( Path.Combine( r, standsFor ) ) ).FirstOrDefault( p => p is not null ) is { } path ? (path, standsFor) : null;
 	}
 

@@ -91,6 +91,12 @@ public static class ShaderFormat
 		}
 	}
 
+	/// <summary>
+	/// Whether a content folder is the engine's own (<c>game/core</c>, with the engine's pass headers): its shaders are all
+	/// Slang, so a VFX <c>.shader</c> there is left from an older engine and stands in front of no module.
+	/// </summary>
+	public static bool IsEngineContent( string root ) => File.Exists( Path.Combine( root, "shaders", "sbox", "pass.slangh" ) );
+
 	/// <summary>Whether the file at <paramref name="path"/> is a Slang source: it exists and isn't a VFX source.</summary>
 	public static bool IsSlangSourceFile( string path ) => File.Exists( path ) && !IsVfxSourceFile( path );
 
