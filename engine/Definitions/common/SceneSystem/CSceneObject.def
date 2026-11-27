@@ -11,11 +11,7 @@ native class CSceneObject as NativeEngine.CSceneObject
 {
 	void ChangeFlags(ESceneObjectFlags nNewFlags, ESceneObjectFlags nNewFlagsMask);
 
-	void SetFlags(ESceneObjectFlags nFlagsToOR);
-
 	ESceneObjectFlags GetFlags();
-
-	void ClearFlags(ESceneObjectFlags nFlagsToClear);
 
 	Vector3 GetLightingOrigin();
 	bool HasLightingOrigin();
@@ -31,15 +27,12 @@ native class CSceneObject as NativeEngine.CSceneObject
 
 	void SetTransform( Transform tx );
 
-	// The transform as kept, a scale per axis (a prop scaled along one axis in Hammer): GetCTransform keeps the largest
+	// The transform as kept, a scale per axis (a prop scaled along one axis in Hammer)
 	Transform GetCTransformUnaligned();
 
 	void SetBounds( BBox box );
 
 	BBox GetBounds();
-
-	CSceneObject GetParent();
-	void RemoveChild( CSceneObject obj );
 
 	void ResetMeshGroups( ulong nMask );
 	ulong GetCurrentMeshGroupMask();
@@ -52,8 +45,6 @@ native class CSceneObject as NativeEngine.CSceneObject
 
 	void SetMaterialGroup( StringToken token );
 
-	void SetBodyGroup( StringToken token, int value );
-
 	void SetBatchable( bool bIsBatchable );
 	bool IsNotBatchable();
 
@@ -62,7 +53,6 @@ native class CSceneObject as NativeEngine.CSceneObject
 	int GetTagCount();
 	uint GetTagAt( int i);
 	void AddTag( uint tag );
-	bool HasTag( uint tag );
 
 	// draw only on this layer
 	inline uint GetLayerMatchIDValue()

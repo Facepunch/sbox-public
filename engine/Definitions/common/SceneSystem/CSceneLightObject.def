@@ -8,16 +8,11 @@ native class CSceneLightObject as NativeEngine.CSceneLightObject : CSceneObject
 
 	void SetWorldDirection( Rotation dir );
 
-	void SetColor( Vector3 color );
-	Vector3 GetColor();
-
 	void SetRadius( float radius );
 
 	void SetPhi( float f );
 
 	ITexture GetLightCookie();
-
-	void SetCascadeDistanceScale( float dist );
 
 	void SetLightShape( LightSourceShape_t shape );
 
