@@ -35,6 +35,17 @@ tracks allocations by type), `perf_vram` (the GPU allocator's blocks, emptiest f
 holds the nearly empty ones), `perf_rendering`, `perf_network` (`seconds` records messages),
 `perf_ui`. The first GPU read takes about a second while timings warm up.
 
+Profiler captures record every instrumented C# and C++ scope on every thread, with GC pauses and
+allocation samples. `profiler_capture` (`seconds` 0.05 to 10, default 1) returns a `CaptureId`,
+frame stats, the main thread's top scopes inside frames by self time and `Warnings` when data is missing.
+To profile something you trigger with other tools, wrap it in `profiler_start` and `profiler_stop` (same summary, also after the capture stopped itself at its memory budget). Drill in by that ID
+(0 means the latest): `profiler_frames` (slowest first, each with a `SpanIndex`), `profiler_call_tree`
+(`spanIndex`: children with self time and % of root), `profiler_scopes` (`query` by name or source
+file: percentiles and slowest instances) and `profiler_timeline` (raw instances by `threadKey`,
+`startMs`/`endMs`, `minMs`). `profiler_save`, `profiler_load` and `profiler_files` manage `.sprof`
+files; `streamToDisk` writes the scopes to one past the in-memory limit, loaded in windows with `startMs`/`durationMs`.
+Times are wall time including waits; take a second capture if the first ran cold.
+
 ## Editor toolsets
 
 These ship with the editor (the built-in `tools` addon and Hammer) and are present in any editor

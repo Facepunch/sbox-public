@@ -11,8 +11,8 @@ namespace Editor.Mcp;
 /// Each tool is one of the dev tools' tabs; they read what the tabs read (<see cref="DevTools"/>), whether or not the dev tools is
 /// open. Times are milliseconds, memory is MiB.
 /// </summary>
-[McpToolset( "perf", "Performance numbers from the dev tools (devtools): frame times, what limits the frame rate, CPU scopes, GPU passes, memory and GC, rendering counters, network and UI costs" )]
-internal static class PerfTools
+[McpToolset( "perf", "Performance numbers from the dev tools (devtools): frame times, what limits the frame rate, CPU scopes, profiler captures, GPU passes, memory and GC, rendering counters, network and UI costs" )]
+internal static partial class PerfTools
 {
 	/// <summary>
 	/// How long collectors a tool switched on keep running after it returns, so follow-up calls don't wait to warm up.
@@ -84,7 +84,7 @@ internal static class PerfTools
 	}
 
 	[McpTool.ReadOnly( "perf_cpu" )]
-	[Description( "Main thread detail: frame pacing, what caps the frame rate (fps_max, vsync, display mode), time by category, and every named timing scope. Scopes nest, so they overlap - a category includes the scopes inside it." )]
+	[Description( "Main thread detail: frame pacing, what caps the frame rate (fps_max, vsync, display mode), time by category, and every named timing scope. Scopes nest, so they overlap - a category includes the scopes inside it. For every instrumented scope on every thread, record one with profiler_capture." )]
 	internal static object Cpu( [Description( "How many scopes to return, biggest first. Default 30, max 200." )] int limit = 30 )
 	{
 		var s = DevTools.Summarise();
