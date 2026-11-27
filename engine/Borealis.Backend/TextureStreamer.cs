@@ -305,6 +305,17 @@ internal sealed class TextureStreamer
 	readonly ConcurrentQueue<BackendTexture> keptAdded = new();
 	readonly List<BackendTexture> kept = new();
 
+	/// <summary>
+	/// Keep a texture image the engine read from a file (<c>Texture.Load</c> of a <c>.vtex</c>, the view's lookup tables)
+	/// where it can be moved out of a block being emptied, from the next <see cref="Update"/>: in <see cref="ImageLayout.ShaderRead"/>
+	/// once made and never written again. It's content, and nothing else moves it: each block one was in stayed (a 16 MiB
+	/// block for a 64 KiB table at the menu, three of them after a map). Forgotten once destroyed. Any thread.
+	/// </summary>
+	public void Keep( TextureHandle image ) => keptImagesAdded.Enqueue( image );
+
+	readonly ConcurrentQueue<TextureHandle> keptImagesAdded = new();
+	readonly List<TextureHandle> keptImages = new();
+
 	/// <summary>Keep a texture made from a file's tail (or more) streaming, from the next <see cref="Update"/>. Any thread.</summary>
 	public StreamedTexture Add( BackendTexture texture, string path, TextureFile file )
 	{
@@ -330,6 +341,8 @@ internal sealed class TextureStreamer
 		var now = Frame;
 		var updateTime = System.Diagnostics.Stopwatch.GetTimestamp();
 		while ( keptAdded.TryDequeue( out var small ) ) kept.Add( small );
+		while ( keptImagesAdded.TryDequeue( out var image ) ) keptImages.Add( image );
+		if ( keptImages.Count > keptImagesLive * 2 + 64 ) ForgetDestroyedImages();
 		while ( added.TryDequeue( out var texture ) )
 		{
 			texture.LastAskedTime = updateTime;
@@ -450,7 +463,7 @@ internal sealed class TextureStreamer
 	void MoveOutOfDrainingBlocks()
 	{
 		var gpu = device.Gpu;
-		var count = textures.Count + kept.Count;
+		var count = textures.Count + kept.Count + keptImages.Count;
 		if ( !gpu.Defragmenting || count == 0 ) return;
 
 		long moved = 0;
@@ -459,6 +472,12 @@ internal sealed class TextureStreamer
 		{
 			if ( moveAt >= count ) moveAt = 0;
 			var index = moveAt++;
+			if ( index >= textures.Count + kept.Count )
+			{
+				moved += MoveImage( gpu, index - textures.Count - kept.Count );
+				continue;
+			}
+
 			var streamed = index < textures.Count ? textures[index] : null;
 			var texture = streamed?.Texture ?? kept[index - textures.Count];
 			if ( streamed?.Building is not null || !texture.IsValid || gpu.IsReplacing( texture.Handle ) || !gpu.InDrainingBlock( texture.Handle ) ) continue;
@@ -483,6 +502,59 @@ internal sealed class TextureStreamer
 			MovedBytes += bytes;
 		}
 	}
+
+	// One of keptImages out of a block being emptied, swapped in under its handle; the bytes copied. A destroyed one is
+	// forgotten (the last takes its place, looked at on a later pass)
+	long MoveImage( Device gpu, int index )
+	{
+		var image = keptImages[index];
+		if ( !gpu.IsAlive( image ) )
+		{
+			keptImages[index] = keptImages[^1];
+			keptImages.RemoveAt( keptImages.Count - 1 );
+			return 0;
+		}
+
+		if ( gpu.IsReplacing( image ) || !gpu.InDrainingBlock( image ) ) return 0;
+
+		TextureHandle copy;
+		try
+		{
+			copy = gpu.Relocate( image, ImageLayout.ShaderRead );
+		}
+		catch ( GpuException e ) when ( e.Result == OutOfDeviceMemory )
+		{
+			return 0;
+		}
+
+		if ( !copy.IsValid ) return 0;
+		gpu.Replace( image, copy );
+		gpu.ReplaceSoon();
+		var bytes = gpu.MemorySizeOf( copy );
+		Moved++;
+		MovedBytes += bytes;
+		return bytes;
+	}
+
+	// keptImages alive at the last look for destroyed ones, which goes once as many more have been added: a map's load and
+	// unload each add and destroy their own
+	int keptImagesLive;
+
+	void ForgetDestroyedImages()
+	{
+		var gpu = device.Gpu;
+		var live = 0;
+		for ( int i = 0; i < keptImages.Count; i++ )
+		{
+			if ( gpu.IsAlive( keptImages[i] ) ) keptImages[live++] = keptImages[i];
+		}
+
+		keptImages.RemoveRange( live, keptImages.Count - live );
+		keptImagesLive = live;
+	}
+
+	/// <summary>Engine images kept to be moved (<see cref="Keep(TextureHandle)"/>), for the tests.</summary>
+	internal int KeptImages => keptImages.Count;
 
 	// The device's textures disposed at the last look for disposed ones
 	int disposedSeen = -1;

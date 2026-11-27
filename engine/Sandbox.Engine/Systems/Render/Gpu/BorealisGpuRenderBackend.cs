@@ -1663,6 +1663,9 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 
 			var handle = read.Create( gpu, path, UploadList() );
 			Track( handle, ImageLayout.ShaderRead );
+
+			// Content no one else moves: the streamer copies it out of a block being emptied, or the block stays
+			services.Streamer.Keep( handle );
 			return handle;
 		}
 		catch ( NotSupportedException )

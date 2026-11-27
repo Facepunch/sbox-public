@@ -87,7 +87,14 @@ public sealed partial class BackendDevice
 	/// <summary>Textures of this device disposed so far (<see cref="BackendTexture.Dispose"/>, any thread): the streamer looks for disposed ones when it moves.</summary>
 	internal int TexturesDisposed;
 
-	internal TextureStreamer Streamer => streamer ??= new TextureStreamer( this ) { Loading = loading };
+	// Made once whichever thread asks first: the engine's texture loads keep their images with it from workers too
+	internal TextureStreamer Streamer => Volatile.Read( ref streamer ) ?? MakeStreamer();
+
+	TextureStreamer MakeStreamer()
+	{
+		Interlocked.CompareExchange( ref streamer, new TextureStreamer( this ) { Loading = loading }, null );
+		return streamer;
+	}
 
 	internal override bool StreamsTextures => StreamTextures;
 
