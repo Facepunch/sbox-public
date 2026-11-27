@@ -193,6 +193,13 @@ public sealed class ShaderLibrary : IDisposable
 			if ( modules.Describe( Path.GetFullPath( compiled ) ) is { } described ) return (described, true);
 		}
 
+		// A game's own module (in its files, not a content folder), unless a .shader stands where it would, as native decides
+		if ( shaderPath.EndsWith( ".shader", StringComparison.OrdinalIgnoreCase ) && Files.FindSource( shaderPath ) is null
+			&& Files.FindSource( shaderPath[..^".shader".Length] + ".slang" ) is { } source
+			&& !Files.Roots.Any( r => source.StartsWith( r, StringComparison.OrdinalIgnoreCase ) )
+			&& modules.Describe( source[..^".slang".Length] + ".shader_c" ) is { } game )
+			return (game, true);
+
 		return (null, false);
 	}
 

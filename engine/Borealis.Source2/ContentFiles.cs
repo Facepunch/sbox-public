@@ -111,6 +111,38 @@ public sealed class ContentFiles
 	}
 
 	/// <summary>
+	/// Asked after the folders for a source file (a game's own <c>shaders/x.slang</c>): where the host's file system has it on
+	/// disk under its own name, with the files beside it (what it imports, its offline compile <c>x.slang_c</c>), or null.
+	/// A package's files are named by their hash on disk, so the host lays them out by name first.
+	/// </summary>
+	public Func<string, string> ResolveSource { get; set; }
+
+	/// <summary>
+	/// The full path of a source file (<c>shaders/x.slang</c>, as named, no <c>_c</c>): in a folder, else where
+	/// <see cref="ResolveSource"/> lays it out, else in a fallback folder; null when there's none.
+	/// </summary>
+	public string FindSource( string path )
+	{
+		if ( string.IsNullOrEmpty( path ) ) return null;
+		path = path.Replace( '\\', '/' ).TrimStart( '/' );
+		foreach ( var root in roots )
+		{
+			var full = Path.Combine( root, path );
+			if ( File.Exists( full ) ) return full;
+		}
+
+		if ( ResolveSource?.Invoke( path ) is { } resolved && File.Exists( resolved ) ) return resolved;
+
+		foreach ( var root in fallbacks )
+		{
+			var full = Path.Combine( root, path );
+			if ( File.Exists( full ) ) return full;
+		}
+
+		return null;
+	}
+
+	/// <summary>
 	/// A web-streamed texture's file on disk is the start of it (its smaller mips); the engine keeps the start of the whole
 	/// file it has downloaded so far beside it (<c>.resident</c>), finer mips and all: that, when it holds more.
 	/// </summary>

@@ -307,6 +307,7 @@ static class StartupLoadProject
 		{
 			Step( "Compiling shaders" );
 			await CompileAllShaders();
+			await GameSlangShaders.CompileAsync();
 
 			Step( "Compiling assets" );
 			await EditorContentBuild.Startup( project );

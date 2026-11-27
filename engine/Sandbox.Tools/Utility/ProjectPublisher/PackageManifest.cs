@@ -147,6 +147,23 @@ public partial class ProjectPublisher
 				await CollectAssets( project, cancel );
 			}
 
+			//
+			// The projects' Slang shaders, compiled offline first so players don't compile them, with their sources
+			//
+			{
+				progress?.SetProgressMessage( "Compiling Slang shaders" );
+				if ( !previewOnly && await GameSlangShaders.CompileAsync( cancel ) is > 0 and var failed )
+					Errors.Add( $"{failed} Slang shader{(failed == 1 ? "" : "s")} failed to compile, see the console" );
+
+				foreach ( var path in AllAssetPaths( project ) )
+				{
+					foreach ( var (absolute, relative) in GameSlangShaders.PublishFiles( path ) )
+					{
+						if ( LooseFileAllowed( relative, true ) ) await AddFile( absolute, relative );
+					}
+				}
+			}
+
 			this.progress = null;
 		}
 

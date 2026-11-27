@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Borealis.Source2;
 using Sandbox.ShaderCompiler;
@@ -46,6 +47,74 @@ public static class OfflineShaders
 		log?.Invoke( $"Slang offline: {results.Count( r => r == OfflineResult.Compiled )} compiled, {results.Count( r => r == OfflineResult.UpToDate )} up to date, {failed} failed, {results.Count( r => r == OfflineResult.Skipped )} not shaders, in {clock.Elapsed.TotalSeconds:F0} s" );
 		return failed;
 	}
+
+	static readonly Dictionary<string, SlangCompiler> gameCompilers = new( StringComparer.OrdinalIgnoreCase );
+
+	/// <summary>
+	/// The compiler a game project's Slang compiles offline with, for the game folder <paramref name="game"/>: the one the
+	/// game's device compiles with at run time (its Slang, the core shaders as its search path), so the entries it writes
+	/// are the ones a player's device looks for. Null when the game folder has no surface library.
+	/// </summary>
+	static SlangCompiler GameCompiler( string game )
+	{
+		var shaders = Path.Combine( game, "core", "shaders" );
+		if ( !File.Exists( Path.Combine( shaders, "sbox", "surface.slang" ) ) ) return null;
+		lock ( gameCompilers )
+		{
+			if ( gameCompilers.TryGetValue( game, out var known ) ) return known;
+			return gameCompilers[game] = new SlangCompiler( EngineFolders.NativeIn( game ), [shaders] ) { CacheFolder = Path.Combine( game, ".source2", "borealisoffline" ), UseOffline = false };
+		}
+	}
+
+	/// <summary>
+	/// Compile a game project's Slang shader <paramref name="source"/> (a surface, raw module or pass module, by its full
+	/// path) offline into <c>name.slang_c</c> beside it (<see cref="SlangOutput"/>), as build-shaders does the engine's, so
+	/// players read it instead of compiling it: the editor does on save and at publish. Nothing is compiled when the output
+	/// is current; a module others import (one with no <c>[Material]</c> or declarations) is skipped. Errors go to
+	/// <paramref name="log"/>.
+	/// </summary>
+	public static Task<OfflineResult> CompileGameShaderAsync( string game, string source, Action<string> log )
+	{
+		if ( GameCompiler( game ) is not { } compiler )
+		{
+			log?.Invoke( $"No Slang surface library in {Path.Combine( game, "core", "shaders" )}" );
+			return Task.FromResult( OfflineResult.Failed );
+		}
+
+		return compiler.CompileOfflineAsync( source, null, log );
+	}
+
+	/// <summary>
+	/// <see cref="CompileGameShaderAsync"/> for every <c>.slang</c> under a game project's folder <paramref name="folder"/>
+	/// (its assets), a few at a time. Returns how many didn't fully compile.
+	/// </summary>
+	public static async Task<int> CompileGameShadersAsync( string game, string folder, Action<string> log, CancellationToken cancel = default )
+	{
+		if ( !Directory.Exists( folder ) ) return 0;
+		var sources = Directory.GetFiles( folder, "*.slang", SearchOption.AllDirectories ).Where( f => !IsHidden( folder, f ) ).ToList();
+		var failed = 0;
+		using var gate = new SemaphoreSlim( Math.Max( 1, Environment.ProcessorCount / 4 ) );
+		await Task.WhenAll( sources.Select( async s =>
+		{
+			await gate.WaitAsync( cancel ).ConfigureAwait( false );
+			try
+			{
+				var result = await CompileGameShaderAsync( game, s, log ).ConfigureAwait( false );
+				if ( result == OfflineResult.Failed ) Interlocked.Increment( ref failed );
+				if ( result is OfflineResult.Compiled or OfflineResult.Failed ) log?.Invoke( $"{Path.GetRelativePath( folder, s ).Replace( '\\', '/' )}: {result}" );
+			}
+			finally
+			{
+				gate.Release();
+			}
+		} ) ).ConfigureAwait( false );
+
+		return failed;
+	}
+
+	/// <summary>A file in a dot folder (<c>.source2</c>, <c>.vs</c>) or an <c>obj</c> folder under <paramref name="folder"/>: not the project's.</summary>
+	static bool IsHidden( string folder, string file ) =>
+		Path.GetRelativePath( folder, file ).Split( Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar ).SkipLast( 1 ).Any( d => d.StartsWith( '.' ) || d.Equals( "obj", StringComparison.OrdinalIgnoreCase ) );
 
 	/// <summary>
 	/// The Slang sources <see cref="CompileAll"/> compiles, each with where its offline compile goes (null: beside it): every

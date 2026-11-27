@@ -14,7 +14,7 @@ namespace Borealis.Backend;
 /// <see cref="Folders"/>) the first time a <see cref="SurfaceMaterial"/> of theirs draws, with their modules, binding
 /// layouts and pipelines, and the material records they read. Only Borealis.Gpu compiles them; old shaders are untouched.
 /// </summary>
-public sealed class SurfaceShaders : IDisposable
+public sealed partial class SurfaceShaders : IDisposable
 {
 	readonly BackendDevice device;
 	readonly Dictionary<string, SurfaceProgram> programs = new( StringComparer.OrdinalIgnoreCase );
@@ -183,8 +183,53 @@ public sealed class SurfaceShaders : IDisposable
 		}
 
 		if ( ConvertShaders && !NotConvertedByDefault.Contains( key ) && DefaultSurfaces.TryGetValue( key, out var surface ) ) return DefaultSurface( key, surface );
+		if ( GameSurface( shader ) is { } game ) return game;
 		return ConvertPackages ? PackageSurface( shader ) : null;
 	}
+
+	readonly Dictionary<string, string> gameSurfaces = new( StringComparer.OrdinalIgnoreCase );
+
+	/// <summary>
+	/// A game's own surface or raw module for <paramref name="shader"/> (<c>shaders/rock.shader</c>): its <c>shaders/rock.slang</c>
+	/// where there's no <c>.shader</c> for it, as native's material system finds a shader only a module describes, found in
+	/// the content and the game's files (<see cref="Borealis.Source2.ContentFiles.FindSource"/>), so its offline compile
+	/// (<c>rock.slang_c</c>, which the editor makes) is beside it. Null for anything else: pass modules draw through their
+	/// shader (<see cref="PassModules"/>). Kept once found; looked for again while not.
+	/// </summary>
+	string GameSurface( string shader )
+	{
+		var name = shader.Replace( '\\', '/' ).TrimStart( '/' );
+		if ( name.EndsWith( "_c", StringComparison.OrdinalIgnoreCase ) ) name = name[..^2];
+		if ( !name.EndsWith( ".shader", StringComparison.OrdinalIgnoreCase ) ) name = name.Contains( '/' ) ? Path.ChangeExtension( name, ".shader" ) : $"shaders/{name}.shader";
+		// The core surfaces are the defaults' business, whose switches (NotConvertedByDefault) keep them on their .shader
+		if ( DefaultSurfaces.ContainsKey( ShaderKey( name ) ) ) return null;
+
+		var content = device.Content;
+		if ( content.FindSource( name ) is not null || content.FindSource( name[..^".shader".Length] + ".slang" ) is not { } path ) return null;
+		lock ( gameSurfaces )
+		{
+			// Kept by the file found, a surface or not: a pass module's materials ask again on every load
+			if ( gameSurfaces.TryGetValue( path, out var known ) ) return known;
+		}
+
+		string surface = null;
+		try
+		{
+			var text = File.ReadAllText( path );
+			if ( !text.Contains( "sbox/pass.slangh", StringComparison.Ordinal ) && MaterialStruct().IsMatch( text ) ) surface = path;
+		}
+		catch ( Exception e ) when ( e is IOException or UnauthorizedAccessException )
+		{
+			return null;
+		}
+
+		if ( surface is not null ) Watch( Path.GetDirectoryName( surface ) );
+		lock ( gameSurfaces ) gameSurfaces[path] = surface;
+		return surface;
+	}
+
+	[System.Text.RegularExpressions.GeneratedRegex( @"\[\s*Material\b" )]
+	private static partial System.Text.RegularExpressions.Regex MaterialStruct();
 
 	/// <summary>
 	/// Whether package shaders (a <c>.shader_c</c> an older engine compiled, with its source embedded) draw as the surface

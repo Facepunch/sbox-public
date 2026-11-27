@@ -121,6 +121,7 @@ public static class FileSystem
 		}
 
 		EditorEvent.Run( "content.changed", filename );
+		GameSlangShaders.Changed( filename );
 	}
 
 	/// <summary>
