@@ -131,6 +131,7 @@ internal static partial class Profiler
 		public bool HasGcData { get; init; }
 		// Where allocation samples stop because the capture hit its sample limit, or null
 		public double? AllocationCutoffMs { get; init; }
+		public CounterSample[] CounterSamples { get; init; } = [];
 		// Instance labels by Span.Label; 0 is no label
 		public string[] Labels { get; init; } = [null];
 
@@ -210,6 +211,7 @@ internal static partial class Profiler
 		public readonly HashSet<uint> LabelIds = new();
 		public GcPauseListener GcPauses;
 		public readonly List<(ulong Ticks, long Bytes)> FrameAllocations = new( 4096 );
+		public readonly List<RawCounters> Counters = new( 4096 );
 		public bool FrameAllocationsDone;
 		public readonly TaskCompletionSource<Capture> Completion = new( TaskCreationOptions.RunContinuationsAsynchronously );
 
@@ -390,7 +392,9 @@ internal static partial class Profiler
 		// Frames past the limit aren't in the capture: one more sample closes the last one, then stop
 		if ( frameBoundary && !builder.FrameAllocationsDone )
 		{
-			builder.FrameAllocations.Add( (Native.Now(), GC.GetAllocatedBytesForCurrentThread()) );
+			var now = Native.Now();
+			builder.FrameAllocations.Add( (now, GC.GetAllocatedBytesForCurrentThread()) );
+			SampleCounters( builder, now );
 			builder.FrameAllocationsDone = builder.LimitReached;
 		}
 		if ( builder.CollectorError is not null || builder.Finished || (frameBoundary && Native.Now() >= builder.Deadline) )
@@ -468,10 +472,11 @@ internal static partial class Profiler
 		{
 			var start = Stopwatch.GetTimestamp();
 			string archiveFile = null, storageError = null;
+			var counters = ResolveCounters( builder.Counters, builder.Start, clockToMs );
 			if ( builder.Archive is not null )
 			{
 				var metadata = new Capture( builder.Id, (end - builder.Start) * clockToMs, dropped, false, 0, threads, sites, [], [] )
-				{ ThreadSpans = threads.ToDictionary( x => x.Key, _ => ArraySegment<Span>.Empty ), Labels = labels };
+				{ ThreadSpans = threads.ToDictionary( x => x.Key, _ => ArraySegment<Span>.Empty ), Labels = labels, CounterSamples = counters };
 				try { archiveFile = builder.Archive.Finish( metadata, end ); }
 				catch ( Exception e ) { storageError = e.Message; }
 				if ( builder.Archive.StopTick != 0 ) end = Math.Max( builder.Start, Math.Min( end, builder.Archive.StopTick ) );
@@ -493,6 +498,7 @@ internal static partial class Profiler
 				HasGcData = builder.GcPauses is not null,
 				AllocationCutoffMs = allocationCutoff != 0 && allocationCutoff < captureEnd ? Math.Max( 0, (double)((long)allocationCutoff - (long)builder.Start) ) * clockToMs : null,
 				Frames = AttachFrameAllocations( capture.Frames, frameAllocations ),
+				CounterSamples = counters.Where( x => x.Ms <= capture.DurationMs + 0.001 ).ToArray(),
 				Overhead = new( builder.DrainCount, drains.P50Ms, drains.P95Ms, builder.MaxDrainMs, snapshotMs, Stopwatch.GetElapsedTime( start ).TotalMilliseconds )
 			};
 			Publish( capture );

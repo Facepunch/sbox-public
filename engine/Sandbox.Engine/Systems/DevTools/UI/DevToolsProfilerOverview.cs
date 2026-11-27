@@ -267,7 +267,8 @@ internal sealed class DevToolsProfilerOverview : Panel
 				break;
 			}
 		}
-		return $"{head}{gc}\nClick to zoom, or drag to select a range.{(_memory ? "" : " Colours mark 16.7 / 33.3 ms.")}";
+		var counters = _memory ? null : DevToolsProfilerCounters.Describe( _capture, index );
+		return $"{head}{gc}{(counters is null ? "" : $"\n{counters}")}\nClick to zoom, or drag to select a range.{(_memory ? "" : " Colours mark 16.7 / 33.3 ms.")}";
 	}
 }
 
@@ -464,5 +465,31 @@ internal sealed class DevToolsProfilerMemory : Panel
 		var text = System.Text.RegularExpressions.Regex.Replace( name, @"`\d+", "" ).Replace( "[]", "\u0001" ).Replace( '[', '<' ).Replace( ']', '>' ).Replace( "\u0001", "[]" );
 		text = System.Text.RegularExpressions.Regex.Replace( text, @"[\w.+]+", m => m.Value[(m.Value.LastIndexOf( '.' ) + 1)..].Replace( '+', '.' ) );
 		return text.Replace( ",", ", " );
+	}
+}
+
+/// <summary>
+/// Text for the frame counters a capture recorded.
+/// </summary>
+internal static class DevToolsProfilerCounters
+{
+	internal static string Format( Profiler.FrameCounter counter, float value ) => !float.IsFinite( value ) ? "-" : counter switch
+	{
+		Profiler.FrameCounter.GpuMs => $"{value:0.00} ms",
+		Profiler.FrameCounter.WorkingSetMiB => $"{value:N0} MiB",
+		Profiler.FrameCounter.ConstantBufferBytes => DevToolsFormat.Bytes( value ),
+		_ => $"{value:N0}"
+	};
+
+	/// <summary>
+	/// A frame's counters, one per line, or null when it has none.
+	/// </summary>
+	internal static string Describe( Profiler.Capture capture, int frame )
+	{
+		if ( Profiler.FrameCounters( capture, frame ) is not { } values ) return null;
+		var lines = new List<string>();
+		for ( int i = 0; i < values.Length; i++ )
+			if ( float.IsFinite( values[i] ) ) lines.Add( $"{Profiler.FrameCounterNames[i]} {Format( (Profiler.FrameCounter)i, values[i] )}" );
+		return lines.Count > 0 ? string.Join( "\n", lines ) : null;
 	}
 }

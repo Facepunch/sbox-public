@@ -86,16 +86,12 @@ internal static partial class Profiler
 	{
 		using var writer = new BinaryWriter( stream, Encoding.UTF8, true );
 		WriteContainerHeader( writer );
-		var snapshot = WriteSection( writer, SnapshotSection, () => WriteCapturePayload( capture, stream ) );
+		var sections = new List<FileSection> { WriteSection( writer, SnapshotSection, () => WriteCapturePayload( capture, stream ) ) };
 		// Written whenever GC data was recorded, so a capture with no samples still loads as having it
-		if ( !capture.HasGcData && capture.Allocations.Length == 0 && !capture.Frames.Any( x => x.AllocatedBytes is not null ) )
-		{
-			WriteDirectory( writer, snapshot );
-			return;
-		}
-
-		var memory = WriteSection( writer, MemorySection, () => WriteMemoryPayload( capture, writer ), version: 2 );
-		WriteDirectory( writer, snapshot, memory );
+		if ( capture.HasGcData || capture.Allocations.Length > 0 || capture.Frames.Any( x => x.AllocatedBytes is not null ) )
+			sections.Add( WriteSection( writer, MemorySection, () => WriteMemoryPayload( capture, writer ), version: 2 ) );
+		WriteTracks( writer, capture, sections );
+		WriteDirectory( writer, [.. sections] );
 	}
 
 	/// <summary>
@@ -220,7 +216,7 @@ internal static partial class Profiler
 				var capture = ReadCaptureData( new SectionStream( stream, snapshot ), maximumSpans );
 				if ( sections.TryGetValue( MemorySection, out var memory ) && memory.Version is 1 or 2 )
 					capture = ReadMemoryPayload( new SectionStream( stream, memory ), capture, memory.Version );
-				return capture;
+				return ReadTracks( stream, sections, capture );
 			}
 			return ReadStreamCapture( stream, start, frequency, sections, maximumSpans, startMs, durationMs );
 		}

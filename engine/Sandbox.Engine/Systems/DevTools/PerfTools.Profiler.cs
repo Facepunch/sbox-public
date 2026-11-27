@@ -73,12 +73,13 @@ internal static partial class PerfTools
 	}
 
 	[McpTool.ReadOnly( "profiler_frames" )]
-	[Description( "Frames of a profiler capture with their duration and main thread allocations, slowest first by default. Pass a frame's SpanIndex to profiler_call_tree to see what it spent its time on." )]
+	[Description( "Frames of a profiler capture with their duration and main thread allocations, slowest first by default. CounterMedians sums up the capture's render counters (draw calls, triangles, batches, primitives, objects tested and drawn, material changes, constant buffer updates and bytes, GPU ms, working set MiB); counters: true adds each frame's, in CounterColumns order. Pass a frame's SpanIndex to profiler_call_tree to see what it spent its time on." )]
 	internal static async Task<object> ProfilerFrames(
 		[Description( "Capture ID from profiler_capture. 0 for the latest." )] long captureId = 0,
 		[Description( "\"slowest\" (default) or \"time\" for capture order." )] string order = "slowest",
 		[Description( "How many frames. Default 20, max 1000." )] int limit = 20,
-		[Description( "Frames to skip, for paging." )] int offset = 0 )
+		[Description( "Frames to skip, for paging." )] int offset = 0,
+		[Description( "Also list each frame's counters, null where not measured." )] bool counters = false )
 	{
 		var capture = FindCapture( captureId );
 		if ( order is not ("slowest" or "time") ) throw ProfilerError( "order is \"slowest\" or \"time\"." );
@@ -93,17 +94,18 @@ internal static partial class PerfTools
 				CaptureId = capture.Id,
 				Stats = CaptureFrameStats( capture ),
 				MainThreadKiBPerFrame = CaptureAllocationStats( capture ),
+				CounterMedians = CounterMedians( capture ),
+				CounterColumns = counters ? Enum.GetNames<Profiler.FrameCounter>() : null,
 				TotalFrames = frames.Length,
 				NextOffset = NextOffset( start, page.Length, frames.Length ),
-				Frames = page.Select( x => new
-				{
+				Frames = page.Select( x => new FrameRow(
 					x.SpanIndex,
 					x.Index,
-					StartMs = Round( x.StartMs, 3 ),
-					DurationMs = Round( x.DurationMs, 3 ),
-					AllocatedKiB = x.AllocatedBytes is { } bytes ? KiB( bytes ) : (double?)null,
-					x.Incomplete
-				} ).ToArray()
+					Round( x.StartMs, 3 ),
+					Round( x.DurationMs, 3 ),
+					x.AllocatedBytes is { } bytes ? KiB( bytes ) : null,
+					x.Incomplete,
+					counters ? FrameCounterValues( Profiler.FrameCounters( capture, x.Index ) ) : null ) ).ToArray()
 			};
 		} );
 	}
@@ -383,7 +385,7 @@ internal static partial class PerfTools
 		if ( capture.DroppedEvents > 0 ) warnings.Add( $"{capture.DroppedEvents} events were lost. Instances spanning the gaps are cut short and have no self time." );
 		if ( capture.StorageError is not null ) warnings.Add( $"Stream to disk: {capture.StorageError}" );
 		if ( capture.Frames.Length == 0 ) warnings.Add( $"No {Profiler.FrameScopeName} scopes, so no frame stats." );
-		if ( !capture.HasGcData ) warnings.Add( "No GC pauses or allocation samples were recorded, so empty GC and allocation tables mean unknown, not none. Streamed files hold scopes only." );
+		if ( !capture.HasGcData ) warnings.Add( "No GC pauses or allocation samples were recorded, so empty GC and allocation tables mean unknown, not none. Streamed files hold scopes and frame counters only." );
 		if ( capture.AllocationCutoffMs is { } cutoff ) warnings.Add( $"Allocation samples stop at {cutoff:0} ms, where the capture hit its sample limit; later allocations aren't in the tables." );
 		return warnings.Count > 0 ? warnings.ToArray() : null;
 	}
@@ -402,6 +404,25 @@ internal static partial class PerfTools
 			MaxMs = Round( stats.MaxMs, 3 ),
 			SlowestSpanIndex = complete.MaxBy( x => x.DurationMs ).SpanIndex
 		};
+	}
+
+	sealed record FrameRow( int SpanIndex, int Index, double StartMs, double DurationMs, double? AllocatedKiB, bool Incomplete,
+		[property: JsonIgnore( Condition = JsonIgnoreCondition.WhenWritingNull )] double?[] Counters );
+
+	// One value per counter in enum order, null where not measured
+	static double?[] FrameCounterValues( float[] values ) => values?.Select( x => float.IsFinite( x ) ? Round( x, 2 ) : (double?)null ).ToArray();
+
+	static Dictionary<string, double> CounterMedians( Profiler.Capture capture )
+	{
+		if ( !Profiler.HasCounters( capture ) ) return null;
+		var frames = Enumerable.Range( 0, capture.Frames.Length ).Select( x => Profiler.FrameCounters( capture, x ) ).Where( x => x is not null ).ToArray();
+		var result = new Dictionary<string, double>();
+		for ( int i = 0; i < Profiler.FrameCounterCount; i++ )
+		{
+			var values = frames.Select( x => (double)x[i] ).Where( double.IsFinite ).ToArray();
+			if ( values.Length > 0 ) result[((Profiler.FrameCounter)i).ToString()] = Round( Profiler.DescribeDurations( values ).P50Ms, 2 );
+		}
+		return result.Count > 0 ? result : null;
 	}
 
 	static object CaptureAllocationStats( Profiler.Capture capture )

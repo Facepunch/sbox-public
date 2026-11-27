@@ -71,6 +71,11 @@ internal static partial class ManagedSceneRendering
 	public static ManagedFrameCounters LastFrame { get; private set; }
 
 	/// <summary>
+	/// What the managed renderer reported since the last <see cref="EndFrame"/>.
+	/// </summary>
+	internal static ManagedFrameCounters ThisFrame => thisFrame;
+
+	/// <summary>
 	/// Add a camera's frame - called by the managed renderer on the main thread, after each frame it renders.
 	/// </summary>
 	internal static void Report( in ManagedFrameCounters counters ) => thisFrame.Add( counters );

@@ -534,6 +534,72 @@ public class ProfilerTests
 		finally { if ( path is not null ) System.IO.File.Delete( path ); }
 	}
 
+	static float[] Counters( float drawCalls, float gpuMs )
+	{
+		var values = Enumerable.Repeat( float.NaN, Profiler.FrameCounterCount ).ToArray();
+		values[(int)Profiler.FrameCounter.DrawCalls] = drawCalls;
+		values[(int)Profiler.FrameCounter.GpuMs] = gpuMs;
+		return values;
+	}
+
+	[TestMethod]
+	public void FrameCountersAttachToTheFrameThatEndedAndSurviveSaving()
+	{
+		// The second frame of the example runs from 2 to 5 ms
+		var analyzed = Profiler.ReadCapture( new System.IO.MemoryStream( FileBytes() ) );
+		var frame = analyzed.Frames[1];
+		var capture = analyzed with { CounterSamples = [new( frame.StartMs - 0.5, Counters( 1, 1 ) ), new( frame.EndMs, Counters( 120, 3.5f ) )] };
+		Assert.AreEqual( 120, Profiler.FrameCounterValue( capture, 1, Profiler.FrameCounter.DrawCalls ) );
+		Assert.AreEqual( 3.5f, Profiler.FrameCounterValue( capture, 1, Profiler.FrameCounter.GpuMs ) );
+		Assert.IsTrue( float.IsNaN( Profiler.FrameCounterValue( capture, 1, Profiler.FrameCounter.Triangles ) ) );
+
+		using var stream = new System.IO.MemoryStream();
+		Profiler.WriteCapture( capture, stream );
+		stream.Position = 0;
+		var loaded = Profiler.ReadCapture( stream );
+		Assert.AreEqual( 2, loaded.CounterSamples.Length );
+		for ( int i = 0; i < 2; i++ )
+		{
+			Assert.AreEqual( capture.CounterSamples[i].Ms, loaded.CounterSamples[i].Ms );
+			CollectionAssert.AreEqual( capture.CounterSamples[i].Values, loaded.CounterSamples[i].Values );
+		}
+		Assert.AreEqual( 120, Profiler.FrameCounterValue( loaded, 1, Profiler.FrameCounter.DrawCalls ) );
+	}
+
+	[TestMethod]
+	public void StreamedCapturesCarryFrameCounters()
+	{
+		string path = null;
+		try
+		{
+			var task = Profiler.StartCapture( 10, collector: false, streamToDisk: true );
+			for ( int i = 0; i < 5; i++ )
+			{
+				Profiler.Update( frameBoundary: true );
+				using ( ProfileScope_Frame.Start() ) Thread.Sleep( 2 );
+			}
+			Profiler.Update( frameBoundary: true );
+			Profiler.StopCapture();
+			var capture = task.GetAwaiter().GetResult();
+			Assert.IsNotNull( capture.SourceFile, capture.StorageError );
+			path = Profiler.CapturePath( capture.SourceFile );
+			Assert.AreEqual( 6, capture.CounterSamples.Length );
+			Assert.AreEqual( 5, capture.Frames.Length );
+			Assert.IsTrue( Enumerable.Range( 0, 5 ).All( x => Profiler.FrameCounters( capture, x ) is not null ) );
+
+			var loaded = Profiler.LoadCapture( capture.SourceFile ).GetAwaiter().GetResult();
+			Assert.AreEqual( 6, loaded.CounterSamples.Length );
+			Assert.IsTrue( Enumerable.Range( 0, 5 ).All( x => Profiler.FrameCounters( loaded, x ) is not null ) );
+
+			// A window keeps the samples inside it, on its own clock
+			var start = loaded.Frames[2].StartMs;
+			var window = Profiler.LoadCapture( capture.SourceFile, start, loaded.Frames[3].EndMs + 0.5 - start ).GetAwaiter().GetResult();
+			Assert.IsTrue( window.CounterSamples.Length is >= 1 and <= 3 );
+			Assert.IsTrue( window.CounterSamples.All( x => x.Ms >= 0 && x.Ms <= window.DurationMs ) );
+		}
+		finally { if ( path is not null ) System.IO.File.Delete( path ); }
+	}
+
 	[TestMethod]
 	public void LabelsInternByContentAndCutOnACharacterBoundary()
 	{

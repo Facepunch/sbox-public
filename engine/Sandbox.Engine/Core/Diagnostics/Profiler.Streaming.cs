@@ -9,7 +9,7 @@ namespace Sandbox.Diagnostics;
 internal static partial class Profiler
 {
 	const ulong ContainerMagic = 0x3143454352544253;
-	const uint SnapshotSection = 1, MetadataSection = 2, IndexSection = 3, EventsSection = 4, MemorySection = 5, DirectorySection = 0xffff;
+	const uint SnapshotSection = 1, MetadataSection = 2, IndexSection = 3, EventsSection = 4, MemorySection = 5, CountersSection = 6, DirectorySection = 0xffff;
 	const int ContainerHeaderBytes = 48;
 	readonly record struct FileSection( uint Kind, uint Version, long Offset, long Length );
 	readonly record struct EventBlock( FileSection Section, ulong Thread, ulong First, ulong Last );
@@ -309,7 +309,9 @@ internal static partial class Profiler
 						_writer.Write( block.Thread ); _writer.Write( block.First ); _writer.Write( block.Last );
 					}
 				} );
-				WriteDirectory( _writer, info, index );
+				var sections = new List<FileSection> { info, index };
+				WriteTracks( _writer, metadata, sections );
+				WriteDirectory( _writer, [.. sections] );
 				_writer.Flush(); _stream.Dispose();
 				File.Move( _temporary, _path, false );
 				return Name;
@@ -332,6 +334,21 @@ internal static partial class Profiler
 		}
 		for ( int i = stack.Count - 1; i >= 0; i-- )
 			if ( stack[i].Token == e.Token ) { stack.RemoveRange( i, stack.Count - i ); return; }
+	}
+
+	/// <summary>
+	/// Sections beside the scopes, in saved and streamed files alike: frame counters.
+	/// </summary>
+	static void WriteTracks( BinaryWriter writer, Capture capture, List<FileSection> sections )
+	{
+		if ( capture.CounterSamples.Length > 0 ) sections.Add( WriteSection( writer, CountersSection, () => WriteCounters( writer, capture.CounterSamples ) ) );
+	}
+
+	static Capture ReadTracks( Stream stream, Dictionary<uint, FileSection> sections, Capture capture )
+	{
+		if ( sections.TryGetValue( CountersSection, out var counters ) && counters.Version == 1 )
+			capture = capture with { CounterSamples = ReadCounters( new SectionStream( stream, counters ) ) };
+		return capture;
 	}
 
 	static bool ValidBegin( uint scope, HashSet<uint> sites, int labelCount ) => sites.Contains( scope & ScopeMask ) && scope >> LabelShift < labelCount;
@@ -374,6 +391,7 @@ internal static partial class Profiler
 				SourceOffsetMs = startMs,
 				RecordedDurationMs = metadata.DurationMs,
 				Labels = metadata.Labels,
+				CounterSamples = sections.TryGetValue( CountersSection, out var counters ) && counters.Version == 1 ? ReadSection( stream, counters, s => ReadCounters( s, startMs, endMs - startMs ) ) : [],
 				EventLimitReached = capture.EventLimitReached || metadata.EventLimitReached,
 				LimitReason = capture.LimitReason ?? metadata.LimitReason
 			};
