@@ -1595,6 +1595,9 @@ internal sealed partial class BackendContext
 		var r = recording;
 		var m = cull.WorldToClip;
 
+		// A call the setup culled for (the resident cull) dispatches no culling of its own, so this may be the context's first dispatch
+		cullDrawer ??= new ShaderDrawer( device );
+
 		// A shadow call (no visibility): the shared shadow buffers, from their start; no fragment words, stamps or sample grid
 		var shadow = visibility is null ? device.ShadowMeshletBuffersNow() : null;
 		var (stamps, jobs) = shadow is not null ? (shadow.Stamps, shadow.Jobs) : (visibility.MeshletStamps, visibility.MeshletJobs);

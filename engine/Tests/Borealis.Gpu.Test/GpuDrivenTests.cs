@@ -3374,6 +3374,115 @@ public class GpuDrivenTests : RenderGpuTest
 	}
 
 	/// <summary>
+	/// A frame recorded on segment contexts that have dispatched no culling of their own (new ones, as a frame split into
+	/// more segments than before gets), whose prepass draws its meshlets from what the setup culled for it (the resident
+	/// cull): it records, and draws what the frames before it drew.
+	/// </summary>
+	[TestMethod]
+	public void FreshContextsDrawResidentCulledMeshlets()
+	{
+		var core = ContentFiles.FindGame().Roots.FirstOrDefault();
+		if ( core is not null ) Borealis.Backend.Meshlets.MeshOptimizer.Directory = EngineFolders.NativeIn( Path.GetDirectoryName( core ) );
+
+		using var backend = new BackendDevice( Device ) { GpuDrivenGeometry = true, GpuDriven = true, GpuDrivenVisibility = true, GpuDrivenResidentCull = true, Meshlets = true };
+		RequireGpuDrivenDepth( backend );
+
+		if ( backend.ResidentCullShader is null ) Assert.Inconclusive( "borealis_resident_cull_cs isn't compiled" );
+		var plane = backend.LoadModel( "models/dev/plane_large.vmdl" );
+		var can = backend.LoadModel( "models/citizen_props/trashcan01.vmdl" );
+		if ( plane is null || can is null ) Assert.Inconclusive( "models/dev/plane_large.vmdl or models/citizen_props/trashcan01.vmdl isn't built" );
+
+		var previousHost = RenderHost.Current;
+		RenderHost.Current = new BackendRenderHost( backend );
+		try
+		{
+			using var warm = new RenderSystem { ParallelRecording = false };
+			using var target = ViewTarget.Create( new Vector2Int( Width, Height ), 4, TextureFormat.RGBA16161616F, TextureFormat.D32FS8, "Fresh contexts test" );
+			if ( backend.MeshletStore is null || backend.MeshletCullShader is null ) Assert.Inconclusive( "no meshlets: meshopt or borealis_meshlet_cull_cs is missing" );
+
+			var world = new RenderWorld();
+			world.Lighting.SunDirection = new Vector3( 0.5f, 0.35f, -0.8f ).Normal;
+			world.Lighting.SunColor = new Color( 1.25f, 1.15f, 1.0f );
+			world.Lighting.AmbientColor = new Color( 0.12f, 0.15f, 0.2f, 1 );
+			world.Lighting.SunShadowCascades = 0;
+
+			AggregateObject Aggregate( RenderMesh model, Color colour, (Vector3 Position, float Scale)[] placed )
+			{
+				var draw = model.DrawsForLod( 0 ).ToArray().MaxBy( d => d.IndexCount ) with { Material = backend.CreateMaterial( $"Fresh contexts {colour}", colour ), ShadowFastPath = true };
+				var baseVertex = ((IBackendGeometry)model.Geometry).For( draw.Mesh, draw.DrawCall ).BaseVertex;
+				var fragments = placed.Select( ( p, i ) =>
+				{
+					var transform = new Transform( p.Position, Rotation.FromYaw( i * 50 ), p.Scale );
+					var bounds = model.Bounds.Transform( transform );
+					return new AggregateObject.FragmentDraw
+					{
+						Transform = Matrix3x4.From( transform ),
+						BoundsMin = bounds.Mins,
+						BoundsMax = bounds.Maxs,
+						DrawTint = Vector3.One,
+						Args = new GpuBuffer.IndirectDrawIndexedArguments { IndexCount = (uint)draw.IndexCount, InstanceCount = 1, FirstIndex = (uint)draw.StartIndex, BaseVertex = baseVertex, FirstInstance = (uint)i },
+					};
+				} ).ToArray();
+				return new AggregateObject( new RenderMesh( model.Geometry, model.Bounds, [[draw]] ), fragments ) { IsStatic = true };
+			}
+
+			var size = can.Bounds.Size;
+			var scale = 160 / MathF.Max( MathF.Max( size.x, size.y ), 1 );
+			world.Add( Aggregate( plane, new Color( 0.5f, 0.5f, 0.5f ), [(new Vector3( 300, 0, 0 ), 6000 / MathF.Max( plane.Bounds.Size.x, 1 ))] ) );
+			world.Add( Aggregate( can, new Color( 0.7f, 0.6f, 0.5f ), [(new Vector3( 0, -200, 0 ), scale), (new Vector3( 250, 0, 0 ), scale * 0.7f), (new Vector3( 0, 200, 0 ), scale)] ) );
+
+
+			var view = new RenderView { Name = "Fresh contexts test", FieldOfView = 70, ZNear = 4, ZFar = 6000, ClearColor = new Color( 0.3f, 0.4f, 0.5f ), Viewport = new Rect( 0, 0, Width, Height ) };
+			view.Position = new Vector3( -700, 0, 260 );
+			view.Rotation = Rotation.LookAt( new Vector3( 1, 0, -0.3f ) );
+
+			byte[] Frame( RenderSystem system )
+			{
+				backend.BeginFrame();
+				RenderHost.Current.NextFrame();
+				system.Render( world, view, target );
+				Device.WaitIdle();
+				var (texture, layout) = BackendDevice.Unwrap( target.Resolved );
+				var pixels = ReadBack( texture, layout );
+				BackendDevice.SetLayout( target.Resolved, ImageLayout.CopySource );
+				return pixels;
+			}
+
+			// The meshlets built and published, then frames until the prepass draws from the resident cull
+			for ( int i = 0; i < 300 && (i < 4 || backend.MeshletStore.Pending > 0); i++ )
+			{
+				Frame( warm );
+				if ( backend.MeshletStore.Pending > 0 ) Thread.Sleep( 10 );
+			}
+
+			Assert.AreEqual( 0, backend.MeshletStore.Pending, "the meshlets were built" );
+			var calls = backend.ResidentCullCalls;
+			for ( int i = 0; i < 6 && backend.ResidentCullCalls == calls; i++ ) Frame( warm );
+			Assert.IsTrue( backend.ResidentCullCalls > calls, "calls drew from the resident cull" );
+			Frame( warm );
+			var warmed = Frame( warm );
+
+			// New segment contexts, as a frame split into more segments than any before it gets: its views stay in the
+			// resident cull, so every call is drawn from it and none culls its own
+			var recorderField = typeof( RenderSystem ).GetField( "recorder", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance );
+			Assert.IsNotNull( recorderField, "RenderSystem keeps its recorder in a field named recorder" );
+			((IDisposable)recorderField.GetValue( warm )).Dispose();
+			recorderField.SetValue( warm, null );
+			calls = backend.ResidentCullCalls;
+			var first = Frame( warm );
+
+			Assert.IsTrue( backend.ResidentCullCalls > calls, "the frame on new contexts drew from the resident cull" );
+			Assert.AreEqual( 0, Device.ValidationErrors, "no validation errors" );
+			Assert.IsTrue( Same( warmed, first ), $"and drew what the frames before it drew ({Differences( warmed, first )})" );
+		}
+		finally
+		{
+			Device.WaitIdle();
+			RenderHost.Current = previousHost;
+		}
+	}
+
+	/// <summary>
 	/// A model whose meshlets and levels the resource compiler cooked (<see cref="Borealis.Source2.Models.MeshletCooker"/>: its
 	/// draws' indices in meshlet order, the records and levels in the mesh) and one whose meshlets and levels are made at load,
 	/// as aggregates side by side: the cooked one's ranges are taken as they are and the other's made, every range publishes,
