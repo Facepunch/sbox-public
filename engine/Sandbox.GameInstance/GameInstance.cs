@@ -331,6 +331,11 @@ internal class GameInstance : IGameInstance
 
 		FileSystem.Mounted.Mount( activePackage.FileSystem );
 
+		// Assets of the projects in addons/local are the host's choice, like its Workshop addons - a client joining a
+		// server only gets what the server has, so its own local addons stay out
+		if ( flags.Contains( GameLoadingFlags.Host ) && !Application.IsStandalone )
+			FileSystem.Mounted.Mount( LocalAddons.Content );
+
 		EngineFileSystem.ProjectSettings.Mount( activePackage.ProjectSettings );
 		Game.Language.FileSystem.Mount( activePackage.Localization );
 		Game.Language.Refresh();

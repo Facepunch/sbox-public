@@ -1043,6 +1043,9 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 				return;
 			}
 
+			// Assets from addons/local, as the editor mounts them when it opens the project
+			LocalAddons.MountAll( project );
+
 			gameIdent = project.Package.FullIdent;
 		}
 

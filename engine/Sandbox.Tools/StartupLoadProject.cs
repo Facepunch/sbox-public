@@ -150,6 +150,9 @@ static class StartupLoadProject
 		using ( var _ = Bootstrap.StartupTiming?.ScopeTimer( $"Load Project: Init Libraries" ) )
 		{
 			LibrarySystem.InitializeFromProject( project );
+
+			// Assets from other local projects this user mounts into this one, like an addon tested in its game
+			MountedAddons.InitializeFromProject( project );
 		}
 
 		//
