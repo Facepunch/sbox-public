@@ -73,8 +73,9 @@ internal static class ContentCompilerHost
 
 	/// <summary>
 	/// Says it's ready, then answers jobs from standard input until it ends, one per line:
-	/// <c>id \t compile|describe|adopt|fingerprints|types \t source \t staging \t report \t count [\t published]... [\t compiler argument]...</c>,
-	/// where published are the count outputs published since the last request (see <see cref="Admit"/>). Jobs run at once
+	/// <c>id \t compile|describe|adopt|fingerprints|types \t source \t staging \t report \t input \t fingerprint \t count [\t published]... [\t compiler argument]...</c>,
+	/// where input and fingerprint are a child source's (empty and 0 otherwise, see <see cref="Sandbox.ContentBuild.JobInput"/>)
+	/// and published are the count outputs published since the last request (see <see cref="Admit"/>). Jobs run at once
 	/// (<see cref="RunJob"/>) while the main thread does what they need of it; whenever none runs, it lets go of what
 	/// they loaded. Once a job's report and its log (<c>report.log</c>) are written, one line answers it:
 	/// <c>\x01done \t id \t succeeded|failed|refused|error [\t why]</c>: refused, a job it won't run (see <see cref="Admit"/>);
@@ -97,7 +98,7 @@ internal static class ContentCompilerHost
 			while ( System.Console.In.ReadLine() is { } line )
 			{
 				var fields = line.Split( '\t' );
-				if ( fields.Length < 6 || !int.TryParse( fields[5], out var count ) || count < 0 || fields.Length < 6 + count )
+				if ( fields.Length < 8 || !int.TryParse( fields[7], out var count ) || count < 0 || fields.Length < 8 + count )
 				{
 					Reply( "?", "error\tmalformed request" );
 					Volatile.Write( ref exitCode, 1 );
@@ -105,7 +106,7 @@ internal static class ContentCompilerHost
 				}
 
 				// Here, in the order they came, so a job finds every output published before it was asked for
-				lock ( published ) published.UnionWith( fields[6..(6 + count)] );
+				lock ( published ) published.UnionWith( fields[8..(8 + count)] );
 
 				// A thread of its own, as it waits for its job: the pool's would run out
 				Interlocked.Increment( ref answering );
@@ -119,7 +120,7 @@ internal static class ContentCompilerHost
 							return;
 						}
 
-						Reply( fields[0], RunJob( fields[1], fields[2], fields[3], fields[4], fields[(6 + count)..] ) ? "succeeded" : "failed" );
+						Reply( fields[0], RunJob( fields[1], fields[2], Sandbox.ContentBuild.JobInput.Parse( fields[5], fields[6] ), fields[3], fields[4], fields[(8 + count)..] ) ? "succeeded" : "failed" );
 					}
 					// The pool sends no more, and the jobs running beside it finish
 					catch ( Exception e )
@@ -150,7 +151,7 @@ internal static class ContentCompilerHost
 	/// what jobs loaded whenever none runs. A question (<see cref="Answer"/>) is answered on the main thread, as a job of
 	/// its own so it reads the files as they are now.
 	/// </summary>
-	internal static bool RunJob( string mode, string source, string staging, string report, IReadOnlyList<string> compilerArgs )
+	internal static bool RunJob( string mode, string source, Sandbox.ContentBuild.JobInput input, string staging, string report, IReadOnlyList<string> compilerArgs )
 	{
 		if ( mode is "types" or "fingerprints" )
 		{
@@ -171,7 +172,7 @@ internal static class ContentCompilerHost
 		try
 		{
 			var args = string.Join( '\t', compilerArgs );
-			var thread = new Thread( () => result = IResourceCompilerSystem.RunBuildJob( mode, source, staging, report, args ), JobStackSize )
+			var thread = new Thread( () => result = IResourceCompilerSystem.RunBuildJob( mode, source, input?.File ?? "", input?.Fingerprint ?? 0, staging, report, args ), JobStackSize )
 			{
 				IsBackground = true,
 				Name = $"build job {System.IO.Path.GetFileName( source )}",

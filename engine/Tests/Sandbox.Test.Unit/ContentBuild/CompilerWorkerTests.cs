@@ -219,7 +219,7 @@ public class CompilerWorkerTests
 		}
 
 		public Task<CompilerWorker.Answer> Run( string name, CancellationToken token = default, TimeSpan? timeout = null ) =>
-			Task.Run( () => Worker.Run( "compile", name, Directory, "report", [], timeout ?? TimeSpan.FromSeconds( 15 ), token ) );
+			Task.Run( () => Worker.Run( "compile", name, null, Directory, "report", [], timeout ?? TimeSpan.FromSeconds( 15 ), token ) );
 
 		public async Task WaitForFirst()
 		{

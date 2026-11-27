@@ -172,7 +172,7 @@ sealed class CompilerWorker
 	/// Runs one job with its compiler arguments and waits for its answer, while the process runs others. A job that times
 	/// out or is cancelled ends the process, so the jobs it runs besides are interrupted.
 	/// </summary>
-	public Answer Run( string mode, string source, string staging, string report, IReadOnlyList<string> compilerArgs, TimeSpan timeout, CancellationToken token )
+	public Answer Run( string mode, string source, JobInput childInput, string staging, string report, IReadOnlyList<string> compilerArgs, TimeSpan timeout, CancellationToken token )
 	{
 		var id = Interlocked.Increment( ref requests ).ToString();
 		var job = new TaskCompletionSource<Answer>( TaskCreationOptions.RunContinuationsAsynchronously );
@@ -197,7 +197,7 @@ sealed class CompilerWorker
 					outputs = [$"{published.Count}", .. published];
 					published.Clear();
 				}
-				process.StandardInput.WriteLine( string.Join( '\t', [id, mode, source, staging, report, .. outputs, .. compilerArgs] ) );
+				process.StandardInput.WriteLine( string.Join( '\t', [id, mode, source, staging, report, .. JobInput.Fields( childInput ), .. outputs, .. compilerArgs] ) );
 				process.StandardInput.Flush();
 			}
 			catch ( IOException e )

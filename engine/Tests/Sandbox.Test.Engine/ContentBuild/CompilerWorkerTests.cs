@@ -341,6 +341,9 @@ public class CompilerWorkerTests
 		File.WriteAllText( Path.Combine( b.Path, "materials/m.vmat" ), Sources.Material( "shaders/complex.shader", ["TextureColor", "materials/m_color.tga"] ) );
 		File.WriteAllText( Path.Combine( b.Path, "models/box.vmdl" ), Sources.Box( "materials/m.vmat" ) );
 
+		// A material's job takes its generated textures as the build made them
+		Build( fx, b );
+
 		var reused = Compiler( [a, b] );
 		try
 		{

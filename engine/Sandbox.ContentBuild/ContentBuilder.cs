@@ -187,7 +187,8 @@ public sealed class BuildReport
 /// asset whose inputs changed (or that was never built), and from the last successful build of the rest,
 /// whose inputs didn't change. Compiles run once everything they read is current, and report what they
 /// actually read, which checks the description. An asset whose record still holds isn't compiled.
-/// Records, publication and ownership stay per root.
+/// Records, publication and ownership stay per root. A child a compile declares (<see cref="ChildSource"/>, a texture many
+/// materials generate) is a node too, whose source is the bytes its record keeps: it builds once, before what reads it.
 /// </summary>
 public static class ContentBuilder
 {
@@ -244,6 +245,11 @@ public static class ContentBuilder
 		public RecordStore Store;
 		public readonly Dictionary<string, (string Output, AssetKind Kind)> Inventory = new( StringComparer.OrdinalIgnoreCase );
 		public readonly Dictionary<string, string> SourceOf = new( StringComparer.OrdinalIgnoreCase );
+
+		/// <summary>
+		/// The child sources in the inventory, by source: no file is there.
+		/// </summary>
+		public readonly Dictionary<string, ChildSource> Declared = new( StringComparer.OrdinalIgnoreCase );
 
 		public string Relative( string path ) => Path.GetRelativePath( Directory, path ).Replace( '\\', '/' );
 
@@ -333,6 +339,10 @@ public static class ContentBuilder
 		readonly IReadOnlyList<(string Mod, string Path)> mounts = request.Mounts;
 		readonly Dictionary<string, string> arguments = ParseArguments( request.CompilerArgs );
 		readonly List<(string Source, string Visible)> hidden = [];
+
+		// The compiles that declared each child source this build: another declaration must agree with theirs, and one of
+		// theirs failing keeps what it read before
+		readonly Dictionary<(RootState, string), List<Node>> declarers = new( new NodeKey() );
 		long clock;
 		int jobs;
 		int settled;
@@ -406,6 +416,16 @@ public static class ContentBuilder
 				if ( report.Error is not null ) return report;
 
 				foreach ( var selected in request.Select ?? roots.Select( x => x.Def.Path ).ToList() ) Select( selected );
+
+				// After selecting, which only takes files: a child source is built for what reads it
+				foreach ( var root in roots )
+				{
+					foreach ( var record in root.Store.All.Values.Where( x => x.Input is not null ).ToList() )
+					{
+						if ( Declare( new ChildSource( Absolute( root, record.Source ), record.Fingerprint, record.Input ) ) is { } error )
+							report.Log.AppendLine( $"{Name( root, record.Source )}: not built as a child source: {error}" );
+					}
+				}
 				Phase( "inventory" );
 
 				await Plan();
@@ -432,6 +452,7 @@ public static class ContentBuilder
 				}
 
 				if ( report.Error is not null ) return report;
+				if ( request.Select is null ) RemoveUnread();
 				Settle();
 				Phase( "compile and publish" );
 				return report;
@@ -479,7 +500,7 @@ public static class ContentBuilder
 			// Readers in any mounted root may have settled against the retained outputs.
 			if ( cleanupBlocked ) return;
 
-			foreach ( var node in nodes.Values.Where( x => x.State is State.Clean or State.Committed ) )
+			foreach ( var node in nodes.Values.Where( x => x.State is State.Clean or State.Committed && !x.Root.Declared.ContainsKey( x.Source ) ) )
 				report.Current.Add( Absolute( node.Root, node.Source ) );
 
 			foreach ( var (source, visible) in hidden.Where( x => report.Current.Contains( x.Visible ) ) )
@@ -568,6 +589,54 @@ public static class ContentBuilder
 		}
 
 		/// <summary>
+		/// Puts a child source in the inventory of the root it's in, the latest declaration's bytes standing for it. Why it
+		/// can't be, or null.
+		/// </summary>
+		string Declare( ChildSource child, Node declarer = null )
+		{
+			var root = roots.FirstOrDefault( x => x.InRoot( child.Source ) is not null );
+			if ( root is null ) return $"declares {child.Source}, which is outside every root of this build";
+
+			var source = root.InRoot( child.Source );
+			if ( File.Exists( child.Source ) ) return $"declares {source}, which is a file";
+			var kind = compiler.Classify( Path.GetExtension( source ), out var outputExtension );
+			if ( kind is not (AssetKind.Compiled or AssetKind.Described) ) return $"declares {source}, which isn't built";
+
+			var output = Path.ChangeExtension( source, outputExtension );
+			if ( root.SourceOf.TryGetValue( output, out var other ) && !string.Equals( other, source, StringComparison.OrdinalIgnoreCase ) ) return $"declares {source}, but {other} builds {output}";
+
+			// A path stands for one child: another compile declaring it with another fingerprint is a different one
+			if ( declarer is not null && declarers.ContainsKey( (root, source) ) && root.Declared[source].Fingerprint != child.Fingerprint ) return $"declares {source}, which another compile declared differently";
+
+			root.Store.CheckSource( source, output );
+			root.Declared[source] = child;
+
+			// Made from its declarer's bytes, as that compile's child would be, it reads no other compiled output: nothing to describe
+			root.Inventory[source] = (output, AssetKind.Compiled);
+			root.SourceOf[output] = source;
+			if ( declarer is not null )
+			{
+				if ( !declarers.TryGetValue( (root, source), out var by ) ) declarers[(root, source)] = by = [];
+				by.Add( declarer );
+			}
+			return null;
+		}
+
+		/// <summary>
+		/// The child sources a compile declared, before what it read is looked up: false if one can't be, which fails it.
+		/// </summary>
+		bool Declare( Node node, CompileResult result )
+		{
+			foreach ( var child in result.Sources ?? [] )
+			{
+				if ( Declare( child, node ) is not { } error ) continue;
+				Fail( node, error, "" );
+				return false;
+			}
+			return true;
+		}
+
+		/// <summary>
 		/// The node whose source the compiler resolved, in whichever root it is.
 		/// </summary>
 		Node Producer( string source )
@@ -613,9 +682,9 @@ public static class ContentBuilder
 				{
 					report.Described.Add( describe[i].Name );
 
-					// Without a complete description nothing is known about what it reads
-					if ( results[i].Success ) described[describe[i]] = results[i].Prerequisites;
-					else Fail( describe[i], "describe failed", results[i].Log );
+					// Without a complete description nothing is known about what it reads, or declares
+					if ( !results[i].Success ) Fail( describe[i], "describe failed", results[i].Log );
+					else if ( Declare( describe[i], results[i] ) ) described[describe[i]] = results[i].Prerequisites;
 				}
 
 				await Adopt( pending, described );
@@ -672,6 +741,11 @@ public static class ContentBuilder
 				var outputs = result.Outputs.Select( x => AdoptedKey( root, x ) ).Distinct( StringComparer.OrdinalIgnoreCase ).ToList();
 				if ( outputs.Any( x => x is null || root.Locate( x ) is null ) || !outputs.Contains( node.Output, StringComparer.OrdinalIgnoreCase ) ) continue;
 
+				// A child built as a source of its own (its generated texture) is that node's output, and a read of this one,
+				// checked as the edit info checked what the child was made from
+				var children = outputs.Where( x => !string.Equals( x, node.Output, StringComparison.OrdinalIgnoreCase ) && root.SourceOf.TryGetValue( x, out var producer ) && root.Declared.ContainsKey( producer ) ).ToList();
+				outputs.RemoveAll( x => children.Contains( x, StringComparer.OrdinalIgnoreCase ) );
+
 				// An output only it owned that this build of it doesn't make is a compile's to remove
 				if ( node.Record is not null && Unshared( root, node.Record.Outputs.Keys.Where( x => !outputs.Contains( x, StringComparer.OrdinalIgnoreCase ) ), node.Source ).Any() ) continue;
 
@@ -679,6 +753,7 @@ public static class ContentBuilder
 				var reads = (described.TryGetValue( node, out var fresh ) ? fresh.Select( Read ).Where( x => x.File is not null && x.Producer != node ).ToList() : (node.Record?.Prerequisites ?? []).Select( x => (Producer: ProducerOfOutput( x.File ), File: Path.GetFullPath( x.File ), x.OrderOnly) ).ToList())
 					.Where( x => !outputs.Contains( AdoptedKey( root, x.File ), StringComparer.OrdinalIgnoreCase ) ).ToList();
 				var checkedReads = result.Inputs.Where( x => x.Game ).Select( x => Path.GetFullPath( x.Path ) ).ToHashSet( StringComparer.OrdinalIgnoreCase );
+				checkedReads.UnionWith( children.Select( x => Path.GetFullPath( root.Resolve( x ) ) ) );
 				if ( reads.Any( x => !x.OrderOnly && !checkedReads.Contains( x.File ) ) ) continue;
 
 				// A read the output checked is one of its contents, even where its description only orders it
@@ -770,6 +845,8 @@ public static class ContentBuilder
 			Special = result.Special.Distinct().ToList(),
 			Arguments = result.Arguments.Distinct().ToDictionary( x => x, x => arguments.GetValueOrDefault( x ) ),
 			Prerequisites = prerequisites,
+			Input = node.Root.Declared.GetValueOrDefault( node.Source )?.Bytes,
+			Fingerprint = node.Root.Declared.GetValueOrDefault( node.Source )?.Fingerprint ?? 0,
 		};
 
 		/// <summary>
@@ -800,21 +877,42 @@ public static class ContentBuilder
 		/// </summary>
 		void RemoveDeletedSources( RootState root, List<AssetRecord> deleted )
 		{
-			foreach ( var record in deleted )
-			{
-				if ( File.Exists( Path.Combine( root.Def.Path, record.Source ) ) ) continue;
+			foreach ( var record in deleted.Where( x => x.Input is null && !File.Exists( Path.Combine( root.Def.Path, x.Source ) ) ) )
+				Remove( root, record );
+		}
 
-				var outputs = Unshared( root, record.Outputs.Keys, record.Source ).ToList();
-				try
+		/// <summary>
+		/// Removes child sources no record reads what they build any more. A record that failed to build again still reads
+		/// what it read before; one that never built (a first compile that failed) reads nothing.
+		/// </summary>
+		void RemoveUnread()
+		{
+			var read = roots.SelectMany( x => x.Store.All.Values ).SelectMany( x => x.Prerequisites ).Select( x => Path.GetFullPath( x.File ) ).ToHashSet( StringComparer.OrdinalIgnoreCase );
+			foreach ( var root in roots )
+			{
+				foreach ( var record in root.Store.All.Values.Where( x => x.Input is not null && root.Declared.ContainsKey( x.Source ) ).ToList() )
 				{
-					Changed( root.Store.Publish( record.Source, NewJob(), null, new Dictionary<string, string>(), outputs, request.BeforeCommit ) );
-					report.Removed.Add( Name( root, record.Source ) );
+					if ( record.Outputs.Keys.Any( x => root.Resolve( x ) is { } path && read.Contains( Path.GetFullPath( path ) ) ) ) continue;
+
+					// A compile that declared it and failed may have no record yet, but an output from before that uses it
+					if ( declarers.TryGetValue( (root, record.Source), out var by ) && by.Any( x => x.State is State.Failed or State.Blocked && x.Root.Resolve( x.Output ) is { } output && File.Exists( output ) ) ) continue;
+					Remove( root, record );
 				}
-				catch ( PublishFailedException e )
-				{
-					report.Failed.Add( Name( root, record.Source ) );
-					report.Log.AppendLine( $"{Name( root, record.Source )}: {e.Message}" );
-				}
+			}
+		}
+
+		void Remove( RootState root, AssetRecord record )
+		{
+			var outputs = Unshared( root, record.Outputs.Keys, record.Source ).ToList();
+			try
+			{
+				Changed( root.Store.Publish( record.Source, NewJob(), null, new Dictionary<string, string>(), outputs, request.BeforeCommit ) );
+				report.Removed.Add( Name( root, record.Source ) );
+			}
+			catch ( PublishFailedException e )
+			{
+				report.Failed.Add( Name( root, record.Source ) );
+				report.Log.AppendLine( $"{Name( root, record.Source )}: {e.Message}" );
 			}
 		}
 
@@ -1010,7 +1108,12 @@ public static class ContentBuilder
 			var slot = freeStaging.TryTake( out var free ) ? free : Interlocked.Increment( ref jobs );
 			var staging = Path.Combine( node.Root.Def.StateDirectory, "staging", $"{slot:x}" );
 			Directory.CreateDirectory( staging );
-			return new CompileJob( node.Root.Def, mounts, Path.Combine( node.Root.Def.Path, node.Source ), staging, request.CompilerArgs, mode );
+			var source = Path.Combine( node.Root.Def.Path, node.Source );
+			if ( !node.Root.Declared.TryGetValue( node.Source, out var child ) ) return new CompileJob( node.Root.Def, mounts, source, staging, request.CompilerArgs, mode );
+
+			// Beside staging, which holds only outputs; it goes with it
+			File.WriteAllBytes( staging + ".input", child.Bytes );
+			return new CompileJob( node.Root.Def, mounts, source, staging, request.CompilerArgs, mode, new JobInput( staging + ".input", child.Fingerprint ) );
 		}
 
 		/// <summary>
@@ -1059,6 +1162,7 @@ public static class ContentBuilder
 			}
 
 			var root = node.Root;
+			if ( !Declare( node, result ) ) return;
 			var reads = Reads( node, result, result.Outputs.Select( x => root.OutputKey( x, staging ) ).ToHashSet( StringComparer.OrdinalIgnoreCase ), file => File.Exists( file ) ? Hashing.File( file ) : "0" );
 
 			// Read something not yet built this run: its description missed it. Build it first and rerun,
@@ -1125,7 +1229,7 @@ public static class ContentBuilder
 				if ( producer == node ) continue;
 
 				var file = Path.GetFullPath( producer is not null ? producer.Root.Resolve( producer.Output ) : read.Compiled ?? read.Source + "_c" );
-				if ( producer is null && node.Root.Key( file ) is { } key && own.Contains( key ) ) continue;
+				if ( node.Root.Key( file ) is { } key && own.Contains( key ) ) continue;
 
 				reads.Add( (producer, new RecordedPrerequisite( file, hashOf( file ), ReadOutput( producer, file ), read.OrderOnly )) );
 			}
@@ -1198,6 +1302,11 @@ public static class ContentBuilder
 			if ( record is null ) return "never built";
 			if ( record.ChangedWhileCompiling ) return "an input changed while it compiled";
 
+			// Built from a file and now declared, or the other way round, or declared as another child under its name
+			var declared = node.Root.Declared.GetValueOrDefault( node.Source );
+			if ( (record.Input is not null) != (declared is not null) ) return declared is null ? "is a file now" : "is a declared child now";
+			if ( declared is not null && declared.Fingerprint != record.Fingerprint ) return "declared differently";
+
 			foreach ( var input in record.Inputs )
 			{
 				var file = new FileInfo( input.Path );
@@ -1231,6 +1340,9 @@ public static class ContentBuilder
 				var output = prerequisite.Output ?? roots.Select( x => x.InRoot( prerequisite.File ) ).FirstOrDefault( x => x is not null );
 				if ( output is null ) return $"{prerequisite.File} is outside every root of this build";
 				if ( output.Length == 0 ) continue;
+
+				// A child source's output is in its declarer's root, whatever the mounts find first
+				if ( node.Root.InRoot( prerequisite.File ) is { } key && node.Root.SourceOf.TryGetValue( key, out var producer ) && node.Root.Declared.ContainsKey( producer ) ) continue;
 
 				var resolved = roots.LastOrDefault( x => x.SourceOf.ContainsKey( output ) )?.Resolve( output )
 					?? mounts.Reverse().Select( x => Path.GetFullPath( Path.Combine( x.Path, output ) ) ).FirstOrDefault( File.Exists );
@@ -1368,12 +1480,16 @@ public static class ContentBuilder
 			try { if ( Directory.Exists( dir ) ) Directory.Delete( dir, true ); }
 			catch ( IOException ) { }
 			catch ( UnauthorizedAccessException ) { }
+
+			try { File.Delete( dir + ".input" ); }
+			catch ( IOException ) { }
+			catch ( UnauthorizedAccessException ) { }
 		}
 
 		void ReleaseStaging( string dir )
 		{
 			DeleteStaging( dir );
-			if ( !Directory.Exists( dir ) ) freeStaging.Add( Convert.ToInt32( Path.GetFileName( dir ), 16 ) );
+			if ( !Directory.Exists( dir ) && !File.Exists( dir + ".input" ) ) freeStaging.Add( Convert.ToInt32( Path.GetFileName( dir ), 16 ) );
 		}
 
 		sealed class NodeKey : IEqualityComparer<(RootState Root, string Source)>

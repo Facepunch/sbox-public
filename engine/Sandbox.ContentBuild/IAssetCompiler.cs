@@ -2,8 +2,8 @@ namespace Sandbox.ContentBuild;
 
 /// <summary>
 /// Compiles one asset at a time, in its own process or in the editor. It never compiles anything but the
-/// asset it is given (generated children stay inside it) and reports what the compile read, so the build
-/// can check its order and decide next time whether the outputs are still current.
+/// asset it is given (generated children stay inside it, or are declared as sources of their own) and reports what
+/// the compile read, so the build can check its order and decide next time whether the outputs are still current.
 /// </summary>
 public interface IAssetCompiler
 {
@@ -70,12 +70,15 @@ public enum JobMode
 /// <param name="Mounts">What the build mounts (<see cref="BuildRequest.Mounts"/>), for a compiler that has to mount it itself.</param>
 /// <param name="Source">Absolute path of the source file.</param>
 /// <param name="Staging">Empty directory the compile writes into.</param>
-public sealed record CompileJob( ContentRoot Root, IReadOnlyList<(string Mod, string Path)> Mounts, string Source, string Staging, IReadOnlyList<string> CompilerArgs, JobMode Mode = JobMode.Compile );
+/// <param name="Input">For a child source (<see cref="ChildSource"/>), what to compile <paramref name="Source"/> from
+/// instead of the source itself, as the compile that declared it would have made the child.</param>
+public sealed record CompileJob( ContentRoot Root, IReadOnlyList<(string Mod, string Path)> Mounts, string Source, string Staging, IReadOnlyList<string> CompilerArgs, JobMode Mode = JobMode.Compile, JobInput Input = null );
 
 /// <param name="Outputs">Absolute paths of everything written, under the staging directory.</param>
 /// <param name="Inputs">Every file read, with the checksum the compile saw, including optional ones that didn't exist.</param>
 /// <param name="Arguments">Names of the compiler arguments the compile asked for.</param>
 /// <param name="Prerequisites">Other assets' compiled outputs the compile read.</param>
+/// <param name="Sources">Children the compile would make from bytes, which the build compiles as sources of their own.</param>
 public sealed record CompileResult(
 	bool Success,
 	string Log,
@@ -83,7 +86,8 @@ public sealed record CompileResult(
 	IReadOnlyList<InputFact> Inputs,
 	IReadOnlyList<SpecialDependency> Special,
 	IReadOnlyList<string> Arguments,
-	IReadOnlyList<PrerequisiteRead> Prerequisites );
+	IReadOnlyList<PrerequisiteRead> Prerequisites,
+	IReadOnlyList<ChildSource> Sources = null );
 
 /// <param name="Path">Absolute path, as the compiler resolved it.</param>
 /// <param name="Exists">False for an optional input that wasn't there; it matters if it appears.</param>
@@ -99,6 +103,27 @@ public sealed record SpecialDependency( string Compiler, uint Data, string Name,
 public sealed record PrerequisiteRead( string Source, string Compiled, bool OrderOnly = false );
 
 /// <summary>
+/// A child a compile would make from bytes (a material's generated texture), which every compile that makes it
+/// declares instead. The build compiles it once, as a source of its own named by its path, and the compiles that
+/// declare it read the built one. A name stands for one child: any declaration's bytes make it.
+/// </summary>
+/// <param name="Source">Absolute path the child is compiled as; no file is there.</param>
+/// <param name="Fingerprint">What stands for the bytes in its output (<see cref="JobInput.Fingerprint"/>).</param>
+public sealed record ChildSource( string Source, uint Fingerprint, byte[] Bytes );
+
+/// <summary>
+/// A child source's bytes, in a file, and what stands for them in its output: the job compiles it as the compile that
+/// declared it would have made the child.
+/// </summary>
+public sealed record JobInput( string File, uint Fingerprint )
+{
+	/// <summary>As a worker request carries it.</summary>
+	public static string[] Fields( JobInput input ) => input is null ? ["", "0"] : [input.File, $"{input.Fingerprint:x}"];
+
+	public static JobInput Parse( string file, string fingerprint ) => file.Length == 0 ? null : new( file, uint.Parse( fingerprint, System.Globalization.NumberStyles.HexNumber ) );
+}
+
+/// <summary>
 /// The tab-separated facts resourcecompiler reports for a build (ResourceCompilerContext::ReportBuildFact),
 /// between a "buildreport 1" header and a "result 0|1" trailer. Anything else fails the job: a crashed
 /// or truncated compile mustn't look like one that read nothing.
@@ -112,6 +137,7 @@ public static class BuildReportParser
 		var special = new List<SpecialDependency>();
 		var arguments = new List<string>();
 		var prerequisites = new List<PrerequisiteRead>();
+		var sources = new List<ChildSource>();
 		CompileResult Malformed( string why ) => new( false, $"malformed build report: {why}\n{log}", [], [], [], [], [] );
 
 		var list = lines.Select( x => x.TrimEnd( '\r', '\0' ) ).Where( x => x.Length > 0 ).ToList();
@@ -128,12 +154,13 @@ public static class BuildReportParser
 				("special", 5 ) => Add( special, new SpecialDependency( f[1], uint.Parse( f[2] ), f[4], Hex( f[3] ) ) ),
 				("arg", 2 ) => Add( arguments, f[1] ),
 				("prereq", 3 or 4 ) => f[1].Length == 0 || (f.Length == 3 || f[3] == "order") && Add( prerequisites, new PrerequisiteRead( f[1], f[2].Length > 0 ? Path.GetFullPath( f[2] ) : null, f.Length == 4 ) ),
+				("source", 4 ) => Add( sources, new ChildSource( Path.GetFullPath( f[1] ), Hex( f[2] ), Convert.FromHexString( f[3] ) ) ),
 				_ => false,
 			};
 			if ( !ok ) return Malformed( line );
 		}
 
-		return new CompileResult( success && list[^1] == "result\t1", log, outputs, inputs, special, arguments, prerequisites );
+		return new CompileResult( success && list[^1] == "result\t1", log, outputs, inputs, special, arguments, prerequisites, sources );
 	}
 
 	static bool Add<T>( List<T> list, T item )

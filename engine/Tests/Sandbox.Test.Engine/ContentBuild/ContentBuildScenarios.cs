@@ -1086,6 +1086,9 @@ public class ManagedContentBuild : ContentBuildScenarios
 		void WriteLib( string text ) => File.WriteAllText( Path.Combine( lib.Path, "materials/m.vmat" ), text.ReplaceLineEndings( "\r\n" ) );
 		string ProjM = $"{fx.Mod}:materials/m.vmat", Box = $"{fx.Mod}:models/box.vmdl";
 
+		// Each material's generated textures compile as jobs of their own, first
+		string[] Compiled( BuildReport report ) => [.. report.Jobs.Where( x => !x.Contains( ".generated.", StringComparison.OrdinalIgnoreCase ) )];
+
 		Directory.CreateDirectory( Path.Combine( lib.Path, "materials" ) );
 		File.Copy( Path.Combine( ContentFixture.Engine, Sources.ImageA ), Path.Combine( lib.Path, "materials/m_color.tga" ) );
 		WriteLib( Sources.Material( "TextureColor", "materials/m_color.tga" ) );
@@ -1096,7 +1099,7 @@ public class ManagedContentBuild : ContentBuildScenarios
 		var report = Build();
 		Assert.IsTrue( report.Success, report.Log.ToString() );
 		Assert.AreEqual( 0, report.DescribeMisses, report.Log.ToString() );
-		CollectionAssert.AreEqual( new[] { ProjM, Box }, report.Jobs.ToArray(), report.Log.ToString() );
+		CollectionAssert.AreEqual( new[] { ProjM, Box }, Compiled( report ), report.Log.ToString() );
 
 		// The library's copy is hidden now: it isn't built
 		WriteLib( Sources.Material( "shaders/unlit.shader", ["TextureColor", "materials/m_color.tga"] ) );
@@ -1107,7 +1110,7 @@ public class ManagedContentBuild : ContentBuildScenarios
 		fx.Write( "materials/m.vmat", Sources.Material( "shaders/unlit.shader", ["TextureColor", "materials/m_color.tga"] ) );
 		report = Build();
 		Assert.IsTrue( report.Success, report.Log.ToString() );
-		CollectionAssert.AreEqual( new[] { ProjM }, report.Jobs.ToArray(), report.Log.ToString() );
+		CollectionAssert.AreEqual( new[] { ProjM }, Compiled( report ), report.Log.ToString() );
 	}
 
 	[TestMethod]

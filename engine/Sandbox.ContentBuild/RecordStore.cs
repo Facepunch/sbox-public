@@ -52,6 +52,16 @@ public sealed class AssetRecord
 	/// How long the compile took, so the longest start first when it compiles again.
 	/// </summary>
 	public double Seconds { get; set; }
+
+	/// <summary>
+	/// A child source's bytes and fingerprint, as it was last built from them (<see cref="ChildSource"/>): what it
+	/// builds from again when no compile declares it this build. Null for a source file.
+	/// </summary>
+	[System.Text.Json.Serialization.JsonIgnore( Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault )]
+	public byte[] Input { get; set; }
+
+	[System.Text.Json.Serialization.JsonIgnore( Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault )]
+	public uint Fingerprint { get; set; }
 }
 
 public sealed record FileStamp( long Size, long Time, string Hash );
