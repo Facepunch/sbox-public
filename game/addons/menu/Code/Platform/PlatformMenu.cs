@@ -6,7 +6,7 @@ namespace MenuProject.Platform;
 /// The menu: s&amp;box opens on a game's own menu, with a dock along the bottom to
 /// switch games. A game with a <c>MenuScene</c> is loaded onto it (<see cref="MenuUtility.OpenGameMenu"/>); one
 /// without isn't loaded until it's played, and gets the default front made from its Workshop item
-/// (<see cref="GameFront"/>). Games are remembered by their Workshop id.
+/// (<see cref="GameFront"/>). Games are remembered by their Workshop id, local projects by their ident.
 /// </summary>
 public static class PlatformMenu
 {
@@ -150,10 +150,11 @@ public static class PlatformMenu
 	}
 
 	//
-	// Remembered by Workshop id
+	// Remembered by Workshop id - or a local project, such as the bundled Sandbox, by its ident
 	//
 
 	const string GameCookie = "platform.game";
+	const string LocalGameCookie = "platform.game.local";
 	const string RecentCookie = "platform.recent";
 	const int MaxRecent = 7;
 
@@ -196,6 +197,7 @@ public static class PlatformMenu
 		if ( id == 0 ) return;
 
 		Game.Cookies.Set( GameCookie, id );
+		Game.Cookies.Remove( LocalGameCookie );
 
 		var recent = Recent;
 		recent.Remove( id );
@@ -208,6 +210,29 @@ public static class PlatformMenu
 
 		// And it's downloaded now, or will be
 		_ = Downloaded.RefreshAsync();
+	}
+
+	/// <summary>
+	/// A local project picked - opened on next time, while it's still registered, over the Workshop game picked before it
+	/// </summary>
+	static void Remember( Package local )
+	{
+		if ( local is null || local.IsRemote || !Package.TryParseIdentParts( local.FullIdent, out var ident ) ) return;
+
+		Game.Cookies.Set( LocalGameCookie, Package.FormatIdent( ident.org, ident.package ) );
+	}
+
+	/// <summary>
+	/// The local project picked last time, if it's still one of the installed games the dock offers - registered, and
+	/// not broken
+	/// </summary>
+	static Package RememberedLocal()
+	{
+		if ( !Package.TryParseIdentParts( Game.Cookies.Get<string>( LocalGameCookie, null ), out var remembered ) ) return null;
+
+		return MenuUtility.FindInstalledGames().FirstOrDefault( x => Package.TryParseIdentParts( x.FullIdent, out var ident )
+			&& string.Equals( ident.org, remembered.org, StringComparison.OrdinalIgnoreCase )
+			&& string.Equals( ident.package, remembered.package, StringComparison.OrdinalIgnoreCase ) );
 	}
 
 	//
@@ -257,6 +282,12 @@ public static class PlatformMenu
 			if ( !string.IsNullOrWhiteSpace( startup ) )
 			{
 				if ( await Package.FetchAsync( startup, false ) is { } given ) await Switch( given );
+				return;
+			}
+
+			if ( RememberedLocal() is { } rememberedLocal )
+			{
+				await Switch( rememberedLocal );
 				return;
 			}
 
@@ -437,6 +468,8 @@ public static class PlatformMenu
 		Current = package;
 		Details = null;
 		PackageFailed = false;
+
+		Remember( package );
 
 		// Not in someone else's party, where the leader picks what's played
 		if ( HasOwnMenu( package ) && MenuHelpers.HasAuthority )
