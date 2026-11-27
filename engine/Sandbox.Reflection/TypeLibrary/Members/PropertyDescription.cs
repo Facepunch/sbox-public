@@ -20,7 +20,7 @@ public sealed class PropertyDescription : MemberDescription
 		o ??= new PropertyDescription( td.library );
 		o.TypeDescription = td;
 
-		if ( inherited is not null ) o.InitFrom( inherited );
+		if ( inherited is not null ) o.InitFrom( i, inherited );
 		else o.InitProperty( i );
 
 		return o;
@@ -51,9 +51,9 @@ public sealed class PropertyDescription : MemberDescription
 		IsIndexer = x.GetIndexParameters().Length > 0;
 	}
 
-	private void InitFrom( PropertyDescription inherited )
+	private void InitFrom( MemberInfo member, PropertyDescription inherited )
 	{
-		base.InitFrom( inherited );
+		base.InitFrom( member, inherited );
 
 		CanWrite = inherited.CanWrite;
 		CanRead = inherited.CanRead;

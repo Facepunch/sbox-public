@@ -41,7 +41,7 @@ public sealed partial class MethodDescription : MemberDescription
 		o ??= new MethodDescription( td.library );
 		o.TypeDescription = td;
 
-		if ( inherited is not null ) o.InitFrom( inherited );
+		if ( inherited is not null ) o.InitFrom( i, inherited );
 		else o.InitMethod( i );
 
 		return o;
@@ -64,7 +64,7 @@ public sealed partial class MethodDescription : MemberDescription
 		base.Init( x );
 	}
 
-	private void InitFrom( MethodDescription inherited )
+	private void InitFrom( MemberInfo member, MethodDescription inherited )
 	{
 		IsStatic = inherited.IsStatic;
 		IsPublic = inherited.IsPublic;
@@ -74,7 +74,7 @@ public sealed partial class MethodDescription : MemberDescription
 		OperatorKind = inherited.OperatorKind;
 		parameters = inherited.parameters;
 
-		base.InitFrom( inherited );
+		base.InitFrom( member, inherited );
 	}
 
 	internal override void Dispose()

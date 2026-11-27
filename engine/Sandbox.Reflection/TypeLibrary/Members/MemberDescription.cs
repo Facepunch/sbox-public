@@ -170,11 +170,13 @@ public class MemberDescription : ISourceLineProvider, IMemberNameProvider, ITitl
 
 	/// <summary>
 	/// Take the reflection data of the base type's description of this inherited member, instead of capturing our own copies.
-	/// <see cref="TypeDescription"/> and <see cref="Identity"/> stay ours.
+	/// <see cref="TypeDescription"/>, <see cref="Identity"/> and <see cref="MemberInfo"/> stay ours: the member stays reflected
+	/// through our own type, as it is without sharing, so it equals the member reflection gives for that type (script
+	/// permissions compare members that way).
 	/// </summary>
-	protected void InitFrom( MemberDescription inherited )
+	protected void InitFrom( MemberInfo member, MemberDescription inherited )
 	{
-		MemberInfo = inherited.MemberInfo;
+		MemberInfo = member;
 		Name = inherited.Name;
 		Attributes = inherited.Attributes;
 		Tags = inherited.Tags;

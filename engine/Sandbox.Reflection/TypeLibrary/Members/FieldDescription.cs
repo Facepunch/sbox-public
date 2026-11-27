@@ -23,7 +23,7 @@ public sealed class FieldDescription : MemberDescription
 		o ??= new FieldDescription( td.library );
 		o.TypeDescription = td;
 
-		if ( inherited is not null ) o.InitFrom( inherited );
+		if ( inherited is not null ) o.InitFrom( i, inherited );
 		else o.InitField( i );
 
 		return o;
@@ -52,9 +52,9 @@ public sealed class FieldDescription : MemberDescription
 		}
 	}
 
-	private void InitFrom( FieldDescription inherited )
+	private void InitFrom( MemberInfo member, FieldDescription inherited )
 	{
-		base.InitFrom( inherited );
+		base.InitFrom( member, inherited );
 
 		FieldType = inherited.FieldType;
 		IsStatic = inherited.IsStatic;
