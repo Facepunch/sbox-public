@@ -233,6 +233,12 @@ internal sealed class BorealisGpuFrame : IDisposable
 
 	static Material depthResolve;
 	Texture resolvedDepth, resolveScratch;
+
+	/// <summary>Make the materials frames draw with, on the main thread at startup: frames draw on the render thread.</summary>
+	internal static void WarmUp()
+	{
+		depthResolve ??= Material.FromShader( "shaders/depthresolve.shader" );
+	}
 	RenderTarget resolveTarget;
 	RenderAttributes resolveAttributes;
 

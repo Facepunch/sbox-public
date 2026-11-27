@@ -325,8 +325,12 @@ internal sealed partial class SceneBridge : ISceneRenderer
 	/// </summary>
 	public void WarmUp()
 	{
-		// Material creation is main-thread only. The native material is immutable; each draw has its own attributes.
+		// Material creation is main-thread only (native asserts otherwise), and frames draw on the render thread: every material
+		// a frame's drawing uses is made here. The native material is immutable; each draw has its own attributes.
 		copyMaterial ??= Material.FromShader( "shaders/copytexture.shader" );
+		uberMaterial ??= Material.FromShader( "shaders/postprocess/pp_uber.shader" );
+		BorealisGpuFrame.WarmUp();
+		BorealisGpuUpscaler.WarmUp();
 		RenderSystem.WarmUp();
 	}
 

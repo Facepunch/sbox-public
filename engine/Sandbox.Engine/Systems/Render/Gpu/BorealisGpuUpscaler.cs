@@ -134,7 +134,7 @@ internal sealed class BorealisGpuUpscaler : IDisposable
 
 	Texture output, intermediate, depth, motionVectors, reactiveMask, temporalDepth;
 	RenderTarget depthTarget, motionTarget, reactiveTarget, temporalDepthTarget;
-	Material motionMaterial, reactiveMaterial, reactiveDebugMaterial;
+	static Material motionMaterial, reactiveMaterial, reactiveDebugMaterial;
 	ComputeShader easu, rcas;
 	RenderAttributes easuAttributes, rcasAttributes, depthAttributes, reactiveAttributes;
 
@@ -439,7 +439,7 @@ internal sealed class BorealisGpuUpscaler : IDisposable
 	/// </summary>
 	public void DrawReactiveMask( Rect displayViewport )
 	{
-		if ( !IsTemporal || reactiveMask is null || reactiveDebugMaterial is null || depthTarget is null ) return;
+		if ( !debugReactiveMask || !IsTemporal || reactiveMask is null || reactiveDebugMaterial is null || depthTarget is null ) return;
 		reactiveAttributes.Set( ReactiveMaskName, reactiveMask );
 		Graphics.RenderTarget = depthTarget;
 		Graphics.Viewport = displayViewport;
@@ -451,6 +451,15 @@ internal sealed class BorealisGpuUpscaler : IDisposable
 
 	static Material depthResolve;
 	static Material DepthResolve => depthResolve ??= Material.FromShader( "shaders/depthresolve.shader" );
+
+	/// <summary>Make the materials upscaling draws with, on the main thread at startup: frames draw on the render thread.</summary>
+	internal static void WarmUp()
+	{
+		_ = DepthResolve;
+		motionMaterial ??= Material.FromShader( "shaders/motion_vectors.shader" );
+		reactiveMaterial ??= Material.FromShader( "shaders/reactive_mask_generate.shader" );
+		reactiveDebugMaterial ??= Material.FromShader( "shaders/reactive_mask_debug.shader" );
+	}
 
 	/// <summary>Made outside any block, with the rest of a frame's materials (materials can't be made while drawing).</summary>
 	public static void Prepare() => _ = DepthResolve;
