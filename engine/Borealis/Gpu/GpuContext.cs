@@ -426,17 +426,28 @@ internal abstract class GpuContext : IDisposable
 	}
 
 	/// <summary>
-	/// Whether <paramref name="view"/>'s ids this frame can be resolved into normals (<see cref="GpuDevice.ResolvesIdsNormals"/>):
-	/// its state was cleared for this frame's prepass. On the frame's context, after <see cref="BeginGpuDrivenView"/>.
+	/// Whether <paramref name="view"/>'s ids this frame can be resolved (<see cref="GpuDevice.ResolvesIds"/>): its state was
+	/// cleared for this frame's prepass, which kept its whole prepass's ids with their instance records. On the frame's
+	/// context, after <see cref="BeginGpuDrivenView"/>.
 	/// </summary>
 	internal virtual bool IdsNormalsReady( object view ) => false;
+
+	/// <summary>
+	/// <paramref name="view"/>'s frame reads object motion (<see cref="RenderView.ObjectMotion"/>): its prepass draws its
+	/// skinned meshes' ids, and the device's views keep ids the motion can be resolved from while views ask, from the next
+	/// frame. Views that stop asking draw as they did without it a couple of frames later.
+	/// </summary>
+	internal virtual void WantObjectMotion( object view )
+	{
+	}
 
 	/// <summary>
 	/// After <paramref name="view"/>'s depth prepass: the normal of each pixel's triangle, found from its id, into
 	/// <paramref name="target"/> (the viewport's size, RGBA16F storage: the world-space normal facing the camera and 1, or
 	/// zeros where a pixel has none) and its object motion into <paramref name="motion"/> (the same size and format, against
 	/// <paramref name="previousTransforms"/>), from <paramref name="depth"/>, the view's world to clip transform (before y is
-	/// negated), its viewport in the depth target and the depth range it draws into. False when it wrote nothing.
+	/// negated), its viewport in the depth target and the depth range it draws into. Either target may be null, and its work
+	/// is left out. False when it wrote nothing.
 	/// </summary>
 	internal virtual bool ResolveIdsNormals( object view, GpuTexture depth, GpuTexture target, GpuTexture motion, GpuBuffer previousTransforms, in System.Numerics.Matrix4x4 worldToClip, Rect viewport, float minZ, float maxZ ) => false;
 

@@ -90,6 +90,17 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 	internal bool HasCommandLists( Rendering.Stage stage ) => HasCommandListsHook?.Invoke( stage ) ?? false;
 
 	/// <summary>
+	/// Whether the camera component's post processing this frame reads its motion.
+	/// </summary>
+	internal Func<bool> ReadsMotionVectorsHook;
+
+	/// <summary>
+	/// Whether the camera's post processing reads its motion this frame (<c>Motion::Get</c>: motion blur), so the renderer
+	/// resolves objects' own motion for it.
+	/// </summary>
+	internal bool ReadsMotionVectors => ReadsMotionVectorsHook?.Invoke() ?? false;
+
+	/// <summary>
 	/// Run what <see cref="HasEarlyPostProcess"/> found, inside a <see cref="Graphics"/> block on the selected queue. The stage then
 	/// skips it.
 	/// </summary>

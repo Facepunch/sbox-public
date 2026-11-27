@@ -401,6 +401,7 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 	Action<Stage, SceneCamera> executeCommandListsHook;
 	Func<Stage, PostProcessQueue, bool> hasEarlyPostProcessHook;
 	Func<Stage, bool> hasCommandListsHook;
+	Func<bool> readsMotionVectorsHook;
 	Action<Stage, PostProcessQueue> renderEarlyPostProcessHook;
 
 	public void UpdateSceneCamera( SceneCamera camera, bool includeTags = true )
@@ -523,6 +524,7 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 		camera.OnRenderStageHook = executeCommandListsHook ??= ExecuteCommandLists;
 		camera.HasEarlyPostProcessHook = hasEarlyPostProcessHook ??= HasEarlyPostProcess;
 		camera.HasCommandListsHook = hasCommandListsHook ??= HasCommandLists;
+		camera.ReadsMotionVectorsHook = readsMotionVectorsHook ??= ReadsMotionVectors;
 		camera.RenderEarlyPostProcessHook = renderEarlyPostProcessHook ??= RenderEarlyPostProcess;
 	}
 

@@ -73,6 +73,13 @@ public sealed class RenderView
 	internal bool ReactiveDepth { get; set; }
 
 	/// <summary>
+	/// Something this frame is made of its motion (<c>Motion::Get</c>: motion blur, a temporal upscaler's motion vectors): only
+	/// then the ids resolve each pixel's object motion (<see cref="IdsNormalsLayer"/>), and without it the
+	/// frame records none of that work.
+	/// </summary>
+	internal bool ObjectMotion { get; set; }
+
+	/// <summary>
 	/// Mirror the finished frame left to right as it goes into a texture (<c>ViewSetup.FlipX</c>): native flips only a texture
 	/// render's final copy (<c>CCameraRenderer::RenderToTexture</c>), so depth stays as drawn and a swap chain's frame isn't
 	/// flipped.
@@ -380,8 +387,14 @@ public sealed class RenderView
 
 		PreviousWorldToProjection = _updated ? previous : WorldToProjection;
 		PreviousUnjitteredWorldToProjection = _updated ? previousUnjittered : UnjitteredWorldToProjection;
+		PreviousJitter = _updated ? appliedJitter : Jitter;
+		appliedJitter = Jitter;
 		_updated = true;
 	}
+
+	// The jitter the last update drew with, and the one before it
+	Vector2 appliedJitter;
+	internal Vector2 PreviousJitter { get; private set; }
 
 	/// <summary><see cref="ViewToProjection"/> without <see cref="Jitter"/>.</summary>
 	internal Matrix UnjitteredViewToProjection { get; private set; }
@@ -405,7 +418,7 @@ public sealed class RenderView
 	internal void FillUpscaledConstants( ref ViewConstants c, Rect viewport, Vector2 targetSize )
 	{
 		FillProjectionConstants( ref c, UnjitteredViewToProjection, PreviousUnjitteredWorldToProjection );
-		FillViewportConstants( ref c, viewport, targetSize, 1, PreviousUnjitteredWorldToProjection );
+		FillViewportConstants( ref c, viewport, targetSize, 1, PreviousUnjitteredWorldToProjection, Vector2.Zero );
 	}
 
 	void FillProjectionConstants( ref ViewConstants c, in Matrix projection, in Matrix previous )
@@ -422,7 +435,7 @@ public sealed class RenderView
 		c.PrevProjectionToWorld = (previous * ReverseDepth).Inverted;
 	}
 
-	static void FillViewportConstants( ref ViewConstants c, Rect viewport, Vector2 targetSize, int samples, in Matrix previous )
+	static void FillViewportConstants( ref ViewConstants c, Rect viewport, Vector2 targetSize, int samples, in Matrix previous, Vector2 jitterMotion )
 	{
 		var invWidth = 1.0f / viewport.Width;
 		var invHeight = 1.0f / viewport.Height;
@@ -444,6 +457,9 @@ public sealed class RenderView
 			w, h, 0, 1 );
 		c.ViewToScreen = c.ViewToProjection * screen;
 		c.CurrFrameViewToPrevFrameProj = c.WorldToView.Inverted * previous * screen;
+
+		// Last frame's jitter less this frame's, in pixels: how far a point that moves with the camera moved (Motion::Get's overlays)
+		c.PerViewConstantExtraData0 = new( jitterMotion.x * w, -jitterMotion.y * h, 0, 0 );
 	}
 
 	/// <summary>Replace only the target and depth-range constants of an already populated main view.</summary>
@@ -451,7 +467,7 @@ public sealed class RenderView
 	{
 		c.ViewportMinZ = minZ;
 		c.ViewportMaxZ = maxZ;
-		FillViewportConstants( ref c, viewport, targetSize, samples, PreviousWorldToProjection );
+		FillViewportConstants( ref c, viewport, targetSize, samples, PreviousWorldToProjection, PreviousJitter - appliedJitter );
 	}
 
 	/// <summary>

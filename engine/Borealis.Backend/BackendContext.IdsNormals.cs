@@ -4,9 +4,9 @@ using System.Runtime.InteropServices;
 namespace Borealis.Backend;
 
 /// <summary>
-/// Normals from the visibility ids (<see cref="BackendDevice.IdsNormals"/>; docs/reference/borealis-gpu-driven.md, "Normals
-/// from the ids"): after a view's depth prepass, <c>borealis_ids_normals_cs</c> finds each pixel's triangle from its id and
-/// writes its normal.
+/// Normals and object motion from the visibility ids (<see cref="BackendDevice.IdsNormals"/>, <see cref="BackendDevice.ObjectMotionIds"/>;
+/// docs/reference/borealis-gpu-driven.md, "Normals from the ids", "Object motion from the ids"): after a view's depth prepass,
+/// <c>borealis_ids_normals_cs</c> finds each pixel's object, and its triangle, from its id and writes what the frame asked for.
 /// </summary>
 internal sealed partial class BackendContext
 {
@@ -31,7 +31,10 @@ internal sealed partial class BackendContext
 	byte[] idsNormalsConstants, idsNormalsTables;
 
 	/// <inheritdoc/>
-	internal override bool IdsNormalsReady( object view ) => device.ResolvesIdsNormals && device.ExistingVisibility( view ) is { } visibility && IdsNormalsReady( visibility );
+	internal override bool IdsNormalsReady( object view ) => device.ResolvingIds && device.ResolvesIds && device.ExistingVisibility( view ) is { } visibility && IdsNormalsReady( visibility );
+
+	/// <inheritdoc/>
+	internal override void WantObjectMotion( object view ) => device.WantObjectMotion( view );
 
 	// The ids alive too: a child view drawn inside another's frame (water's refraction) was seen with its ids target gone
 	// after its clear (idsfx note), which the resolve then leaves to depth
@@ -53,8 +56,13 @@ internal sealed partial class BackendContext
 	/// <inheritdoc/>
 	internal override bool ResolveIdsNormals( object view, GpuTexture depth, GpuTexture target, GpuTexture motion, GpuBuffer previousTransforms, in System.Numerics.Matrix4x4 worldToClip, Rect viewport, float minZ, float maxZ )
 	{
-		if ( recording is null || depth is not BackendTexture depthTexture || target is not BackendTexture output || motion is not BackendTexture motionOutput || previousTransforms?.Resource is not BackendBuffer previous ) return false;
-		if ( !device.ResolvesIdsNormals || device.ExistingVisibility( view ) is not { } visibility || !IdsNormalsReady( visibility ) )
+		if ( recording is null || depth is not BackendTexture depthTexture ) return false;
+		var output = target as BackendTexture;
+		var motionOutput = motion as BackendTexture;
+		var previous = previousTransforms?.Resource as BackendBuffer;
+		if ( motionOutput is not null && previous is null ) motionOutput = null;
+		if ( output is null && motionOutput is null ) return false;
+		if ( !device.ResolvingIds || !device.ResolvesIds || device.ExistingVisibility( view ) is not { } visibility || !IdsNormalsReady( visibility ) )
 		{
 			System.Threading.Interlocked.Increment( ref device.IdsNormalsSkipped );
 			return false;
@@ -67,14 +75,15 @@ internal sealed partial class BackendContext
 		var slots = tables.Slots;
 		var corners = device.MeshletStore?.CornerSlotCovering( tables.DrawRecords ) ?? -1;
 		var timer = device.PassTimer;
-		var scope = timer?.Begin( r.List, "Ids normals", PassTimer.ScopeKind.Own, count: false ) ?? -1;
-		r.List.Marker( "Ids normals" );
+		var (name, end) = output is null ? ("Ids object motion", "end Ids object motion") : motionOutput is null ? ("Ids normals", "end Ids normals") : ("Ids normals and motion", "end Ids normals and motion");
+		var scope = timer?.Begin( r.List, name, PassTimer.ScopeKind.Own, count: false ) ?? -1;
+		r.List.Marker( name );
 
 		// The depth and the output in their layouts, then the ids (left readable by the last call's mark) and the calls' table
 		// (written by transfers) after their writers
 		Barrier( depthTexture, ImageLayout.ShaderRead );
-		Barrier( output, ImageLayout.General );
-		Barrier( motionOutput, ImageLayout.General );
+		if ( output is not null ) Barrier( output, ImageLayout.General );
+		if ( motionOutput is not null ) Barrier( motionOutput, ImageLayout.General );
 		r.List.Barrier( PipelineStage.ColorTargetOutput | PipelineStage.ComputeShader | PipelineStage.Transfer, MemoryAccess.ColorTargetWrite | MemoryAccess.ShaderWrite | MemoryAccess.TransferWrite, PipelineStage.ComputeShader, MemoryAccess.ShaderRead );
 
 		var (width, height) = ((int)viewport.Width, (int)viewport.Height);
@@ -88,7 +97,9 @@ internal sealed partial class BackendContext
 			OffsetX = (uint)Math.Max( (int)viewport.Left, 0 ),
 			OffsetY = (uint)Math.Max( (int)viewport.Top, 0 ),
 			Corners = corners >= 0 ? (uint)corners : uint.MaxValue,
-			Calls = (uint)Math.Min( visibility.IdsCallCount, BackendDevice.VisibilityView.MaxIdsCalls ),
+			// The whole table, which is zeros past the frame's last call: a frame recorded in parallel can record this before its
+			// prepass has counted its calls (IdsCallCount), and the resolve then found none
+			Calls = BackendDevice.VisibilityView.MaxIdsCalls,
 			Sample = new System.Numerics.Vector4( minZ, maxZ, first.X, first.Y ),
 			WorldX = new System.Numerics.Vector4( m.M11, m.M21, m.M31, m.M41 ),
 			WorldY = new System.Numerics.Vector4( m.M12, m.M22, m.M32, m.M42 ),
@@ -102,19 +113,26 @@ internal sealed partial class BackendContext
 		attributes.Set( "BorealisIds", visibility.Ids );
 		attributes.Set( "BorealisIdsDepth", depthTexture.Handle );
 		attributes.Set( "BorealisIdsCalls", visibility.IdsCalls );
-		attributes.Set( "BorealisIdsNormalsOut", output.Handle );
-		attributes.Set( "BorealisObjectMotionOut", motionOutput.Handle );
+		if ( output is not null ) attributes.Set( "BorealisIdsNormalsOut", output.Handle );
+		if ( motionOutput is not null )
+		{
+			attributes.Set( "BorealisObjectMotionOut", motionOutput.Handle );
+			attributes.Set( "BorealisPrevTransformBuffer", previous.Handle );
+		}
+
 		attributes.Set( "g_TransformBuffer", LentInstances.Transforms );
-		attributes.Set( "BorealisPrevTransformBuffer", previous.Handle );
 		attributes.SetCombo( "D_MSAA", visibility.Samples > 1 ? 1 : 0 );
+		attributes.SetCombo( "D_IDS_NORMALS", output is null ? 0 : 1 );
+		attributes.SetCombo( "D_OBJECT_MOTION", motionOutput is null ? 0 : 1 );
 		attributes.SetData( "BorealisIdsNormals_t", idsNormalsConstants );
 		idsNormalsTables ??= new byte[Marshal.SizeOf<GpuDrivenConstants>()];
 		MemoryMarshal.Write( idsNormalsTables, new GpuDrivenConstants { Draws = (uint)slots.Draws, Geometry = (uint)slots.Geometry, Materials = (uint)slots.Materials, Lighting = (uint)slots.Lighting } );
 		attributes.SetData( "BorealisGpuDriven_t", idsNormalsTables );
 		cullDrawer.Dispatch( r.List, shader, attributes, width, height, 1 );
-		System.Threading.Interlocked.Increment( ref device.IdsNormalsResolved );
+		if ( output is not null ) System.Threading.Interlocked.Increment( ref device.IdsNormalsResolved );
+		if ( motionOutput is not null ) System.Threading.Interlocked.Increment( ref device.ObjectMotionResolved );
 
-		r.List.Marker( "end Ids normals" );
+		r.List.Marker( end );
 		timer?.End( r.List, scope );
 		return true;
 	}

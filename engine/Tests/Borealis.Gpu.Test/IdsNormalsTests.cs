@@ -231,6 +231,83 @@ public class IdsNormalsTests : RenderGpuTest
 		} );
 	}
 
+	/// <summary>
+	/// A frame nothing reads motion in (<see cref="RenderView.ObjectMotion"/> off) records no object motion work: no resolve,
+	/// no target, ids as they are without it (one word, each call's own). Once the view reads motion its object motion is
+	/// resolved within a couple of frames, and a couple of frames after it stops the frame is as it was. With
+	/// <c>-ids-normals</c> and no reader, only the normals are resolved.
+	/// </summary>
+	[TestMethod]
+	public void FramesWithoutAMotionReaderResolveNoMotion()
+	{
+		var core = ContentFiles.FindGame().Roots.FirstOrDefault();
+		if ( core is not null ) Borealis.Backend.Meshlets.MeshOptimizer.Directory = EngineFolders.NativeIn( Path.GetDirectoryName( core ) );
+
+		foreach ( var idsNormals in (bool[])[false, true] )
+		{
+			using var backend = new BackendDevice( Device ) { GpuDrivenGeometry = true, GpuDriven = true, GpuDrivenVisibility = true, Meshlets = true, IdsNormals = idsNormals };
+			GpuDrivenTests.RequireGpuDrivenDepth( backend );
+			if ( backend.IdsNormalsShader is null ) Assert.Inconclusive( "borealis_ids_normals_cs isn't built, or pass modules are off" );
+
+			var previousHost = RenderHost.Current;
+			RenderHost.Current = new BackendRenderHost( backend );
+			try
+			{
+				using var system = new RenderSystem { ParallelRecording = false };
+				using var target = ViewTarget.Create( new Vector2Int( Width, Height ), 1, TextureFormat.RGBA16161616F, TextureFormat.D32FS8, "No motion reader test" );
+				var (world, view, _, _) = BoxScene( backend );
+				var layer = system.Layers.OfType<IdsNormalsLayer>().First();
+				void Frames( int count )
+				{
+					for ( int i = 0; i < count; i++ )
+					{
+						backend.BeginFrame();
+						RenderHost.Current.NextFrame();
+						system.Render( world, view, target );
+						Device.WaitIdle();
+					}
+				}
+
+				void NoMotionWork( string when )
+				{
+					Assert.IsNull( layer.LastMotion, $"{when}: no object motion target" );
+					Assert.IsNull( system.ObjectMotion, $"{when}: no object motion for the engine's stages" );
+					Assert.IsFalse( backend.ObjectMotionIds, $"{when}: the views' ids aren't kept for object motion" );
+					Assert.AreEqual( idsNormals, backend.IdsWhole, $"{when}: the ids are each call's own without -ids-normals" );
+					Assert.AreEqual( idsNormals ? Format.RG32Uint : Format.R32Uint, backend.IdsFormat, $"{when}: the ids have an instance record only with -ids-normals" );
+					Assert.AreEqual( idsNormals, layer.LastResolved is not null, $"{when}: normals only with -ids-normals" );
+				}
+
+				view.ObjectMotion = false;
+				Frames( 8 );
+				NoMotionWork( "never read" );
+				Assert.AreEqual( 0, backend.ObjectMotionResolved, "no motion resolved without a reader" );
+
+				view.ObjectMotion = true;
+				Frames( 4 );
+				var state = $"(motion ids {backend.ObjectMotionIds}, whole {backend.IdsWhole}, format {backend.IdsFormat}, resolved {backend.ObjectMotionResolved}, skipped {backend.IdsNormalsSkipped}, frame {backend.GpuDrivenFrame})";
+				Assert.IsTrue( backend.ObjectMotionIds, "the views keep ids for object motion while a frame reads it" );
+				Assert.IsNotNull( layer.LastMotion, $"a frame that reads motion resolves it {state}" );
+				Assert.IsNotNull( system.ObjectMotion, "and hands it to the engine's stages" );
+				var resolved = backend.ObjectMotionResolved;
+				Assert.IsTrue( resolved > 0, "object motion was resolved" );
+
+				view.ObjectMotion = false;
+				Frames( 4 );
+				NoMotionWork( "after reading stopped" );
+				var settled = backend.ObjectMotionResolved;
+				Frames( 4 );
+				Assert.AreEqual( settled, backend.ObjectMotionResolved, "no motion resolved once nothing reads it" );
+				Assert.AreEqual( 0, Device.ValidationErrors, "no validation errors" );
+			}
+			finally
+			{
+				Device.WaitIdle();
+				RenderHost.Current = previousHost;
+			}
+		}
+	}
+
 	/// <summary><c>Motion::Get</c>'s callers bind the object motion: <c>motion_vectors</c>, the upscalers' input, reads it.</summary>
 	[TestMethod]
 	public void MotionVectorsReadObjectMotion()
@@ -252,7 +329,8 @@ public class IdsNormalsTests : RenderGpuTest
 		var core = ContentFiles.FindGame().Roots.FirstOrDefault();
 		if ( core is not null ) Borealis.Backend.Meshlets.MeshOptimizer.Directory = EngineFolders.NativeIn( Path.GetDirectoryName( core ) );
 
-		using var backend = new BackendDevice( Device ) { GpuDrivenGeometry = true, GpuDriven = true, GpuDrivenMeshes = true, GpuDrivenSkinned = true, GpuDrivenVisibility = true, Meshlets = true, IdsNormals = true };
+		// Without -ids-normals: the view reading motion is what turns the ids' resolve on
+		using var backend = new BackendDevice( Device ) { GpuDrivenGeometry = true, GpuDriven = true, GpuDrivenMeshes = true, GpuDrivenSkinned = true, GpuDrivenVisibility = true, Meshlets = true };
 		GpuDrivenTests.RequireGpuDrivenDepth( backend );
 		if ( backend.IdsNormalsShader is null ) Assert.Inconclusive( "borealis_ids_normals_cs isn't built, or pass modules are off" );
 
@@ -261,6 +339,7 @@ public class IdsNormalsTests : RenderGpuTest
 		try
 		{
 			var (world, view) = scene( backend );
+			view.ObjectMotion = true;
 			using var system = new RenderSystem { ParallelRecording = false };
 			using var target = ViewTarget.Create( new Vector2Int( Width, Height ), 1, TextureFormat.RGBA16161616F, TextureFormat.D32FS8, "Object motion test" );
 			byte[] Frame()
@@ -317,6 +396,8 @@ public class IdsNormalsTests : RenderGpuTest
 			{
 				var attributes = new ShaderAttributes();
 				attributes.SetCombo( "D_MSAA", msaa );
+				attributes.SetCombo( "D_IDS_NORMALS", 1 );
+				attributes.SetCombo( "D_OBJECT_MOTION", 1 );
 				var variant = drawer.Variant( shader, attributes );
 				var spirv = variant?.Compute?.Bytecode?.Spirv ?? variant?.Compute?.Bytecode?.Shared?.Spirv;
 				Assert.IsNotNull( spirv, $"{path} D_MSAA {msaa} compiled" );

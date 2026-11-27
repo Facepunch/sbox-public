@@ -544,6 +544,12 @@ internal sealed class TransformBuffer : IDisposable
 	Skin[] skins = [];
 
 	/// <summary>
+	/// Whether skinned base entries name their mesh's base slot last frame, for object motion (<see cref="RenderView.ObjectMotion"/>):
+	/// off, they name none and nothing is tracked, so a frame that starts reading motion gets its skinned meshes' from the next.
+	/// </summary>
+	public bool TracksSkins { get; set; }
+
+	/// <summary>
 	/// Append base, morph and bone frame entries for <paramref name="owner"/>'s model mesh <paramref name="mesh"/>; return the
 	/// base slot (<c>CAnimatableSceneObjectDesc::AllocateTransforms</c>, <c>SetupBones</c>). Vertex-cache offset is assigned later.
 	/// </summary>
@@ -558,7 +564,7 @@ internal sealed class TransformBuffer : IDisposable
 
 		// Match native's base-entry animation fields; Row2.w, which no shader reads, is the mesh's base slot last frame plus 1
 		first.Row0 = new( 0, 0, 1, 1 );
-		first.Row2.w = LastSkinSlot( owner, mesh, FrameBase + local );
+		first.Row2.w = TracksSkins ? LastSkinSlot( owner, mesh, FrameBase + local ) : 0;
 		first.Alpha = tint.a;
 		first.TintRgb888 = PackRgb888( tint );
 		first.VertexCacheOffset = uint.MaxValue;

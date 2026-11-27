@@ -20,12 +20,17 @@ struct Motion
     // Returns the motion position in Screen Space, for UV just multiply by inverse viewport size
     static float3 Get(float2 screenPosition)
     {
+        // TODO: Overlays (which take the last 1% of reverse-Z depth) aren't drawn on GPU-driven path
+        // so they never have valid motion vectors, pass just TAA jitter
+        if ( Depth::Get( screenPosition ) >= 0.99f )
+            return float3( screenPosition + g_vPerViewConstantExtraData0.xy, 0 );
+
         // Calculate world space position based on the previous projection
         float3 worldPos = Depth::GetWorldPosition( screenPosition );
 
-        // Where the point was last frame, if its object moved
+        // Where the point was last frame, if its object moved; by viewport UV, since after an upscale it's still render size
         if ( g_nObjectMotion != 0 )
-            worldPos += g_tObjectMotion.Load( int3( screenPosition, 0 ) ).xyz;
+            worldPos += g_tObjectMotion.SampleLevel( g_sPointClamp, screenPosition * g_vInvViewportSize, 0 ).xyz;
 
         // Reproject the world space position to screen space in the previous frame
         const float3 prevFramePosSs = Motion::GetFromWorldPosition( worldPos );

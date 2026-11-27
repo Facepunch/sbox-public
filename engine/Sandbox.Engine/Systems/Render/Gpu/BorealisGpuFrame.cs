@@ -23,6 +23,10 @@ internal sealed class BorealisGpuFrame : IDisposable
 	static readonly StringToken FogVolumeName = new( "FogVolume" );
 	static readonly StringToken CubemapFogTextureName = new( "CubemapFogTexture" );
 	static readonly StringToken BloomInputName = new( "QuarterResEffectsBloomInputTexture" );
+	static readonly StringToken IdsNormalsName = new( "BorealisIdsNormals" );
+	static readonly StringToken IdsNormalsOnName = new( "BorealisIdsNormalsOn" );
+	static readonly StringToken ObjectMotionName = new( "BorealisObjectMotion" );
+	static readonly StringToken ObjectMotionOnName = new( "BorealisObjectMotionOn" );
 
 	// What a stage or custom object draws inside the frame, apart from lending the frame to it and taking it back
 	static readonly Sandbox.Diagnostics.PerformanceStats.Timings InFrameDrawTiming = Sandbox.Diagnostics.PerformanceStats.Timings.Get( "Borealis.Gpu in-frame draw" );
@@ -143,6 +147,15 @@ internal sealed class BorealisGpuFrame : IDisposable
 	BackendTexture reactiveDepth;
 
 	/// <summary>
+	/// Each pixel's object motion the scene resolved from its ids (<see cref="RenderSystem.ObjectMotion"/>), which
+	/// <c>Motion::Get</c> reads as <c>BorealisObjectMotion</c>, or null when it resolved none.
+	/// </summary>
+	public Texture ObjectMotion { get; private set; }
+
+	// The Borealis texture behind ObjectMotion this frame
+	BackendTexture objectMotion;
+
+	/// <summary>
 	/// The view's depth chain (<c>DepthChainDownsample</c>, which <c>Depth::Get</c> reads): the min and max of the frame's
 	/// depth, mipped. Borealis's, built after its depth prepass, where it made one the depth's size (as native's post
 	/// processing reads its DepthDownsampleLayer's); else built by <see cref="Begin()"/>; from the upscaled depth by
@@ -180,7 +193,7 @@ internal sealed class BorealisGpuFrame : IDisposable
 	/// with, the bloom objects it drew (<see cref="RenderSystem.BloomObjects"/>), the overlays' reactive depth
 	/// (<see cref="RenderSystem.ReactiveDepth"/>) and the depth chain it built (<see cref="RenderSystem.DepthChain"/>), if any.
 	/// </summary>
-	public void Adopt( ViewTarget target, in GpuViewConstants viewConstants, GpuTexture bloom = null, GpuTexture reactive = null, GpuTexture depthChain = null )
+	public void Adopt( ViewTarget target, in GpuViewConstants viewConstants, GpuTexture bloom = null, GpuTexture reactive = null, GpuTexture depthChain = null, GpuTexture motion = null )
 	{
 		this.target = target;
 		var color = target.Resolved ?? target.Color;
@@ -200,6 +213,9 @@ internal sealed class BorealisGpuFrame : IDisposable
 		adoptedChainTexture = null;
 		adoptedChain = depthChain as BackendTexture;
 		sceneChain = null;
+		if ( objectMotion is not null && !ReferenceEquals( objectMotion, motion ) && objectMotion.IsValid ) backend.ForgetBorrowed( objectMotion.Handle );
+		objectMotion = motion as BackendTexture;
+		ObjectMotion = objectMotion is null ? null : FrameTexture( null, objectMotion, new Vector2Int( objectMotion.Width, objectMotion.Height ), ImageFormat.RGBA16161616F, depth: false );
 
 		if ( constants.Length != System.Runtime.CompilerServices.Unsafe.SizeOf<GpuViewConstants>() ) constants = new byte[System.Runtime.CompilerServices.Unsafe.SizeOf<GpuViewConstants>()];
 		System.Runtime.InteropServices.MemoryMarshal.Write( constants, in viewConstants );
@@ -322,7 +338,7 @@ internal sealed class BorealisGpuFrame : IDisposable
 
 	// A stage's targets inside the frame (RunStage): engine textures kept from frame to frame, one per Borealis texture and
 	// slot, so borrowing one for a stage leaves the others' backings as they are instead of remaking a backing each stage
-	enum StageSlot { Color, Depth, Chain, Normals, Fog, FogCube }
+	enum StageSlot { Color, Depth, Chain, Normals, Fog, FogCube, IdsNormals, ObjectMotion }
 
 	readonly Dictionary<(StageSlot Slot, BackendTexture Texture), Texture> stageTextures = new();
 
@@ -429,6 +445,11 @@ internal sealed class BorealisGpuFrame : IDisposable
 		// as native's view attributes give its custom objects: without it Goblingeddon's grass was fogged towards black
 		var fogCube = Borrow( StageSlot.FogCube, ((BackendParameters)target.Attributes).Get( CubemapFogTextureName ) as GpuTexture, ImageFormat.RGBA16161616F, depth: false, Borealis.Gpu.ImageLayout.ShaderRead );
 
+		// The normals and object motion the frame resolved from its ids (IdsNormalsLayer), which AO, the reflections and Motion::Get read
+		var frameAttributes = (BackendParameters)target.Attributes;
+		var idsNormals = frameAttributes.Get( IdsNormalsOnName ) is 1 ? Borrow( StageSlot.IdsNormals, frameAttributes.Get( IdsNormalsName ) as GpuTexture, ImageFormat.RGBA16161616F, depth: false, Borealis.Gpu.ImageLayout.ShaderRead ) : default;
+		var motion = frameAttributes.Get( ObjectMotionOnName ) is 1 ? Borrow( StageSlot.ObjectMotion, frameAttributes.Get( ObjectMotionName ) as GpuTexture, ImageFormat.RGBA16161616F, depth: false, Borealis.Gpu.ImageLayout.ShaderRead ) : default;
+
 		view.Target = color.Engine is null ? null : StageTarget( color.Engine, depth.Engine );
 		view.DepthSlice = 0;
 
@@ -459,6 +480,13 @@ internal sealed class BorealisGpuFrame : IDisposable
 			if ( normals.Engine is not null ) attributes.Set( NormalsName, normals.Engine );
 			if ( fog.Engine is not null ) attributes.Set( FogVolumeName, fog.Engine );
 			if ( fogCube.Engine is not null ) attributes.Set( CubemapFogTextureName, fogCube.Engine );
+			if ( idsNormals.Engine is not null )
+			{
+				attributes.Set( IdsNormalsName, idsNormals.Engine );
+				attributes.Set( IdsNormalsOnName, 1 );
+			}
+
+			SetObjectMotion( attributes, motion.Engine );
 
 			SetViewTextures( attributes );
 			attributes.Set( BloomInputName, Texture.Black );
@@ -472,7 +500,7 @@ internal sealed class BorealisGpuFrame : IDisposable
 
 			// Back to the frame, where the block left them, and no longer the engine's to track; the engine textures keep their
 			// backings for the next block on these textures
-			foreach ( var (engine, gpu) in (ReadOnlySpan<(Texture, BackendTexture)>)[color, depth, chain, normals, fog, fogCube] )
+			foreach ( var (engine, gpu) in (ReadOnlySpan<(Texture, BackendTexture)>)[color, depth, chain, normals, fog, fogCube, idsNormals, motion] )
 			{
 				if ( engine is null ) continue;
 				context.SetLayout( gpu, backend.LayoutOf( engine ) );
@@ -631,6 +659,7 @@ internal sealed class BorealisGpuFrame : IDisposable
 
 			SetViewTextures( attributes );
 			attributes.Set( BloomInputName, BloomObjects ?? Texture.Black );
+			SetObjectMotion( attributes, ObjectMotion );
 			return scope;
 		}
 		catch
@@ -685,6 +714,13 @@ internal sealed class BorealisGpuFrame : IDisposable
 		attributes.Set( DepthChainPrevFrameName, upscaledChain );
 	}
 
+	/// <summary>The object motion <c>Motion::Get</c> adds to the camera's, or none (camera motion alone).</summary>
+	static void SetObjectMotion( RenderAttributes attributes, Texture motion )
+	{
+		attributes.Set( ObjectMotionOnName, motion is null ? 0 : 1 );
+		if ( motion is not null ) attributes.Set( ObjectMotionName, motion );
+	}
+
 	/// <summary>An RG32F depth chain of this size with every mip down to the smaller side's last texel.</summary>
 	static Texture Chain( Texture existing, int width, int height )
 	{
@@ -703,6 +739,7 @@ internal sealed class BorealisGpuFrame : IDisposable
 		if ( bloomObjects is not null ) BackendDevice.SetLayout( bloomObjects, backend.LayoutOf( BloomObjects ) );
 		if ( reactiveDepth is not null ) BackendDevice.SetLayout( reactiveDepth, backend.LayoutOf( ReactiveDepth ) );
 		if ( adoptedChainTexture is not null ) BackendDevice.SetLayout( adoptedChain, backend.LayoutOf( adoptedChainTexture ) );
+		if ( objectMotion is not null ) BackendDevice.SetLayout( objectMotion, backend.LayoutOf( ObjectMotion ) );
 	}
 
 	/// <summary>
@@ -728,6 +765,9 @@ internal sealed class BorealisGpuFrame : IDisposable
 		if ( adoptedChainTexture is not null ) backend.ForgetBorrowed( adoptedChain.Handle );
 		adoptedChainTexture = null;
 		adoptedChain = null;
+		if ( objectMotion is not null ) backend.ForgetBorrowed( objectMotion.Handle );
+		objectMotion = null;
+		ObjectMotion = null;
 		target = null;
 	}
 

@@ -701,16 +701,46 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	/// <summary>Views resolved into normals from their ids, and asked for but left to depth, for reports and the tests.</summary>
 	public int IdsNormalsResolved, IdsNormalsSkipped;
 
+	/// <summary>Views whose ids were resolved into object motion, for reports and the tests.</summary>
+	public int ObjectMotionResolved;
+
 	/// <summary>
-	/// The ids target's format this frame: the vertex bit + 1, and with <see cref="IdsNormals"/> or while a tools view shows
-	/// the ids (<see cref="IdsWhole"/>) the instance record. A view's ids targets are made again when it changes
+	/// Whether this frame's views keep ids that object motion can be resolved from (two words, the whole prepass's, and the
+	/// table of the calls that drew them), as with <see cref="IdsNormals"/>: while a view's frame reads motion
+	/// (<see cref="WantObjectMotion"/>), from the frame after it asks to two frames after it last did. Set at the frame's
+	/// start, so every call of a frame decides the same; off, the views draw their ids as they do without it.
+	/// </summary>
+	internal bool ObjectMotionIds { get; private set; }
+
+	uint objectMotionFrame;
+
+	/// <summary>
+	/// <paramref name="view"/>'s frame reads object motion this frame (<c>BackendContext.WantObjectMotion</c>): its prepass draws
+	/// its skinned meshes' ids, and the next frames keep each view's ids resolvable (<see cref="ObjectMotionIds"/>).
+	/// </summary>
+	internal void WantObjectMotion( object view )
+	{
+		var frame = GpuDrivenFrame;
+		Volatile.Write( ref objectMotionFrame, frame );
+		if ( ExistingVisibility( view ) is { } visibility ) visibility.MotionFrame = frame;
+	}
+
+	/// <summary>Whether <paramref name="visibility"/>'s frame asked for object motion this frame or the last two.</summary>
+	internal bool WantsObjectMotion( VisibilityView visibility ) => ObjectMotionIds && visibility.MotionFrame != 0 && GpuDrivenFrame - visibility.MotionFrame <= 2;
+
+	/// <summary>Whether views' ids are resolved this frame: into normals (<see cref="IdsNormals"/>) or object motion (<see cref="ObjectMotionIds"/>).</summary>
+	internal bool ResolvingIds => IdsNormals || ObjectMotionIds;
+
+	/// <summary>
+	/// The ids target's format this frame: the vertex bit + 1, and with <see cref="IdsNormals"/>, object motion or while a tools
+	/// view shows the ids (<see cref="IdsWhole"/>) the instance record. A view's ids targets are made again when it changes
 	/// (<see cref="PrepareIdsTargets"/>), and ids pipelines are keyed by it.
 	/// </summary>
 	internal Format IdsFormat => IdsNormals || IdsWhole ? Format.RG32Uint : Format.R32Uint;
 
 	/// <summary>
 	/// Whether this frame's views keep their whole prepass's ids, cleared once a frame and loaded by every call that draws
-	/// them, rather than each call clearing them for its own: with <see cref="IdsNormals"/>, and while a tools view shows
+	/// them, rather than each call clearing them for its own: with <see cref="IdsNormals"/>, <see cref="ObjectMotionIds"/>, and while a tools view shows
 	/// them (<see cref="ShowIds"/>, docs/reference/borealis.md, "Visibility ids views"). Set at the frame's start, so every
 	/// call of a frame decides the same.
 	/// </summary>
@@ -2499,7 +2529,10 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	internal override bool WritesForwardNormals => true;
 
 	/// <inheritdoc/>
-	internal override bool ResolvesIdsNormals => IdsNormals && GpuDriven && GpuDrivenVisibility && IdsNormalsShader is not null;
+	internal override bool ResolvesIdsNormals => IdsNormals && ResolvesIds;
+
+	/// <inheritdoc/>
+	internal override bool ResolvesIds => GpuDriven && GpuDrivenVisibility && IdsNormalsShader is not null;
 
 	/// <summary>The opaque pass's normals target (<see cref="ScreenSpaceReflectionsLayer.NormalsFormat"/>).</summary>
 	internal const Format NormalsFormat = Format.RGB10A2Unorm;
@@ -2959,13 +2992,16 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 		public object HiZBuiltBy;
 
 		/// <summary>
-		/// With <see cref="IdsNormals"/>: the calls that drew ids into <see cref="Ids"/> this frame, <see cref="IdsCallBytes"/>
+		/// With <see cref="ResolvingIds"/>: the calls that drew ids into <see cref="Ids"/> this frame, <see cref="IdsCallBytes"/>
 		/// each (the frame chunk's bindless slot, the region's first instance record and how many, and where its fragment
 		/// words are as <c>g_nBorealisVertexBases</c> names them), so an id's instance record finds its vertex base; up to
 		/// <see cref="MaxIdsCalls"/>, cleared with the mask, the rest zeros. <see cref="IdsCallCount"/> counts this frame's.
 		/// </summary>
 		public BufferHandle IdsCalls;
 		public int IdsCallCount;
+
+		/// <summary>The last frame its frame read object motion (<see cref="WantObjectMotion"/>), or 0.</summary>
+		public uint MotionFrame;
 
 		/// <summary>Every texture it made.</summary>
 		public int Textures( Span<TextureHandle> into )
@@ -3395,8 +3431,9 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	/// </summary>
 	internal VisibilityView VisibilityFor( object view, TextureInfo depth )
 	{
-		// Made already, for a depth target of this size: found without a lock, as every GPU-driven call of the view asks
-		if ( visibilityViews.TryGetValue( view, out var made ) && made.Ready && (depth.Width == 0 || made.Width == depth.Width && made.Height == depth.Height && made.Samples == depth.Samples) ) return made;
+		// Made already, for a depth target of this size: found without a lock, as every GPU-driven call of the view asks. One
+		// made before its ids were resolved (object motion asked for since) takes the lock once more for its calls' table
+		if ( visibilityViews.TryGetValue( view, out var made ) && made.Ready && (depth.Width == 0 || made.Width == depth.Width && made.Height == depth.Height && made.Samples == depth.Samples) && (made.IdsCalls.IsValid || !ResolvingIds) ) return made;
 
 		if ( MakeVisibilityAhead && AsyncModels && depth.Width != 0 && (made is null || !made.Ready) )
 		{
@@ -3421,7 +3458,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 				visibilityBuffers.Add( state.Stamps );
 			}
 
-			if ( IdsNormals && !state.IdsCalls.IsValid )
+			if ( ResolvingIds && !state.IdsCalls.IsValid )
 			{
 				state.IdsCalls = VisibilityIdsCalls();
 				visibilityBuffers.Add( state.IdsCalls );
@@ -3463,7 +3500,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 			var compacted = CompactedIndicesFor( depth );
 			var (mask, stamps) = (VisibilityMask(), VisibilityStamps());
 			var buffer = VisibilityCompacted( compacted );
-			var idsCalls = IdsNormals ? VisibilityIdsCalls() : default;
+			var idsCalls = ResolvingIds ? VisibilityIdsCalls() : default;
 
 			VisibilityView state;
 			lock ( visibilityViews )
@@ -4106,7 +4143,9 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 			loadFrame++;
 			if ( (loadFrame & 63) == 0 ) FreeIdleReadAhead();
 			var shown = Volatile.Read( ref idsShownFrame );
-			IdsWhole = IdsNormals || shown != 0 && GpuDrivenFrame - shown <= 2;
+			var motion = Volatile.Read( ref objectMotionFrame );
+			ObjectMotionIds = motion != 0 && GpuDrivenFrame - motion <= 2 && ResolvesIds;
+			IdsWhole = IdsNormals || ObjectMotionIds || shown != 0 && GpuDrivenFrame - shown <= 2;
 
 			// Resident culls forget last frame's assignments and stale calls here too, not only when a view culls: with nothing
 			// rendering (the menu) they kept a closed game's views, and those views' visibility resources

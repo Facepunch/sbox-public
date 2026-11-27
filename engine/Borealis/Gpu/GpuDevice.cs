@@ -232,6 +232,13 @@ public abstract class GpuDevice
 	internal virtual bool ResolvesIdsNormals => false;
 
 	/// <summary>
+	/// Whether a view's depth prepass can leave ids that each pixel's triangle can be found from, and the device resolve them
+	/// (<see cref="GpuContext.ResolveIdsNormals"/>): into normals with <see cref="ResolvesIdsNormals"/>, and into object motion
+	/// for a frame that reads it (<see cref="RenderView.ObjectMotion"/>, <see cref="GpuContext.WantObjectMotion"/>).
+	/// </summary>
+	internal virtual bool ResolvesIds => false;
+
+	/// <summary>
 	/// The error a generated level may have, in pixels at an object's nearest point, as views pick the levels of meshes they
 	/// draw themselves (<see cref="GpuMesh.LevelsFor"/>); 0 when the device makes none.
 	/// </summary>

@@ -32,5 +32,8 @@ public sealed class MotionBlur : BasePostProcess<MotionBlur>
 
 		var blit = BlitMode.WithBackbuffer( Material.Load( "materials/postprocess/standard_pass1.vmat" ), Stage.BeforePostProcess, 50, false );
 		Blit( blit, "MotionBlur" );
+
+		// It reads each pixel's motion, objects' own included
+		Camera.PostProcess.ReadsMotionVectors = true;
 	}
 }

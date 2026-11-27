@@ -343,6 +343,8 @@ public sealed partial class RenderSystem : IDisposable
 		BloomObjects = null;
 		ReactiveDepth = null;
 		DepthChain = null;
+		ObjectMotion = null;
+		transforms.TracksSkins = view.ObjectMotion;
 
 		var allocStart = GC.GetAllocatedBytesForCurrentThread();
 		var start = Stopwatch.GetTimestamp();
@@ -749,6 +751,12 @@ public sealed partial class RenderSystem : IDisposable
 	/// mipped, which <c>Depth::Get</c> reads), readable, or null when it built none. Valid until this system renders again.
 	/// </summary>
 	internal GpuTexture DepthChain { get; set; }
+
+	/// <summary>
+	/// Each pixel's object motion the last frame resolved from its ids (<see cref="IdsNormalsLayer"/>, <c>BorealisObjectMotion</c>),
+	/// a texel per pixel of its viewport, or null when it resolved none. Valid until this system renders again.
+	/// </summary>
+	internal GpuTexture ObjectMotion { get; set; }
 
 	/// <summary>
 	/// Milliseconds since the last lap, starting the next.

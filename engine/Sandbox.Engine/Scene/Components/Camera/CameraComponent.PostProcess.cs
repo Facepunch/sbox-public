@@ -42,6 +42,11 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 	bool HasEarlyPostProcess( Stage stage, PostProcessQueue queue ) => PostProcessSystem.EnablePostProcess && DrawnPostProcess.HasEarlyPostProcess( stage, queue );
 
 	/// <summary>
+	/// Whether the post processing drawn this frame reads its motion (<see cref="PostProcessLayers.ReadsMotionVectors"/>).
+	/// </summary>
+	bool ReadsMotionVectors() => PostProcessSystem.EnablePostProcess && DrawnPostProcess.ReadsMotionVectors;
+
+	/// <summary>
 	/// Run it, under the conditions the stage would (<c>PostProcessSystem.OnRenderStage</c>). On the render thread.
 	/// </summary>
 	void RenderEarlyPostProcess( Stage stage, PostProcessQueue queue )

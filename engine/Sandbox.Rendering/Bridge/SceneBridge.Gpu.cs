@@ -323,6 +323,11 @@ internal sealed partial class SceneBridge
 		state.View.Jitter = upscaling ? upscaler.ClipJitter : Vector2.Zero;
 		state.View.ReactiveDepth = upscaling && upscaler.IsTemporal;
 
+		// Objects' own motion resolved from the ids only for a frame whose effects are made of motion (Motion::Get): a temporal
+		// upscaler's motion vectors, motion blur. Screen-space reflections (on for every camera) read it too, for the last frame's
+		// colour at a hit, and get it when one of those asks; without, camera motion, as before
+		state.View.ObjectMotion = upscaling && upscaler.IsTemporal || camera.ReadsMotionVectors;
+
 		// Graphics.Render in its stages (a highlight's outline) draws the camera's mirrored objects again
 		gpuView.RenderSceneObject = state.Drawer.RenderOnGpu;
 
@@ -374,7 +379,7 @@ internal sealed partial class SceneBridge
 			stages.Camera = null;
 		}
 
-		frame.Adopt( state.GpuTarget, state.System.Frame.Constants, state.System.BloomObjects, state.System.ReactiveDepth, state.System.DepthChain );
+		frame.Adopt( state.GpuTarget, state.System.Frame.Constants, state.System.BloomObjects, state.System.ReactiveDepth, state.System.DepthChain, state.System.ObjectMotion );
 
 		gpuView.LayerType = SceneLayerType.Translucent;
 		if ( upscaling ) gpuView.Viewport = state.View.Viewport;

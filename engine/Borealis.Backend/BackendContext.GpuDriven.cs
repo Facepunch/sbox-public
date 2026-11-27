@@ -338,8 +338,9 @@ internal sealed partial class BackendContext
 			var vertexCache = (attributes.GetCombo( VertexAnimationCombo ) ?? 0) != 0;
 			int? vertexCacheWas = null;
 
-			// An id prepass the ids resolve reads: skinned depth draws write their ids with depth_only's pixel stage (D_BOREALIS_IDS)
-			var skinnedIds = device.ResolvesIdsNormals && cull is { Ids: true, View: not null } && r.Color is null;
+			// An id prepass whose object motion the ids resolve reads (only a view whose frame reads motion): skinned depth draws
+			// write their ids with depth_only's pixel stage (D_BOREALIS_IDS)
+			var skinnedIds = device.ObjectMotionIds && cull is { Ids: true, View: { } idsView } && r.Color is null && device.ExistingVisibility( idsView ) is { } idsVisibility && device.WantsObjectMotion( idsVisibility );
 			var idsCombo = false;
 			ShaderParameters lastAttributes = null, lastOwn = null;
 			var lastAttributesSet = false;
@@ -2245,14 +2246,14 @@ internal sealed partial class BackendContext
 	}
 
 	/// <summary>
-	/// With <see cref="BackendDevice.IdsNormals"/>, a call that draws ids puts its region in the view's table
+	/// While views' ids are resolved (<see cref="BackendDevice.ResolvingIds"/>), a call that draws ids puts its region in the view's table
 	/// (<see cref="BackendDevice.VisibilityView.IdsCalls"/>): the frame chunk's bindless slot, its first instance record and
 	/// how many, and its fragment words' base, which an id's instance record finds its vertex base by. Outside a rendering
 	/// scope; the resolve reads the table after a barrier of its own.
 	/// </summary>
 	void AddIdsCall( BackendDevice.VisibilityView visibility, int frameSlot, uint firstInstance, int instances, uint vertexBases )
 	{
-		if ( !device.IdsNormals || !visibility.IdsCalls.IsValid ) return;
+		if ( !device.ResolvingIds || !visibility.IdsCalls.IsValid ) return;
 		idsCall = ((uint)frameSlot, firstInstance, (uint)instances);
 		var k = System.Threading.Interlocked.Increment( ref visibility.IdsCallCount ) - 1;
 		if ( k >= BackendDevice.VisibilityView.MaxIdsCalls ) return;

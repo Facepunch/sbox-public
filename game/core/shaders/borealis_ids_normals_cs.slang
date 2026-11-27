@@ -1,5 +1,6 @@
 // borealis_ids_normals_cs: a standalone module, the whole shader for Borealis.Gpu (docs/reference/borealis-standalone-modules.md). It
-// draws only with -ids-normals (docs/reference/borealis-gpu-driven.md, "Normals from the ids").
+// draws only with -ids-normals or for a frame that reads object motion (docs/reference/borealis-gpu-driven.md, "Normals from the
+// ids", "Object motion from the ids").
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 // HEADER: DevShader = true;
 // HEADER: Description = "Borealis normals from the visibility ids: each pixel's triangle, found from its id's instance record and first corner, and that triangle's normal, for ambient occlusion.";
@@ -21,6 +22,10 @@ Mode( Default );
 
 DynamicCombo( D_MSAA, 0..1, Sys( ALL ) );
 
+// What the frame asked for: the normals (-ids-normals), the object motion (a frame that reads Motion::Get), or both
+DynamicCombo( D_IDS_NORMALS, 0..1, Sys( ALL ) );
+DynamicCombo( D_OBJECT_MOTION, 0..1, Sys( ALL ) );
+
 // The view's ids (vertex bit + 1, instance record: BorealisGpuDrivenIds) and depth, read at sample 0, which the depth
 // chain's first mip holds. The ids' format is unknown, as the mark's, so either ids target's view matches
 #if D_MSAA
@@ -38,11 +43,15 @@ ByteAddressBuffer g_Calls < Attribute( "BorealisIdsCalls" ); >;
 
 // The normals, a texel per pixel of the viewport: the world-space normal of the pixel's triangle, facing the camera, and 1;
 // zeros where the pixel has none (no id, no table, or a triangle that isn't at its depth)
-RWTexture2D<float4> g_Out < Attribute( "BorealisIdsNormalsOut" ); >;
+#if D_IDS_NORMALS
+	RWTexture2D<float4> g_Out < Attribute( "BorealisIdsNormalsOut" ); >;
+#endif
 
 // Object motion, a texel per pixel of the viewport (ObjectMotion), and last frame's transforms (TransformBuffer.Previous)
-RWTexture2D<float4> g_OutMotion < Attribute( "BorealisObjectMotionOut" ); >;
-StructuredBuffer< TransformBufferData_t > g_PrevTransformData < Attribute( "BorealisPrevTransformBuffer" ); >;
+#if D_OBJECT_MOTION
+	RWTexture2D<float4> g_OutMotion < Attribute( "BorealisObjectMotionOut" ); >;
+	StructuredBuffer< TransformBufferData_t > g_PrevTransformData < Attribute( "BorealisPrevTransformBuffer" ); >;
+#endif
 
 // Constants: the float members are g_n-named too, as the backend's checker reads one prefix
 cbuffer BorealisIdsNormals_t
@@ -98,6 +107,7 @@ float3 WorldToObject( float3x4 m, float3 vPoint )
 // transform (or its first vertex's bones, blended as skinning blends them) and out by last frame's. A kept rigid slot holds
 // the frame it got its owner in m_nVertexCacheOffset, the same in both buffers while it's the same object; a skinned base
 // entry holds its mesh's base slot last frame plus 1 in Row2.w (TransformBuffer)
+#if D_OBJECT_MOTION
 float4 ObjectMotion( TransformBufferData_t current, uint2 vInstance, uint nVertex, float3 vPoint )
 {
 	float3x4 matCurrent = current.transform, matPrevious = 0;
@@ -133,6 +143,7 @@ float4 ObjectMotion( TransformBufferData_t current, uint2 vInstance, uint nVerte
 
 	return float4( mul( matPrevious, float4( WorldToObject( matCurrent, vPoint ), 1.0 ) ) - vPoint, 1.0 );
 }
+#endif
 
 // The pixel's object motion, which Resolve finds once it knows the pixel's object
 static float4 s_vMotion;
@@ -177,8 +188,10 @@ float4 Resolve( uint2 vPixel, uint2 vId, float flDepth )
 	float2 vSample = ( float2( vPixel ) + g_nIdsSample.zw ) / float2( g_nIdsWidth, g_nIdsHeight );
 	float2 vNdc = float2( vSample.x * 2.0 - 1.0, 1.0 - vSample.y * 2.0 );
 	float flZ = ( flDepth - g_nIdsSample.x ) / max( g_nIdsSample.y - g_nIdsSample.x, 1e-6 );
-	s_vMotion = ObjectMotion( g_TransformData[ vInstance.x ], vInstance, nVertex, ClipToWorld( vNdc, flZ ) );
-	if ( nVertex == None || g_nIdsCorners == None || g_TransformData[ vInstance.x ].m_nBlendWeightCount > 0 )
+	#if D_OBJECT_MOTION
+		s_vMotion = ObjectMotion( g_TransformData[ vInstance.x ], vInstance, nVertex, ClipToWorld( vNdc, flZ ) );
+	#endif
+	if ( !D_IDS_NORMALS || nVertex == None || g_nIdsCorners == None || g_TransformData[ vInstance.x ].m_nBlendWeightCount > 0 )
 		return 0;
 
 	// The draw: geometry record and flags, then first index, index count, base vertex and index page
@@ -262,8 +275,13 @@ float4 Resolve( uint2 vPixel, uint2 vId, float flDepth )
 	#endif
 
 	s_vMotion = 0;
-	g_Out[vThreadId.xy] = Resolve( vThreadId.xy, vId, flDepth );
-	g_OutMotion[vThreadId.xy] = s_vMotion;
+	float4 vNormal = Resolve( vThreadId.xy, vId, flDepth );
+	#if D_IDS_NORMALS
+		g_Out[vThreadId.xy] = vNormal;
+	#endif
+	#if D_OBJECT_MOTION
+		g_OutMotion[vThreadId.xy] = s_vMotion;
+	#endif
 }
 
 #endif // CS

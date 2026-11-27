@@ -48,6 +48,7 @@ struct PixelInput
     #include "procedural.hlsl"
 
     #include "common/classes/Depth.hlsl"
+    #include "common/classes/Motion.hlsl"
 
     Texture2D g_tColorBuffer < Attribute( "ColorBuffer" );  	SrgbRead( true ); >;
     
@@ -63,43 +64,17 @@ struct PixelInput
         return g_tColorBuffer.Sample( g_sBilinearMirror, vScreenUv.xy );
     }
 
-    float2 GetCameraVelocityVector(float2 texCoords)
+    // Averages the scene along the pixel's motion this frame, centred on the pixel
+    float4 MotionBlurEx(float2 texCoords, float2 vPositionSs)
     {
-        // Calculate world space position based on the previous projection
-        float3 worldPos = Depth::GetWorldPosition( texCoords * g_vViewportSize );
+        float2 vMotion = texCoords - CalculateViewportUv( Motion::Get( vPositionSs ).xy );
 
-        // Reproject the world space position to screen space in the previous frame
-        float3 prevFramePosSs = ReprojectFromLastFrameSs( worldPos );
-
-        // Calculate the velocity vector based on the current projection
-        float2 velocityVector = prevFramePosSs.xy * g_vInvViewportSize;
-
-        return velocityVector;
-    }
-
-    // This function applies motion blur to the scene.
-    float4 MotionBlurEx(float2 texCoords)
-    {
-        // Get the velocity vector for the current texture coordinates
-        float2 velocityVector = GetCameraVelocityVector(texCoords);
-
-        // Initialize the color accumulator
-        float4 color = float4(0.0f, 0.0f, 0.0f, 0.0f);
-    
-        // Calculate the inverse of the number of samples for motion blur
+        float4 color = 0;
         float invSamples = 1.0f / (float)sMotionBlurSamples;
-    
-        // Accumulate the color from each sample along the motion blur path
-        float t = invSamples;
-        for(float i = 0; i < sMotionBlurSamples; i++)
-        {
-            float2 uv = lerp(texCoords, velocityVector, t);
-            t += invSamples;
-            color += FetchSceneColor(uv);
-        }
-        color *= invSamples; // Normalize the accumulated color by the number of samples
-    
-        return color;
+        for ( int i = 0; i < sMotionBlurSamples; i++ )
+            color += FetchSceneColor( texCoords + vMotion * ( ( i + 0.5f ) * invSamples - 0.5f ) );
+
+        return color * invSamples;
     }
 
     [shader( "pixel" )] float4 MainPs( PixelInput i ) : SV_Target0
@@ -110,7 +85,7 @@ struct PixelInput
 
         #if D_MOTION_BLUR
             // We can't use our predefined motion blur as we need to account for chromatic aberration
-            color = MotionBlurEx( vScreenUv );
+            color = MotionBlurEx( vScreenUv, i.vPositionSs.xy );
         #else
             color = FetchSceneColor( vScreenUv );
         #endif

@@ -15,12 +15,19 @@ internal partial class PostProcessLayers
 
 	public bool HasLayers => _poolUsed > 0;
 
+	/// <summary>
+	/// An effect built this frame reads its motion (<c>Motion::Get</c>: <see cref="MotionBlur"/>), so the renderer resolves its
+	/// objects' motion for the frame (<see cref="SceneCamera.ReadsMotionVectors"/>).
+	/// </summary>
+	public bool ReadsMotionVectors;
+
 	/// <summary>Cleared to be built again since the camera last took these for drawing (<c>CameraComponent.TakePostProcess</c>).</summary>
 	internal bool Rebuilt;
 
 	public void Clear()
 	{
 		Rebuilt = true;
+		ReadsMotionVectors = false;
 		foreach ( var list in Layers.Values )
 			list.Clear();
 
