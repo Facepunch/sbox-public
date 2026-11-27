@@ -129,12 +129,35 @@ public partial class Model
 	/// </summary>
 	public Dictionary<BoneCollection.Bone, GameObject> CreateBoneObjects( GameObject root )
 	{
+		return CreateBoneObjects( root, null );
+	}
+
+	/// <summary>
+	/// Creates bone game objects under <paramref name="root"/>. When <paramref name="bones"/> is provided,
+	/// only those bones and their ancestors are created so the hierarchy matches the full skeleton.
+	/// </summary>
+	internal Dictionary<BoneCollection.Bone, GameObject> CreateBoneObjects( GameObject root, IEnumerable<BoneCollection.Bone> bones )
+	{
 		Dictionary<BoneCollection.Bone, GameObject> boneObjects = new();
 		if ( !root.IsValid() ) return boneObjects;
 
+		HashSet<BoneCollection.Bone> include = null;
+		if ( bones is not null )
+		{
+			include = new();
+			foreach ( var bone in bones )
+			{
+				for ( var cur = bone; cur is not null && include.Add( cur ); cur = cur.Parent )
+				{
+				}
+			}
+
+			if ( include.Count == 0 ) return boneObjects;
+		}
+
 		foreach ( var b in Bones.AllBones.Where( x => x is { Parent: null } ) )
 		{
-			CreateBoneObjects( root, b, boneObjects );
+			CreateBoneObjects( root, b, boneObjects, include );
 		}
 
 		return boneObjects;
@@ -143,8 +166,11 @@ public partial class Model
 	/// <summary>
 	/// Recursively creates game objects for each bone in the hierarchy, starting from the given root bone.
 	/// </summary>
-	private void CreateBoneObjects( GameObject root, BoneCollection.Bone thisBone, Dictionary<BoneCollection.Bone, GameObject> boneObjects )
+	private void CreateBoneObjects( GameObject root, BoneCollection.Bone thisBone, Dictionary<BoneCollection.Bone, GameObject> boneObjects, HashSet<BoneCollection.Bone> include )
 	{
+		if ( include is not null && !include.Contains( thisBone ) )
+			return;
+
 		var scene = root.Scene;
 		if ( !scene.IsValid() ) return;
 
@@ -158,7 +184,7 @@ public partial class Model
 
 		foreach ( var childBone in thisBone.Children )
 		{
-			CreateBoneObjects( go, childBone, boneObjects );
+			CreateBoneObjects( go, childBone, boneObjects, include );
 		}
 	}
 }

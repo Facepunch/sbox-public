@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace SceneTests.Components;
 
@@ -444,7 +445,7 @@ public class ModelPhysicsTest
 		// Find the neck_0 child GameObject
 		GameObject neckObject = go.GetAllObjects( true ).Where( x => x.Name == "neck_0" ).FirstOrDefault();
 
-		// Verify neck_0 GameObject exists (bone objects are created for all bones)
+		// Verify neck_0 GameObject exists (it is an ancestor of head, which has a physics part)
 		Assert.IsNotNull( neckObject, "A child GameObject named 'neck_0' should be created" );
 		Assert.IsTrue( neckObject.IsValid(), "Neck_0 GameObject should be valid" );
 
@@ -579,7 +580,8 @@ public class ModelPhysicsTest
 			Assert.IsTrue( go.IsValid(), "Cloned GameObject should be valid" );
 			Assert.IsTrue( go.WorldPosition.Distance( targetPos ) < 1.0f, "Cloned GameObject should be near the target position" );
 
-			Assert.IsTrue( go.GetAllObjects( true ).Count() > 50, "Should have more than 50 child objects" );
+			Assert.IsTrue( modelPhysics.Bodies.Count > 0, "Should have physics bodies" );
+			Assert.IsTrue( go.GetAllObjects( true ).Count() >= modelPhysics.Bodies.Count, "Should have child objects for all physics bodies" );
 
 			var furthestObject = go.GetAllObjects( true ).Max( x => x.WorldPosition.Distance( targetPos ) );
 			Assert.IsTrue( furthestObject < 200.0f, $"Furthest object was {furthestObject:n0} away!" );
@@ -629,7 +631,8 @@ public class ModelPhysicsTest
 			Assert.IsTrue( go.IsValid(), "Cloned GameObject should be valid" );
 			Assert.IsTrue( go.WorldPosition.Distance( targetPos ) < 1.0f, "Cloned GameObject should be near the target position" );
 
-			Assert.IsTrue( go.GetAllObjects( true ).Count() > 50, "Should have more than 50 child objects" );
+			Assert.IsTrue( modelPhysics.Bodies.Count > 0, "Should have physics bodies" );
+			Assert.IsTrue( go.GetAllObjects( true ).Count() >= modelPhysics.Bodies.Count, "Should have child objects for all physics bodies" );
 
 			var furthestObject = go.GetAllObjects( true ).Max( x => x.WorldPosition.Distance( targetPos ) );
 			Assert.IsTrue( furthestObject < 200.0f, $"Furthest object was {furthestObject:n0} away!" );
@@ -690,7 +693,8 @@ public class ModelPhysicsTest
 			// Allows for the ragdoll settling under gravity during the single GameTick above.
 			Assert.IsTrue( go.WorldPosition.Distance( targetPos ) < 5.0f, "Cloned GameObject should be near the target position" );
 
-			Assert.IsTrue( go.GetAllObjects( true ).Count() > 50, "Should have more than 50 child objects" );
+			Assert.IsTrue( modelPhysics.Bodies.Count > 0, "Should have physics bodies" );
+			Assert.IsTrue( go.GetAllObjects( true ).Count() >= modelPhysics.Bodies.Count, "Should have child objects for all physics bodies" );
 
 			var furthestObject = go.GetAllObjects( true ).Max( x => x.WorldPosition.Distance( targetPos ) );
 			Assert.IsTrue( furthestObject < 200.0f, $"Furthest object was {furthestObject:n0} away!" );
@@ -745,7 +749,8 @@ public class ModelPhysicsTest
 			Assert.IsTrue( go.IsValid(), "Cloned GameObject should be valid" );
 			Assert.IsTrue( go.WorldPosition.Distance( targetPos ) < 1.0f, "Cloned GameObject should be near the target position" );
 
-			Assert.IsTrue( go.GetAllObjects( true ).Count() > 50, "Should have more than 50 child objects" );
+			Assert.IsTrue( modelPhysics.Bodies.Count > 0, "Should have physics bodies" );
+			Assert.IsTrue( go.GetAllObjects( true ).Count() >= modelPhysics.Bodies.Count, "Should have child objects for all physics bodies" );
 
 			var furthestObject = go.GetAllObjects( true ).Max( x => x.WorldPosition.Distance( targetPos ) );
 			Assert.IsTrue( furthestObject < 200.0f, $"Furthest object was {furthestObject:n0} away!" );
@@ -800,7 +805,8 @@ public class ModelPhysicsTest
 			Assert.IsTrue( go.IsValid(), "Cloned GameObject should be valid" );
 			Assert.IsTrue( go.WorldPosition.Distance( targetPos ) < 1.0f, "Cloned GameObject should be near the target position" );
 
-			Assert.IsTrue( go.GetAllObjects( true ).Count() > 50, "Should have more than 50 child objects" );
+			Assert.IsTrue( modelPhysics.Bodies.Count > 0, "Should have physics bodies" );
+			Assert.IsTrue( go.GetAllObjects( true ).Count() >= modelPhysics.Bodies.Count, "Should have child objects for all physics bodies" );
 
 			var furthestObject = go.GetAllObjects( true ).Max( x => x.WorldPosition.Distance( targetPos ) );
 			Assert.IsTrue( furthestObject < 200.0f, $"Furthest object was {furthestObject:n0} away!" );
@@ -809,5 +815,116 @@ public class ModelPhysicsTest
 		scene.Destroy();
 
 		sourceScene.Destroy();
+	}
+
+	[TestMethod]
+	public void CreatePhysics_OnlyCreatesPhysicsBonesAndAncestors()
+	{
+		var scene = new Scene();
+		try
+		{
+			using var sceneScope = scene.Push();
+			var go = scene.CreateObject();
+			var modelPhysics = go.Components.Create<ModelPhysics>();
+			modelPhysics.Model = HumanModel;
+			modelPhysics.Enabled = true;
+
+			var expectedBones = new HashSet<string>();
+			foreach ( var part in HumanModel.Physics.Parts )
+			{
+				for ( var bone = HumanModel.Bones.GetBone( part.BoneName ); bone is not null; bone = bone.Parent )
+				{
+					expectedBones.Add( bone.Name );
+				}
+			}
+
+			var createdBones = go.GetAllObjects( true )
+				.Where( x => x != go && x.Flags.Contains( GameObjectFlags.Bone ) )
+				.Select( x => x.Name )
+				.ToList();
+
+			Assert.IsTrue( expectedBones.Count < HumanModel.BoneCount, "HumanModel should have non-physics leaf bones to prune" );
+			Assert.AreEqual( expectedBones.Count, createdBones.Count, "Should only create bone objects for physics parts and their ancestors" );
+			CollectionAssert.AreEquivalent( expectedBones.ToList(), createdBones );
+		}
+		finally
+		{
+			scene.Destroy();
+		}
+	}
+
+	[TestMethod]
+	public void CopyBonesFrom_DoesNotCreateNonPhysicsBones()
+	{
+		var scene = new Scene();
+		try
+		{
+			using var sceneScope = scene.Push();
+
+			var sourceGo = scene.CreateObject();
+			sourceGo.WorldPosition = new Vector3( 500, 0, 0 );
+			var sourceRenderer = sourceGo.Components.Create<SkinnedModelRenderer>();
+			sourceRenderer.Model = HumanModel;
+
+			var targetGo = scene.CreateObject();
+			var targetPhysics = targetGo.Components.Create<ModelPhysics>();
+			targetPhysics.Model = HumanModel;
+			targetPhysics.Enabled = true;
+
+			scene.GameTick();
+
+			var countBefore = targetGo.GetAllObjects( true ).Count();
+			Assert.IsTrue( countBefore < HumanModel.BoneCount, "Initial ModelPhysics hierarchy should omit non-physics leaf bones" );
+
+			targetPhysics.CopyBonesFrom( sourceRenderer, false );
+
+			var countAfter = targetGo.GetAllObjects( true ).Count();
+			Assert.AreEqual( countBefore, countAfter, "CopyBonesFrom should not recreate non-physics bone objects" );
+
+			foreach ( var body in targetPhysics.Bodies )
+			{
+				Assert.IsTrue( body.Component.GameObject.WorldPosition.x > 400f,
+					$"Body '{body.Component.GameObject.Name}' should have moved to the source pose: {body.Component.GameObject.WorldPosition}" );
+			}
+		}
+		finally
+		{
+			scene.Destroy();
+		}
+	}
+
+	[TestMethod]
+	public void SkinnedModelRenderer_CreateBoneObjects_ReusesModelPhysicsBones()
+	{
+		var scene = new Scene();
+		try
+		{
+			using var sceneScope = scene.Push();
+
+			var go = scene.CreateObject();
+			var renderer = go.Components.Create<SkinnedModelRenderer>();
+			renderer.Model = HumanModel;
+			Assert.IsFalse( renderer.CreateBoneObjects );
+
+			var modelPhysics = go.Components.Create<ModelPhysics>();
+			modelPhysics.Model = HumanModel;
+			modelPhysics.Enabled = true;
+
+			var headBefore = go.GetComponentsInChildren<Rigidbody>().Single( x => x.GameObject.Name == "head" ).GameObject;
+			var prunedCount = go.GetAllObjects( true ).Count( x => x != go && x.Flags.Contains( GameObjectFlags.Bone ) );
+			Assert.IsTrue( prunedCount < HumanModel.BoneCount );
+
+			renderer.CreateBoneObjects = true;
+
+			var headAfter = renderer.GetBoneObject( "head" );
+			Assert.AreSame( headBefore, headAfter, "Enabling CreateBoneObjects should reuse existing physics bone GameObjects" );
+
+			var fullCount = go.GetAllObjects( true ).Count( x => x != go && x.Flags.Contains( GameObjectFlags.Bone ) );
+			Assert.AreEqual( HumanModel.BoneCount, fullCount, "Enabling CreateBoneObjects should build the full bone hierarchy without duplicates" );
+		}
+		finally
+		{
+			scene.Destroy();
+		}
 	}
 }
