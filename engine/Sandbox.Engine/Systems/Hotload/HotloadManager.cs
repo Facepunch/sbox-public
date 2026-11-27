@@ -407,6 +407,11 @@ internal static class HotloadExtensions
 			hotload.IgnoreAssembly<NLog.Logger>();
 			hotload.IgnoreAssembly<Sentry.SentryStackFrame>();
 			hotload.IgnoreAssembly<System.Net.Http.HttpClient>();
+
+			// The runtime's sockets and pipes: their state is the runtime's own, used by its threads (the socket engine's
+			// event loop holds its event queue, so a copy left every socket in the process deaf)
+			hotload.IgnoreAssembly<System.Net.Sockets.Socket>();
+			hotload.IgnoreAssembly<System.IO.Pipes.NamedPipeServerStream>();
 			hotload.IgnoreAssembly<System.Text.RegularExpressions.Regex>();
 			hotload.IgnoreAssembly<LiteDB.LiteDatabase>();
 			hotload.IgnoreAssembly<SkiaSharp.SKBitmap>();

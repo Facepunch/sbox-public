@@ -3,6 +3,7 @@ using Mono.Cecil;
 using Sandbox.Upgraders;
 using Sandbox.Utility;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Threading;
 
@@ -125,6 +126,50 @@ public class NonSwappedTest : HotloadFixtureTestBase
 		finally
 		{
 			StaticEventRoots.Clear();
+		}
+	}
+
+	// Like the runtime's socket engine: an object holding a queue that another thread keeps its own reference to
+	private sealed class QueueOwner
+	{
+		public ConcurrentQueue<object> Queue = new();
+	}
+
+	private static class ConcurrentQueueRoots
+	{
+		public static QueueOwner Owner;
+	}
+
+	/// <summary>
+	/// A queue whose type wasn't swapped stays the same queue, with its items upgraded in place: a thread holding its
+	/// own reference to it (the runtime's socket engine's event loop) goes on enqueuing where its owner dequeues.
+	/// </summary>
+	[TestMethod]
+	public async Task NonSwappedConcurrentQueueStaysTheSameQueue()
+	{
+		using var fixture = await CreateFixtureAsync(
+			"""
+			public class NonSwappedConcurrentQueueStaysTheSameQueue : IHotloadTestFixture;
+			""" );
+
+		try
+		{
+			var owner = ConcurrentQueueRoots.Owner = new QueueOwner();
+			var queue = owner.Queue;
+			queue.Enqueue( "kept" );
+			queue.Enqueue( fixture.OldInstance );
+
+			await fixture.HotloadAsync( configure: x => WatchStatics( x, typeof( ConcurrentQueueRoots ) ) );
+
+			Assert.AreSame( queue, owner.Queue );
+			var items = queue.ToArray();
+			Assert.AreEqual( 2, items.Length );
+			Assert.AreEqual( "kept", items[0] );
+			Assert.AreSame( fixture.Instance, items[1] );
+		}
+		finally
+		{
+			ConcurrentQueueRoots.Owner = null;
 		}
 	}
 

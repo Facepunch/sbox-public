@@ -21,6 +21,7 @@ namespace Sandbox.Upgraders
 			typeof(Dictionary<,>),
 			typeof(List<>),
 			typeof(Queue<>),
+			typeof(ConcurrentQueue<>),
 			typeof(HashSet<>),
 			typeof(ConcurrentDictionary<,>),
 			typeof(ConditionalWeakTable<,>),
