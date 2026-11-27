@@ -163,6 +163,72 @@ public class SurfaceTests : GpuTest
 		Assert.AreEqual( source.Count( c => c == '\n' ), text.Count( c => c == '\n' ) );
 	}
 
+	/// <summary>TextureCube fields of [Material] structs become bindless slots too; a TextureCube outside a struct stays.</summary>
+	[TestMethod]
+	public void MaterialStructCubesBecomeSlots()
+	{
+		var source = "TextureCube Outside;\n[Material]\npublic struct Shiny : ISurface\n{\n\t[Group( \"Sky\" ), Srgb] TextureCube Sky;\n\tTextureCube<float4> Glow;\n\tMaterial Evaluate( SurfaceInput i ) { return {}; }\n}\n";
+		var text = MaterialSource.Rewrite( source, out _ );
+
+		StringAssert.Contains( text, "[Group( \"Sky\" ), Srgb] public MaterialTextureCube Sky;" );
+		StringAssert.Contains( text, "\tpublic MaterialTextureCube Glow;" );
+		StringAssert.Contains( text, "TextureCube Outside;" );
+	}
+
+	/// <summary>
+	/// A cube field is a cube material input: a four-byte slot of its own kind in the record, read with i.Sample, declared
+	/// to the material compiler and editor as a cube input and a cube texture made from it. A surface whose file name isn't
+	/// an identifier compiles, imported by its file name.
+	/// </summary>
+	[TestMethod]
+	[TestCategory( "Slow" )]
+	public void CubeFieldsAreMaterialInputs()
+	{
+		Compiler();
+		var folder = Path.Combine( Path.GetTempPath(), "borealis-surface-cube-test-" + Guid.NewGuid().ToString( "N" ) );
+		Directory.CreateDirectory( folder );
+		try
+		{
+			var module = Path.Combine( folder, "My Surface-2.slang" );
+			File.WriteAllText( module, """
+				import sbox.surface;
+
+				[Material]
+				public struct My_Surface_2 : ISurface
+				{
+					[Srgb, InputWith( "Sky", "Sky", "Srgb; _color; Default4( 1, 1, 1, 1 )" ), Pack( "RGBA: Sky Srgb", "DXT5" )] TextureCube Sky;
+					[Default( 0.5 )] float Amount;
+
+					public Material Evaluate( SurfaceInput i )
+					{
+						Material m = Material.Init( i );
+						m.Albedo = i.Sample( Sky, i.Normal ).rgb * Amount;
+						return m;
+					}
+				}
+				""" );
+			var bin = EngineFolders.NativeIn( Path.GetDirectoryName( Core ) );
+			var compiler = new SlangCompiler( bin, [folder, Path.Combine( Core, "shaders" )] ) { CacheFolder = Path.Combine( folder, "cache" ) };
+
+			var compiled = compiler.CompileSurface( module );
+			var sky = compiled.Material.Fields.Single( f => f.Name == "Sky" );
+			Assert.AreEqual( MaterialFieldKind.TextureCube, sky.Kind );
+			Assert.IsTrue( sky.IsTexture );
+			Assert.AreEqual( 4, sky.Size );
+			Assert.AreEqual( 4, compiled.Material.Fields.Single( f => f.Name == "Amount" ).Offset );
+
+			var declarations = SurfaceDeclarations.Generate( compiled.Material, "My Surface-2", _ => null );
+			StringAssert.Contains( declarations, "CreateInputTextureCube( Sky, Srgb, 8, \"\", \"_color\", \"Sky\", Default4( 1, 1, 1, 1 ) );" );
+			StringAssert.Contains( declarations, "TextureCube g_tSky < Channel( RGBA, Box( Sky ), Srgb ); OutputFormat( DXT5 ); SrgbRead( true ); >;" );
+			StringAssert.Contains( SlangCompiler.InstanceFile( "My Surface-2", "My_Surface_2", false, false ), "import \"My Surface-2.slang\";" );
+			StringAssert.Contains( SlangCompiler.InstanceFile( "rock", "Rock", false, false ), "import rock;" );
+		}
+		finally
+		{
+			Directory.Delete( folder, true );
+		}
+	}
+
 	/// <summary>
 	/// A surface compiles into forward, alpha-tested forward, depth and alpha-tested depth passes; its record is the
 	/// struct in order with textures as four-byte slots; the alpha-tested depth pass reads only what opacity needs.

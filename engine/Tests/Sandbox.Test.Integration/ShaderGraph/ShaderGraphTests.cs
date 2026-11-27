@@ -137,6 +137,10 @@ public class ShaderGraphTest
 		var shaderPath = Path.Combine( shadersDir, "ShaderGraph.slang" );
 		File.Delete( shaderPath );
 
+		// A graph whose name isn't an identifier saves under that name, its struct named as one
+		var namedPath = Path.Combine( shadersDir, "Shader Graph-2.slang" );
+		File.Delete( namedPath );
+
 		try
 		{
 			File.WriteAllText( shaderPath, shaderCode );
@@ -144,6 +148,17 @@ public class ShaderGraphTest
 
 			var errors = await Editor.ShaderUpgrade.CompileSurfaceAsync( shaderPath );
 			Assert.IsNull( errors, $"The generated surface didn't compile: {errors}" );
+
+			var surfaceName = (string)graphCompilerType.GetMethod( "SurfaceName" ).Invoke( null, new object[] { "Shader Graph-2" } );
+			Assert.AreEqual( "Shader_Graph_2", surfaceName );
+			Assert.AreEqual( "ShaderGraph", graphCompilerType.GetMethod( "SurfaceName" ).Invoke( null, new object[] { "ShaderGraph" } ), "a name that is an identifier stays" );
+			var named = Activator.CreateInstance( graphCompilerType, shaderGraph, false );
+			graphCompilerType.GetProperty( "Name" ).SetValue( named, surfaceName );
+			var namedCode = (string)graphCompilerType.GetMethod( "Generate" ).Invoke( named, null );
+			Assert.IsTrue( namedCode.Contains( "public struct Shader_Graph_2 " ), "The surface's struct isn't the name as an identifier" );
+			File.WriteAllText( namedPath, namedCode );
+			errors = await Editor.ShaderUpgrade.CompileSurfaceAsync( namedPath );
+			Assert.IsNull( errors, $"The surface of a graph named with a space and a dash didn't compile: {errors}" );
 		}
 		finally
 		{
@@ -151,6 +166,7 @@ public class ShaderGraphTest
 			try
 			{
 				File.Delete( shaderPath );
+				File.Delete( namedPath );
 			}
 			catch ( Exception ex )
 			{

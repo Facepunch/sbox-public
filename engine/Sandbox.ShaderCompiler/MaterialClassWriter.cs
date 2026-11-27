@@ -135,6 +135,9 @@ public static class MaterialClassWriter
 	static (string Type, string Get, string Set) Accessors( MaterialField field )
 	{
 		var o = field.Offset.ToString( CultureInfo.InvariantCulture );
+		// A cube field takes only a cube: a 2D view read as a cube is a descriptor of the wrong kind
+		if ( field.Kind == MaterialFieldKind.TextureCube )
+			return ("global::Borealis.GpuTexture", $"GetTexture( {o} )", $"SetTexture( {o}, value is null || (value.IsCube && !value.IsArray) ? value : throw new global::System.ArgumentException( \"{field.Name} is a cube texture\" ), srgb: {(field.Srgb ? "true" : "false")} )");
 		if ( field.IsTexture )
 			return ("global::Borealis.GpuTexture", $"GetTexture( {o} )", $"SetTexture( {o}, value, srgb: {(field.Srgb ? "true" : "false")} )");
 
