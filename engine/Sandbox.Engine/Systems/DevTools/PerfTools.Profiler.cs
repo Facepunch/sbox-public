@@ -218,7 +218,7 @@ internal static partial class PerfTools
 	}
 
 	[McpTool.ReadOnly( "profiler_timeline" )]
-	[Description( "Raw scope instances of a profiler capture, in start order on each thread, with parent links: exactly what ran when. Filter by thread, time window and duration, and page with offset. For where the time went, profiler_call_tree is usually the better view." )]
+	[Description( "Raw scope instances of a profiler capture, in start order on each thread, with parent links: exactly what ran when. Logs lists the warnings and errors logged in the window, up to 50. Filter by thread, time window and duration, and page with offset. For where the time went, profiler_call_tree is usually the better view." )]
 	internal static async Task<object> ProfilerTimeline(
 		[Description( "Capture ID from profiler_capture. 0 for the latest." )] long captureId = 0,
 		[Description( "Only this thread, by Key from the capture's Threads. 0 for all." )] ulong threadKey = 0,
@@ -253,6 +253,8 @@ internal static partial class PerfTools
 				CaptureId = capture.Id,
 				TotalInstances = total,
 				NextOffset = NextOffset( start, page.Count, total ),
+				Logs = capture.Markers.Where( x => x.Ms >= startMs && x.Ms <= endMs && (threadKey == 0 || x.ThreadKey == threadKey) ).Take( 50 )
+					.Select( x => new { TimeMs = Round( x.Ms, 3 ), Thread = CaptureThreadName( capture, x.ThreadKey ), x.Level, x.Text } ).ToArray(),
 				Instances = page.Select( x => new TimelineRow(
 					x.Index,
 					x.Parent,
@@ -342,6 +344,7 @@ internal static partial class PerfTools
 				Source = Profiler.SourceLocation( sites[x.ScopeId] )
 			} ).ToArray(),
 			GcPauses = gc.Count == 0 ? null : new { gc.Count, TotalMs = Round( gc.Sum( x => x.DurationMs ), 3 ), MaxMs = Round( gc.Max( x => x.DurationMs ), 3 ) },
+			Logs = capture.Markers.Length + capture.MarkersLost == 0 ? null : new { Warnings = capture.Markers.Count( x => x.Level == LogLevel.Warn ), Errors = capture.Markers.Count( x => x.Level == LogLevel.Error ), Lost = capture.MarkersLost },
 			AllocationsByScope = Profiler.AllocationsByScope( capture ).Take( 10 ).Select( x => new
 			{
 				Scope = sites.GetValueOrDefault( x.ScopeId )?.Name,

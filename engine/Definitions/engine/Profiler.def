@@ -21,6 +21,7 @@ native static class Profiler as NativeEngine.Profiler
 	static uint Start();
 	static void Stop();
 	static ulong Now();
+	static ulong ThreadId();
 	static ulong Frequency();
 	static ulong DroppedEvents();
 	static int ThreadSlots();

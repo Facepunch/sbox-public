@@ -132,6 +132,9 @@ internal static partial class Profiler
 		// Where allocation samples stop because the capture hit its sample limit, or null
 		public double? AllocationCutoffMs { get; init; }
 		public CounterSample[] CounterSamples { get; init; } = [];
+		public LogMarker[] Markers { get; init; } = [];
+		// Warnings and errors past MaxMarkers
+		public int MarkersLost { get; init; }
 		// Instance labels by Span.Label; 0 is no label
 		public string[] Labels { get; init; } = [null];
 
@@ -212,6 +215,9 @@ internal static partial class Profiler
 		public GcPauseListener GcPauses;
 		public readonly List<(ulong Ticks, long Bytes)> FrameAllocations = new( 4096 );
 		public readonly List<RawCounters> Counters = new( 4096 );
+		// Locked: any thread logs
+		public readonly List<RawMarker> Markers = new();
+		public int MarkersLost;
 		public bool FrameAllocationsDone;
 		public readonly TaskCompletionSource<Capture> Completion = new( TaskCreationOptions.RunContinuationsAsynchronously );
 
@@ -298,6 +304,7 @@ internal static partial class Profiler
 		if ( eventLimit < 2 || eventLimit > MaxEvents ) throw new ArgumentOutOfRangeException( nameof( eventLimit ) );
 
 		Scratch ??= new NativeEvent[RingCapacity];
+		ListenToLogs();
 		Drain( null ); // Discards old sessions and releases retired thread slots
 
 		int instanceLimit;
@@ -473,10 +480,14 @@ internal static partial class Profiler
 			var start = Stopwatch.GetTimestamp();
 			string archiveFile = null, storageError = null;
 			var counters = ResolveCounters( builder.Counters, builder.Start, clockToMs );
+			List<RawMarker> markers;
+			int markersLost;
+			lock ( builder.Markers ) { markers = builder.Markers.ToList(); markersLost = builder.MarkersLost; }
 			if ( builder.Archive is not null )
 			{
 				var metadata = new Capture( builder.Id, (end - builder.Start) * clockToMs, dropped, false, 0, threads, sites, [], [] )
-				{ ThreadSpans = threads.ToDictionary( x => x.Key, _ => ArraySegment<Span>.Empty ), Labels = labels, CounterSamples = counters };
+				{ ThreadSpans = threads.ToDictionary( x => x.Key, _ => ArraySegment<Span>.Empty ), Labels = labels, CounterSamples = counters, MarkersLost = markersLost };
+				metadata = metadata with { Markers = ResolveMarkers( metadata, markers, builder.Start, end, clockToMs ) };
 				try { archiveFile = builder.Archive.Finish( metadata, end ); }
 				catch ( Exception e ) { storageError = e.Message; }
 				if ( builder.Archive.StopTick != 0 ) end = Math.Max( builder.Start, Math.Min( end, builder.Archive.StopTick ) );
@@ -499,6 +510,8 @@ internal static partial class Profiler
 				AllocationCutoffMs = allocationCutoff != 0 && allocationCutoff < captureEnd ? Math.Max( 0, (double)((long)allocationCutoff - (long)builder.Start) ) * clockToMs : null,
 				Frames = AttachFrameAllocations( capture.Frames, frameAllocations ),
 				CounterSamples = counters.Where( x => x.Ms <= capture.DurationMs + 0.001 ).ToArray(),
+				Markers = ResolveMarkers( capture, markers, builder.Start, captureEnd, clockToMs ),
+				MarkersLost = markersLost,
 				Overhead = new( builder.DrainCount, drains.P50Ms, drains.P95Ms, builder.MaxDrainMs, snapshotMs, Stopwatch.GetElapsedTime( start ).TotalMilliseconds )
 			};
 			Publish( capture );

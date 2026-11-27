@@ -19,6 +19,7 @@ internal sealed class DevToolsProfilerTimeline : Panel
 	readonly DevToolsProfilerMemory _memory;
 	readonly List<(Rect Rect, Profiler.Span Span)> _hits = new();
 	readonly List<(Rect Rect, ActivityMark Mark)> _activityHits = new();
+	readonly List<(Rect Rect, Profiler.LogMarker Marker)> _markerHits = new();
 	readonly Dictionary<uint, Profiler.Site> _sites = new();
 	readonly Dictionary<ulong, ArraySegment<Profiler.Span>> _threads = new();
 	readonly Dictionary<ulong, List<Profiler.Span>> _visible = new();
@@ -596,6 +597,7 @@ internal sealed class DevToolsProfilerTimeline : Panel
 		painter.Stroke = Stroke.None;
 		_hits.Clear();
 		_activityHits.Clear();
+		_markerHits.Clear();
 		var width = Box.Rect.Width / ScaleToScreen;
 		var mouse = MousePosition / ScaleToScreen;
 		if ( _capture is null || width < 100 ) return;
@@ -613,6 +615,7 @@ internal sealed class DevToolsProfilerTimeline : Panel
 			painter.Fill = DevToolsStyles.Raised;
 			painter.Rect( new Rect( 0, y, width, HeaderHeight ) );
 			Text( painter, $"{(_collapsed.Contains( thread.Key ) ? "+" : "−")}  {ThreadLabel( thread.Key )}", new Rect( 5, y, width - 10, HeaderHeight ), DevToolsStyles.Text );
+			DrawMarkers( painter, thread.Key, y, width, range );
 			if ( _collapsed.Contains( thread.Key ) || !_visible.TryGetValue( thread.Key, out var spans ) ) continue;
 			foreach ( var mark in _activity[thread.Key] )
 			{
@@ -665,9 +668,31 @@ internal sealed class DevToolsProfilerTimeline : Panel
 	bool IsSelectedPause( DevToolsProfilerGc.Mark mark ) => _focused >= 0 && _capture.Spans[_focused] is { ThreadKey: Profiler.GcThreadKey } span
 		&& span.StartMs >= mark.StartMs && span.StartMs <= mark.EndMs;
 
+	// Logged warnings and errors in the thread's header; ones from threads without a lane go on the main thread's
+	void DrawMarkers( Painter painter, ulong thread, float y, float width, double range )
+	{
+		foreach ( var marker in _capture.Markers )
+		{
+			if ( marker.Ms < _start || marker.Ms > _end ) continue;
+			var lane = marker.ThreadKey != 0 && _threadY.ContainsKey( marker.ThreadKey ) ? marker.ThreadKey : MainThread;
+			if ( lane != thread ) continue;
+			var x = (float)((marker.Ms - _start) / range * width);
+			var rect = new Rect( x - 2, y + 3, 5, HeaderHeight - 6 );
+			painter.Fill = marker.Level == LogLevel.Error ? DevToolsStyles.Bad : DevToolsStyles.Warning;
+			painter.Rect( rect );
+			_markerHits.Add( (rect.Grow( 2, 0 ), marker) );
+		}
+	}
+
 	void UpdateHoverTooltip( Vector2 mouse )
 	{
 		Tooltip = null;
+		foreach ( var (rect, marker) in _markerHits )
+		{
+			if ( !rect.IsInside( mouse ) ) continue;
+			Tooltip = $"{(marker.Level == LogLevel.Error ? "Error" : "Warning")} at {marker.Ms:0.000} ms\n{marker.Text}";
+			return;
+		}
 		foreach ( var (rect, mark) in _activityHits )
 		{
 			if ( !rect.IsInside( mouse ) ) continue;

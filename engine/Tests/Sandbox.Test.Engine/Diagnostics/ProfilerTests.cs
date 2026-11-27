@@ -600,6 +600,59 @@ public class ProfilerTests
 		finally { if ( path is not null ) System.IO.File.Delete( path ); }
 	}
 
+	static readonly Logger TestLog = new( "ProfilerTests" );
+
+	[TestMethod]
+	public void WarningsAndErrorsBecomeMarkersThatSurviveSavingAndStreaming()
+	{
+		string path = null;
+		try
+		{
+			var task = Profiler.StartCapture( 10, collector: false, streamToDisk: true );
+			using ( Parent.Start() )
+			{
+				TestLog.Warning( "Test marker warning" );
+				TestLog.Info( "Test marker info" );
+			}
+			var worker = new Thread( () => { using ( Worker.Start() ) TestLog.Error( "Test marker error" ); } );
+			worker.Start();
+			Assert.IsTrue( worker.Join( TimeSpan.FromSeconds( 10 ) ) );
+			Profiler.StopCapture();
+			var capture = task.GetAwaiter().GetResult();
+			Assert.IsNotNull( capture.SourceFile, capture.StorageError );
+			path = Profiler.CapturePath( capture.SourceFile );
+
+			var warning = capture.Markers.Single( x => x.Text.Contains( "Test marker warning" ) );
+			Assert.AreEqual( LogLevel.Warn, warning.Level );
+			Assert.AreEqual( Named( capture, "Test.Profiler.Parent" ).ThreadKey, warning.ThreadKey );
+			var error = capture.Markers.Single( x => x.Text.Contains( "Test marker error" ) );
+			Assert.AreEqual( LogLevel.Error, error.Level );
+			Assert.AreEqual( Named( capture, "Test.Profiler.Worker" ).ThreadKey, error.ThreadKey );
+			Assert.IsFalse( capture.Markers.Any( x => x.Text.Contains( "Test marker info" ) ) );
+			Assert.IsTrue( warning.Ms >= 0 && warning.Ms <= capture.DurationMs );
+
+			using var saved = new System.IO.MemoryStream();
+			Profiler.WriteCapture( capture, saved );
+			saved.Position = 0;
+			CollectionAssert.AreEqual( capture.Markers, Profiler.ReadCapture( saved ).Markers );
+
+			var streamed = Profiler.LoadCapture( capture.SourceFile ).GetAwaiter().GetResult();
+			CollectionAssert.AreEqual( capture.Markers, streamed.Markers );
+		}
+		finally { if ( path is not null ) System.IO.File.Delete( path ); }
+	}
+
+	[TestMethod]
+	public void MarkersStopAtTheCapLimit()
+	{
+		var task = StartCapture( 10 );
+		for ( int i = 0; i < Profiler.MaxMarkers + 5; i++ ) TestLog.Warning( "Test marker flood" );
+		Profiler.StopCapture();
+		var capture = task.GetAwaiter().GetResult();
+		Assert.AreEqual( Profiler.MaxMarkers, capture.Markers.Length );
+		Assert.IsTrue( capture.MarkersLost >= 5 );
+	}
+
 	[TestMethod]
 	public void LabelsInternByContentAndCutOnACharacterBoundary()
 	{

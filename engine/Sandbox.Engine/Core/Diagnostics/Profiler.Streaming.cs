@@ -9,7 +9,7 @@ namespace Sandbox.Diagnostics;
 internal static partial class Profiler
 {
 	const ulong ContainerMagic = 0x3143454352544253;
-	const uint SnapshotSection = 1, MetadataSection = 2, IndexSection = 3, EventsSection = 4, MemorySection = 5, CountersSection = 6, DirectorySection = 0xffff;
+	const uint SnapshotSection = 1, MetadataSection = 2, IndexSection = 3, EventsSection = 4, MemorySection = 5, CountersSection = 6, MarkersSection = 7, DirectorySection = 0xffff;
 	const int ContainerHeaderBytes = 48;
 	readonly record struct FileSection( uint Kind, uint Version, long Offset, long Length );
 	readonly record struct EventBlock( FileSection Section, ulong Thread, ulong First, ulong Last );
@@ -337,17 +337,23 @@ internal static partial class Profiler
 	}
 
 	/// <summary>
-	/// Sections beside the scopes, in saved and streamed files alike: frame counters.
+	/// Sections beside the scopes, in saved and streamed files alike: frame counters and log markers.
 	/// </summary>
 	static void WriteTracks( BinaryWriter writer, Capture capture, List<FileSection> sections )
 	{
 		if ( capture.CounterSamples.Length > 0 ) sections.Add( WriteSection( writer, CountersSection, () => WriteCounters( writer, capture.CounterSamples ) ) );
+		if ( capture.Markers.Length > 0 || capture.MarkersLost > 0 ) sections.Add( WriteSection( writer, MarkersSection, () => WriteMarkers( writer, capture ) ) );
 	}
 
 	static Capture ReadTracks( Stream stream, Dictionary<uint, FileSection> sections, Capture capture )
 	{
 		if ( sections.TryGetValue( CountersSection, out var counters ) && counters.Version == 1 )
 			capture = capture with { CounterSamples = ReadCounters( new SectionStream( stream, counters ) ) };
+		if ( sections.TryGetValue( MarkersSection, out var markers ) && markers.Version == 1 )
+		{
+			var (read, lost) = ReadMarkers( new SectionStream( stream, markers ) );
+			capture = capture with { Markers = read, MarkersLost = lost };
+		}
 		return capture;
 	}
 
@@ -386,12 +392,17 @@ internal static partial class Profiler
 			// A window cut short by the span limit ends where it was cut
 			var captureEnd = builder.RejectedTick != 0 ? Math.Clamp( builder.RejectedTick, windowStart, windowEnd ) : windowEnd;
 			var capture = Finish( builder, captureEnd, metadata.DroppedEvents, 1000.0 / frequency, metadata.Sites, metadata.Threads );
+			var (markers, markersLost) = sections.TryGetValue( MarkersSection, out var markerSection ) && markerSection.Version == 1
+				? ReadSection( stream, markerSection, s => ReadMarkers( s, startMs, endMs - startMs ) ) : (Array.Empty<LogMarker>(), 0);
 			return capture with
 			{
 				SourceOffsetMs = startMs,
 				RecordedDurationMs = metadata.DurationMs,
 				Labels = metadata.Labels,
 				CounterSamples = sections.TryGetValue( CountersSection, out var counters ) && counters.Version == 1 ? ReadSection( stream, counters, s => ReadCounters( s, startMs, endMs - startMs ) ) : [],
+				// Written before the scopes were read back, so threads whose OS id was reused are told apart only now
+				Markers = RelocateMarkers( capture, markers ),
+				MarkersLost = markersLost,
 				EventLimitReached = capture.EventLimitReached || metadata.EventLimitReached,
 				LimitReason = capture.LimitReason ?? metadata.LimitReason
 			};
