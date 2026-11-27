@@ -28,6 +28,7 @@ public sealed partial class SnapGrid
 		HasValidSnap = true;
 		LastSnapWorldPos = snapPos;
 		LastSnapWorldNormal = normal;
+		_lattice = (origin, new Vector2( cellSize, cellSize ), false);
 
 		_sceneObj.RenderingEnabled = true;
 		_sceneObj.Write( patchCenter, right, up, halfExtents );

@@ -84,11 +84,17 @@ public sealed partial class SnapGrid
 	private bool _hasPlane;
 	private Vertex[] _snapVertices;
 	private uint[] _snapIndices;
+	private (Vector3 Origin, Vector2 Spacing, bool Round) _lattice;
 
 	/// <summary>
 	/// The snapped world-space position of the highlighted corner
 	/// </summary>
 	public Vector3 LastSnapWorldPos { get; private set; }
+
+	/// <summary>
+	/// The grid corner <see cref="LastSnapWorldPos"/> was fitted to the surface from
+	/// </summary>
+	public Vector3 LastLatticePoint { get; private set; }
 	public Vector3 LastSnapWorldNormal { get; private set; }
 	public bool HasValidSnap { get; private set; }
 
@@ -109,6 +115,19 @@ public sealed partial class SnapGrid
 
 		var snapPos = faceOriginWs + faceRightWs * (cx * cellSize) + faceUpWs * (cy * cellSize);
 		return (cx, cy, snapPos);
+	}
+
+	/// <summary>
+	/// The grid corner nearest to <paramref name="aimWorldPos"/> on the lattice from the last update.
+	/// </summary>
+	public Vector3 GetSnappedPoint( Vector3 aimWorldPos )
+	{
+		if ( _lattice.Round ) return ComputeRoundSnap( aimWorldPos, _lattice.Spacing.x );
+
+		var offset = aimWorldPos - _lattice.Origin;
+		return _lattice.Origin
+			+ _cachedRight * (MathF.Round( Vector3.Dot( offset, _cachedRight ) / _lattice.Spacing.x ) * _lattice.Spacing.x)
+			+ _cachedUp * (MathF.Round( Vector3.Dot( offset, _cachedUp ) / _lattice.Spacing.y ) * _lattice.Spacing.y);
 	}
 
 	/// <summary>
@@ -233,6 +252,8 @@ public sealed partial class SnapGrid
 				+ _cachedUp * (MathF.Round( Vector3.Dot( offset, _cachedUp ) / spacing.y ) * spacing.y);
 		}
 		if ( roundSurface ) snapPos = ComputeRoundSnap( aimWorldPos, cellSize );
+		_lattice = (gridOrigin, spacing, roundSurface);
+		LastLatticePoint = snapPos;
 		HasValidSnap = true;
 		LastSnapWorldNormal = faceNormal;
 		if ( meshSurface )
