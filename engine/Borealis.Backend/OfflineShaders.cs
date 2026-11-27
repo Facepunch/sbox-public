@@ -50,6 +50,9 @@ public static class OfflineShaders
 
 	static readonly Dictionary<string, SlangCompiler> gameCompilers = new( StringComparer.OrdinalIgnoreCase );
 
+	/// <summary>Told the compiler's warnings (<see cref="SlangCompiler.Warning"/>: a deprecated API level's) for a game project's Slang; the editor's console.</summary>
+	public static Action<string> GameWarning { get; set; }
+
 	/// <summary>
 	/// The compiler a game project's Slang compiles offline with, for the game folder <paramref name="game"/>: the one the
 	/// game's device compiles with at run time (its Slang, the core shaders as its search path), so the entries it writes
@@ -62,7 +65,7 @@ public static class OfflineShaders
 		lock ( gameCompilers )
 		{
 			if ( gameCompilers.TryGetValue( game, out var known ) ) return known;
-			return gameCompilers[game] = new SlangCompiler( EngineFolders.NativeIn( game ), [shaders] ) { CacheFolder = Path.Combine( game, ".source2", "borealisoffline" ), UseOffline = false };
+			return gameCompilers[game] = new SlangCompiler( EngineFolders.NativeIn( game ), [shaders] ) { CacheFolder = Path.Combine( game, ".source2", "borealisoffline" ), UseOffline = false, Warning = message => GameWarning?.Invoke( message ) };
 		}
 	}
 
@@ -110,6 +113,62 @@ public static class OfflineShaders
 		} ) ).ConfigureAwait( false );
 
 		return failed;
+	}
+
+	static readonly Dictionary<string, (string Hash, string Description)> descriptions = new( StringComparer.OrdinalIgnoreCase );
+
+	/// <summary>
+	/// The surfaces and raw modules under a game project's folder <paramref name="folder"/> (its assets), each described for
+	/// game code's typed class (<see cref="MaterialClassWriter.Describe"/>) by its path there (<c>shaders/rock.slang</c>):
+	/// from its offline compile's layout when it's current, else one Slang reflection, kept while its text and the compiler
+	/// are the same. One that doesn't compile is left out (its errors are the editor's to show). Pass modules and modules
+	/// others import have none.
+	/// </summary>
+	public static List<(string Path, string Description)> DescribeGameSurfaces( string game, string folder )
+	{
+		var described = new List<(string, string)>();
+		if ( !Directory.Exists( folder ) || GameCompiler( game ) is not { } compiler ) return described;
+		foreach ( var source in Directory.GetFiles( folder, "*.slang", SearchOption.AllDirectories ).Where( f => !IsHidden( folder, f ) ).Order( StringComparer.Ordinal ) )
+		{
+			var relative = Path.GetRelativePath( folder, source ).Replace( '\\', '/' );
+			string text;
+			try
+			{
+				text = File.ReadAllText( source );
+			}
+			catch ( IOException )
+			{
+				continue;
+			}
+
+			// Surfaces and raw modules only: a [Material] struct, no pass declarations
+			if ( text.Contains( "sbox/pass.slangh", StringComparison.Ordinal ) || !System.Text.RegularExpressions.Regex.IsMatch( text, @"\[\s*Material\b" ) ) continue;
+
+			var hash = $"{SlangCompiler.Version}|{Convert.ToHexString( System.Security.Cryptography.SHA256.HashData( System.Text.Encoding.UTF8.GetBytes( text ) ) )}";
+			lock ( descriptions )
+			{
+				if ( descriptions.TryGetValue( source, out var known ) && known.Hash == hash )
+				{
+					if ( known.Description is not null ) described.Add( (relative, known.Description) );
+					continue;
+				}
+			}
+
+			string description = null;
+			try
+			{
+				var shader = compiler.ReflectAsync( source ).GetAwaiter().GetResult();
+				if ( shader.Material is not null ) description = MaterialClassWriter.Describe( shader, relative[..^".slang".Length] + ".shader" );
+			}
+			catch ( ShaderCompileException )
+			{
+			}
+
+			lock ( descriptions ) descriptions[source] = (hash, description);
+			if ( description is not null ) described.Add( (relative, description) );
+		}
+
+		return described;
 	}
 
 	/// <summary>A file in a dot folder (<c>.source2</c>, <c>.vs</c>) or an <c>obj</c> folder under <paramref name="folder"/>: not the project's.</summary>

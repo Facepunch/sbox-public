@@ -211,6 +211,13 @@ public partial class Project
 				}
 			}
 
+			// A typed class per Slang surface in the project's assets, from its reflection, carried in the archive
+			if ( HasAssetsPath() )
+			{
+				var assets = GetAssetsPath();
+				Compiler.AdditionalFilesProvider = () => SurfaceDescriptions( assets );
+			}
+
 			Compiler.WatchForChanges();
 		}
 
@@ -525,5 +532,16 @@ public partial class Project
 		}
 
 		return true;
+	}
+
+	/// <summary>
+	/// The project's Slang surfaces described for their typed classes (<see cref="Borealis.Backend.OfflineShaders.DescribeGameSurfaces"/>),
+	/// as the code archive carries them: <c>surfaces/shaders/rock.surface</c> for <c>shaders/rock.slang</c>.
+	/// </summary>
+	static IEnumerable<CodeArchive.AdditionalFile> SurfaceDescriptions( string assets )
+	{
+		var game = System.IO.Path.GetFullPath( EngineFileSystem.Root.GetFullPath( "/" ) );
+		return Borealis.Backend.OfflineShaders.DescribeGameSurfaces( game, assets )
+			.Select( d => new CodeArchive.AdditionalFile( d.Description, "surfaces/" + System.IO.Path.ChangeExtension( d.Path, Generator.SurfaceClassWriter.Extension ) ) );
 	}
 }

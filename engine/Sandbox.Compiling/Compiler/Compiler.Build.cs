@@ -161,6 +161,7 @@ partial class Compiler
 		// Syntax trees
 		//
 		GetSyntaxTree( archive, parseOptions );
+		AddProvidedFiles( archive );
 
 		if ( GetGeneratedCode( parseOptions ) is SyntaxTree generated )
 		{
@@ -195,7 +196,8 @@ partial class Compiler
 		List<SyntaxTree> inputSyntaxTrees =
 		[
 			.. archive.SyntaxTrees.Select( tree => StampAssembly( tree, output.Version ) ),
-			.. ProcessRazorFiles(archive, output) // processed razor files
+			.. ProcessRazorFiles(archive, output), // processed razor files
+			.. ProcessSurfaceFiles( archive ), // a typed class per Slang surface
 		];
 
 		CSharpCompilation compiler = null;

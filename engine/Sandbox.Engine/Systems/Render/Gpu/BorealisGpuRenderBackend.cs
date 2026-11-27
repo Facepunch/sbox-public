@@ -679,6 +679,10 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		files = ContentFiles.FindGame();
 		files.Resolve = MountedFile;
 		files.ResolveSource = MountedSource;
+
+		// Slang that game code compiled (Shader.CompileAsync), found by its name under compiled/
+		System.IO.Directory.CreateDirectory( Sandbox.Engine.Shaders.GameShaders.SlangFolder );
+		files.AddFallback( Sandbox.Engine.Shaders.GameShaders.SlangFolder );
 		services = new BackendDevice( gpu, files );
 		services.Shaders.Unloaded = message => Log.Warning( $"Borealis.Gpu: {message}" );
 		services.Passes.Error = message => Log.Warning( $"Borealis.Gpu: {message}" );

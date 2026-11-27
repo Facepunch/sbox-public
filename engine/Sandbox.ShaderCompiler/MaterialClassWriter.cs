@@ -64,6 +64,52 @@ public static class MaterialClassWriter
 		return s.ToString();
 	}
 
+	/// <summary>The first line of <see cref="Describe"/>'s text, with its version.</summary>
+	public const string DescriptionHeader = "sbox-surface\t1";
+
+	/// <summary>
+	/// A surface's or raw module's material, as game code's typed class is generated from it (Sandbox.Generator's
+	/// <c>SurfaceClassWriter</c>, when game code compiles): the same reflection <see cref="Write"/> reads, as tab-separated
+	/// lines. <c>type</c> (the struct's name: the class's), <c>shader</c> (what its materials name, <paramref name="shader"/>),
+	/// then a <c>field</c> line per field: its name (the property's), the name <c>Material.Set</c> takes for it (its
+	/// <c>[Source]</c>, else its name), kind, components, default values, group, range and whether it's sRGB. Fields
+	/// <c>Material.Set</c> can't reach (a <c>[Source( "Shader: … " )]</c>) are left out.
+	/// </summary>
+	public static string Describe( CompiledShader shader, string shaderName )
+	{
+		var layout = shader.Material;
+		var s = new StringBuilder();
+		s.Append( DescriptionHeader ).Append( '\n' );
+		s.Append( "type\t" ).Append( layout.Type ).Append( '\n' );
+		s.Append( "shader\t" ).Append( shaderName.Replace( '\\', '/' ) ).Append( '\n' );
+		s.Append( "file\t" ).Append( Path.GetFileName( shader.Path ) ).Append( '\n' );
+		foreach ( var field in layout.Fields )
+		{
+			if ( field.ShaderNames is not null ) continue;
+			var kind = field.Kind switch
+			{
+				MaterialFieldKind.Float => "float",
+				MaterialFieldKind.Int => "int",
+				MaterialFieldKind.UInt => "uint",
+				MaterialFieldKind.Bool => "bool",
+				_ => "texture",
+			};
+
+			s.Append( "field\t" ).Append( field.Name )
+				.Append( '\t' ).Append( field.Source ?? field.Name )
+				.Append( '\t' ).Append( kind )
+				.Append( '\t' ).Append( field.Components.ToString( CultureInfo.InvariantCulture ) )
+				.Append( '\t' ).Append( field.Kind == MaterialFieldKind.Texture2D || field.Default is null ? "" : string.Join( ",", field.Default.Select( v => v.ToString( "R", CultureInfo.InvariantCulture ) ) ) )
+				.Append( '\t' ).Append( (field.Group ?? "").Replace( '\t', ' ' ).Replace( '\n', ' ' ) )
+				.Append( '\t' ).Append( field.Min is { } min ? min.ToString( "R", CultureInfo.InvariantCulture ) : "" )
+				.Append( '\t' ).Append( field.Max is { } max ? max.ToString( "R", CultureInfo.InvariantCulture ) : "" )
+				.Append( '\t' ).Append( field.Srgb ? "srgb" : "" )
+				.Append( '\n' );
+		}
+
+		return s.ToString();
+	}
+
 	/// <summary>A fingerprint of a layout (field names, kinds, sizes, offsets), which the class and the compiled shader must share.</summary>
 	public static uint Hash( MaterialLayout layout )
 	{

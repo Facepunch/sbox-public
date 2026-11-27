@@ -42,7 +42,39 @@ internal static class GameSlangShaders
 			return;
 		}
 
-		running = CompileAsync();
+		running = CompileAndDescribeAsync();
+	}
+
+	static readonly Dictionary<string, string> described = new( StringComparer.OrdinalIgnoreCase );
+
+	/// <summary>
+	/// <see cref="CompileAsync"/>, then game code compiled again for each project whose surfaces' descriptions changed, so
+	/// its typed classes (Sandbox.Generator's SurfaceClassWriter) follow the shaders.
+	/// </summary>
+	static async Task CompileAndDescribeAsync()
+	{
+		await CompileAsync();
+		await DescribeAsync( recompile: true );
+	}
+
+	/// <summary>As the project loads: its Slang compiled, and what its surfaces' classes are made from noted.</summary>
+	internal static async Task StartupAsync()
+	{
+		OfflineShaders.GameWarning ??= message => Log.Warning( message );
+		await CompileAsync();
+		await DescribeAsync( recompile: false );
+	}
+
+	static async Task DescribeAsync( bool recompile )
+	{
+		foreach ( var project in Project.All.Where( p => p.Active && p.HasAssetsPath() && p.Compiler is not null ) )
+		{
+			var folder = Path.GetFullPath( project.GetAssetsPath() );
+			var now = await Task.Run( () => string.Join( "\n", OfflineShaders.DescribeGameSurfaces( GameFolder, folder ).Select( d => d.Path + "\n" + d.Description ) ) );
+			var before = described.GetValueOrDefault( folder );
+			described[folder] = now;
+			if ( recompile && before != now ) project.Compiler.MarkForRecompile();
+		}
 	}
 
 	/// <summary>Compile every active project's Slang shaders whose offline compile is missing or out of date; how many failed.</summary>

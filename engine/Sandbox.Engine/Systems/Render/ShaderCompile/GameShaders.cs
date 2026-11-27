@@ -13,7 +13,7 @@ namespace Sandbox.Engine.Shaders;
 /// packaged or core shader, and the links go when the game closes. An anonymous one is read back into memory and its
 /// files deleted straight away.
 /// </summary>
-internal static class GameShaders
+internal static partial class GameShaders
 {
 	const string ResourcePrefix = "compiled/";
 
@@ -42,6 +42,10 @@ internal static class GameShaders
 		if ( path.Split( '/' ).Contains( ".." ) )
 			throw new ArgumentException( $"{name} can't use ..", nameof( name ) );
 
+		// Slang (a surface or module) compiles with Slang, vfx text as before
+		if ( IsSlang( source ) )
+			return await CompileSlang( path, source, [], token );
+
 		var fileSystem = SourceFileSystem( path, source );
 
 		try
@@ -62,14 +66,19 @@ internal static class GameShaders
 
 		var relativePath = path.Replace( '\\', '/' ).TrimStart( '/' );
 
-		if ( !relativePath.EndsWith( ".shader", StringComparison.OrdinalIgnoreCase ) )
-			throw new ArgumentException( $"{path} isn't a .shader file", nameof( path ) );
+		var slangFile = relativePath.EndsWith( ".slang", StringComparison.OrdinalIgnoreCase );
+		if ( !slangFile && !relativePath.EndsWith( ".shader", StringComparison.OrdinalIgnoreCase ) )
+			throw new ArgumentException( $"{path} isn't a .shader or .slang file", nameof( path ) );
 
 		if ( relativePath.Split( '/' ).Contains( ".." ) )
 			throw new ArgumentException( $"{path} can't use ..", nameof( path ) );
 
 		if ( !fileSystem.FileExists( relativePath ) )
 			throw new FileNotFoundException( $"Couldn't find {path}", path );
+
+		// Slang (a .slang, or a .shader written in Slang) compiles with Slang, with the Slang files beside it for its imports
+		if ( slangFile || IsSlang( fileSystem.ReadAllText( relativePath ) ) )
+			return await CompileSlang( relativePath, fileSystem.ReadAllText( relativePath ), SlangSiblings( fileSystem, relativePath ), token );
 
 		var resourceName = (ResourcePrefix + relativePath).ToLowerInvariant();
 		var cachePath = Path.Combine( CacheFolder, resourceName );
@@ -111,7 +120,13 @@ internal static class GameShaders
 		ThreadSafe.AssertIsMainThread();
 		ArgumentNullException.ThrowIfNull( source );
 
+		// Slang has no vfx resource to keep in memory: it's compiled under an anonymous name of its own, which nothing else
+		// uses (a module's name is an identifier)
+		if ( IsSlang( source ) )
+			return await CompileSlang( $"anonymous/slang_{Interlocked.Increment( ref anonymousCount )}.shader", source, [], token );
+
 		var relativePath = $"anonymous/{Interlocked.Increment( ref anonymousCount )}.shader";
+
 		var resourceName = ResourcePrefix + relativePath;
 		var cachePath = Path.Combine( CacheFolder, resourceName );
 		var fileSystem = SourceFileSystem( relativePath, source );
@@ -255,6 +270,7 @@ internal static class GameShaders
 		}
 
 		links.Clear();
+		RemoveSlangLinks();
 
 		if ( clearedCache )
 			DeleteCache();
