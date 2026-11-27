@@ -253,6 +253,7 @@ public sealed class Win64 : NativePlatform
 
 		if ( !options.Buildbot ) config.Define( "DEV_BUILD" );
 		if ( options.Retail ) config.Define( "RETAIL", "_RETAIL" );
+		if ( module.Tracy && !options.Retail ) config.Define( "TRACY_ENABLE", "TRACY_ON_DEMAND", "TRACY_DELAYED_INIT", "TRACY_MANUAL_LIFETIME", "TRACY_TIMER_FALLBACK" );
 
 		if ( module.Strict ) config.Define( "STRICT_TYPE_CONVERSION_WARNINGS_ACTIVE=1" );
 		else config.NoWarn( ["4018", "4244", "4389"] );
