@@ -77,4 +77,28 @@ public class MaterialTest
 			second?.Destroy();
 		}
 	}
+
+	/// <summary>
+	/// Extensionless material names with dots (e.g. Blender's "mymaterial.001") are accepted and normalized to .vmat.
+	/// </summary>
+	[TestMethod]
+	[DataRow( "materials/mymaterial.001" )]
+	[DataRow( "materials/mymaterial.001.vmat" )]
+	public void CreateSupportsDotsInFilename( string name )
+	{
+		if ( !Graphics.IsAvailable )
+			Assert.Inconclusive( "Requires SBOX_TEST_GRAPHICS=1." );
+
+		var material = Material.Create( name, "shaders/simple.shader" );
+		try
+		{
+			Assert.IsNotNull( material );
+			Assert.IsTrue( material.IsValid && !material.IsError );
+			StringAssert.EndsWith( material.ResourcePath, "materials/mymaterial.001.vmat" );
+		}
+		finally
+		{
+			material?.Destroy();
+		}
+	}
 }

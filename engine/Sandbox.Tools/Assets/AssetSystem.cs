@@ -351,8 +351,9 @@ public static partial class AssetSystem
 			return null;
 		}
 
-		var extension = gameResourceType.Extension;
-		absoluteFilename = System.IO.Path.ChangeExtension( absoluteFilename, extension );
+		var extension = $".{gameResourceType.Extension}";
+		if ( !absoluteFilename.EndsWith( extension, StringComparison.OrdinalIgnoreCase ) )
+			absoluteFilename += extension;
 
 		// try to find it first. If we find it, return it.
 		var found = AssetSystem.FindByPath( absoluteFilename );
