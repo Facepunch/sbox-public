@@ -227,14 +227,8 @@ public class MainWindow : DockWindow
 		return $"sg_{SurfaceName( _asset?.Name ?? "untitled" )}_{Convert.ToHexString( hash, 0, 4 ).ToLowerInvariant()}";
 	}
 
-	/// <summary>
-	/// A graph's surface name: its file name, which a Slang module is named by, so letters, digits and underscores only.
-	/// </summary>
-	internal static string SurfaceName( string name )
-	{
-		var clean = new string( (name ?? "").Select( c => char.IsLetterOrDigit( c ) || c == '_' ? c : '_' ).ToArray() );
-		return clean.Length == 0 || char.IsDigit( clean[0] ) ? "_" + clean : clean;
-	}
+	/// <summary>A graph's surface name (<see cref="GraphCompiler.SurfaceName"/>).</summary>
+	internal static string SurfaceName( string name ) => GraphCompiler.SurfaceName( name );
 
 	private async void CompileAsync( string path, bool module )
 	{
@@ -1088,15 +1082,9 @@ public class MainWindow : DockWindow
 		}
 		else
 		{
-			// The graph's Slang: a surface, or a standalone module for post-processing. A Slang module is named by its file, so a
-			// graph whose name isn't one (spaces, dashes) is refused rather than written where it can't compile
+			// The graph's Slang beside it: a surface, or a standalone module for post-processing. The surface's struct is named
+			// like an identifier whatever the file is called (SurfaceName); the shader compiler imports a file whose name isn't one by its path
 			var slangPath = System.IO.Path.ChangeExtension( savePath, ".slang" );
-			var stem = System.IO.Path.GetFileNameWithoutExtension( savePath );
-			if ( SurfaceName( stem ) != stem )
-			{
-				Log.Error( $"ShaderGraph: {stem} can't be a Slang shader's name: rename the graph with letters, digits and underscores only (as {SurfaceName( stem )})" );
-				return false;
-			}
 
 			var code = GenerateShaderCode();
 			if ( string.IsNullOrWhiteSpace( code ) )

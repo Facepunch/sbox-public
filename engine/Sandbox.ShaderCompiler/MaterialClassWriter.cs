@@ -36,7 +36,7 @@ public static class MaterialClassWriter
 			.Append( hasStates ? ", RenderStates" : "" ).Append( " )\n\t{\n" );
 		foreach ( var field in layout.Fields )
 		{
-			if ( field.Kind == MaterialFieldKind.Texture2D || field.Default is null ) continue;
+			if ( field.IsTexture || field.Default is null ) continue;
 			s.Append( "\t\t" ).Append( field.Name ).Append( " = " ).Append( Literal( field, field.Default ) ).Append( ";\n" );
 		}
 
@@ -99,7 +99,7 @@ public static class MaterialClassWriter
 				.Append( '\t' ).Append( field.Source ?? field.Name )
 				.Append( '\t' ).Append( kind )
 				.Append( '\t' ).Append( field.Components.ToString( CultureInfo.InvariantCulture ) )
-				.Append( '\t' ).Append( field.Kind == MaterialFieldKind.Texture2D || field.Default is null ? "" : string.Join( ",", field.Default.Select( v => v.ToString( "R", CultureInfo.InvariantCulture ) ) ) )
+				.Append( '\t' ).Append( field.IsTexture || field.Default is null ? "" : string.Join( ",", field.Default.Select( v => v.ToString( "R", CultureInfo.InvariantCulture ) ) ) )
 				.Append( '\t' ).Append( (field.Group ?? "").Replace( '\t', ' ' ).Replace( '\n', ' ' ) )
 				.Append( '\t' ).Append( field.Min is { } min ? min.ToString( "R", CultureInfo.InvariantCulture ) : "" )
 				.Append( '\t' ).Append( field.Max is { } max ? max.ToString( "R", CultureInfo.InvariantCulture ) : "" )
@@ -135,7 +135,7 @@ public static class MaterialClassWriter
 	static (string Type, string Get, string Set) Accessors( MaterialField field )
 	{
 		var o = field.Offset.ToString( CultureInfo.InvariantCulture );
-		if ( field.Kind == MaterialFieldKind.Texture2D )
+		if ( field.IsTexture )
 			return ("global::Borealis.GpuTexture", $"GetTexture( {o} )", $"SetTexture( {o}, value, srgb: {(field.Srgb ? "true" : "false")} )");
 
 		return (field.Kind, field.Components) switch

@@ -116,7 +116,7 @@ public static partial class SurfaceDeclarations
 			Attributes();
 			// The shared inputs (the standard processing's) where the first field they make is, in field order
 			var shared = compatibility?.Inputs;
-			foreach ( var field in layout.Fields.Where( f => f.Kind == MaterialFieldKind.Texture2D ) )
+			foreach ( var field in layout.Fields.Where( f => f.IsTexture ) )
 			{
 				if ( shared is not null && compatibility.TakenBySet?.Contains( field.Name ) == true )
 				{
@@ -224,7 +224,7 @@ public static partial class SurfaceDeclarations
 		{
 			foreach ( var field in layout.Fields )
 			{
-				if ( field.Kind == MaterialFieldKind.Texture2D || field.Group is null || field.Get( "Feature" ) is not null ) continue;
+				if ( field.IsTexture || field.Group is null || field.Get( "Feature" ) is not null ) continue;
 				if ( field.Source is { } s && (s.StartsWith( "F_", StringComparison.Ordinal ) || s.Contains( ':' ) || s == "ShaderVersion") ) continue;
 
 				var type = (field.Kind, field.Components) switch
@@ -312,7 +312,7 @@ public static partial class SurfaceDeclarations
 			{
 				var pack = packs[i];
 				if ( conditional ) text.Append( i == 0 ? "#if ( " : pack.Condition is null ? "#else" : "#elif ( " ).Append( pack.Condition is null ? "" : Condition( pack.Condition, false ) + " )" ).Append( '\n' );
-				text.Append( "Texture2D " ).Append( name ).Append( " < " );
+				text.Append( field.Kind == MaterialFieldKind.TextureCube ? "TextureCube " : "Texture2D " ).Append( name ).Append( " < " );
 				foreach ( var channel in Channels( pack.Channels ) )
 				{
 					var inputNames = channel.Inputs.Select( InputName ).ToList();
@@ -364,7 +364,7 @@ public static partial class SurfaceDeclarations
 			var name = InputName( input );
 			if ( !declaredInputs.Add( name ) ) return;
 			var settings = InputSettings( field, input );
-			text.Append( "CreateInputTexture2D( " ).Append( name ).Append( ", " ).Append( settings.Srgb ? "Srgb" : "Linear" ).Append( ", 8, \"" ).Append( settings.Processor )
+			text.Append( field.Kind == MaterialFieldKind.TextureCube ? "CreateInputTextureCube( " : "CreateInputTexture2D( " ).Append( name ).Append( ", " ).Append( settings.Srgb ? "Srgb" : "Linear" ).Append( ", 8, \"" ).Append( settings.Processor )
 				.Append( "\", \"" ).Append( settings.Ending ).Append( "\", \"" ).Append( settings.Group ).Append( "\", " ).Append( settings.Default ).Append( " );\n" );
 		}
 

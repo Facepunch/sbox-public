@@ -72,7 +72,7 @@ public sealed class MaterialLayout
 		var record = new byte[Size];
 		foreach ( var field in Fields )
 		{
-			if ( field.Kind == MaterialFieldKind.Texture2D || field.Default is null ) continue;
+			if ( field.IsTexture || field.Default is null ) continue;
 			for ( int i = 0; i < field.Components && i < field.Default.Length; i++ ) field.Write( record, i, field.Default[i] );
 		}
 
@@ -100,6 +100,8 @@ public enum MaterialFieldKind
 	Bool,
 	/// <summary>A 2D texture (written <c>Texture2D</c>): its bindless slot.</summary>
 	Texture2D,
+	/// <summary>A cube texture (written <c>TextureCube</c>): its bindless slot.</summary>
+	TextureCube,
 }
 
 /// <summary>
@@ -152,8 +154,12 @@ public sealed record MaterialField( string Name, MaterialFieldKind Kind, int Com
 	public bool IsFeature => Specialize && Components == 1 && Kind is MaterialFieldKind.Bool or MaterialFieldKind.Int or MaterialFieldKind.UInt
 		&& !(Min is { } min && Max is { } max && min == max);
 
+	/// <summary>A texture, 2D or cube: a bindless slot.</summary>
+	[System.Text.Json.Serialization.JsonIgnore]
+	public bool IsTexture => Kind is MaterialFieldKind.Texture2D or MaterialFieldKind.TextureCube;
+
 	/// <summary>Bytes it takes.</summary>
-	public int Size => Kind == MaterialFieldKind.Texture2D ? 4 : 4 * Components;
+	public int Size => IsTexture ? 4 : 4 * Components;
 
 	/// <summary>Write one component of a value into <paramref name="record"/>.</summary>
 	public void Write( Span<byte> record, int component, float value )

@@ -21,10 +21,20 @@ public sealed partial class GraphCompiler
 	/// </summary>
 	public bool IsSurface => Graph.Domain != ShaderDomain.PostProcess;
 
-	/// <summary>
-	/// The surface's name: its struct's, and the file's the editor writes it to (a Slang module is named like an identifier).
-	/// </summary>
+	/// <summary>The surface's name: its struct's (<see cref="SurfaceName"/> of the graph's file name).</summary>
 	public string Name { get; set; } = "ShaderGraph";
+
+	/// <summary>
+	/// A graph's surface name from its file name: an identifier, letters, digits and underscores, whatever the file is called
+	/// ("My Graph-2" is <c>My_Graph_2</c>). A name that already is one stays as it is, so saved graphs keep theirs; one that
+	/// would be a name the code has (<c>Material</c>, <c>float</c>) gets <c>_Graph</c> after it.
+	/// </summary>
+	public static string SurfaceName( string name )
+	{
+		var clean = new string( (name ?? "").Select( c => char.IsAsciiLetterOrDigit( c ) || c == '_' ? c : '_' ).ToArray() );
+		clean = clean.Length == 0 || char.IsAsciiDigit( clean[0] ) ? "_" + clean : clean;
+		return ReservedNames.Contains( clean ) || clean.StartsWith( "__", StringComparison.Ordinal ) ? clean + "_Graph" : clean;
+	}
 
 	/// <summary>A parameter of a surface: a field of its material struct.</summary>
 	internal sealed record SurfaceParameter( string Field, string Source, string Attribute, object Value, object Min, object Max, bool IsRange, bool IsAttribute, ParameterUI UI, int Components );
@@ -40,6 +50,7 @@ public sealed partial class GraphCompiler
 	}
 
 	private VaryingUse Varyings;
+	private bool UsesScreenDerivatives;
 	private bool UsesDepth;
 	private bool UsesFrameBufferCopy;
 
@@ -186,6 +197,21 @@ public sealed partial class GraphCompiler
 	}
 
 	/// <summary>
+	/// A screen-space derivative of a value (<paramref name="op"/>: ddx, ddy, fwidth and their coarse and fine forms), which
+	/// only a pixel stage has: an error on the node <paramref name="node"/> in a vertex stage (Position Offset). A surface
+	/// that takes one is marked <c>ScreenDerivatives</c>, for a pass that shades without raster derivatives (a
+	/// visibility-buffer resolve) to draw it the raster way: in every raster pass a surface's Evaluate runs in uniform
+	/// control flow per quad, where they're right.
+	/// </summary>
+	public NodeResult ScreenDerivative( string op, NodeResult value, string node )
+	{
+		if ( IsVs )
+			return NodeResult.Error( $"{node} reads screen-space derivatives, which only the pixel stage has: it can't feed Position Offset" );
+		UsesScreenDerivatives |= IsSurface;
+		return new NodeResult( value.Components, $"{op}( {value} )" );
+	}
+
+	/// <summary>
 	/// A node output from an input expression, or an error naming what isn't there when it's null (an input a surface's vertex
 	/// stage doesn't have).
 	/// </summary>
@@ -305,6 +331,7 @@ public sealed partial class GraphCompiler
 		attributes.Add( "AttributeExpression( \"renderbackfaces\", \"RenderBackfaces\" )" );
 		if ( Graph.BlendMode == BlendMode.Translucent ) attributes.Add( "Attribute( \"translucent\" )" );
 		if ( UsesFrameBufferCopy ) attributes.Add( "Attribute( \"bWantsFBCopyTexture\" )" );
+		if ( UsesScreenDerivatives ) attributes.Add( "Attribute( \"ScreenDerivatives\" )" );
 
 		var interfaces = lit
 			? (interpolated ? "IInterpolatedVertexSurface" : "ISurface")
@@ -497,13 +524,6 @@ public sealed partial class GraphCompiler
 				if ( !declared.Add( field.Name ) )
 					continue;
 
-				if ( cube )
-				{
-					// A material's own cube texture isn't a field a surface can have: bound by its name instead
-					sb.Append( $"\t[Engine( \"g_t{id}\" )] TextureCube {field.Name};\n" );
-					continue;
-				}
-
 				var defaults = string.IsNullOrEmpty( input.DefaultTexture ) ? $"Default4( {Floats( input.Default )} )" : $"DefaultFile( \\\"{Quote( input.DefaultTexture )}\\\" )";
 				var settings = $"{input.ColorSpace}; {input.Processor}; _{input.ExtensionString.ToLower()}; {defaults}";
 				var attributes = new List<string>();
@@ -511,13 +531,13 @@ public sealed partial class GraphCompiler
 				if ( input.SrgbRead ) attributes.Add( "Srgb" );
 				attributes.Add( $"InputWith( \"{id}\", \"{Quote( input.UIGroup )}\", \"{settings}\" )" );
 				attributes.Add( $"Pack( \"RGBA: {id} {(input.SrgbRead ? "Srgb" : "Linear")}\", \"{input.ImageFormat}\" )" );
-				if ( result.RepresentativeTexture == $"g_t{id}" )
+				if ( !cube && result.RepresentativeTexture == $"g_t{id}" )
 				{
 					attributes.Add( "TextureAttribute( \"LightSim_DiffuseAlbedoTexture\" )" );
 					attributes.Add( "TextureAttribute( \"RepresentativeTexture\" )" );
 				}
 
-				sb.Append( $"\t[{string.Join( ", ", attributes )}] Texture2D {field.Name};\n" );
+				sb.Append( $"\t[{string.Join( ", ", attributes )}] {type} {field.Name};\n" );
 			}
 
 			foreach ( var parameter in result.SurfaceParameters.Values )

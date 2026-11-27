@@ -45,7 +45,11 @@ internal static class ShaderMenu
 			case ShaderUpgrade.UpgradeKind.Module:
 				Log.Info( result.Message );
 				if ( result.Errors is not null ) Log.Warning( result.Errors );
-				EditorUtility.DisplayDialog( "Upgrade to Slang", result.Message + notes + errors, icon: result.Errors is null ? "✔️" : "⚠️" );
+
+				// A surface beside the .shader it came from: both drawn, each with its defaults
+				var (before, after) = result.Kind == ShaderUpgrade.UpgradeKind.Surface ? await CompareMaterials( source, result.Path ) : (null, null);
+				new ShaderUpgradeDialog( result.Message + notes + errors, result.Errors is null,
+					before, System.IO.Path.GetFileName( source ), after, System.IO.Path.GetFileName( result.Path ) ).Show();
 
 				var asset = AssetSystem.RegisterFile( result.Path );
 				MainAssetBrowser.Instance?.Local.UpdateAssetList();
@@ -56,6 +60,32 @@ internal static class ShaderMenu
 				Log.Warning( result.Message );
 				EditorUtility.DisplayDialog( "Upgrade to Slang", result.Message );
 				break;
+		}
+	}
+
+	/// <summary>
+	/// A material of the <c>.shader</c> and one of the surface made from it, each with its defaults; nulls when either can't
+	/// be made. The surface is compiled from its text, as an anonymous shader: the material system finds the <c>.shader</c>
+	/// first by the name the two share.
+	/// </summary>
+	private static async Task<(Material Before, Material After)> CompareMaterials( string shaderPath, string slangPath )
+	{
+		try
+		{
+			var name = AssetSystem.FindByPath( shaderPath )?.Path;
+			if ( string.IsNullOrEmpty( name ) ) return (null, null);
+
+			var surface = await Shader.CompileAsync( await System.IO.File.ReadAllTextAsync( slangPath ) );
+			if ( surface is null ) return (null, null);
+
+			var before = Material.Create( "shader_upgrade_before", name );
+			var after = Material.Create( "shader_upgrade_after", surface );
+			return before is null || after is null ? (null, null) : (before, after);
+		}
+		catch ( Exception e )
+		{
+			Log.Warning( $"Upgrade to Slang: can't draw the two side by side: {e.Message}" );
+			return (null, null);
 		}
 	}
 

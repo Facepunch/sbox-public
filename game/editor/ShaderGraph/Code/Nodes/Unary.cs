@@ -32,6 +32,10 @@ public abstract class Unary : ShaderNode
 	[Hide]
 	protected virtual int? Components { get; } = null;
 
+	/// <summary>Reads screen-space derivatives (ddx, ddy, fwidth): a pixel stage's alone.</summary>
+	[Hide]
+	protected virtual bool ScreenDerivative => false;
+
 	public Unary() : base()
 	{
 		ExpandSize = new Vector2( -50, 0 );
@@ -42,6 +46,7 @@ public abstract class Unary : ShaderNode
 	public virtual NodeResult.Func Result => ( GraphCompiler compiler ) =>
 	{
 		var result = compiler.ResultOrDefault( Input, 0.0f );
+		if ( result.IsValid && ScreenDerivative ) return compiler.ScreenDerivative( Op, result, DisplayInfo.For( this ).Name );
 		return result.IsValid ? new NodeResult( Components ?? result.Components, $"{Op}( {result} )" ) : default;
 	};
 }
@@ -148,13 +153,16 @@ public sealed class DDX : Unary
 	public DerivativePrecision Precision { get; set; }
 
 	[Hide]
+	protected override bool ScreenDerivative => true;
+
+	[Hide]
 	protected override string Op
 	{
 		get
 		{
 			return Precision switch
 			{
-				DerivativePrecision.Course => "ddx_course",
+				DerivativePrecision.Course => "ddx_coarse",
 				DerivativePrecision.Fine => "ddx_fine",
 				_ => "ddx",
 			};
@@ -168,13 +176,16 @@ public sealed class DDY : Unary
 	public DerivativePrecision Precision { get; set; }
 
 	[Hide]
+	protected override bool ScreenDerivative => true;
+
+	[Hide]
 	protected override string Op
 	{
 		get
 		{
 			return Precision switch
 			{
-				DerivativePrecision.Course => "ddy_course",
+				DerivativePrecision.Course => "ddy_coarse",
 				DerivativePrecision.Fine => "ddy_fine",
 				_ => "ddy",
 			};
@@ -187,6 +198,9 @@ public sealed class DDXY : Unary
 {
 	[Hide]
 	protected override string Op => "fwidth";
+
+	[Hide]
+	protected override bool ScreenDerivative => true;
 }
 
 [Title( "Exponential" ), Category( "Unary" )]

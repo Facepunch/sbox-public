@@ -408,7 +408,6 @@ public sealed partial class SlangCompiler
 		var material = declared[0];
 		var directory = Path.GetDirectoryName( path );
 		var module = Path.GetFileNameWithoutExtension( path );
-		if ( !ModuleName().IsMatch( module ) ) throw new ShaderCompileException( path, $"{module} isn't a valid module name: name surface files like identifiers" );
 
 		{
 			var read = new ReadFiles( path );
@@ -670,7 +669,7 @@ public sealed partial class SlangCompiler
 	[GeneratedRegex( @"\btypealias\s+Varyings\s*=\s*(?<type>[\w.]+)\s*;" )]
 	private static partial Regex VaryingsAlias();
 
-	[GeneratedRegex( @"^[A-Za-z_]\w*$" )]
+	[GeneratedRegex( @"^[A-Za-z_][A-Za-z0-9_]*$" )]
 	private static partial Regex ModuleName();
 
 	[GeneratedRegex( @"\[\s*shader\s*\(\s*""(?<stage>\w+)""\s*\)\s*\][^(]*?\b(?<name>\w+)\s*\(" )]
@@ -845,7 +844,8 @@ public sealed partial class SlangCompiler
 		if ( clipDistances > 0 ) text.Append( "#define SURFACE_CLIP_DISTANCES " ).Append( clipDistances ).Append( '\n' );
 		foreach ( var (name, value) in combinerDefines ?? [] ) text.Append( "#define " ).Append( name ).Append( ' ' ).Append( value ).Append( '\n' );
 		text.Append( "#include \"sbox/surface_passes.slangh\"\n" );
-		text.Append( "import " ).Append( module ).Append( ";\n\n" );
+		// A file named like an identifier is imported by name; any other (a graph named "My Graph-2") by its file name
+		text.Append( ModuleName().IsMatch( module ) ? $"import {module};\n\n" : $"import \"{module}.slang\";\n\n" );
 		text.Append( "#ifdef SURFACE_GPU_DRIVEN\n" );
 		text.Append( "// What a GPU-driven vertex stage hands the pixel stage: the draw, the vertex's visibility ids (BorealisGpuDrivenIds) and the instance's LOD fade (BorealisGpuDrivenFade), flat, first\n" );
 		text.Append( "struct SurfaceGpuDrivenVertexOutput { nointerpolation uint Draw : BOREALIS_DRAW; nointerpolation uint2 Ids : BOREALIS_VERTEX; nointerpolation uint Fade : BOREALIS_FADE; " ).Append( output ).Append( " o; };\n" );

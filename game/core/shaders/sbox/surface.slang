@@ -214,6 +214,14 @@ public struct SurfaceInput
 		return texture.Sample( filtering, uv );
 	}
 
+	/// A cube texture in a direction. Where there are no screen derivatives (Light's loop, a resolve) it's read at its top
+	/// mip: a direction has no uv gradients to read it with.
+	public float4 Sample( MaterialTextureCube texture, float3 direction )
+	{
+		if ( kSampleWithGradients || Gradients ) return texture.SampleLevel( g_MaterialFiltering, direction, 0 );
+		return texture.Sample( g_MaterialFiltering, direction );
+	}
+
 	/// At a mip level (a blurred read: skin's diffuse normal).
 	public float4 SampleLevel( MaterialTexture2D texture, float2 uv, float level )
 	{

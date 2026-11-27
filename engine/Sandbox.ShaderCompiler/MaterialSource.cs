@@ -7,7 +7,8 @@ namespace Sandbox.ShaderCompiler;
 /// <summary>
 /// What the compiler owns in an author's module: <c>[Material]</c> structs. Their <c>Texture2D</c> fields become
 /// <c>MaterialTexture2D</c>, a bindless slot a record can hold (a struct of descriptors can't be loaded from a buffer),
-/// so authors write <c>Texture2D Color;</c> and <c>Color.Sample( ... )</c> works either way. Lines are kept.
+/// so authors write <c>Texture2D Color;</c> and <c>Color.Sample( ... )</c> works either way; <c>TextureCube</c> fields
+/// become <c>MaterialTextureCube</c> the same way. Lines are kept.
 /// </summary>
 internal static partial class MaterialSource
 {
@@ -18,6 +19,10 @@ internal static partial class MaterialSource
 	// the line before), Texture2D or Texture2D<...>
 	[GeneratedRegex( @"^(?<lead>[ \t]*(?:[^\r\n]*\][ \t]*)?)Texture2D(?:[ \t]*<[^>\r\n]*>)?(?=[ \t]+\w+[ \t]*;)", RegexOptions.Multiline )]
 	private static partial Regex TextureField();
+
+	// The same for a cube texture: TextureCube or TextureCube<...>
+	[GeneratedRegex( @"^(?<lead>[ \t]*(?:[^\r\n]*\][ \t]*)?)TextureCube(?:[ \t]*<[^>\r\n]*>)?(?=[ \t]+\w+[ \t]*;)", RegexOptions.Multiline )]
+	private static partial Regex CubeField();
 
 	// A field of a packed texture type (Rma: roughness, metalness, occlusion and blend mask): a texture the material
 	// compiler packs that way
@@ -168,6 +173,7 @@ internal static partial class MaterialSource
 			if ( depth == 0 )
 			{
 				var line = TextureField().Replace( lines[i], "${lead}MaterialTexture2D" );
+				line = CubeField().Replace( line, "${lead}MaterialTextureCube" );
 				line = PackedField().Replace( line, "${lead}[Packed( \"${type}\" )] MaterialTexture2D" );
 				lines[i] = Field().Replace( line, "${lead}public ${decl}" );
 			}
@@ -348,7 +354,7 @@ internal static unsafe class MaterialReflection
 				else if ( kind != MaterialFieldKind.Float && SlangApi.VariableGetDefaultValueInt( field, &l ) >= 0 ) value = [l];
 			}
 
-			if ( renderStates is not null && (kind == MaterialFieldKind.Texture2D || components != 1) )
+			if ( renderStates is not null && (kind is MaterialFieldKind.Texture2D or MaterialFieldKind.TextureCube || components != 1) )
 				throw new ShaderCompileException( path, $"{type}.{fieldName}: a [RenderState] field is a bool, int, uint or float" );
 			fields.Add( new MaterialField( fieldName, kind, components, 0, value, group, min, max, srgb ) { Opacity = opacity, Source = source, RenderStates = renderStates, Specialize = specialize, Attributes = all } );
 		}
@@ -439,7 +445,12 @@ internal static unsafe class MaterialReflection
 				var count = (int)SlangApi.TypeGetElementCount( type );
 				return count <= 4 && Scalar( SlangApi.TypeGetScalarType( SlangApi.TypeGetElementType( type ) ) ) is { } v ? (v, count) : null;
 			case SlangApi.TypeKindStruct:
-				return SlangApi.String( SlangApi.TypeGetName( type ) ) == "MaterialTexture2D" ? (MaterialFieldKind.Texture2D, 1) : null;
+				return SlangApi.String( SlangApi.TypeGetName( type ) ) switch
+				{
+					"MaterialTexture2D" => (MaterialFieldKind.Texture2D, 1),
+					"MaterialTextureCube" => (MaterialFieldKind.TextureCube, 1),
+					_ => null,
+				};
 			default:
 				return null;
 		}

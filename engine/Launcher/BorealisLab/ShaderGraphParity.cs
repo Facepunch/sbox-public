@@ -13,7 +13,7 @@ namespace Sandbox.BorealisLab;
 /// emitted surfaces, drawn side by side. Each case in the folder is a pair: <c>name.shader</c>, what the graph compiled to
 /// as a VFX shader, and <c>name.slang</c>, the surface it compiles to now. The VFX shader is drawn the way a local
 /// <c>.shader</c> without vfx is, as a standalone module made by <see cref="PassConverter"/>; the surface through the
-/// surface passes. Every texture both name is the rope's colour texture. Writes each picture with a diff and a line per
+/// surface passes. Every 2D texture both name is the rope's colour texture, every cube texture the workshop sky. Writes each picture with a diff and a line per
 /// case, and exits 1 when a case doesn't compile or its mean difference is over <c>-tolerance</c> (default 0.5).
 /// </summary>
 internal static class ShaderGraphParity
@@ -54,6 +54,8 @@ internal static class ShaderGraphParity
 		{
 			var rope = SurfaceParity.Rope( device );
 			var color = string.IsNullOrEmpty( rope.Color ) ? null : (BackendTexture)device.LoadTexture( rope.Color );
+			const string sky = "materials/skybox/skybox_workshop_exr_db800dad.generated.vtex";
+			var cube = (BackendTexture)device.LoadTexture( sky );
 
 			foreach ( var file in Directory.GetFiles( cases, "*.slang" ).Order( StringComparer.Ordinal ) )
 			{
@@ -61,10 +63,12 @@ internal static class ShaderGraphParity
 				var vfx = Path.ChangeExtension( file, ".shader" );
 				var surfaceText = File.ReadAllText( file );
 
-				// The surface: every material texture the rope's colour
+				// The surface: every material texture the rope's colour, every cube the sky
 				var textures = new Dictionary<string, string>();
 				foreach ( Match field in Regex.Matches( surfaceText, @"\]\s*Texture2D\s+(\w+)\s*;" ) )
 					if ( color is not null ) textures["g_t" + field.Groups[1].Value] = rope.Color;
+				foreach ( Match field in Regex.Matches( surfaceText, @"\]\s*TextureCube\s+(\w+)\s*;" ) )
+					if ( cube is not null ) textures["g_t" + field.Groups[1].Value] = sky;
 				var surface = device.Surfaces.CreateMaterial( file, textures, null, name + " (surface)" );
 				if ( surface is null )
 				{
@@ -102,6 +106,8 @@ internal static class ShaderGraphParity
 
 				foreach ( Match texture in Regex.Matches( text, @"Texture2D\s+(g_t\w+)\s*<\s*Channel" ) )
 					if ( color is not null ) reference.SetTexture( texture.Groups[1].Value, color );
+				foreach ( Match texture in Regex.Matches( text, @"TextureCube\s+(g_t\w+)\s*<\s*Channel" ) )
+					if ( cube is not null ) reference.SetTexture( texture.Groups[1].Value, cube );
 
 				var before = SurfaceParity.Render( device, reference, alphaTest );
 				SurfaceParity.Save( before, Path.Combine( output, name + "-vfx.png" ) );

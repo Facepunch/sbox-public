@@ -1,5 +1,5 @@
 // sbox.material: a new-tier material's parameters. Both tiers declare them as a [Material] struct; the shader compiler
-// turns its Texture2D fields into MaterialTexture2D (a bindless slot) and lays the struct out as one record the engine
+// turns its Texture2D fields into MaterialTexture2D and its TextureCube fields into MaterialTextureCube (bindless slots) and lays the struct out as one record the engine
 // writes once per material. See docs/reference/borealis-slang-materials.md.
 module material;
 
@@ -90,6 +90,27 @@ public struct MaterialTexture2D
 	public float4 Load( int3 location ) { return Get().Load( location ); }
 	public uint2 Size()
 	{
+		uint width, height;
+		Get().GetDimensions( width, height );
+		return uint2( width, height );
+	}
+}
+
+/// A material cube texture: its slot in the bindless table. Written TextureCube in a [Material] struct. A field nothing
+/// set (slot 0 or 1, which hold the table's 2D default) reads black rather than a 2D view as a cube.
+public struct MaterialTextureCube
+{
+	public uint Slot;
+
+	public bool IsSet() { return Slot > 1; }
+	public TextureCube Get() { return g_MaterialTexturesCube[NonUniformResourceIndex( Slot )]; }
+	public float4 Sample( SamplerState s, float3 direction ) { return IsSet() ? Get().Sample( s, direction ) : 0; }
+	public float4 SampleBias( SamplerState s, float3 direction, float bias ) { return IsSet() ? Get().SampleBias( s, direction, bias ) : 0; }
+	public float4 SampleLevel( SamplerState s, float3 direction, float lod ) { return IsSet() ? Get().SampleLevel( s, direction, lod ) : 0; }
+	public float4 SampleGrad( SamplerState s, float3 direction, float3 ddx, float3 ddy ) { return IsSet() ? Get().SampleGrad( s, direction, ddx, ddy ) : 0; }
+	public uint2 Size()
+	{
+		if ( !IsSet() ) return 1;
 		uint width, height;
 		Get().GetDimensions( width, height );
 		return uint2( width, height );

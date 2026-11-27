@@ -47,7 +47,7 @@ internal sealed class ConvertedMaterial : SurfaceMaterial
 		for ( int f = 0; f < layout.Fields.Count; f++ )
 		{
 			var field = layout.Fields[f];
-			if ( field.Kind == MaterialFieldKind.Texture2D || !Fills( field, variable ) ) continue;
+			if ( field.IsTexture || !Fills( field, variable ) ) continue;
 			found = true;
 			for ( int i = 0; i < field.Components && i < value.Length; i++ )
 			{
@@ -66,7 +66,7 @@ internal sealed class ConvertedMaterial : SurfaceMaterial
 		for ( int f = 0; f < layout.Fields.Count; f++ )
 		{
 			var field = layout.Fields[f];
-			if ( field.Kind != MaterialFieldKind.Texture2D || !Fills( field, variable ) ) continue;
+			if ( !field.IsTexture || !Fills( field, variable ) || !Takes( field, texture ) ) continue;
 			found = true;
 			SetTexture( field.Offset, texture, field.Srgb );
 		}
@@ -80,7 +80,7 @@ internal sealed class ConvertedMaterial : SurfaceMaterial
 		for ( int f = 0; f < layout.Fields.Count; f++ )
 		{
 			var field = layout.Fields[f];
-			if ( field.Kind == MaterialFieldKind.Texture2D && Fills( field, variable ) ) return GetTexture( field.Offset );
+			if ( field.IsTexture && Fills( field, variable ) ) return GetTexture( field.Offset );
 		}
 
 		return null;
@@ -92,13 +92,22 @@ internal sealed class ConvertedMaterial : SurfaceMaterial
 		for ( int f = 0; f < layout.Fields.Count; f++ )
 		{
 			var field = layout.Fields[f];
-			if ( field.Kind != MaterialFieldKind.Texture2D && field.Kind != MaterialFieldKind.Float && string.Equals( field.Source, feature, StringComparison.OrdinalIgnoreCase ) ) return GetInt( field.Offset );
+			if ( !field.IsTexture && field.Kind != MaterialFieldKind.Float && string.Equals( field.Source, feature, StringComparison.OrdinalIgnoreCase ) ) return GetInt( field.Offset );
 		}
 
 		return null;
 	}
 
-	/// <summary>Every texture field nothing has set takes <paramref name="texture"/>: a material made in code, as native makes one.</summary>
+	/// <summary>
+	/// Whether a texture field can hold <paramref name="texture"/>: a cube field only a cube (its view is the one the shader
+	/// reads as a cube), a 2D field anything (a cube's 2D view, as native binds it). Null clears either.
+	/// </summary>
+	static bool Takes( MaterialField field, GpuTexture texture ) => field.Kind != MaterialFieldKind.TextureCube || texture is null || (texture.IsCube && !texture.IsArray);
+
+	/// <summary>
+	/// Every 2D texture field nothing has set takes <paramref name="texture"/>: a material made in code, as native makes one.
+	/// A cube field left unset reads black (<c>MaterialTextureCube</c>).
+	/// </summary>
 	public void FillUnsetTextures( GpuTexture texture )
 	{
 		for ( int f = 0; f < layout.Fields.Count; f++ )
@@ -204,7 +213,7 @@ internal sealed class ConvertedMaterial : SurfaceMaterial
 			if ( variable.Length == prefix.Length + field.Name.Length && variable.StartsWith( prefix, StringComparison.OrdinalIgnoreCase ) && variable.EndsWith( field.Name, StringComparison.OrdinalIgnoreCase ) ) return true;
 		}
 
-		return field.Kind == MaterialFieldKind.Texture2D && Numbered( field, variable );
+		return field.IsTexture && Numbered( field, variable );
 	}
 
 	/// <summary>
@@ -269,9 +278,9 @@ internal sealed class ConvertedMaterial : SurfaceMaterial
 
 		foreach ( var field in compiled.Material.Fields )
 		{
-			if ( field.Kind == MaterialFieldKind.Texture2D )
+			if ( field.IsTexture )
 			{
-				if ( Lookup( field, file.Textures ) is { } texture && loadTexture( texture ) is { } loaded ) material.SetTexture( field.Offset, loaded, field.Srgb );
+				if ( Lookup( field, file.Textures ) is { } texture && loadTexture( texture ) is { } loaded && Takes( field, loaded ) ) material.SetTexture( field.Offset, loaded, field.Srgb );
 				continue;
 			}
 
