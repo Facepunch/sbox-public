@@ -119,6 +119,12 @@ internal static class ReflectionUtility
 
 					if ( !TryClearCollectionOfType( field.GetValue( null ), targetType ) ) continue;
 				}
+				catch ( Exception e ) when ( e is TypeInitializationException || e.InnerException is TypeInitializationException )
+				{
+					// Its static constructor ran only now, at teardown, and failed (a game type a dedicated server never
+					// used, its script host already gone): it holds nothing, and every other field would fail the same way
+					break;
+				}
 				catch ( Exception e )
 				{
 					logger.Warning( e, $"Failed to clean {type.Name}.{field.Name}" );

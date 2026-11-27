@@ -17,6 +17,16 @@ public class NullStaticReferencesTests
 		public static Held Single = new();
 	}
 
+	/// <summary>A type whose static constructor fails, like a game type first touched by the teardown sweep.</summary>
+	static class Uninitialisable
+	{
+		public static Held First = new();
+		public static object[] Second = { new Held() };
+		public static Held Third = new();
+
+		static Uninitialisable() => throw new InvalidOperationException( "script host disposed" );
+	}
+
 	static bool TryClear( object value, Type target )
 	{
 		var method = typeof( Sandbox.ReflectionUtility ).GetMethod( "TryClearCollectionOfType", BindingFlags.NonPublic | BindingFlags.Static );
@@ -45,5 +55,28 @@ public class NullStaticReferencesTests
 		Assert.AreEqual( "kept", Holder.Things[1] );
 		Assert.AreEqual( 4, Holder.Table[1, 1] );
 		Assert.AreEqual( 6, Holder.Values[1] );
+	}
+
+	/// <summary>
+	/// A type whose static constructor first runs, and fails, during the sweep holds nothing: it is skipped without a
+	/// warning (a dedicated server logged one with a stack trace per field of each such game type at every quit).
+	/// </summary>
+	[TestMethod]
+	public void TypesWhoseInitializerFailsAreSkippedQuietly()
+	{
+		var warnings = new System.Collections.Generic.List<string>();
+		void OnMessage( Sandbox.LogEvent e ) { if ( e.Message.Contains( nameof( Uninitialisable ) ) ) warnings.Add( e.Message ); }
+		Sandbox.Diagnostics.Logging.OnEmitted += OnMessage;
+
+		try
+		{
+			Sandbox.ReflectionUtility.NullStaticReferencesOfType( typeof( Uninitialisable ).Assembly, typeof( Held ) );
+		}
+		finally
+		{
+			Sandbox.Diagnostics.Logging.OnEmitted -= OnMessage;
+		}
+
+		Assert.AreEqual( 0, warnings.Count, string.Join( "\n", warnings ) );
 	}
 }
