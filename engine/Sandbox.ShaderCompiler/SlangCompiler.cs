@@ -82,10 +82,10 @@ public sealed partial class SlangCompiler
 	/// defines and passes, the generated instance and GPU-driven files, the source rewrites, reflection. A change to the
 	/// generated text alone fails <c>GeneratedCodeNeedsAVersion</c> until <see cref="GeneratedFingerprint"/> is updated here too.
 	/// </summary>
-	public const int Version = 21;
+	public const int Version = 22;
 
 	/// <summary>The <see cref="Fingerprint"/> of the generated code <see cref="Version"/> was raised for.</summary>
-	internal const string GeneratedFingerprint = "A3F08D0ABA11889F";
+	internal const string GeneratedFingerprint = "424970A5D99F970A";
 
 	/// <summary>
 	/// A hash of what the compiler generates for fixed inputs (the Slang command lines, instance and GPU-driven files and
@@ -217,6 +217,24 @@ public sealed partial class SlangCompiler
 	/// </summary>
 	public Action<string> Compiling { get; init; }
 
+	/// <summary>
+	/// Told each shader API warning once per process, as <c>path(line): warning: message</c>: a deprecated name (a shim kept
+	/// for the previous level, <see cref="ShaderApi"/>) used, naming its replacement. Null: none are looked for.
+	/// </summary>
+	public Action<string> Warning { get; init; }
+
+	static readonly HashSet<string> warned = new( StringComparer.Ordinal );
+
+	void Warn( string message )
+	{
+		lock ( warned )
+		{
+			if ( !warned.Add( message ) ) return;
+		}
+
+		Warning( message );
+	}
+
 	/// <summary>The offline compiles of the source at <paramref name="path"/> that exist.</summary>
 	IReadOnlyList<SlangOutput> Offline( string path )
 	{
@@ -299,6 +317,7 @@ public sealed partial class SlangCompiler
 		["VULKAN"] = "1",
 		["DXC"] = "1",
 		["SLANG"] = "1",
+		[ShaderApi.Define] = ShaderApi.Level.ToString( System.Globalization.CultureInfo.InvariantCulture ),
 	};
 
 	/// <summary>
@@ -322,6 +341,14 @@ public sealed partial class SlangCompiler
 			return Rewrite( path, text, annotations );
 		} );
 		annotations = request.Annotations;
+		if ( Warning is not null )
+		{
+			request.Warned = ( _, diagnostics ) =>
+			{
+				foreach ( var line in ShaderApi.Deprecations( diagnostics ) ) Warn( line );
+			};
+		}
+
 		return request;
 	}
 

@@ -34,7 +34,7 @@ public static class OfflineShaders
 		SlangCompiler.CompileThreads = Environment.ProcessorCount;
 		if ( UpdateRecords( game, log ) != 0 ) return 1;
 		var sources = Sources( game, log );
-		var compiler = new SlangCompiler( EngineFolders.NativeIn( game ), [shaders] ) { CacheFolder = Path.Combine( game, ".source2", "borealisoffline" ), UseOffline = false };
+		var compiler = new SlangCompiler( EngineFolders.NativeIn( game ), [shaders] ) { CacheFolder = Path.Combine( game, ".source2", "borealisoffline" ), UseOffline = false, Warning = log };
 		var results = Task.WhenAll( sources.Select( s => Task.Run( async () =>
 		{
 			var result = await compiler.CompileOfflineAsync( s.Source, s.Output, log ).ConfigureAwait( false );

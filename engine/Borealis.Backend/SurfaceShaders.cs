@@ -543,6 +543,7 @@ public sealed class SurfaceShaders : IDisposable
 				CacheFolder = CacheFolder ?? Path.Combine( game, ".source2", "borealissurfaces" ),
 				UseOffline = UseOffline,
 				Compiling = what => Info?.Invoke( $"Borealis.Gpu: compiling {what} with Slang at run time (no offline compile)" ),
+				Warning = message => Info?.Invoke( $"Borealis.Gpu: {message}" ),
 			};
 		}
 	}

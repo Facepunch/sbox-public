@@ -3,6 +3,13 @@
 // writes once per material. See docs/reference/borealis-slang-materials.md.
 module material;
 
+// The shader API level this library is (Sandbox.ShaderCompiler.ShaderApi.Level; docs/reference/shader-api.md). The engine's
+// compiler also defines SBOX_SHADER_API in every compile, so `#if SBOX_SHADER_API >= 2` works in any file; this constant is
+// for a compile without that define.
+#ifndef SBOX_SHADER_API
+public static const int SBOX_SHADER_API = 1;
+#endif
+
 // Every sampled texture the device has, in the bindless set: t16 in space 4 is set 4, binding 62 with vfx's binding
 // shifts, where the engine's Bindless.hlsl reads them (vk::binding isn't used: the shifts override it)
 Texture2D g_MaterialTextures2D[] : register( t16, space4 );

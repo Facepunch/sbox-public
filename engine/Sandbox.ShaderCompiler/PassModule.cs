@@ -568,6 +568,7 @@ public sealed partial class PassModule
 	internal static Dictionary<string, int> ProgramValues( StageKind stage ) => new( StringComparer.Ordinal )
 	{
 		["PROGRAM"] = stage switch { StageKind.Vertex => 1, StageKind.Compute => 6, StageKind.Task => 9, StageKind.Mesh => 10, _ => 2 },
+		[ShaderApi.Define] = ShaderApi.Level,
 		["VFX_PROGRAM_VS"] = 1,
 		["VFX_PROGRAM_PS"] = 2,
 		["VFX_PROGRAM_GS"] = 3,

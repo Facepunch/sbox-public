@@ -137,6 +137,7 @@ public sealed partial class PassModules : IShaderModules
 				CacheFolder = CacheFolder ?? Path.Combine( game, ".source2", "borealispasses" ),
 				UseOffline = UseOffline,
 				Compiling = what => Info?.Invoke( $"Borealis.Gpu: compiling {what} with Slang at run time (no offline compile)" ),
+				Warning = message => Info?.Invoke( $"Borealis.Gpu: {message}" ),
 			};
 		}
 	}

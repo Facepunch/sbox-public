@@ -56,7 +56,7 @@ public sealed partial class SlangCompiler
 		} );
 
 		// One collector per compiler: an offline compile runs one source at a time per compiler
-		var offline = new SlangCompiler( slangDirectory, searchPaths ) { CacheFolder = CacheFolder, UseOffline = false };
+		var offline = new SlangCompiler( slangDirectory, searchPaths ) { CacheFolder = CacheFolder, UseOffline = false, Warning = Warning };
 		offline.saved = collector;
 		var jobs = new List<Task>();
 		var module = pass ? PassModule.Read( source, searchPaths ) : null;

@@ -124,11 +124,15 @@ internal sealed unsafe class SlangRequest : IDisposable
 	/// <summary>Slang's diagnostics so far.</summary>
 	public string Diagnostics => SlangApi.String( SlangApi.GetDiagnosticOutput( handle ) ) ?? "";
 
+	/// <summary>Told a successful compile's diagnostics when there are any (its warnings), with the translation unit's path.</summary>
+	public Action<string, string> Warned { get; set; }
+
 	/// <summary>Compile; throws <see cref="ShaderCompileException"/> with Slang's diagnostics on failure.</summary>
 	public void Compile( string path )
 	{
 		using var zone = SlangCompiler.Zone( CompilePhase.Slang );
 		if ( SlangApi.Compile( handle ) < 0 ) throw new ShaderCompileException( path, Diagnostics );
+		if ( Warned is not null && Diagnostics is { Length: > 0 } diagnostics ) Warned( path, diagnostics );
 	}
 
 	/// <summary>
