@@ -90,11 +90,55 @@ public class EmbeddedSourceTests : GpuTest
 			Assert.IsTrue( mounted.Stages > 0 && mounted.Failed > 0 && mounted.Failed < mounted.Stages, $"{mounted}" );
 			Assert.IsTrue( errors.Count > 0 && errors.TrueForAll( e => e.StartsWith( "Test Package: package_broken.shader_c doesn't compile", StringComparison.Ordinal ) ), string.Join( "\n", errors ) );
 
+			// Each stage compiled on mount is logged as compiled from embedded source
+			Assert.IsTrue( compiles.Any( c => c.Contains( "run-time shader compile: package_vignette.", StringComparison.Ordinal ) && c.Contains( "(embedded source)", StringComparison.Ordinal ) ), string.Join( "\n", compiles ) );
+
 			// The first draw compiles nothing more
 			compiles.Clear();
 			var shader = backend.Shaders.Load( "shaders/package_vignette.shader" );
 			Assert.IsTrue( backend.Shaders.Variant( shader, "Default", [] ) is { FromModule: true }, "drawn from its embedded source" );
-			Assert.AreEqual( 0, compiles.Count( c => c.Contains( "compiling", StringComparison.Ordinal ) ), string.Join( "\n", compiles ) );
+			Assert.AreEqual( 0, compiles.Count( c => c.Contains( "run-time shader compile", StringComparison.Ordinal ) ), string.Join( "\n", compiles ) );
+		}
+		finally
+		{
+			Directory.Delete( folder, true );
+		}
+	}
+
+	/// <summary>
+	/// An offline compile (<c>name.slang_c</c>) beside a module made from a package shader's embedded source, made ahead from
+	/// that module (as a backend job could for every package), is read like any <c>_c</c>: the package mounts and draws with no
+	/// compile at run time.
+	/// </summary>
+	[TestMethod]
+	[TestCategory( "Slow" )]
+	public void EmbeddedModuleReadsAnOfflineCompileBesideIt()
+	{
+		var folder = Folder();
+		try
+		{
+			string module;
+			using ( var first = Backend( folder, out var current ) )
+			{
+				Write( folder, Outdated( current, Embedded( File.ReadAllText( Source() ) ) ) );
+				Assert.IsTrue( first.Passes.Has( first.Shaders.Load( "shaders/package_vignette.shader" ) ), "a module from its embedded source" );
+				module = Directory.EnumerateFiles( Path.Combine( folder, "embedded" ), "package_vignette.*.slang" ).Single();
+			}
+
+			var core = ShaderFileTests.Files.Roots.First( r => File.Exists( Path.Combine( r, "shaders", "sbox", "pass.slangh" ) ) );
+			var offline = new Sandbox.ShaderCompiler.SlangCompiler( EngineFolders.NativeIn( Path.GetDirectoryName( core ) ), [Path.Combine( core, "shaders" )] ) { CacheFolder = Path.Combine( folder, "offline" ), UseOffline = false };
+			var log = new List<string>();
+			Assert.AreEqual( Sandbox.ShaderCompiler.OfflineResult.Compiled, offline.CompileOfflineAsync( module, log: log.Add ).GetAwaiter().GetResult(), string.Join( "\n", log ) );
+
+			using var backend = Backend( folder, out _ );
+			backend.Passes.CacheFolder = Path.Combine( folder, "passes2" );
+			var compiles = new List<string>();
+			backend.Passes.Info = compiles.Add;
+			var mounted = backend.Passes.CompileMounted( "Test Package", [Path.Combine( folder, "shaders", "package_vignette.shader_c" )] ).GetAwaiter().GetResult();
+			Assert.IsTrue( mounted.Stages > 0 && mounted.Failed == 0, $"{mounted}" );
+			var shader = backend.Shaders.Load( "shaders/package_vignette.shader" );
+			Assert.IsTrue( backend.Shaders.Variant( shader, "Default", [] ) is { FromModule: true }, "drawn from its embedded source" );
+			Assert.AreEqual( 0, compiles.Count( c => c.Contains( "run-time shader compile", StringComparison.Ordinal ) ), string.Join( "\n", compiles ) );
 		}
 		finally
 		{
