@@ -91,7 +91,7 @@ PS_INPUT DepthVertex( VS_INPUT i )
 }
 
 #if ( BOREALIS_GPU_DRIVEN )
-#include "borealis_gpu_driven.fxc"
+#include "sbox/gpu_driven.slangh"
 
 // What GPU-driven stages pass on ahead of their own outputs: the draw, and the vertex's ids for the id prepass
 struct GpuDrivenOutput
@@ -153,7 +153,7 @@ RenderState( DepthFunc, GREATER_EQUAL );
 
 #if ( S_TRANSLUCENT || S_ALPHA_TEST )
 	// Filtered as the colour passes read it (g_sAniso), so the cut falls where theirs does
-	#include "common_samplers.fxc"
+	#include "sbox/samplers.slangh"
 	Texture2D g_tColor < SrgbRead( true ); >;
 	float g_flOpacityScale < Default( 1.0 ); Range( 0.0, 1.0 ); UiGroup( "Translucent" ); >;
 	float g_flAlphaTestReference < Default( 0.5 ); Range( 0.01, 0.99 ); UiGroup( "Translucent" ); >;
@@ -196,7 +196,7 @@ void DepthPixel( PS_INPUT i )
 // Opaque depth has no pixel stage, for double-speed depth-only rendering
 #if ( S_TRANSLUCENT || S_ALPHA_TEST || D_OPAQUE_FADE || D_BOREALIS_IDS )
 #if ( BOREALIS_GPU_DRIVEN )
-#include "borealis_gpu_driven.fxc"
+#include "sbox/gpu_driven.slangh"
 
 // The GPU-driven form: the vertex's bit + 1 and its instance record at target 1, where the id prepass reads ids (target 0
 // only keeps it there)

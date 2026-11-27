@@ -133,13 +133,13 @@ public static class ShaderCompile
 
 	/// <summary>
 	/// What a shader's GPU-driven variant is made from besides its source: its classic file, and the wrapper vfx appends
-	/// (<c>borealis_gpu_driven.fxc</c>) and the record offsets it includes (<c>borealis_records.fxc</c>) where they're beside it.
+	/// (<c>sbox/gpu_driven.slangh</c>) and the record offsets it includes (<c>sbox/record_offsets.slangh</c>) where they're beside it.
 	/// </summary>
 	static IEnumerable<string> GpuDrivenInputs( string shaderPath )
 	{
 		yield return shaderPath + "_c";
 		var folder = System.IO.Path.GetDirectoryName( shaderPath );
-		foreach ( var file in new[] { "borealis_gpu_driven.fxc", "borealis_records.fxc" } )
+		foreach ( var file in new[] { "sbox/gpu_driven.slangh", "sbox/record_offsets.slangh" } )
 		{
 			var path = System.IO.Path.Combine( folder, file );
 			if ( System.IO.File.Exists( path ) ) yield return path;

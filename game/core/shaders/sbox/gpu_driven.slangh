@@ -1,18 +1,18 @@
 // Copyright (c) Facepunch. All Rights Reserved.
 
-#ifndef BOREALIS_GPU_DRIVEN_FXC
-#define BOREALIS_GPU_DRIVEN_FXC
+#ifndef SBOX_GPU_DRIVEN_SLANGH
+#define SBOX_GPU_DRIVEN_SLANGH
 
 //
 // Borealis's GPU-driven variant of a shader (compiled with ShaderCompiler -gpudriven). The compiler appends this to
 // every vertex and pixel program and wraps MainVs and MainPs: vertex inputs are pulled by vertex index, the transform
 // comes from the instance record, material constants and texture slots from the material record. Shader authors
-// don't include or call anything here. Record layouts: sbox/records.slangh, read at borealis_records.fxc's offsets
+// don't include or call anything here. Record layouts: sbox/records.slangh, read at sbox/record_offsets.slangh's offsets
 // (docs/reference/borealis-records.md).
 //
 
-#include "common.fxc"
-#include "borealis_records.fxc"
+#include "sbox/view.slangh"
+#include "sbox/record_offsets.slangh"
 
 // The raw buffer array in the bindless set: geometry pages and Borealis's tables. Binding 63, as RENDER_GLOBAL_BINDING_VERTEX_BUFFERS
 #ifndef BINDLESS_VERTEX_BUFFERS_DECLARED
@@ -173,4 +173,4 @@ uint4 BorealisGpuDrivenFetch( uint nGeometry, uint nSemantic, uint nVertex, bool
 	return result;
 }
 
-#endif // BOREALIS_GPU_DRIVEN_FXC
+#endif // SBOX_GPU_DRIVEN_SLANGH

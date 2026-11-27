@@ -121,7 +121,7 @@ public static class ShaderAbi
 
 	/// <summary>
 	/// Bindless raw buffers, <c>g_bindless_VertexBuffers</c> (<c>ByteAddressBuffer[]</c>) at <c>t17</c>: geometry pages and
-	/// GPU-driven tables (<c>borealis_gpu_driven.fxc</c>). Native's <c>RENDER_GLOBAL_BINDING_VERTEX_BUFFERS</c> in PR #6511.
+	/// GPU-driven tables (<c>sbox/gpu_driven.slangh</c>). Native's <c>RENDER_GLOBAL_BINDING_VERTEX_BUFFERS</c> in PR #6511.
 	/// </summary>
 	public const int BindlessBuffers = TextureBase + 17;
 

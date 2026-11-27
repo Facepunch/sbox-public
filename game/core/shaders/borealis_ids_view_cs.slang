@@ -11,12 +11,12 @@
 Mode( Default );
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
-#include "system.fxc" // This should always be the first include in COMMON
+#include "sbox/system.slangh" // This should always be the first include in COMMON
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 #if ( PROGRAM == VFX_PROGRAM_CS )
-#include "common.fxc"
-#include "borealis_gpu_driven.fxc"
+#include "sbox/view.slangh"
+#include "sbox/gpu_driven.slangh"
 
 DynamicCombo( D_MSAA, 0..1, Sys( ALL ) );
 

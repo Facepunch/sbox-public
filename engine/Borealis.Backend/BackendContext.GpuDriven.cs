@@ -17,7 +17,7 @@ internal sealed partial class BackendContext
 {
 	static readonly StringToken GpuDrivenConstantsName = new( "BorealisGpuDriven_t" );
 
-	/// <summary>The table slots <c>borealis_gpu_driven.fxc</c>'s <c>BorealisGpuDriven_t</c> holds (<see cref="HandFilledConstants"/>).</summary>
+	/// <summary>The table slots <c>sbox/gpu_driven.slangh</c>'s <c>BorealisGpuDriven_t</c> holds (<see cref="HandFilledConstants"/>).</summary>
 	[StructLayout( LayoutKind.Sequential )]
 	internal struct GpuDrivenConstants
 	{

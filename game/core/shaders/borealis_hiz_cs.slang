@@ -16,7 +16,7 @@ Mode( Default );
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 #if ( PROGRAM == VFX_PROGRAM_CS )
 #include "sbox/view.slangh"
-#include "borealis_records.fxc"
+#include "sbox/record_offsets.slangh"
 
 // 1: the Hi-Z's first levels from the depth (D_MSAA: multisampled); 0: its later levels, or the second phase's cull
 DynamicCombo( D_HIZ_DEPTH, 0..1, Sys( ALL ) );

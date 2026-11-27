@@ -16,9 +16,9 @@ Mode( Default );
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 #if ( PROGRAM == VFX_PROGRAM_CS )
 #include "sbox/view.slangh"
-#include "borealis_records.fxc"
+#include "sbox/record_offsets.slangh"
 #include "sbox/transform.slangh"
-#include "borealis_meshlet.fxc"
+#include "sbox/meshlet.slangh"
 
 #ifndef BINDLESS_VERTEX_BUFFERS_DECLARED
 #define BINDLESS_VERTEX_BUFFERS_DECLARED

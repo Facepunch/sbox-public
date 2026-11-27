@@ -1,7 +1,7 @@
 // Copyright (c) Facepunch. All Rights Reserved.
 
-#ifndef BOREALIS_MESHLET_FXC
-#define BOREALIS_MESHLET_FXC
+#ifndef SBOX_MESHLET_SLANGH
+#define SBOX_MESHLET_SLANGH
 
 //
 // A meshlet's cull against a view, shared by borealis_meshlet_cull_cs (compute) and borealis_meshlet_ids (task shader),
@@ -96,4 +96,4 @@ bool MeshletCulled( MeshletView view, float3 vCenter, float3 vExtents, float3x4 
 	return MeshletOutside( view, vCenter, vExtents, mTransform, false );
 }
 
-#endif // BOREALIS_MESHLET_FXC
+#endif // SBOX_MESHLET_SLANGH

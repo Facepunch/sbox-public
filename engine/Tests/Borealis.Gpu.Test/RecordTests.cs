@@ -29,7 +29,7 @@ public class RecordTests
 
 	static string Normal( string text ) => text.Replace( "\r\n", "\n", StringComparison.Ordinal );
 
-	/// <summary>Records.g.cs and borealis_records.fxc are what the definitions make now.</summary>
+	/// <summary>Records.g.cs and sbox/record_offsets.slangh are what the definitions make now.</summary>
 	[TestMethod]
 	public void GeneratedFilesAreCurrent()
 	{

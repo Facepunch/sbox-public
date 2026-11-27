@@ -10,7 +10,7 @@ namespace Borealis.Backend;
 /// <summary>The record definitions these structs were generated from: the hash of sbox/records.slangh.</summary>
 internal static class RecordDefinitionsHash
 {
-	public const string Value = "F09BA68F4598DA03";
+	public const string Value = "DC6D2CEA5FEBDBE6";
 }
 
 /// <summary>A GPU-driven draw: what a fragment draws with, made once (GpuDrivenTables.Draw).</summary>

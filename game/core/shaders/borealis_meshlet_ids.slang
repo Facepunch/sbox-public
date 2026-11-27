@@ -82,8 +82,8 @@ static const uint None = 0xffffffffu;
 #if ( PROGRAM == VFX_PROGRAM_TS )
 #include "sbox/view.slangh"
 #include "sbox/transform.slangh"
-#include "borealis_gpu_driven.fxc"
-#include "borealis_meshlet.fxc"
+#include "sbox/gpu_driven.slangh"
+#include "sbox/meshlet.slangh"
 
 groupshared MeshletPayload gs_Payload;
 
@@ -224,7 +224,7 @@ groupshared uint gs_RoundCount;
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 #if ( PROGRAM == VFX_PROGRAM_MS )
 #include "sbox/instancing.slangh"
-#include "borealis_gpu_driven.fxc"
+#include "sbox/gpu_driven.slangh"
 
 // The meshlet builder's limits this stage takes (64x124 and smaller; BackendDevice.MeshletTasks)
 static const uint MaxVertices = 64;

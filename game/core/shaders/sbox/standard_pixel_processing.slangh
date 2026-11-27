@@ -50,9 +50,9 @@
 	RenderState( AlphaToCoverageEnable, true );
 #endif
 
-#include "vr_common_ps_code.fxc"
+#include "sbox/final_combiner.slangh"
 #include "sbox/samplers.slangh"
-#include "vr_detail_texture.fxc"
+#include "sbox/detail_texture.slangh"
 
 #define MINIMAL_MATERIAL
 #include "common/classes/Decals.hlsl"

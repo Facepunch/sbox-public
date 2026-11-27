@@ -9,7 +9,7 @@ Mode( Depth, S_MODE_DEPTH );
 // The material editor's view of the shader (docs/reference/borealis-standalone-modules.md, "Material editor")
 #if MATERIAL_INPUTS
 // The material editor's FEATURES lines, as the .shader declared them
-#include "vr_common_features.fxc"
+#include "sbox/features.slangh"
 // The material's parameters as the material editor shows them, with the feature states that use them
 bool g_bFogEnabled < Default( 1 ); UiGroup( "Fog,300" ); >;
 BoolAttribute( NeedsLightProbe, true );

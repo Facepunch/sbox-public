@@ -17,7 +17,7 @@ Mode( Default );
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 #if ( PROGRAM == VFX_PROGRAM_CS )
 #include "sbox/view.slangh"
-#include "borealis_records.fxc"
+#include "sbox/record_offsets.slangh"
 
 // D_PARTS 0: a group per listed fragment (the cull's dispatch), each taking its whole fragment; 1, the same, but one of more
 // triangles than a group scans at once is put in the view's list of large fragments instead, which 2 counts in parts (a

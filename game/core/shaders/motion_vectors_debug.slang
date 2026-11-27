@@ -14,7 +14,7 @@ Mode( Default );
 
 #include "sbox/system.slangh"
 #include "sbox/view.slangh"
-#include "sbox_shared.fxc"
+#include "sbox/shading.slangh"
 
 #if ( PROGRAM == VFX_PROGRAM_VS )
 struct VS_INPUT

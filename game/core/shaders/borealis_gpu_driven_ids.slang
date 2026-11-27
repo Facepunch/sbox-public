@@ -31,7 +31,7 @@ struct PS_INPUT
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 #if ( PROGRAM == VFX_PROGRAM_VS )
 #include "sbox/instancing.slangh"
-#include "borealis_gpu_driven.fxc"
+#include "sbox/gpu_driven.slangh"
 
 // depth_only's position, pulled as its GPU-driven variant pulls it, so the depth is the same
 PS_INPUT IdsVertex( uint nVertex, uint nInstance )

@@ -8,7 +8,7 @@
 #include "sbox/system.slangh"
 
 #ifdef SURFACE_GPU_DRIVEN
-#include "borealis_records.fxc"
+#include "sbox/record_offsets.slangh"
 // A GPU-driven surface pass reads them from its draw's lighting record where they're used (SurfaceLightingWords,
 // sbox/surface_passes.slangh), not into registers ahead of shading, where they were held through the light loops
 #define g_vLightmapUvScale asfloat( SurfaceLightingWords( LightingRecord_LightmapUvScale ) )

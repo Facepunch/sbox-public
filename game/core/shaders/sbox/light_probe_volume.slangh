@@ -13,7 +13,7 @@
 #include "common/classes/Bindless.hlsl"
 
 #ifdef SURFACE_GPU_DRIVEN
-#include "borealis_records.fxc"
+#include "sbox/record_offsets.slangh"
 // A GPU-driven surface pass reads them from its draw's lighting record where they're used (SurfaceLightingWords,
 // sbox/surface_passes.slangh), as the lightmap's constants are
 #define MatLightProbeVolumeWorldToLocal SurfaceLightProbeVolumeWorldToLocal()

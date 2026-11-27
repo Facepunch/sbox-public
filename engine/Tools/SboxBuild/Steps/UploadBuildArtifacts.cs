@@ -207,6 +207,7 @@ internal class UploadBuildArtifacts
 
 		// Shader includes, plus the error assets the engine loads at startup (the error shader is its Slang module alone)
 		"core/shaders/**/*.fxc",
+		"core/shaders/**/*.slangh",
 		"core/shaders/**/*.hlsl",
 		"core/shaders/**/*.h",
 		"core/shaders/**/*.cpp",

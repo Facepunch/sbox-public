@@ -53,7 +53,7 @@
 #define Mode( ... )
 
 // GpuDrivenVariant( condition ): this stage also compiles with BOREALIS_GPU_DRIVEN 1 where the condition holds for its combos,
-// the form GPU-driven buckets draw with (vertices pulled by SV_VulkanVertexID, borealis_gpu_driven.fxc). Read by the compiler
+// the form GPU-driven buckets draw with (vertices pulled by SV_VulkanVertexID, sbox/gpu_driven.slangh). Read by the compiler
 // with the stage's combos, as RenderState is
 #define GpuDrivenVariant( ... )
 

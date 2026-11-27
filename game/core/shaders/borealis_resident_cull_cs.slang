@@ -17,7 +17,7 @@ Mode( Default );
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 #if ( PROGRAM == VFX_PROGRAM_CS )
 #include "sbox/view.slangh"
-#include "borealis_records.fxc"
+#include "sbox/record_offsets.slangh"
 #include "sbox/lod_fade.slangh"
 
 // The raw buffer array in the bindless set (binding 63): the fragment and draw tables

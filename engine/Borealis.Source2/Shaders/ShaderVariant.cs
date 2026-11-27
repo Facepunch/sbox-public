@@ -331,7 +331,7 @@ public sealed class ShaderStage
 	public PrimitiveExpansion Expansion { get; }
 
 	/// <summary>
-	/// A GPU-driven variant's material textures (<c>borealis_gpu_driven.fxc</c>): each one's bindless slot goes in the material
+	/// A GPU-driven variant's material textures (<c>sbox/gpu_driven.slangh</c>): each one's bindless slot goes in the material
 	/// record at this byte offset, after the constants (<see cref="ShaderLibrary.GpuDrivenTextureRegister"/>). Empty otherwise.
 	/// </summary>
 	public IReadOnlyList<(ShaderVariable Variable, int Offset)> RecordTextures { get; }

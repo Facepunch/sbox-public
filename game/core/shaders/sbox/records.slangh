@@ -1,7 +1,7 @@
 // The records Borealis writes into GPU buffers and its shaders read: the one place each layout is written. Each struct is
 // a record, its fields in order, each four-byte aligned with no padding (the layout ByteAddressBuffer.Load<T> reads):
 // float, int, uint, float2 to float4, or fixed arrays of those. Sandbox.ShaderCompiler reflects them and makes the C#
-// structs the engine writes them with (engine/Borealis.Backend/Records.g.cs) and borealis_records.fxc, the size and
+// structs the engine writes them with (engine/Borealis.Backend/Records.g.cs) and sbox/record_offsets.slangh, the size and
 // byte offset of every field for shaders that read a word at a time (RecordName_FieldName); build-shaders and
 // ShaderCompiler -records write both. A record and its readers change together: a shader reads a field at its macro, or
 // loads the whole struct (Load<DrawRecord>( offset )) where it includes this file. The /// comments become the C#

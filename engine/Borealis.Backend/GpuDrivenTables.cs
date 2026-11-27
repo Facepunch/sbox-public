@@ -15,7 +15,7 @@ namespace Borealis.Backend;
 internal readonly record struct PooledGeometry( uint GeometryRecord, BufferHandle IndexPage, int IndexPageSlot, uint FirstIndex, IndexFormat IndexFormat, uint PositionsRecord = 0, int VertexCount = 0 );
 
 /// <summary>
-/// The buffers GPU-driven drawing reads (<c>borealis_gpu_driven.fxc</c>, docs/reference/borealis-gpu-driven.md): meshes'
+/// The buffers GPU-driven drawing reads (<c>sbox/gpu_driven.slangh</c>, docs/reference/borealis-gpu-driven.md): meshes'
 /// vertices and indices in shared pages, and the geometry, draw and material tables, all reached through the bindless raw
 /// buffer array (<c>g_bindless_VertexBuffers</c>, binding 63). Live records keep their offsets and are read by every
 /// later frame, so nothing is uploaded per frame but each frame's instance records and indirect commands, and the material

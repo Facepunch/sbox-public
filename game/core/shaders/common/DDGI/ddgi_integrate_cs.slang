@@ -14,7 +14,7 @@ Mode( Default );
 //---------------------------------------------------------------------------------------------------------------------
 #include "sbox/view.slangh"
 #include "sbox/math.slangh"
-#include "common_samplers.fxc"
+#include "sbox/samplers.slangh"
 #include "common/DDGI/DDGI.hlsl"
 #include "common/Bindless.hlsl"
 #include "common/classes/Depth.hlsl"
