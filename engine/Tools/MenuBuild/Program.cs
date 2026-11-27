@@ -18,6 +18,7 @@ class Program
 			outputPath = Path.GetFullPath( outputPath );
 		}
 
+		Project.DisableAssemblyCache = true;
 		using var appSystem = new ToolAppSystem();
 		return BuildProject( Path.GetFullPath( projectPath ), outputPath );
 	}
