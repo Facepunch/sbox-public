@@ -77,24 +77,16 @@
 						remaps = 
 						[
 							{
-								from = "beer_keg_a.vmat"
-								to = "models/sbox/kitchen/beer_keg/beer_keg_a.vmat"
+								from = "buggy_exterior.vmat"
+								to = "vehicles/buggy/buggy_exterior.vmat"
 							},
 							{
-								from = "car_seat.vmat"
-								to = "models/sbox/vehicles/car_seat/car_seat.vmat"
+								from = "buggy_interior.vmat"
+								to = "vehicles/buggy/buggy_interior.vmat"
 							},
 							{
-								from = "tyre.vmat"
-								to = "models/sbox/vehicles/wheels/car_tyre/tyre.vmat"
-							},
-							{
-								from = "02 - default.vmat"
-								to = "vehicles/buggy/buggy.vmat"
-							},
-							{
-								from = "tractor_tyre.vmat"
-								to = "models/sbox/vehicles/wheels/tractor_wheel/tractor_wheel.vmat"
+								from = "buggy_trim.vmat"
+								to = "vehicles/buggy/buggy_trim.vmat"
 							},
 						]
 						use_global_default = false
@@ -135,11 +127,11 @@
 						align_origin_x_type = "None"
 						align_origin_y_type = "None"
 						align_origin_z_type = "None"
-						filename = "vehicles/buggy/buggy.fbx"
+						filename = "vehicles/buggy/buggy_phys.fbx"
 						import_scale = 1.0
 						faceMergeAngle = 10.0
 						maxHullVertices = 0
-						import_mode = "SingleHull"
+						import_mode = "HullPerElement"
 						optimization_algorithm = "QEM"
 						import_filter = 
 						{
@@ -155,6 +147,10 @@
 								"front_right_axil",
 								"buggy_front",
 								"buggy_rear",
+								"wheel_fl_phys",
+								"wheel_fr_phys",
+								"wheel_rl_phys",
+								"wheel_rr_phys",
 							]
 						}
 					},
@@ -164,8 +160,8 @@
 		model_archetype = ""
 		primary_associated_entity = ""
 		anim_graph_name = ""
-		animation_graph_name = ""
-		skeleton_name = ""
+		animation_graph_name = resource:""
+		skeleton_name = resource:""
 		base_model_name = ""
 	}
 }
