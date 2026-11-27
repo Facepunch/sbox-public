@@ -837,9 +837,10 @@ public class MemoryAllocatorTests : GpuTest
 
 		CollectionAssert.AreEqual( new ulong[] { 2 << 20, 4 << 20, 8 << 20, 16 << 20, 16 << 20 }, sizes );
 
-		// A 3 MiB image into a kind with no block: its first is made big enough
+		// A 3 MiB image into a kind with no block: its first is made big enough, and as it isn't content, holds a whole number
+		// of them (MemoryAllocator.WholeUnits)
 		var three = allocator.Allocate( mebibyte with { size = 3 << 20 }, MemoryLocation.Device, image: true );
-		Assert.AreEqual( 4ul << 20, three.Block.Size );
+		Assert.AreEqual( 3ul << 20, three.Block.Size );
 		placed.Add( three );
 
 		var type = allocator.FindType( mebibyte.memoryTypeBits, MemoryLocation.Readback );
@@ -852,6 +853,37 @@ public class MemoryAllocatorTests : GpuTest
 		}
 
 		foreach ( var allocation in placed ) allocator.Free( allocation );
+	}
+
+	/// <summary>
+	/// A new block of images that aren't content holds a whole number of the image that took the kind's last empty block
+	/// (<see cref="MemoryAllocator.WholeUnits"/>): a map's 128 px cube captures, 1056 KiB each, fill their blocks with nothing
+	/// left over, where fifteen to a 16 MiB block left 0.53 MiB of each unused. Content's blocks aren't cut.
+	/// </summary>
+	[TestMethod]
+	public void ImageBlocksHoldWholeCubeCaptures()
+	{
+		using var allocator = new MemoryAllocator( Device.Vk, Device.Allocator.MemoryProperties, false ) { QuietSeconds = 0, MakeBlocksAhead = false };
+		var cube = new VkMemoryRequirements { size = 1056 << 10, alignment = 1024, memoryTypeBits = ~0u };
+		var placed = new List<Allocation>();
+		var sizes = new List<ulong>();
+		for ( int i = 0; i < 45; i++ )
+		{
+			var allocation = allocator.Allocate( cube, MemoryLocation.Device, image: true, target: true );
+			if ( placed.All( p => p.Block != allocation.Block ) ) sizes.Add( allocation.Block.Size );
+			placed.Add( allocation );
+		}
+
+		// 1, 2, 4, 8 and then 15 to a block, each block full
+		CollectionAssert.AreEqual( new ulong[] { 1, 2, 4, 8, 15, 15 }.Select( n => n * cube.size ).ToArray(), sizes );
+		Assert.AreEqual( allocator.Used, allocator.Reserved );
+
+		// Content isn't cut: 16 MiB, as before
+		var content = new List<Allocation>();
+		for ( int i = 0; i < 31; i++ ) content.Add( allocator.Allocate( cube, MemoryLocation.Device, image: true, content: true ) );
+		Assert.AreEqual( 16ul << 20, content[^1].Block.Size );
+
+		foreach ( var allocation in placed.Concat( content ) ) allocator.Free( allocation );
 	}
 
 	/// <summary>A drain is given up as soon as something in the block has no room elsewhere, and not tried again for a while.</summary>

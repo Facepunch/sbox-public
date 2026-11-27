@@ -54,6 +54,12 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 
 		/// <summary>When (<see cref="System.Diagnostics.Stopwatch"/> ticks) a shared block of this kind was last made.</summary>
 		public long LastNewBlockTicks;
+
+		/// <summary>
+		/// For images that aren't content: the size, at its alignment, of the last allocation to take an empty block of the
+		/// kind, so the next block holds a whole number of them (<see cref="WholeUnits"/>); 0 for none.
+		/// </summary>
+		public ulong Unit;
 	}
 
 	// Empty blocks kept as spares (shared ones, and big buffers' own allocations), which Trim frees after a while
@@ -484,7 +490,7 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 				System.Threading.Monitor.Wait( allocationLock, 50 );
 			}
 
-			freshSize = large ? LargeBlockSize : NextBlockSize( type, image, content, fallback, size + alignment );
+			freshSize = large ? LargeBlockSize : NextBlockSize( type, image, content, fallback, size + alignment, image && !content ? AlignUp( size, alignment ) : 0 );
 			if ( !ExistingBlocksOnly ) makingNow.Add( key );
 		}
 
@@ -550,7 +556,7 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 		if ( makingAhead.Contains( kind ) || KindOf( taken ).Spares > 0 ) return;
 
 		makingAhead.Add( kind );
-		var size = kind.Large ? LargeBlockSize : NextBlockSize( kind.TypeIndex, kind.Images, kind.Content, kind.Fallback, 0 );
+		var size = kind.Large ? LargeBlockSize : NextBlockSize( kind.TypeIndex, kind.Images, kind.Content, kind.Fallback, 0, KindOf( taken ).Unit );
 		System.Threading.ThreadPool.UnsafeQueueUserWorkItem( static state =>
 		{
 			var (allocator, kind, size) = state;
@@ -595,9 +601,26 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 
 	/// <summary>
 	/// The size of a kind's next small block: twice its largest, from the first size, up to <see cref="BlockSize"/>, and at
-	/// least <paramref name="fits"/>. Under the lock; allocates nothing.
+	/// least <paramref name="fits"/>; with a <paramref name="unit"/> (<see cref="Kind.Unit"/>), cut to a whole number of
+	/// them (<see cref="WholeUnits"/>). Under the lock; allocates nothing.
 	/// </summary>
-	ulong NextBlockSize( int type, bool image, bool content, bool fallback, ulong fits )
+	ulong NextBlockSize( int type, bool image, bool content, bool fallback, ulong fits, ulong unit )
+	{
+		var next = GrownBlockSize( type, image, content, fallback, fits );
+		return GrowBlocks && WholeUnits && unit >= blockSize / 64 && unit <= next ? next / unit * unit : next;
+	}
+
+	/// <summary>
+	/// Whether a new block of images that aren't content (targets, cube captures) is cut to a whole number of the
+	/// allocation that last took an empty one of its kind (on): a map's 128 px cube captures, 1056 KiB each, left 0.53 MiB
+	/// of every 16 MiB block they filled unused. Only for allocations of at least a 64th of a block. <c>BOREALIS_WHOLE_UNITS=0</c>
+	/// turns it off, for comparisons.
+	/// </summary>
+	public static bool WholeUnits { get; set; } = Environment.GetEnvironmentVariable( "BOREALIS_WHOLE_UNITS" ) != "0";
+
+	static ulong AlignUp( ulong size, ulong alignment ) => (size + alignment - 1) / alignment * alignment;
+
+	ulong GrownBlockSize( int type, bool image, bool content, bool fallback, ulong fits )
 	{
 		if ( !GrowBlocks ) return blockSize;
 		ulong largest = 0;
@@ -808,6 +831,7 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 		if ( empty ) Unspare( best );
 		if ( best is null || !best.TryAllocate( size, alignment, out var offset, out var node ) ) return null;
 		CountUsed( type, (long)size );
+		if ( empty && image && !content ) kind.Unit = AlignUp( size, alignment );
 
 		// Only when an empty block was taken: made ahead whenever a kind had no spare, each allocation into a part-used block
 		// made one again once the last had been trimmed, and a loaded map kept an empty block of every kind it allocated in
