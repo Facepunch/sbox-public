@@ -20,7 +20,7 @@ public static partial class Directory
 	/// </summary>
 	static readonly HashSet<Assembly> _consoleAssemblies = new();
 
-	internal static void LoadSources()
+	internal static void LoadSources( bool loadMounts = true )
 	{
 		// Create system first.
 		var config = new Configuration();
@@ -28,6 +28,9 @@ public static partial class Directory
 		config.IsDedicatedServer = Application.IsDedicatedServer;
 		_system = new MountHost( config );
 		_system.MountStateChanged = mount => UpdateConsoleMembers( mount.GetType().Assembly );
+
+		if ( !loadMounts )
+			return;
 
 		LoadConfig();
 

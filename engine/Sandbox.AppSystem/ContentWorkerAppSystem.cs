@@ -38,8 +38,9 @@ public sealed class ContentWorkerAppSystem : ToolAppSystem
 
 		EngineFileSystem.InitializeDataFolder();
 
-		// As every app has them (Bootstrap.PreInit); a worker never mounts a game, so a compile can't read one
-		Mounting.Directory.LoadSources();
+		// Initialize an empty mount host (Bootstrap.PreInit): a worker never mounts a game, and loading mount addons
+		// would prepend game/mounts/*/Assets ahead of -searchpaths in the native filesystem.
+		Mounting.Directory.LoadSources( loadMounts: false );
 	}
 
 	public override void Init()
