@@ -29,8 +29,8 @@ public class HandFilledConstantsTests : GpuTest
 					continue;
 				}
 
-				// The stages the device draws it with: its module's where it has one
-				var variant = drawer.Variant( shader, new ShaderAttributes() );
+				// The stages the device draws it with: its module's where it has one, in a variant that reads the constants
+				var variant = drawer.Variant( shader, DrawnAttributes( path ) );
 				var stages = new[] { variant?.Vertex, variant?.Pixel, variant?.Compute }.Where( s => s?.Bytecode is not null ).ToArray();
 
 				// The tables' layout, where they describe the members (a .shader's do, a module's give the size alone)
@@ -56,6 +56,22 @@ public class HandFilledConstantsTests : GpuTest
 
 		Assert.AreEqual( 0, problems.Count, string.Join( Environment.NewLine, problems ) );
 		Assert.IsTrue( members >= 20, $"members compared ({members})" );
+	}
+
+	/// <summary>
+	/// The combos the backend draws a shader with, where its default variant writes nothing and so keeps no constants:
+	/// borealis_ids_normals_cs writes only what the frame asked for (BackendContext.IdsNormals).
+	/// </summary>
+	static ShaderAttributes DrawnAttributes( string path )
+	{
+		var attributes = new ShaderAttributes();
+		if ( path == "shaders/borealis_ids_normals_cs.shader" )
+		{
+			attributes.SetCombo( "D_IDS_NORMALS", 1 );
+			attributes.SetCombo( "D_OBJECT_MOTION", 1 );
+		}
+
+		return attributes;
 	}
 
 	/// <summary>
