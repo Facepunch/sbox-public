@@ -1186,7 +1186,6 @@ internal static partial class GameScenes
 			renderer.Sprite = sprite;
 			renderer.Size = random.Float( 50, 110 );
 			renderer.Color = new Color( 0.8f, 0.8f, 0.8f, 0.3f );
-			renderer.AlphaCutoff = 0;
 			renderer.Lighting = true;
 			renderer.IsSorted = true;
 		}
