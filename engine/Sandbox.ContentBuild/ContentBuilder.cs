@@ -398,7 +398,7 @@ public static class ContentBuilder
 						if ( request.Select is null )
 						{
 							step.Restart();
-							deleted[root] = root.Store.All.Values.Where( x => !File.Exists( Path.Combine( root.Def.Path, x.Source ) ) ).ToList();
+							deleted[root] = root.Store.All.Values.Where( x => !root.Inventory.ContainsKey( x.Source ) && !File.Exists( Path.Combine( root.Def.Path, x.Source ) ) ).ToList();
 							deletedTime += step.Elapsed;
 						}
 					}
@@ -468,6 +468,12 @@ public static class ContentBuilder
 				if ( report.Error is not null ) return report;
 				if ( request.Select is null ) RemoveUnread();
 				Settle();
+				void SaveIndices()
+				{
+					foreach ( var root in roots ) root.Store.SaveIndex();
+				}
+				if ( asynchronous ) await Task.Run( SaveIndices );
+				else SaveIndices();
 				Phase( "compile and publish" );
 				return report;
 			}

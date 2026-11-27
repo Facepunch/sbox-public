@@ -1,4 +1,6 @@
+using System.Buffers.Binary;
 using System.IO.Hashing;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -89,10 +91,20 @@ public sealed class PublishFailedException( string message, Exception inner ) : 
 sealed class RecordStore
 {
 	readonly Func<string, string> resolve;
-	readonly string records, journals, backups, deferredFile;
+	readonly string records, journals, backups, deferredFile, indexFile;
 	Dictionary<string, string> deferred;
 	readonly HashSet<string> quarantined;
 	readonly HashSet<string> unknownOwners = new( StringComparer.OrdinalIgnoreCase );
+	readonly Dictionary<string, (string Name, long Size, long Time)> recordStamps = new( StringComparer.OrdinalIgnoreCase );
+	readonly long snapshotTimeUtcTicks;
+	bool indexDirty;
+
+	const uint IndexMagic = 0x52454353; // "SCER"
+	const int IndexVersion = 1;
+	static readonly long RacyWindowTicks = TimeSpan.FromSeconds( 2 ).Ticks;
+
+	sealed record IndexEntry( long Size, long Time, AssetRecord Record );
+	sealed record RecordIndex( long SnapshotTimeUtcTicks, Dictionary<string, IndexEntry> Entries );
 
 	/// <summary>
 	/// Whether any live source still has unknown outputs.
@@ -111,20 +123,66 @@ sealed class RecordStore
 		journals = Directory.CreateDirectory( Path.Combine( state, "journal" ) ).FullName;
 		backups = Path.Combine( state, "backup" );
 		deferredFile = Path.Combine( state, "deferred-deletes.json" );
+		indexFile = Path.Combine( state, "records.bin" );
 		if ( File.Exists( deferredFile ) ) deferred = ReadCache( deferredFile, ReadDeferred );
 
 		// A journal still being written was never renamed, so nothing it lists was moved
 		foreach ( var partial in Directory.GetFiles( journals, "*.tmp" ) ) File.Delete( partial );
 		foreach ( var journal in Directory.GetFiles( journals, "*.json" ) ) Recover( journal );
 
-		var files = Directory.GetFiles( records, "*.json" );
-		var loaded = new AssetRecord[files.Length];
-		Func<string, AssetRecord> read = ReadRecord;
-		Parallel.For( 0, files.Length, i => loaded[i] = ReadCache( files[i], read ) );
-		foreach ( var record in loaded )
+		// Captured before reading any record so the racy-mtime cutoff reflects when record contents were verified.
+		snapshotTimeUtcTicks = DateTime.UtcNow.Ticks;
+
+		var files = new DirectoryInfo( records ).GetFiles( "*.json" );
+		var index = TryReadIndex();
+		var racyCutoff = index is null ? long.MinValue : index.SnapshotTimeUtcTicks - RacyWindowTicks;
+		var misses = new List<FileInfo>();
+
+		foreach ( var file in files )
 		{
-			if ( record is not null ) All[record.Source] = record;
+			if ( index is not null
+				&& index.Entries.TryGetValue( file.Name, out var entry )
+				&& entry.Size == file.Length
+				&& entry.Time == file.LastWriteTimeUtc.Ticks
+				&& file.LastWriteTimeUtc.Ticks < racyCutoff )
+			{
+				All[entry.Record.Source] = entry.Record;
+				recordStamps[entry.Record.Source] = (file.Name, entry.Size, entry.Time);
+			}
+			else
+			{
+				misses.Add( file );
+			}
 		}
+
+		if ( misses.Count > 0 )
+		{
+			var loaded = new (AssetRecord Record, (string Name, long Size, long Time)? Stamp)[misses.Count];
+			Func<string, AssetRecord> read = ReadRecord;
+			Parallel.For( 0, misses.Count, i =>
+			{
+				var file = misses[i];
+				var sizeBefore = file.Length;
+				var timeBefore = file.LastWriteTimeUtc.Ticks;
+				var record = ReadCache( file.FullName, read );
+				if ( record is null ) return;
+
+				// Only cache metadata if the file did not change while we read it
+				var after = new FileInfo( file.FullName );
+				var stamp = after.Exists && after.Length == sizeBefore && after.LastWriteTimeUtc.Ticks == timeBefore
+					? (file.Name, sizeBefore, timeBefore)
+					: ((string, long, long)?)null;
+				loaded[i] = (record, stamp);
+			} );
+			foreach ( var (record, stamp) in loaded )
+			{
+				if ( record is null ) continue;
+				All[record.Source] = record;
+				if ( stamp is { } verified ) recordStamps[record.Source] = verified;
+			}
+		}
+
+		indexDirty = index is null || misses.Count > 0 || index.Entries.Count != recordStamps.Count;
 
 		// Keep the damaged bytes for inspection even after the source has a new record.
 		quarantined = Directory.EnumerateFiles( records, "*.json.invalid" )
@@ -196,7 +254,9 @@ sealed class RecordStore
 			var file = RecordPath( source );
 			File.Move( file, file + ".invalid", true );
 			All.Remove( source );
+			recordStamps.Remove( source );
 			unknownOwners.Add( source );
+			indexDirty = true;
 		}
 		else if ( quarantined.Count > 0 && quarantined.Contains( RecordPath( source ) ) )
 		{
@@ -284,9 +344,17 @@ sealed class RecordStore
 			throw Undo( journal, e );
 		}
 
-		if ( record is null ) All.Remove( source );
-		else All[source] = record;
+		if ( record is null )
+		{
+			All.Remove( source );
+			recordStamps.Remove( source );
+		}
+		else
+		{
+			All[source] = record;
+		}
 		unknownOwners.Remove( source );
+		indexDirty = true;
 
 		File.Delete( journal );
 		if ( Directory.Exists( backup ) ) Directory.Delete( backup, true );
@@ -296,7 +364,221 @@ sealed class RecordStore
 	/// <summary>
 	/// Writes a record again with nothing to move, as when its outputs' stamps moved but their bytes didn't.
 	/// </summary>
-	public void Rewrite( string source, AssetRecord record ) => WriteJson( RecordPath( source ), record );
+	public void Rewrite( string source, AssetRecord record )
+	{
+		var path = RecordPath( source );
+		WriteJson( path, record );
+		var info = new FileInfo( path );
+		if ( info.Exists ) recordStamps[source] = (info.Name, info.Length, info.LastWriteTimeUtc.Ticks);
+		else recordStamps.Remove( source );
+		indexDirty = true;
+	}
+
+	/// <summary>
+	/// Writes a single-file binary snapshot of the current records so subsequent builds avoid opening
+	/// and JSON-parsing thousands of individual record files. Best-effort: <c>records/*.json</c> remains
+	/// the crash-safe source of truth.
+	/// </summary>
+	public void SaveIndex()
+	{
+		if ( !indexDirty || !Directory.Exists( records ) ) return;
+
+		try
+		{
+			var entries = new List<(string Name, long Size, long Time, AssetRecord Record)>( All.Count );
+			foreach ( var record in All.Values )
+			{
+				if ( recordStamps.TryGetValue( record.Source, out var stamp ) )
+					entries.Add( (stamp.Name, stamp.Size, stamp.Time, record) );
+			}
+
+			using var stream = new MemoryStream( Math.Max( 256, entries.Count * 512 ) );
+			using ( var writer = new BinaryWriter( stream, Encoding.UTF8, leaveOpen: true ) )
+			{
+				writer.Write( IndexMagic );
+				writer.Write( IndexVersion );
+				writer.Write( snapshotTimeUtcTicks );
+				writer.Write( entries.Count );
+				foreach ( var (name, size, time, record) in entries )
+				{
+					writer.Write( name );
+					writer.Write( size );
+					writer.Write( time );
+					WriteRecord( writer, record );
+				}
+			}
+
+			var payloadLength = (int)stream.Length;
+			var hash = XxHash3.HashToUInt64( stream.GetBuffer().AsSpan( 0, payloadLength ) );
+			Span<byte> trailer = stackalloc byte[8];
+			BinaryPrimitives.WriteUInt64LittleEndian( trailer, hash );
+			stream.Write( trailer );
+
+			var tmp = indexFile + ".tmp";
+			using ( var fs = File.Create( tmp ) )
+				fs.Write( stream.GetBuffer(), 0, (int)stream.Length );
+			File.Move( tmp, indexFile, true );
+			indexDirty = false;
+		}
+		catch ( Exception e ) when ( e is IOException or UnauthorizedAccessException ) { }
+	}
+
+	RecordIndex TryReadIndex()
+	{
+		if ( !File.Exists( indexFile ) ) return null;
+
+		try
+		{
+			var bytes = File.ReadAllBytes( indexFile );
+			if ( bytes.Length < 28 ) return null;
+
+			var payloadLength = bytes.Length - 8;
+			var expected = BinaryPrimitives.ReadUInt64LittleEndian( bytes.AsSpan( payloadLength, 8 ) );
+			if ( XxHash3.HashToUInt64( bytes.AsSpan( 0, payloadLength ) ) != expected ) return null;
+
+			using var stream = new MemoryStream( bytes, 0, payloadLength, writable: false );
+			using var reader = new BinaryReader( stream, Encoding.UTF8 );
+			if ( reader.ReadUInt32() != IndexMagic || reader.ReadInt32() != IndexVersion ) return null;
+
+			var snapshotTime = reader.ReadInt64();
+			var count = reader.ReadInt32();
+			if ( count < 0 ) return null;
+
+			var entries = new Dictionary<string, IndexEntry>( count, StringComparer.OrdinalIgnoreCase );
+			for ( var i = 0; i < count; i++ )
+			{
+				var name = reader.ReadString();
+				var size = reader.ReadInt64();
+				var time = reader.ReadInt64();
+				var record = ReadRecordBinary( reader );
+				entries[name] = new IndexEntry( size, time, record );
+			}
+
+			return stream.Position == payloadLength ? new RecordIndex( snapshotTime, entries ) : null;
+		}
+		catch ( Exception e ) when ( e is IOException or UnauthorizedAccessException or EndOfStreamException or InvalidDataException or FormatException )
+		{
+			return null;
+		}
+	}
+
+	static void WriteRecord( BinaryWriter w, AssetRecord r )
+	{
+		w.Write( r.Source );
+		w.Write( r.Job );
+		w.Write( r.ChangedWhileCompiling );
+		w.Write( r.Seconds );
+		w.Write( r.Fingerprint );
+		w.Write( r.Input is not null ? r.Input.Length : -1 );
+		if ( r.Input is not null ) w.Write( r.Input );
+
+		w.Write( r.Outputs.Count );
+		foreach ( var (key, stamp) in r.Outputs )
+		{
+			w.Write( key );
+			w.Write( stamp.Size );
+			w.Write( stamp.Time );
+			w.Write( stamp.Hash );
+		}
+
+		w.Write( r.Inputs.Count );
+		foreach ( var input in r.Inputs )
+		{
+			w.Write( input.Path );
+			w.Write( input.Exists );
+			w.Write( input.Checksum );
+			w.Write( input.Size );
+			w.Write( input.Time );
+		}
+
+		w.Write( r.Special.Count );
+		foreach ( var dep in r.Special )
+		{
+			w.Write( dep.Compiler );
+			w.Write( dep.Data );
+			w.Write( dep.Name );
+			w.Write( dep.Fingerprint );
+		}
+
+		w.Write( r.Arguments.Count );
+		foreach ( var (key, value) in r.Arguments )
+		{
+			w.Write( key );
+			w.Write( value is not null );
+			if ( value is not null ) w.Write( value );
+		}
+
+		w.Write( r.Prerequisites.Count );
+		foreach ( var prereq in r.Prerequisites )
+		{
+			w.Write( prereq.File );
+			w.Write( prereq.Hash );
+			w.Write( prereq.Output is not null );
+			if ( prereq.Output is not null ) w.Write( prereq.Output );
+			w.Write( prereq.OrderOnly );
+		}
+	}
+
+	static AssetRecord ReadRecordBinary( BinaryReader r )
+	{
+		var record = new AssetRecord
+		{
+			Source = r.ReadString(),
+			Job = r.ReadString(),
+			ChangedWhileCompiling = r.ReadBoolean(),
+			Seconds = r.ReadDouble(),
+			Fingerprint = r.ReadUInt32(),
+		};
+
+		var inputLen = r.ReadInt32();
+		if ( inputLen < -1 ) throw new InvalidDataException();
+		if ( inputLen >= 0 )
+		{
+			record.Input = r.ReadBytes( inputLen );
+			if ( record.Input.Length != inputLen ) throw new EndOfStreamException();
+		}
+
+		var outputs = ReadCount( r );
+		for ( var i = 0; i < outputs; i++ )
+			record.Outputs[r.ReadString()] = new FileStamp( r.ReadInt64(), r.ReadInt64(), r.ReadString() );
+
+		var inputs = ReadCount( r );
+		record.Inputs.Capacity = inputs;
+		for ( var i = 0; i < inputs; i++ )
+			record.Inputs.Add( new InputStamp( r.ReadString(), r.ReadBoolean(), r.ReadUInt32(), r.ReadInt64(), r.ReadInt64() ) );
+
+		var special = ReadCount( r );
+		record.Special.Capacity = special;
+		for ( var i = 0; i < special; i++ )
+			record.Special.Add( new SpecialDependency( r.ReadString(), r.ReadUInt32(), r.ReadString(), r.ReadUInt32() ) );
+
+		var arguments = ReadCount( r );
+		for ( var i = 0; i < arguments; i++ )
+		{
+			var key = r.ReadString();
+			record.Arguments[key] = r.ReadBoolean() ? r.ReadString() : null;
+		}
+
+		var prerequisites = ReadCount( r );
+		record.Prerequisites.Capacity = prerequisites;
+		for ( var i = 0; i < prerequisites; i++ )
+		{
+			var file = r.ReadString();
+			var hash = r.ReadString();
+			var output = r.ReadBoolean() ? r.ReadString() : null;
+			var orderOnly = r.ReadBoolean();
+			record.Prerequisites.Add( new RecordedPrerequisite( file, hash, output, orderOnly ) );
+		}
+
+		return record;
+	}
+
+	static int ReadCount( BinaryReader r )
+	{
+		var count = r.ReadInt32();
+		if ( count < 0 ) throw new InvalidDataException();
+		return count;
+	}
 
 	static void WriteJson<T>( string file, T value )
 	{
