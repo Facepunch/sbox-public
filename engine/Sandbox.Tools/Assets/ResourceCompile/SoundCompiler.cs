@@ -11,6 +11,7 @@ namespace Editor;
 /// <see cref="SoundFile.Visemes"/> and <see cref="SoundFile.Subtitles"/>.
 /// </summary>
 [Expose]
+[NoCompiledReads]
 [ResourceIdentity( "wav" )]
 [ResourceIdentity( "mp3" )]
 [ResourceIdentity( "ogg" )]

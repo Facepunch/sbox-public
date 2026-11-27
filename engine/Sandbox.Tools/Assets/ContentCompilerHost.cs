@@ -114,13 +114,13 @@ internal static class ContentCompilerHost
 				{
 					try
 					{
-						if ( !RunOnMainThread( null, Admit ) )
+						var outcome = RunJobCore( fields[1], fields[2], Sandbox.ContentBuild.JobInput.Parse( fields[5], fields[6] ), fields[3], fields[4], fields[(8 + count)..], onJobThread: true, checkAdmit: true );
+						Reply( fields[0], outcome switch
 						{
-							Reply( fields[0], "refused\tit has an older output loaded" );
-							return;
-						}
-
-						Reply( fields[0], RunJob( fields[1], fields[2], Sandbox.ContentBuild.JobInput.Parse( fields[5], fields[6] ), fields[3], fields[4], fields[(8 + count)..] ) ? "succeeded" : "failed" );
+							JobOutcome.Refused => "refused\tit has an older output loaded",
+							JobOutcome.Succeeded => "succeeded",
+							_ => "failed"
+						} );
 					}
 					// The pool sends no more, and the jobs running beside it finish
 					catch ( Exception e )
@@ -128,7 +128,7 @@ internal static class ContentCompilerHost
 						Reply( fields[0], $"error\t{e.Message.ReplaceLineEndings( " " )}" );
 					}
 					finally { Interlocked.Decrement( ref answering ); }
-				} )
+				}, JobStackSize )
 				{ IsBackground = true, Name = $"contentworker request {fields[0]}" }.Start();
 			}
 			Volatile.Write( ref ended, true );
@@ -145,52 +145,89 @@ internal static class ContentCompilerHost
 		return Math.Max( exitCode, 0 );
 	}
 
+	enum JobOutcome { Succeeded, Failed, Refused }
+
 	/// <summary>
 	/// Runs a build job in this process and waits for it: on a thread of its own, while others run, its staging mounted
 	/// for it on the main thread from before it starts until after it ends (see <see cref="Pump"/>). A worker lets go of
 	/// what jobs loaded whenever none runs. A question (<see cref="Answer"/>) is answered on the main thread, as a job of
 	/// its own so it reads the files as they are now.
 	/// </summary>
-	internal static bool RunJob( string mode, string source, Sandbox.ContentBuild.JobInput input, string staging, string report, IReadOnlyList<string> compilerArgs )
+	internal static bool RunJob( string mode, string source, Sandbox.ContentBuild.JobInput input, string staging, string report, IReadOnlyList<string> compilerArgs ) =>
+		RunJobCore( mode, source, input, staging, report, compilerArgs, onJobThread: false, checkAdmit: false ) == JobOutcome.Succeeded;
+
+	static JobOutcome RunJobCore( string mode, string source, Sandbox.ContentBuild.JobInput input, string staging, string report, IReadOnlyList<string> compilerArgs, bool onJobThread, bool checkAdmit )
 	{
 		if ( mode is "types" or "fingerprints" )
 		{
-			RunOnMainThread( staging, () => System.IO.File.WriteAllLines( report, Answer( mode, System.IO.File.ReadAllLines( source ) ) ) );
-			return true;
+			var ok = RunOnMainThread( staging, () =>
+			{
+				if ( checkAdmit && !Admit() ) return false;
+				System.IO.File.WriteAllLines( report, Answer( mode, System.IO.File.ReadAllLines( source ) ) );
+				return true;
+			} );
+			return ok ? JobOutcome.Succeeded : JobOutcome.Refused;
 		}
 
 		Logging.Capture ??= JobLog;
 		PackageLoader.HoldHotload ??= () => !compiles.IsEmpty;
-		RunOnMainThread( null, () =>
+
+		// Adopt only inspects existing compiled outputs and never writes to staging, so skip search-path mount/unmount churn.
+		var mountStaging = mode != "adopt";
+		var admitted = RunOnMainThread( null, () =>
 		{
-			IResourceCompilerSystem.MountBuildJobStaging( staging, true );
+			if ( checkAdmit && !Admit() ) return false;
+			if ( mountStaging )
+			{
+				IResourceCompilerSystem.MountBuildJobStaging( staging, true );
+				compilersInitialized = true;
+			}
+			else if ( !compilersInitialized )
+			{
+				// Ensure native compilers are initialized on the main thread before any worker thread looks them up.
+				IResourceCompilerSystem.MountBuildJobStaging( staging, false );
+				compilersInitialized = true;
+			}
 			running++;
+			return true;
 		} );
+		if ( !admitted ) return JobOutcome.Refused;
 
 		var job = jobs[staging] = new BuildJob( staging );
 		var result = false;
 		try
 		{
 			var args = string.Join( '\t', compilerArgs );
-			var thread = new Thread( () => result = IResourceCompilerSystem.RunBuildJob( mode, source, input?.File ?? "", input?.Fingerprint ?? 0, staging, report, args ), JobStackSize )
+			var inputFile = input?.File ?? "";
+			var inputFingerprint = input?.Fingerprint ?? 0;
+			if ( onJobThread && !ThreadSafe.IsMainThread )
 			{
-				IsBackground = true,
-				Name = $"build job {System.IO.Path.GetFileName( source )}",
-			};
-			thread.Start();
-			while ( !thread.Join( ThreadSafe.IsMainThread ? 0 : Timeout.Infinite ) ) Pump( MainThreadWorkPoll );
-			System.IO.File.WriteAllText( $"{report}.log", job.Log.ToString() );
+				result = IResourceCompilerSystem.RunBuildJob( mode, source, inputFile, inputFingerprint, staging, report, args );
+			}
+			else
+			{
+				var thread = new Thread( () => result = IResourceCompilerSystem.RunBuildJob( mode, source, inputFile, inputFingerprint, staging, report, args ), JobStackSize )
+				{
+					IsBackground = true,
+					Name = $"build job {System.IO.Path.GetFileName( source )}",
+				};
+				thread.Start();
+				while ( !thread.Join( ThreadSafe.IsMainThread ? 0 : Timeout.Infinite ) ) Pump( MainThreadWorkPoll );
+			}
+
+			if ( job.Log.Length > 0 )
+				System.IO.File.WriteAllText( $"{report}.log", job.Log.ToString() );
 		}
 		finally
 		{
 			jobs.TryRemove( staging, out _ );
 			RunOnMainThread( null, () =>
 			{
-				IResourceCompilerSystem.MountBuildJobStaging( staging, false );
+				if ( mountStaging ) IResourceCompilerSystem.MountBuildJobStaging( staging, false );
 				if ( --running == 0 && unloadWhenIdle ) IResourceCompilerSystem.UnloadBuildJobs();
 			} );
 		}
-		return result;
+		return result ? JobOutcome.Succeeded : JobOutcome.Failed;
 	}
 
 	/// <summary>
@@ -468,6 +505,11 @@ internal static class ContentCompilerHost
 	/// Jobs in this process with their staging mounted. Main thread only.
 	/// </summary>
 	static int running;
+
+	/// <summary>
+	/// Native compilers have been initialized on the main thread (via MountBuildJobStaging). Main thread only.
+	/// </summary>
+	static bool compilersInitialized;
 
 	/// <summary>
 	/// Whether what jobs loaded is let go of whenever none runs: in a worker, not in the editor, whose resources are its

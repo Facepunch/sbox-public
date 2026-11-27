@@ -157,8 +157,12 @@ public sealed class ResourceCompiler( string executable, AssetTypeTable types, I
 
 		// What the job logged on its thread
 		var log = $"{report}.log";
-		var text = File.Exists( log ) ? File.ReadAllText( log ).Trim() : "";
-		File.Delete( log );
+		var text = "";
+		if ( File.Exists( log ) )
+		{
+			text = File.ReadAllText( log ).Trim();
+			File.Delete( log );
+		}
 
 		var lines = File.Exists( report ) ? File.ReadAllLines( report ) : [];
 		File.Delete( report );

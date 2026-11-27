@@ -76,7 +76,8 @@ public static partial class AssetSystem
 		foreach ( var extension in extensions.Order( StringComparer.OrdinalIgnoreCase ) )
 		{
 			var gameResource = IsGameResource( extension );
-			if ( !gameResource && FindCompilerForExtension( extension ) is null ) continue;
+			var compiler = FindCompilerForExtension( extension );
+			if ( !gameResource && (compiler is null || compiler.HasAttribute<ResourceCompiler.NoCompiledReadsAttribute>()) ) continue;
 
 			yield return $".{extension}\t{(gameResource ? $".{extension.ToLowerInvariant()}_c" : "")}";
 		}
