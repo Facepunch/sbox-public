@@ -67,6 +67,7 @@ public class AppSystem
 	/// </summary>
 	protected static void InstallRenderers()
 	{
+		Application.IsShuttingDown = false;
 		SceneRenderer.EngineHooks.Install();
 	}
 
@@ -253,11 +254,25 @@ public class AppSystem
 		// Release all cached stylesheets — their Styles hold Lazy<Texture> refs
 		UI.StyleSheet.ResetStyleSheets();
 
+		// Prevent static constructors triggered during the teardown sweep below from loading new resources
+		Application.IsShuttingDown = true;
+
 		// Null all static native-resource and Panel references across every assembly loaded
 		// in this AppDomain — catches engine, base addon, menu addon, game dlls, etc.
 		// Only scan assemblies that actually reference the engine assembly; anything that
 		// doesn't reference it can't possibly hold statics of Texture, Panel, etc.
 		var engineAsmName = typeof( Texture ).Assembly.GetName().Name;
+		Type[] teardownTypes =
+		[
+			typeof( Texture ),
+			typeof( GpuBuffer ),
+			typeof( Model ),
+			typeof( Material ),
+			typeof( ComputeShader ),
+			typeof( Rendering.CommandList ),
+			typeof( UI.Panel )
+		];
+
 		foreach ( var asm in AppDomain.CurrentDomain.GetAssemblies() )
 		{
 			// The engine assembly itself always qualifies
@@ -273,13 +288,7 @@ public class AppSystem
 			if ( !isEngineAsm && !isDynamic && !referencesEngine )
 				continue;
 
-			ReflectionUtility.NullStaticReferencesOfType( asm, typeof( Texture ) );
-			ReflectionUtility.NullStaticReferencesOfType( asm, typeof( GpuBuffer ) );
-			ReflectionUtility.NullStaticReferencesOfType( asm, typeof( Model ) );
-			ReflectionUtility.NullStaticReferencesOfType( asm, typeof( Material ) );
-			ReflectionUtility.NullStaticReferencesOfType( asm, typeof( ComputeShader ) );
-			ReflectionUtility.NullStaticReferencesOfType( asm, typeof( Rendering.CommandList ) );
-			ReflectionUtility.NullStaticReferencesOfType( asm, typeof( UI.Panel ) );
+			ReflectionUtility.NullStaticReferencesOfTypes( asm, teardownTypes );
 		}
 
 		Material.Shutdown();

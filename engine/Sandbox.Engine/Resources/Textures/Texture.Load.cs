@@ -56,6 +56,7 @@ public partial class Texture
 	/// </summary>
 	static Texture LoadInternal( BaseFileSystem filesystem, string filepath, bool warnOnMissing = true )
 	{
+		if ( Application.IsShuttingDown ) return null;
 		//if ( Host.IsUnitTest ) return null;
 		if ( string.IsNullOrWhiteSpace( filepath ) ) return null;
 

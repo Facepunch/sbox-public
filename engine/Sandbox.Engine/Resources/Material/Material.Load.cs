@@ -20,6 +20,9 @@ public partial class Material
 
 	internal static Material Load( ResourceId id )
 	{
+		if ( Application.IsShuttingDown )
+			return null;
+
 		ThreadSafe.AssertIsMainThread();
 
 		if ( id.Guid is Guid guid )

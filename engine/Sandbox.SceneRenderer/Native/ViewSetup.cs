@@ -9,10 +9,10 @@ namespace Sandbox.SceneRenderer.Native;
 /// </summary>
 internal static class ViewSetup
 {
-	static readonly Texture BlueNoise = Texture.Load( "textures/dev/blue_noise_256.vtex" );
-	static readonly Texture BrdfLookup = Texture.Load( "textures/dev/ggx_integrate_brdf_lut_schlick.vtex" );
-	static readonly Texture LtcAmplitude = Texture.Load( "textures/dev/ltc_amp.vtex" );
-	static readonly Texture LtcMatrix = Texture.Load( "textures/dev/ltc_mat.vtex" );
+	static Texture BlueNoise = Texture.Load( "textures/dev/blue_noise_256.vtex" );
+	static Texture BrdfLookup = Texture.Load( "textures/dev/ggx_integrate_brdf_lut_schlick.vtex" );
+	static Texture LtcAmplitude = Texture.Load( "textures/dev/ltc_amp.vtex" );
+	static Texture LtcMatrix = Texture.Load( "textures/dev/ltc_mat.vtex" );
 
 	static readonly StringToken BlueNoiseToken = "BlueNoise";
 	static readonly StringToken BrdfLookupToken = "BRDFLookup";

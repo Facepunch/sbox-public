@@ -34,7 +34,7 @@ internal sealed class ParticleLightingSystem : GameObjectSystem<ParticleLighting
 	/// <summary>
 	/// What views this doesn't light bind instead, so lit sprites in them draw unlit.
 	/// </summary>
-	internal static Texture Unlit { get; } = Texture.CreateVolume( 1, 1, 1 ).WithData( [255, 255, 255, 255] ).WithName( "particle lighting unlit" ).Finish();
+	internal static Texture Unlit { get; private set; } = Texture.CreateVolume( 1, 1, 1 ).WithData( [255, 255, 255, 255] ).WithName( "particle lighting unlit" ).Finish();
 
 	readonly Dictionary<CameraComponent, Froxels> froxels = [];
 	readonly List<CameraComponent> removed = [];

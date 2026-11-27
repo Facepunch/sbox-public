@@ -8,7 +8,7 @@ namespace Sandbox.SceneRenderer.Native;
 /// </summary>
 internal sealed class MotionVectorLayer : NativeProceduralLayer
 {
-	static readonly Material MotionVectorMaterial = Material.FromShader( "shaders/motion_vectors.shader" );
+	static Material MotionVectorMaterial = Material.FromShader( "shaders/motion_vectors.shader" );
 
 	public MotionVectorLayer() : base( "Static Motion Vectors" )
 	{
@@ -42,7 +42,7 @@ internal sealed class MotionVectorLayer : NativeProceduralLayer
 /// </summary>
 internal sealed class ReactiveMaskLayer : NativeProceduralLayer
 {
-	static readonly Material MaskMaterial = Material.FromShader( "shaders/reactive_mask_generate.shader" );
+	static Material MaskMaterial = Material.FromShader( "shaders/reactive_mask_generate.shader" );
 
 	public ReactiveMaskLayer() : base( "Reactive Mask" )
 	{
@@ -90,7 +90,7 @@ internal sealed class ReactiveMaskLayer : NativeProceduralLayer
 /// </summary>
 internal sealed class MotionVectorDebugLayer : NativeProceduralLayer
 {
-	static readonly Material DebugMaterial = Material.FromShader( "shaders/motion_vectors_debug.shader" );
+	static Material DebugMaterial = Material.FromShader( "shaders/motion_vectors_debug.shader" );
 
 	public MotionVectorDebugLayer() : base( "Motion Vectors Debug" )
 	{
@@ -107,7 +107,7 @@ internal sealed class MotionVectorDebugLayer : NativeProceduralLayer
 /// </summary>
 internal sealed class ReactiveMaskDebugLayer : NativeProceduralLayer
 {
-	static readonly Material DebugMaterial = Material.FromShader( "shaders/reactive_mask_debug.shader" );
+	static Material DebugMaterial = Material.FromShader( "shaders/reactive_mask_debug.shader" );
 
 	public ReactiveMaskDebugLayer() : base( "Reactive Mask Debug" )
 	{

@@ -77,7 +77,7 @@ public sealed partial class Material : Resource
 	/// </summary>
 	public static Material FromShader( Shader shader )
 	{
-		if ( shader == null )
+		if ( Application.IsShuttingDown || shader == null )
 			return null;
 
 		if ( shader.IsAnonymous )
@@ -100,6 +100,9 @@ public sealed partial class Material : Resource
 	/// </summary>
 	public static Material FromShader( string path )
 	{
+		if ( Application.IsShuttingDown )
+			return null;
+
 		var pathSpan = path.AsSpan();
 		var shaderDirSpan = Path.GetDirectoryName( pathSpan );
 		var shaderNameSpan = Path.GetFileNameWithoutExtension( pathSpan );

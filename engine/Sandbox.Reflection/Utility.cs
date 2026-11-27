@@ -74,6 +74,19 @@ internal static class ReflectionUtility
 	/// </summary>
 	public static void NullStaticReferencesOfType( Assembly asm, Type targetType )
 	{
+		NullStaticReferencesOfTypes( asm, targetType );
+	}
+
+	/// <summary>
+	/// Finds all static fields assignable to any of <paramref name="targetTypes"/> (or collections thereof)
+	/// across all types in the given assembly and clears them in a single pass without touching unrelated
+	/// static fields (avoiding triggering static constructors of unrelated uninitialized types).
+	/// </summary>
+	public static void NullStaticReferencesOfTypes( Assembly asm, params Type[] targetTypes )
+	{
+		if ( targetTypes is null || targetTypes.Length == 0 )
+			return;
+
 		var logger = Logging.GetLogger( "Reflection" );
 
 		// GetTypes() can throw ReflectionTypeLoadException on assemblies
@@ -103,12 +116,25 @@ internal static class ReflectionUtility
 				try
 				{
 					// Direct match — null the field itself
-					if ( targetType.IsAssignableFrom( field.FieldType ) )
+					Type matchedTarget = null;
+					foreach ( var targetType in targetTypes )
+					{
+						if ( targetType.IsAssignableFrom( field.FieldType ) )
+						{
+							matchedTarget = targetType;
+							break;
+						}
+					}
+
+					if ( matchedTarget is not null )
 					{
 						if ( field.IsInitOnly )
 						{
+							if ( field.GetValue( null ) is null )
+								continue;
+
 							// This is a tiny bit dangerous ideally we just dont have any readonly statuc fields holding on to resources
-							logger.Warning( $"NullStaticReferences: force-clearing readonly field {type.Name}.{field.Name} ({targetType.Name}) — consider removing 'readonly'" );
+							logger.Warning( $"NullStaticReferences: force-clearing readonly field {type.Name}.{field.Name} ({matchedTarget.Name}) — consider removing 'readonly'" );
 							if ( !ForceNullStaticField( field ) ) logger.Warning( $"Failed to force-clear readonly {type.Name}.{field.Name}" );
 							continue;
 						}
@@ -117,7 +143,17 @@ internal static class ReflectionUtility
 						continue;
 					}
 
-					if ( !TryClearCollectionOfType( field.GetValue( null ), targetType ) ) continue;
+					if ( !CanHoldCollectionOfAny( field.FieldType, targetTypes ) )
+						continue;
+
+					var value = field.GetValue( null );
+					if ( value is null )
+						continue;
+
+					foreach ( var targetType in targetTypes )
+					{
+						TryClearCollectionOfType( value, targetType );
+					}
 				}
 				catch ( Exception e ) when ( e is TypeInitializationException || e.InnerException is TypeInitializationException )
 				{
@@ -131,6 +167,73 @@ internal static class ReflectionUtility
 				}
 			}
 		}
+	}
+
+	/// <summary>
+	/// Cheap static-type filter run before <see cref="FieldInfo.GetValue"/> so unrelated static fields
+	/// (primitives, strings, value types, unrelated collections) never trigger static constructors at shutdown.
+	/// </summary>
+	private static bool CanHoldCollectionOfAny( Type fieldType, Type[] targetTypes )
+	{
+		if ( fieldType.IsValueType || fieldType.IsPointer || fieldType.IsFunctionPointer || fieldType == typeof( string ) || fieldType == typeof( Type ) || typeof( Delegate ).IsAssignableFrom( fieldType ) )
+			return false;
+
+		if ( fieldType == typeof( object ) )
+			return true;
+
+		if ( fieldType.IsArray )
+		{
+			if ( fieldType.GetArrayRank() != 1 )
+				return false;
+
+			var elem = fieldType.GetElementType();
+			if ( elem is null || elem.IsValueType )
+				return false;
+
+			return MatchesAnyTargetOrBase( elem, targetTypes );
+		}
+
+		// Non-generic collection types/interfaces (IEnumerable, ICollection, IList, IDictionary, ArrayList, ...)
+		// may hold a mutable collection of target elements at runtime.
+		if ( !fieldType.IsGenericType && typeof( System.Collections.IEnumerable ).IsAssignableFrom( fieldType ) )
+			return true;
+
+		// Generic collections/interfaces (List<T>, IList<object>, IReadOnlyList<object>, Dictionary<K,V>, HashSet<T>, HashSetEx<T>, ...)
+		if ( fieldType.IsGenericType )
+		{
+			foreach ( var arg in fieldType.GetGenericArguments() )
+			{
+				if ( MatchesAnyTargetOrBase( arg, targetTypes ) )
+					return true;
+			}
+		}
+
+		foreach ( var iface in fieldType.GetInterfaces() )
+		{
+			if ( !iface.IsGenericType ) continue;
+
+			foreach ( var arg in iface.GetGenericArguments() )
+			{
+				if ( MatchesAnyTargetOrBase( arg, targetTypes ) )
+					return true;
+			}
+		}
+
+		return false;
+	}
+
+	private static bool MatchesAnyTargetOrBase( Type arg, Type[] targetTypes )
+	{
+		if ( arg.IsValueType )
+			return false;
+
+		foreach ( var targetType in targetTypes )
+		{
+			if ( targetType.IsAssignableFrom( arg ) || arg.IsAssignableFrom( targetType ) )
+				return true;
+		}
+
+		return false;
 	}
 
 	/// <summary>

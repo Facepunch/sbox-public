@@ -15,6 +15,9 @@ public class NullStaticReferencesTests
 		public static int[] Values = { 5, 6 };
 		public static object[] Things = { new Held(), "kept" };
 		public static Held Single = new();
+		public static System.Collections.IEnumerable Enumerable = new System.Collections.Generic.List<object> { new Held(), "kept" };
+		public static System.Collections.Generic.IList<object> GenericList = new System.Collections.Generic.List<object> { new Held(), "kept" };
+		public static System.Collections.Generic.IReadOnlyList<object> ReadOnlyList = new System.Collections.Generic.List<object> { new Held(), "kept" };
 	}
 
 	/// <summary>A type whose static constructor fails, like a game type first touched by the teardown sweep.</summary>
@@ -25,6 +28,11 @@ public class NullStaticReferencesTests
 		public static Held Third = new();
 
 		static Uninitialisable() => throw new InvalidOperationException( "script host disposed" );
+	}
+
+	static class NullReadonlyHolder
+	{
+		public static readonly Held Empty = null;
 	}
 
 	static bool TryClear( object value, Type target )
@@ -55,6 +63,9 @@ public class NullStaticReferencesTests
 		Assert.AreEqual( "kept", Holder.Things[1] );
 		Assert.AreEqual( 4, Holder.Table[1, 1] );
 		Assert.AreEqual( 6, Holder.Values[1] );
+		Assert.AreEqual( 1, ((System.Collections.Generic.List<object>)Holder.Enumerable).Count );
+		Assert.AreEqual( 1, Holder.GenericList.Count );
+		Assert.AreEqual( 1, Holder.ReadOnlyList.Count );
 	}
 
 	/// <summary>
@@ -71,6 +82,49 @@ public class NullStaticReferencesTests
 		try
 		{
 			Sandbox.ReflectionUtility.NullStaticReferencesOfType( typeof( Uninitialisable ).Assembly, typeof( Held ) );
+		}
+		finally
+		{
+			Sandbox.Diagnostics.Logging.OnEmitted -= OnMessage;
+		}
+
+		Assert.AreEqual( 0, warnings.Count, string.Join( "\n", warnings ) );
+	}
+
+	[TestMethod]
+	public void UnrelatedUninitializedTypesAreNotInitialized()
+	{
+		Sandbox.ReflectionUtility.NullStaticReferencesOfTypes( typeof( UnrelatedWithProbe ).Assembly, typeof( Held ) );
+		Assert.IsFalse( UnrelatedTypeProbe.CctorRan );
+	}
+
+	static class UnrelatedTypeProbe
+	{
+		public static bool CctorRan;
+	}
+
+	static class UnrelatedWithProbe
+	{
+		public static int Count = 1;
+		public static string Name = "probe";
+		public static System.Collections.Generic.Dictionary<string, int> Map = new();
+
+		static UnrelatedWithProbe()
+		{
+			UnrelatedTypeProbe.CctorRan = true;
+		}
+	}
+
+	[TestMethod]
+	public void NullReadonlyFieldDoesNotWarn()
+	{
+		var warnings = new System.Collections.Generic.List<string>();
+		void OnMessage( Sandbox.LogEvent e ) { if ( e.Message.Contains( nameof( NullReadonlyHolder ) ) ) warnings.Add( e.Message ); }
+		Sandbox.Diagnostics.Logging.OnEmitted += OnMessage;
+
+		try
+		{
+			Sandbox.ReflectionUtility.NullStaticReferencesOfTypes( typeof( NullReadonlyHolder ).Assembly, typeof( Held ) );
 		}
 		finally
 		{

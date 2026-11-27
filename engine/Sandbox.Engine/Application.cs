@@ -15,6 +15,11 @@ public static class Application
 	internal static bool IsInitialized { get; private set; }
 
 	/// <summary>
+	/// True while AppSystem.Shutdown is tearing down static resource references and native subsystems.
+	/// </summary>
+	internal static bool IsShuttingDown { get; set; }
+
+	/// <summary>
 	/// Steam AppId of S&amp;box.
 	/// </summary>
 	public static ulong AppId { get; internal set; } = 590830;
