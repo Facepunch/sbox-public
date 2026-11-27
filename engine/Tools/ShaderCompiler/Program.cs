@@ -29,6 +29,17 @@ public static partial class Program
 			return Borealis.Backend.OfflineShaders.CompileAll( System.IO.Directory.GetCurrentDirectory(), Console.WriteLine ) == 0 ? 0 : 1;
 		}
 
+		// The shader corpus gate (Borealis.Backend.ShaderCorpus): -slang-corpus --baseline file [--results file] [--corpus folder]... [--update]
+		if ( args.Any( x => x.Equals( "-slang-corpus", StringComparison.OrdinalIgnoreCase ) ) )
+		{
+			string Option( string name ) => Array.IndexOf( args, name ) is var i and >= 0 && i + 1 < args.Length ? args[i + 1] : null;
+			var folders = args.Select( ( a, i ) => (a, i) ).Where( x => x.a == "--corpus" && x.i + 1 < args.Length ).Select( x => args[x.i + 1] ).ToList();
+			var game = System.IO.Directory.GetCurrentDirectory();
+			var baseline = Option( "--baseline" ) ?? System.IO.Path.Combine( game, "..", "engine", "Tests", "ShaderCorpus", "baseline.tsv" );
+			var results = Option( "--results" ) ?? System.IO.Path.Combine( game, ".source2", "borealiscorpus", "results.tsv" );
+			return Borealis.Backend.ShaderCorpus.Run( game, folders, results, System.IO.Path.GetFullPath( baseline ), args.Contains( "--update" ), Console.WriteLine ) == 0 ? 0 : 1;
+		}
+
 		// The record definitions (core/shaders/sbox/records.slangh): the C# structs and HLSL offsets they make, where stale
 		if ( args.Any( x => x.Equals( "-records", StringComparison.OrdinalIgnoreCase ) ) )
 			return Borealis.Backend.OfflineShaders.UpdateRecords( System.IO.Directory.GetCurrentDirectory(), Console.WriteLine );

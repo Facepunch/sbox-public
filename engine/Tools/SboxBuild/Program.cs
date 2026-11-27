@@ -26,6 +26,7 @@ internal class Program
 		AddTestCommand( rootCommand );
 		AddBuildShadersCommand( rootCommand );
 		AddCheckShaderIncludesCommand( rootCommand );
+		AddShaderCorpusCommand( rootCommand );
 		AddShaderStatsCommand( rootCommand );
 		AddBorealisRenderTestsCommand( rootCommand );
 		AddGenerateSolutionsCommand( rootCommand );
@@ -187,6 +188,29 @@ internal class Program
 	{
 		var cmd = new Command( "check-shader-includes", "Check that every shipped Slang shader's includes are in a player's install, and that none reaches Valve's headers" );
 		cmd.SetHandler( () => Environment.ExitCode = (int)CheckShaderIncludes.Run() );
+		rootCommand.Add( cmd );
+	}
+
+	private static void AddShaderCorpusCommand( RootCommand rootCommand )
+	{
+		var cmd = new Command( "shader-corpus", "Compile the shader corpus (core shaders, BorealisLab surfaces, published Slang and package shaders) and fail on any that stopped compiling" );
+		var corpusOption = new Option<string[]>( "--corpus",
+			description: "A folder of published Slang shaders and package .shader_c files, repeatable. Default: SBOX_SHADER_CORPUS (';'-separated)",
+			getDefaultValue: () => [] )
+		{ AllowMultipleArgumentsPerToken = true };
+		var updateOption = new Option<bool>( "--update",
+			description: "Write the results as the baseline (engine/Tests/ShaderCorpus/baseline.tsv)",
+			getDefaultValue: () => false );
+		var pullRequestOption = new Option<bool>( "--pull-request",
+			description: "On a pull request, run only when it changes the shader library or compiler",
+			getDefaultValue: () => false );
+		cmd.AddOption( corpusOption );
+		cmd.AddOption( updateOption );
+		cmd.AddOption( pullRequestOption );
+		cmd.SetHandler( ( string[] corpus, bool update, bool pullRequest ) =>
+		{
+			Environment.ExitCode = (int)new ShaderCorpus( corpus, update, pullRequest ).Run();
+		}, corpusOption, updateOption, pullRequestOption );
 		rootCommand.Add( cmd );
 	}
 
