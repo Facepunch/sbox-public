@@ -28,9 +28,14 @@ internal static class ContentCompilerHost
 		Managed.SourceTools.NativeInterop.Initialize();
 	}
 
+	static IReadOnlyList<Assembly> deferredCompilerAssemblies;
+	static bool typeLibrariesInitialized;
+
 	/// <summary>
-	/// The type libraries with the compiled tool and project assemblies the build's compilers and game resource types
-	/// come from, and the mounts compiles read.
+	/// Mounts the build roots and remembers the compiled tool and project assemblies. Building the full
+	/// <see cref="EditorTypeLibrary"/>, <see cref="Game.TypeLibrary"/> and <see cref="GameData"/> is deferred
+	/// until the first compile/describe/adopt job so up-to-date builds that only query types and fingerprints
+	/// skip seconds of reflection at worker startup.
 	/// </summary>
 	internal static void InitializeCompilers( IReadOnlyList<Assembly> assemblies, IEnumerable<(string Mod, string Path)> mounts )
 	{
@@ -52,6 +57,19 @@ internal static class ContentCompilerHost
 		FileSystem.Content = content;
 		GlobalContext.Current.FileMount = mounted;
 
+		deferredCompilerAssemblies = assemblies;
+		typeLibrariesInitialized = false;
+	}
+
+	/// <summary>
+	/// Initializes <see cref="EditorTypeLibrary"/>, <see cref="Game.TypeLibrary"/> and <see cref="GameData"/> once on
+	/// the main thread before any actual compile, describe or adopt job runs.
+	/// </summary>
+	static void EnsureTypeLibrariesInitialized()
+	{
+		if ( typeLibrariesInitialized || deferredCompilerAssemblies is null ) return;
+
+		var assemblies = deferredCompilerAssemblies;
 		ToolsDll.CreateEditorTypeLibrary();
 
 		// Compiled resources a compile loads are made with the game's type library, as in the editor
@@ -69,6 +87,7 @@ internal static class ContentCompilerHost
 
 		// A model's game data compiles with the classes the editor has, the tools' and the engine's first
 		GameData.InitializeForCompiles( IResourceCompilerSystem.ModelGameData(), [typeof( ContentCompilerHost ).Assembly, typeof( Model ).Assembly, .. assemblies] );
+		typeLibrariesInitialized = true;
 	}
 
 	/// <summary>
@@ -177,6 +196,7 @@ internal static class ContentCompilerHost
 		var admitted = RunOnMainThread( null, () =>
 		{
 			if ( checkAdmit && !Admit() ) return false;
+			EnsureTypeLibrariesInitialized();
 			if ( mountStaging )
 			{
 				IResourceCompilerSystem.MountBuildJobStaging( staging, true );
@@ -531,10 +551,12 @@ internal static class ContentCompilerHost
 
 	/// <summary>
 	/// A question about the compilers rather than a compile, of a worker or of the editor, which has the same ones:
-	/// "types", each source type managed code takes part in (see <see cref="AssetSystem.ManagedCompilerTypes"/>), or
+	/// "types", each source type managed code takes part in (see <see cref="AssetSystem.ManagedCompilerTypes()"/>), or
 	/// "fingerprints" of the special dependencies given.
 	/// </summary>
-	internal static IReadOnlyList<string> Answer( string mode, IEnumerable<string> input ) => mode == "types" ? AssetSystem.ManagedCompilerTypes().ToList() : input.Select( Fingerprint ).ToList();
+	internal static IReadOnlyList<string> Answer( string mode, IEnumerable<string> input ) => mode == "types"
+		? (EditorTypeLibrary is not null ? AssetSystem.ManagedCompilerTypes() : AssetSystem.ManagedCompilerTypes( deferredCompilerAssemblies )).ToList()
+		: input.Select( Fingerprint ).ToList();
 
 	/// <summary>
 	/// "compiler \t userdata \t name" to its current fingerprint in hex, or "-" if it can't be calculated here.
@@ -549,5 +571,9 @@ internal static class ContentCompilerHost
 	/// <summary>
 	/// Compiles one asset where it is, as the editor's asset system does when it compiles one by itself.
 	/// </summary>
-	internal static bool Compile( string path ) => IResourceCompilerSystem.CompileFile( path );
+	internal static bool Compile( string path )
+	{
+		EnsureTypeLibrariesInitialized();
+		return IResourceCompilerSystem.CompileFile( path );
+	}
 }
