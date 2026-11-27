@@ -92,13 +92,14 @@ internal sealed class ManagedRenderAttributes
 	/// <summary>A texture and the mip bound (-1 for all).</summary>
 	public readonly record struct TextureValue( Texture Texture, int Mip );
 
-	/// <summary>A value or combo and the <see cref="Version"/> it was last set at.</summary>
+	/// <summary>A value or combo, the <see cref="Version"/> it was last set at, and the refill it was last set in (<see cref="BeginRefill"/>).</summary>
 	public struct Entry<T>
 	{
 		public T Value;
 		public int Stamp;
 		// Only scalar integer attributes carry exact bits. Value is still the float array used by existing shader lowering.
 		public uint? IntegerBits;
+		public int Refill;
 	}
 
 	/// <summary>The values and combos, and what reuses their arrays.</summary>
@@ -115,6 +116,12 @@ internal sealed class ManagedRenderAttributes
 		public readonly HashSet<uint> Borrowed = new();
 
 		public int Version, RemovedAt;
+
+		// The refill under way (BeginRefill), how many values and combos it hasn't set again yet, and the keys a sweep found not
+		// set again, reused
+		public int Refill, Untouched;
+		public bool Refilling;
+		public readonly List<uint> Unset = new();
 
 		/// <summary>
 		/// Become a copy of <paramref name="other"/>: its numbers and copied bytes into arrays of this store's own (reused by token,
@@ -134,13 +141,14 @@ internal sealed class ManagedRenderAttributes
 					if ( !other.Borrowed.Contains( k ) ) value = Copy( k, Unsafe.As<byte[]>( value ) );
 					else Borrowed.Add( k );
 				}
-				Values[k] = new Entry<object> { Value = value, Stamp = entry.Stamp, IntegerBits = entry.IntegerBits };
+				Values[k] = new Entry<object> { Value = value, Stamp = entry.Stamp, IntegerBits = entry.IntegerBits, Refill = entry.Refill };
 			}
 
 			Combos.Clear();
 			foreach ( var (k, entry) in other.Combos ) Combos[k] = entry;
 			Version = other.Version;
 			RemovedAt = other.RemovedAt;
+			(Refill, Refilling, Untouched) = (other.Refill, other.Refilling, other.Untouched);
 		}
 
 		public T[] Copy<T>( uint k, T[] source )
@@ -162,9 +170,67 @@ internal sealed class ManagedRenderAttributes
 		{
 			ref var entry = ref CollectionsMarshal.GetValueRefOrAddDefault( Values, k, out var existed );
 			if ( existed && !ReferenceEquals( entry.Value, value ) ) Keep( k, entry.Value );
+			if ( existed ) Touch( ref entry.Refill );
 			entry.Value = value;
 			entry.Stamp = stamp;
 			entry.IntegerBits = integerBits;
+			entry.Refill = Refill;
+		}
+
+		public void PutCombo( uint k, int value, int stamp )
+		{
+			ref var entry = ref CollectionsMarshal.GetValueRefOrAddDefault( Combos, k, out var existed );
+			if ( existed ) Touch( ref entry.Refill );
+			entry = new Entry<int> { Value = value, Stamp = stamp, Refill = Refill };
+		}
+
+		/// <summary>A value set again as it was: in a refill, it stays.</summary>
+		public void Again( uint k )
+		{
+			if ( Refilling ) Touch( ref CollectionsMarshal.GetValueRefOrNullRef( Values, k ).Refill );
+		}
+
+		public void ComboAgain( uint k )
+		{
+			if ( Refilling ) Touch( ref CollectionsMarshal.GetValueRefOrNullRef( Combos, k ).Refill );
+		}
+
+		// An entry the refill reached: one it hadn't yet is no longer waiting to be set again
+		public void Touch( ref int refill )
+		{
+			if ( !Refilling || refill == Refill ) return;
+			refill = Refill;
+			Untouched--;
+		}
+
+		/// <summary>Remove what the refill hasn't set again, so what's read is only what was set since it began.</summary>
+		public void Sweep()
+		{
+			var unset = Unset;
+			foreach ( var (k, entry) in Values )
+			{
+				if ( entry.Refill != Refill ) unset.Add( k );
+			}
+
+			var removed = unset.Count > 0;
+			foreach ( var k in unset )
+			{
+				Values.Remove( k, out var old );
+				Keep( k, old.Value );
+				Own( k );
+			}
+
+			unset.Clear();
+			foreach ( var (k, entry) in Combos )
+			{
+				if ( entry.Refill != Refill ) unset.Add( k );
+			}
+
+			removed |= unset.Count > 0;
+			foreach ( var k in unset ) Combos.Remove( k );
+			unset.Clear();
+			Untouched = 0;
+			if ( removed ) RemovedAt = ++Version;
 		}
 
 		// An array this store made (numbers', copied bytes') waits to be reused for its token
@@ -194,8 +260,11 @@ internal sealed class ManagedRenderAttributes
 		get
 		{
 			var now = Volatile.Read( ref current );
-			if ( !ThreadSafe.IsRenderThread ) return now;
-			return Volatile.Read( ref splitEpoch ) == Rendering.RenderSync.Epoch ? held : now;
+			var store = !ThreadSafe.IsRenderThread || Volatile.Read( ref splitEpoch ) != Rendering.RenderSync.Epoch ? now : held;
+
+			// Read part way through a refill: what it hasn't set again goes first
+			if ( store.Untouched > 0 ) store.Sweep();
+			return store;
 		}
 	}
 
@@ -259,7 +328,12 @@ internal sealed class ManagedRenderAttributes
 	{
 		var store = Writing();
 		// The same numbers again change nothing, so a reader that keeps what it made from the set at a version finds it still good
-		if ( store.Values.TryGetValue( k.Value, out var held ) && held.IntegerBits is null && IsFloats( held.Value ) && Unsafe.As<float[]>( held.Value ).AsSpan().SequenceEqual( value ) ) return;
+		if ( store.Values.TryGetValue( k.Value, out var held ) && held.IntegerBits is null && IsFloats( held.Value ) && Unsafe.As<float[]>( held.Value ).AsSpan().SequenceEqual( value ) )
+		{
+			store.Again( k.Value );
+			return;
+		}
+
 		var array = store.Array<float>( k.Value, value.Length );
 		value.CopyTo( array );
 		store.Put( k.Value, array, ++store.Version );
@@ -274,7 +348,12 @@ internal sealed class ManagedRenderAttributes
 	void SetInteger( StringToken k, uint bits, float projection )
 	{
 		var store = Writing();
-		if ( store.Values.TryGetValue( k.Value, out var held ) && held.IntegerBits == bits && Unsafe.As<float[]>( held.Value )[0] == projection ) return;
+		if ( store.Values.TryGetValue( k.Value, out var held ) && held.IntegerBits == bits && Unsafe.As<float[]>( held.Value )[0] == projection )
+		{
+			store.Again( k.Value );
+			return;
+		}
+
 		var array = store.Array<float>( k.Value, 1 );
 		array[0] = projection;
 		store.Put( k.Value, array, ++store.Version, bits );
@@ -285,6 +364,14 @@ internal sealed class ManagedRenderAttributes
 	public void SetBytes( StringToken k, ReadOnlySpan<byte> data )
 	{
 		var store = Writing();
+
+		// The same bytes again into a copy of the set's own change nothing, as numbers
+		if ( store.Values.TryGetValue( k.Value, out var held ) && IsBytes( held.Value ) && !store.Borrowed.Contains( k.Value ) && Unsafe.As<byte[]>( held.Value ).AsSpan().SequenceEqual( data ) )
+		{
+			store.Again( k.Value );
+			return;
+		}
+
 		var array = store.Array<byte>( k.Value, data.Length );
 		data.CopyTo( array );
 		store.Put( k.Value, array, ++store.Version );
@@ -310,7 +397,12 @@ internal sealed class ManagedRenderAttributes
 
 		var store = Writing();
 		var value = new TextureValue( texture, mip );
-		if ( store.Values.TryGetValue( k.Value, out var current ) && current.Value is TextureValue now && now == value ) return;
+		if ( store.Values.TryGetValue( k.Value, out var current ) && current.Value is TextureValue now && now == value )
+		{
+			store.Again( k.Value );
+			return;
+		}
+
 		var boxed = mip < 0 ? WholeTextures.GetValue( texture, static t => new TextureValue( t, -1 ) ) : MipValue( texture, mip );
 
 		store.Put( k.Value, boxed, ++store.Version );
@@ -336,10 +428,20 @@ internal sealed class ManagedRenderAttributes
 	{
 		var store = Writing();
 		// The same object again (not an array or bytes, which their owner may have changed in place) changes nothing
-		if ( value is not null and not Array && store.Values.TryGetValue( k.Value, out var held ) && ReferenceEquals( held.Value, value ) ) return;
+		if ( value is not null and not Array && store.Values.TryGetValue( k.Value, out var held ) && ReferenceEquals( held.Value, value ) )
+		{
+			store.Again( k.Value );
+			return;
+		}
+
 		if ( value is null )
 		{
-			if ( store.Values.Remove( k.Value, out var old ) ) store.Keep( k.Value, old.Value );
+			if ( store.Values.Remove( k.Value, out var old ) )
+			{
+				store.Touch( ref old.Refill );
+				store.Keep( k.Value, old.Value );
+			}
+
 			store.Own( k.Value );
 			store.RemovedAt = ++store.Version;
 			return;
@@ -398,8 +500,13 @@ internal sealed class ManagedRenderAttributes
 	public void SetCombo( StringToken k, int value )
 	{
 		var store = Writing();
-		if ( store.Combos.TryGetValue( k.Value, out var held ) && held.Value == value ) return;
-		store.Combos[k.Value] = new Entry<int> { Value = value, Stamp = ++store.Version };
+		if ( store.Combos.TryGetValue( k.Value, out var held ) && held.Value == value )
+		{
+			store.ComboAgain( k.Value );
+			return;
+		}
+
+		store.PutCombo( k.Value, value, ++store.Version );
 	}
 
 	public object Get( StringToken k ) => Reading.Values.TryGetValue( k.Value, out var entry ) ? entry.Value : null;
@@ -429,7 +536,30 @@ internal sealed class ManagedRenderAttributes
 		store.Values.Clear();
 		store.Combos.Clear();
 		store.Borrowed.Clear();
+		store.Untouched = 0;
 		store.RemovedAt = ++store.Version;
+	}
+
+	/// <summary>
+	/// Start filling the set again, as a <see cref="Clear"/> and the same sets would, but keeping what's set again as it was:
+	/// a value or combo set equal to what it holds doesn't move <see cref="Version"/>. What isn't set again goes before the set
+	/// is next read (or at <see cref="EndRefill"/>), so a read sees only what was set since the refill began. A set filled the same way every frame (a custom object's in its run) then keeps its version, and what a
+	/// reader made from it at that version (a backend's lowered set) stays good.
+	/// </summary>
+	public void BeginRefill()
+	{
+		var store = Writing();
+		store.Refill++;
+		store.Refilling = true;
+		store.Untouched = store.Values.Count + store.Combos.Count;
+	}
+
+	/// <summary>End a refill (<see cref="BeginRefill"/>): what wasn't set since it began goes.</summary>
+	public void EndRefill()
+	{
+		var store = Writing();
+		if ( store.Untouched > 0 ) store.Sweep();
+		store.Refilling = false;
 	}
 
 	/// <summary>Copy every value and combo into <paramref name="other"/>, replacing those of the same token.</summary>
@@ -466,7 +596,7 @@ internal sealed class ManagedRenderAttributes
 			}
 		}
 
-		foreach ( var (k, entry) in from.Combos ) to.Combos[k] = new Entry<int> { Value = entry.Value, Stamp = stamp };
+		foreach ( var (k, entry) in from.Combos ) to.PutCombo( k, entry.Value, stamp );
 	}
 
 	/// <summary>Values or combos by token, those set after a version, enumerated without allocating.</summary>

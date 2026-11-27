@@ -81,6 +81,12 @@ public class SceneCustomObject : SceneObject
 	/// <summary>The flags a custom object starts with (what native's <c>CManagedSceneObject::Create</c> set).</summary>
 	internal const Rendering.SceneObjectFlags ManagedFlags = Rendering.SceneObjectFlags.IsTranslucent;
 
+	/// <summary>
+	/// What its drawing sets on the graphics attributes in a Borealis.Gpu run of custom objects (<c>BorealisGpuCustomDraw</c>):
+	/// a set of its own, filled again each time it draws.
+	/// </summary>
+	internal RenderAttributes RunAttributes;
+
 	internal void RenderInternal()
 	{
 		if ( !this.IsValid() )

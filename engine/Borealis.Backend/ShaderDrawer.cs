@@ -305,6 +305,24 @@ public sealed class ShaderAttributes
 		slots[id] = value;
 	}
 
+	/// <summary>
+	/// The structure id a drawer gave this set (<see cref="ShaderDrawer"/>'s <c>StructureOf</c>), which drawer, and the handle
+	/// revisions it was given at, this set's and the one under it's: a set kept and drawn with again keeps it while no handle
+	/// changes. Exact, as <see cref="Revision"/> under another set is a hash: this set's revision moves whenever a set is put
+	/// under it, and only <see cref="Clear"/> takes one away without moving it.
+	/// </summary>
+	internal long StructureId;
+	int structureDrawer, structureRevision, structureUnderRevision;
+	bool structureOver;
+
+	/// <summary>Whether <see cref="StructureId"/> is the one drawer <paramref name="drawer"/> gave this set, its handles as they were.</summary>
+	internal bool HasStructureFrom( int drawer )
+		=> structureDrawer == drawer && structureRevision == revision && structureOver == (under is not null) && (under is null || structureUnderRevision == under.revision);
+
+	/// <summary>Keep the structure id drawer <paramref name="drawer"/> gave this set, for <see cref="HasStructureFrom"/>.</summary>
+	internal void KeepStructure( int drawer, long id )
+		=> (StructureId, structureDrawer, structureRevision, structureOver, structureUnderRevision) = (id, drawer, revision, under is not null, under?.revision ?? 0);
+
 	/// <summary>Moves on when a handle is added, replaced or cleared; numbers in owned arrays and combos don't move it.</summary>
 	internal int Revision => under is null ? revision : HashCode.Combine( revision, under.revision, RuntimeHelpers.GetHashCode( under ) );
 
@@ -364,17 +382,22 @@ public sealed class ShaderAttributes
 		return true;
 	}
 
+	// EffectiveCount for a set over another, worked out once per revision of the two (ids come and go only as they move; this
+	// set's moves whenever a set is put under it)
+	int effectiveCount = -1, effectiveRevision, effectiveUnderRevision;
+
 	int EffectiveCount()
 	{
+		if ( under is null ) return set.Count;
+		if ( effectiveCount >= 0 && effectiveRevision == revision && effectiveUnderRevision == under.revision ) return effectiveCount;
+
 		var count = set.Count;
-		if ( under is not null )
+		foreach ( var id in under.set )
 		{
-			foreach ( var id in under.set )
-			{
-				if ( !Own( id ) ) count++;
-			}
+			if ( !Own( id ) ) count++;
 		}
 
+		(effectiveCount, effectiveRevision, effectiveUnderRevision) = (count, revision, under.revision);
 		return count;
 	}
 
@@ -1334,10 +1357,12 @@ public sealed partial class ShaderDrawer : IDisposable
 	void BindObject( CommandList list, MaterialObject materialObject, ShaderAttributes attributes, System.Numerics.Vector4 viewport )
 	{
 		if ( bindings.Slot < 0 ) bindings.Slot = cache.NewSlot();
-		bindings.Attributes = attributes;
 		bindings.Viewport = viewport;
 		var bound = default( PipelineHandle );
 		var values = AttributeStateOf( list, attributes, viewport );
+
+		// Read from the state's copy of the values, equal to the draw's: flat, where the draw's may show a set through under it
+		bindings.Attributes = values.Values;
 		bindings.AttributesEpoch = values.Id;
 		bindings.Structure = values.Structure >= 0 ? values.Structure : values.Structure = StructureOf( attributes );
 		var material = Material;
@@ -1380,18 +1405,34 @@ public sealed partial class ShaderDrawer : IDisposable
 
 	long StructureOf( ShaderAttributes attributes )
 	{
-		var stable = attributes.TryGetStructureRevision( out var revision );
-		if ( stable && ReferenceEquals( attributes, lastStructure.Source ) && revision == lastStructure.Revision ) return lastStructure.Id;
+		// A set drawn with again (a kept lowered set) has the id it was given while its handles are the same: ids are never
+		// given twice, so one given before the structures were forgotten still names only its structure
+		if ( attributes.HasStructureFrom( drawerId ) ) return attributes.StructureId;
 
+		long id;
+		var stable = attributes.TryGetStructureRevision( out var revision );
+		if ( stable && ReferenceEquals( attributes, lastStructure.Source ) && revision == lastStructure.Revision ) id = lastStructure.Id;
+		else
+		{
+			id = FindStructure( attributes );
+			if ( stable ) lastStructure = (attributes, revision, id);
+		}
+
+		attributes.KeepStructure( drawerId, id );
+		return id;
+	}
+
+	// Drawers by number, so a set names the drawer that gave its structure id without holding it
+	static int drawerIds;
+	readonly int drawerId = System.Threading.Interlocked.Increment( ref drawerIds );
+
+	long FindStructure( ShaderAttributes attributes )
+	{
 		var hash = attributes.StructureHash();
 		structures.TryGetValue( hash, out var first );
 		for ( var known = first; known is not null; known = known.Next )
 		{
-			if ( attributes.SameStructure( known.Reference ) )
-			{
-				if ( stable ) lastStructure = (attributes, revision, known.Id);
-				return known.Id;
-			}
+			if ( attributes.SameStructure( known.Reference ) ) return known.Id;
 		}
 
 		// Past the limit: forget them all; ids stay unique, so what was resolved under them is only resolved again
@@ -1404,7 +1445,6 @@ public sealed partial class ShaderDrawer : IDisposable
 		var made = new StructureKey { Next = first, Id = cache.NextEpoch() };
 		made.Reference.CopyValuesFrom( attributes );
 		structures[hash] = made;
-		if ( stable ) lastStructure = (attributes, revision, made.Id);
 		return made.Id;
 	}
 

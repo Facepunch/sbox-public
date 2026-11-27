@@ -369,9 +369,10 @@ internal sealed partial class BorealisGpuRenderBackend
 
 	/// <summary>
 	/// A draw's or dispatch's attributes lowered, kept on the engine set they came from (<see cref="ManagedRenderAttributes.Lowered"/>,
-	/// a few ways of lowering it in a row) and used again, in any frame, while the set's values, the transforms, tangent frame and
-	/// lent transforms it was lowered with and the backings are unchanged. The block's lowered set shows through under it
-	/// (<see cref="ShaderAttributes.Under"/>), not copied. Values set again since are lowered into it alone, unless something was
+	/// a few ways of lowering it in a row) and used again, in any frame, while the set's values, the tangent frame and lent
+	/// transforms it was lowered with, whether it has transforms of its own (set over it each time) and the backings are
+	/// unchanged. The block's lowered set shows through under it (<see cref="ShaderAttributes.Under"/>), not copied: a draw from
+	/// buffers only needs the block to have or lack the same transform and tangent frame. Values set again since are lowered into it alone, unless something was
 	/// cleared meanwhile (<see cref="ManagedRenderAttributes.RemovedAt"/>), which lowers them all. Its textures are lowered again
 	/// in a new device frame or after a view drew into a texture: a texture's backing can change under it (streaming, a view's drawing).
 	/// </summary>
@@ -381,10 +382,10 @@ internal sealed partial class BorealisGpuRenderBackend
 		public ManagedRenderAttributes Owner;
 		public BorealisGpuRenderBackend Maker;
 		public LoweredSet Next;
-		public int Version, Backings, Built, ViewDraws, BlockVersion;
+		public int Version, Backings, Built, ViewDraws;
 		public ulong Frame;
-		public BufferHandle Lent, Transforms;
-		public bool Uncompressed, Pending, Dispatch, Block, Textures;
+		public BufferHandle Lent;
+		public bool Transforms, Uncompressed, Pending, Dispatch, Block, Textures, BlockTangent, BlockTransform;
 	}
 
 	// Ways of lowering one engine set kept on it; more lower again over the last
@@ -429,7 +430,7 @@ internal sealed partial class BorealisGpuRenderBackend
 		for ( var kept = managed.Lowered as LoweredSet; kept is not null; kept = kept.Next )
 		{
 			if ( !ReferenceEquals( kept.Maker, this ) ) continue;
-			if ( kept.Block == hasBlock && kept.Lent == lent && kept.Transforms == transforms && kept.Uncompressed == uncompressed && kept.Pending == pending && kept.Dispatch == dispatch )
+			if ( kept.Block == hasBlock && kept.Lent == lent && kept.Transforms == transforms.IsValid && kept.Uncompressed == uncompressed && kept.Pending == pending && kept.Dispatch == dispatch )
 			{
 				made = kept;
 				break;
@@ -440,10 +441,12 @@ internal sealed partial class BorealisGpuRenderBackend
 		}
 
 		// Only forward from it: a store read on another thread can be older (RenderAttributes' held copy), with nothing set since.
-		// A draw from buffers adds what the block lacks (EnsureTransform): another block's values lower it again
+		// A draw from buffers adds the tangent frame and transform the block lacks: a block that has other of them lowers it again
+		var blockTangent = block?.Get( UncompressedTangentFrameId ) is not null;
+		var blockTransform = block?.Get( TransformBufferId ) is not null;
 		var full = made is null || made.Backings != backingsVersion || made.Built != made.Set.OwnVersion
 			|| version < made.Version || (version > made.Version && managed.RemovedAt > made.Version)
-			|| (pending && hasBlock && made.BlockVersion != block.Version);
+			|| (pending && (made.BlockTangent != blockTangent || made.BlockTransform != blockTransform));
 		if ( made is null )
 		{
 			if ( count < LoweredPerSet )
@@ -494,8 +497,8 @@ internal sealed partial class BorealisGpuRenderBackend
 		}
 		else if ( !dispatch ) set.SetById( UncompressedTangentFrameId, uncompressed ? 1.0f : 0.0f );
 
-		(made.Version, made.Block, made.BlockVersion, made.Frame, made.Lent, made.Transforms, made.Uncompressed, made.Pending, made.Dispatch, made.ViewDraws, made.Backings, made.Built)
-			= (version, hasBlock, block?.Version ?? 0, frame, lent, transforms, uncompressed, pending, dispatch, viewDraws, backingsVersion, set.OwnVersion);
+		(made.Version, made.Block, made.BlockTangent, made.BlockTransform, made.Frame, made.Lent, made.Transforms, made.Uncompressed, made.Pending, made.Dispatch, made.ViewDraws, made.Backings, made.Built)
+			= (version, hasBlock, blockTangent, blockTransform, frame, lent, transforms.IsValid, uncompressed, pending, dispatch, viewDraws, backingsVersion, set.OwnVersion);
 		return set;
 	}
 

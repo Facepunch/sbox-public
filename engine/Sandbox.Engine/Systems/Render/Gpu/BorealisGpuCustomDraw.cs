@@ -108,7 +108,6 @@ internal static class BorealisGpuCustomDraw
 	static readonly List<CustomDraw> run = new();
 	static GpuContext runContext;
 	static Action drawRun;
-	static RenderAttributes runAttributes;
 
 	/// <summary>
 	/// <see cref="Draw"/> for a run of mirrored custom objects that follow one another in a layer (<see cref="CustomObject.RenderRun"/>):
@@ -138,7 +137,6 @@ internal static class BorealisGpuCustomDraw
 	{
 		var backend = (BorealisGpuRenderBackend)RenderBackend.Default;
 		var context = (BackendContext)runContext;
-		runAttributes ??= RenderAttributes.CreateManaged();
 		for ( int i = 0; i < run.Count; i++ )
 		{
 			var (custom, firstInstance) = run[i];
@@ -151,11 +149,29 @@ internal static class BorealisGpuCustomDraw
 				backend.LendInstances( transforms, ids, offset );
 			}
 
-			runAttributes.Clear();
-			using var scope = new Graphics.AttributeScope( runAttributes );
-			view.Bind();
-			source.RenderInternal();
+			// Each object's own set, filled again as it draws: drawing the same as last time leaves it as it was, so what was lowered
+			// from it is used again
+			var attributes = source.RunAttributes ??= RunAttributes();
+			attributes.Managed.BeginRefill();
+			try
+			{
+				using var scope = new Graphics.AttributeScope( attributes );
+				view.Bind();
+				source.RenderInternal();
+			}
+			finally
+			{
+				attributes.Managed.EndRefill();
+			}
 		}
+	}
+
+	// Written and read only by the run drawing it, never by a frame handed over
+	static RenderAttributes RunAttributes()
+	{
+		var attributes = RenderAttributes.CreateManaged();
+		attributes.Managed.BetweenFrames = true;
+		return attributes;
 	}
 
 	/// <summary>
