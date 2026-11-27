@@ -136,6 +136,7 @@ native class CModelBuilder as NativeEngine.ModelBuilder
 	void SetViewBounds( Vector3 mins, Vector3 maxs );
 	void SetEyePosition( Vector3 position );
 	void SetMaxEyeDeflection( float degrees );
+	static void WriteQuaternionConstraint( KeyValues3 data, string driver, string bone, CastTo[QuaternionConstraintSample_t*] void* samples, int count );
 	bool SetModelKeyValues( KeyValues3 data );
 	void SetLODSwitchDistance( int lod, float distance );
 	void AddRunTimeMesh( IMesh mesh, CastTo[MeshGroupMask_t] ulong meshGroupMask, CastTo[LODGroupMask_t] int lodGroupMask );
