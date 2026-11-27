@@ -10,9 +10,10 @@ namespace Borealis.Backend;
 
 /// <summary>
 /// The engine's Slang shaders compiled offline (<see cref="SlangOutput"/>, <c>name.slang_c</c>): every surface, raw module and
-/// pass module under the content roots' <c>shaders</c> folders, and the surfaces converted from core <c>.shader</c> files
-/// (<c>bark.slang_c</c> in the core shaders). Made by build-shaders through <c>ShaderCompiler -slang</c> and shipped as
-/// <c>.shader_c</c> files are, so Borealis.Gpu runs Slang in game only for hotload, game code's compiles and package shaders.
+/// pass module under the content roots' <c>shaders</c> folders and the repo's addons' assets, and the surfaces converted
+/// from core <c>.shader</c> files (<c>bark.slang_c</c> in the core shaders). Made by build-shaders through
+/// <c>ShaderCompiler -slang</c> and shipped as <c>.shader_c</c> files are, so Borealis.Gpu runs Slang in game only for
+/// hotload, game code's compiles, package shaders without a current offline compile, and what has none.
 /// See docs/reference/borealis-slang-materials.md.
 /// </summary>
 public static class OfflineShaders
@@ -180,8 +181,9 @@ public static class OfflineShaders
 
 	/// <summary>
 	/// The Slang sources <see cref="CompileAll"/> compiles, each with where its offline compile goes (null: beside it): every
-	/// <c>.slang</c> under the content roots' <c>shaders</c> folders but the surface library, and the surfaces converted from
-	/// core <c>.shader</c> files at run time, compiled from the same text and kept in the core shaders.
+	/// <c>.slang</c> under the content roots' <c>shaders</c> folders but the surface library, every one in the addons' assets
+	/// (<see cref="AddonSources"/>), and the surfaces converted from core <c>.shader</c> files at run time, compiled from the
+	/// same text and kept in the core shaders.
 	/// </summary>
 	static List<(string Source, string Output)> Sources( string game, Action<string> log )
 	{
@@ -191,6 +193,9 @@ public static class OfflineShaders
 		var sources = roots.Select( r => Path.Combine( r, "shaders" ) ).Prepend( shaders ).Distinct( StringComparer.OrdinalIgnoreCase ).Where( Directory.Exists )
 			.SelectMany( SlangSources )
 			.Where( f => !Path.GetFullPath( f ).StartsWith( library, StringComparison.OrdinalIgnoreCase ) )
+			.Concat( AddonSources( game ) )
+			.Select( Path.GetFullPath )
+			.Distinct( StringComparer.OrdinalIgnoreCase )
 			.Select( f => (Source: f, Output: (string)null) )
 			.ToList();
 
@@ -202,6 +207,19 @@ public static class OfflineShaders
 		}
 
 		return sources;
+	}
+
+	/// <summary>
+	/// The Slang sources of the game folder's addons (<c>addons/*/Assets</c>, the sandbox game and the engine's own addons),
+	/// anywhere under their assets as a game project's are (<see cref="CompileGameShadersAsync"/>), so the repo's games ship
+	/// their shaders compiled as a published project does.
+	/// </summary>
+	static IEnumerable<string> AddonSources( string game )
+	{
+		var addons = Path.Combine( game, "addons" );
+		if ( !Directory.Exists( addons ) ) return [];
+		return Directory.EnumerateDirectories( addons ).Select( a => Path.Combine( a, "Assets" ) ).Where( Directory.Exists )
+			.SelectMany( a => SlangSources( a ).Where( f => !IsHidden( a, f ) ) );
 	}
 
 	record struct DumpCombo( ulong Static, ulong Dynamic, string Name, string Spirv );
