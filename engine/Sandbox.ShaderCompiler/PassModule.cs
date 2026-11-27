@@ -292,11 +292,13 @@ public sealed partial class PassModule
 		if ( bindingNames is { } known ) return known;
 
 		var found = new HashSet<string>( StringComparer.Ordinal );
+		var bySpan = found.GetAlternateLookup<ReadOnlySpan<char>>();
 		var seen = new HashSet<string>( StringComparer.OrdinalIgnoreCase );
 		void Scan( string from, string text )
 		{
 			foreach ( Match m in AttributeName().Matches( text ) ) found.Add( m.Groups["name"].Value );
-			foreach ( Match m in Identifier().Matches( text ) ) found.Add( m.Value );
+			// Every identifier of the module and its includes, most of them many times: a string only for each new one
+			foreach ( var m in Identifier().EnumerateMatches( text ) ) bySpan.Add( text.AsSpan( m.Index, m.Length ) );
 			foreach ( Match m in IncludeName().Matches( text ) )
 			{
 				if ( Include( from, m.Groups["name"].Value ) is { } include && seen.Add( include.Path ) ) Scan( include.Path, include.Text );
@@ -699,7 +701,7 @@ internal static partial class PassPreprocessor
 	{
 		var defines = new Dictionary<string, string>( StringComparer.Ordinal );
 		foreach ( var (name, value) in values ) defines[name] = value.ToString( CultureInfo.InvariantCulture );
-		var lines = new List<string>();
+		var lines = new List<string>( Split( text ).Length );
 		Process( path, text, defines, include, lines, 0 );
 		return lines;
 	}
@@ -727,12 +729,14 @@ internal static partial class PassPreprocessor
 			var directive = trimmed[1..].TrimStart();
 			var length = 0;
 			while ( length < directive.Length && char.IsLetter( directive[length] ) ) length++;
-			var word = directive[..length].ToString();
+			var word = Directive( directive[..length] );
 
 			// Inside an inactive block only what nests or ends it counts
 			if ( !active && word is not ("if" or "ifdef" or "ifndef" or "elif" or "else" or "endif") ) continue;
 
-			var rest = StripComment( directive[length..].ToString() ).Trim();
+			// Read in place: a module's lines with every include are preprocessed for each set of values a load meets
+			var rest = StripComment( directive[length..] ).Trim();
+			var named = defines.GetAlternateLookup<ReadOnlySpan<char>>();
 			switch ( word )
 			{
 				case "if":
@@ -742,9 +746,9 @@ internal static partial class PassPreprocessor
 						// Inside an inactive block it's never taken, so it isn't evaluated
 						var condition = active && word switch
 						{
-							"ifdef" => defines.ContainsKey( rest ),
-							"ifndef" => !defines.ContainsKey( rest ),
-							_ => Truth( rest, defines ),
+							"ifdef" => named.ContainsKey( rest ),
+							"ifndef" => !named.ContainsKey( rest ),
+							_ => Truth( rest.ToString(), defines ),
 						};
 						stack.Push( (active && condition, condition, active) );
 						active = active && condition;
@@ -754,7 +758,7 @@ internal static partial class PassPreprocessor
 					{
 						if ( stack.Count == 0 ) break;
 						var top = stack.Pop();
-						var condition = top.Parent && !top.Taken && Truth( rest, defines );
+						var condition = top.Parent && !top.Taken && Truth( rest.ToString(), defines );
 						stack.Push( (top.Parent && condition, top.Taken || condition, top.Parent) );
 						active = top.Parent && condition;
 						break;
@@ -775,22 +779,28 @@ internal static partial class PassPreprocessor
 					}
 				case "define" when active:
 					{
-						var m = Regex.Match( rest, @"^(\w+)(\s+(.*))?$" );
-						if ( m.Success )
+						// NAME, NAME value (^(\w+)(\s+(.*))?$), or a function-like NAME( defined as 1
+						var name = 0;
+						while ( name < rest.Length && IsWordChar( rest[name] ) ) name++;
+						if ( name == 0 ) break;
+						if ( name == rest.Length || char.IsWhiteSpace( rest[name] ) )
 						{
-							defines[m.Groups[1].Value] = m.Groups[3].Success ? m.Groups[3].Value.Trim() : "1";
-							if ( Array.IndexOf( Entries, m.Groups[1].Value ) >= 0 ) defines[EntryRenamed] = "1";
+							var defined = rest[..name].ToString();
+							defines[defined] = name == rest.Length ? "1" : rest[name..].Trim().ToString();
+							if ( Array.IndexOf( Entries, defined ) >= 0 ) defines[EntryRenamed] = "1";
 						}
-						else if ( Regex.Match( rest, @"^(\w+)\(" ) is { Success: true } function ) defines[function.Groups[1].Value] = "1";
+						else if ( rest[name] == '(' ) defines[rest[..name].ToString()] = "1";
 						break;
 					}
 				case "undef" when active:
-					defines.Remove( rest );
+					named.Remove( rest );
 					break;
 				case "include" when active && include is not null:
 					{
-						var m = Regex.Match( rest, @"^[""<]([^"">]+)["">]" );
-						if ( m.Success && include( path, m.Groups[1].Value ) is { } found ) Process( found.Path, found.Text, defines, include, lines, depth + 1 );
+						// "name" or <name> (^["<]([^">]+)[">])
+						if ( rest.Length < 3 || rest[0] is not ('"' or '<') ) break;
+						var end = rest[1..].IndexOfAny( '"', '>' );
+						if ( end > 0 && include( path, rest.Slice( 1, end ).ToString() ) is { } found ) Process( found.Path, found.Text, defines, include, lines, depth + 1 );
 						break;
 					}
 			}
@@ -823,13 +833,33 @@ internal static partial class PassPreprocessor
 
 	static string[] Split( string text ) => splits.GetValue( text, static t => t.Replace( "\r\n", "\n" ).Split( '\n' ) );
 
-	static string StripComment( string text )
+	static ReadOnlySpan<char> StripComment( ReadOnlySpan<char> text )
 	{
-		var comment = text.IndexOf( "//", StringComparison.Ordinal );
+		var comment = text.IndexOf( "//" );
 		if ( comment >= 0 ) text = text[..comment];
-		var block = text.IndexOf( "/*", StringComparison.Ordinal );
+		var block = text.IndexOf( "/*" );
 		return block >= 0 ? text[..block] : text;
 	}
+
+	/// <summary>A directive's word as the string the switch reads, without making one; null for one it doesn't know.</summary>
+	static string Directive( ReadOnlySpan<char> word ) => word switch
+	{
+		"if" => "if",
+		"ifdef" => "ifdef",
+		"ifndef" => "ifndef",
+		"elif" => "elif",
+		"else" => "else",
+		"endif" => "endif",
+		"define" => "define",
+		"undef" => "undef",
+		"include" => "include",
+		_ => null,
+	};
+
+	/// <summary>What <c>\w</c> matches: letters, non-spacing marks, decimal digits and connector punctuation.</summary>
+	static bool IsWordChar( char c ) => char.GetUnicodeCategory( c ) is UnicodeCategory.UppercaseLetter or UnicodeCategory.LowercaseLetter
+		or UnicodeCategory.TitlecaseLetter or UnicodeCategory.ModifierLetter or UnicodeCategory.OtherLetter or UnicodeCategory.NonSpacingMark
+		or UnicodeCategory.DecimalDigitNumber or UnicodeCategory.ConnectorPunctuation;
 
 	static bool Truth( string expression, Dictionary<string, string> defines )
 	{

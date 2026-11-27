@@ -195,7 +195,7 @@ internal sealed class ConvertedMaterial : SurfaceMaterial
 		var attributes = new Dictionary<string, bool>( StringComparer.OrdinalIgnoreCase );
 		if ( module is not null )
 		{
-			foreach ( var (name, kind, value) in MaterialInputs.Read( module, features ).Attributes )
+			foreach ( var (name, kind, value) in MaterialInputs.ReadAttributes( module, features ) )
 			{
 				if ( kind == "Bool" && value is [var first, ..] ) attributes.TryAdd( name, first != 0 );
 			}

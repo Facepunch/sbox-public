@@ -112,46 +112,16 @@ public sealed partial class MaterialInputs
 		// The block's feature rules first, as vfx applies a shader's before it reads anything for a material's values
 		features = FeatureRules.Read( module ).Apply( features );
 
-		// A surface has no entry points or features of its own: its inputs are in its MATERIAL_INPUTS block (the textures
-		// its fields take, by name), read with the material's features as the pixel stage would see them
 		var surface = IsSurface( module );
-		StageKind[] stages = surface ? [StageKind.Pixel] : [StageKind.Vertex, StageKind.Pixel, StageKind.Compute];
-
-		foreach ( var stage in stages )
+		foreach ( var stage in Stages( module, surface ) )
 		{
-			if ( !surface && !module.Has( stage ) ) continue;
-
-			var values = new Dictionary<string, int>( StringComparer.Ordinal ) { ["MATERIAL_INPUTS"] = 1 };
-			foreach ( var (name, value) in features ) values[name] = value;
-			foreach ( var feature in module.Features ) values[feature.Name] = Math.Clamp( features.TryGetValue( feature.Name, out var v ) ? v : feature.Min, feature.Min, feature.Max );
-			foreach ( var combo in module.Combos( stage ).Where( c => c.Static ) )
-				values[combo.Name] = combo.Feature is not null && values.TryGetValue( combo.Feature, out var f ) ? Math.Clamp( f, combo.Min, combo.Max ) : combo.Min;
-			foreach ( var combo in module.Combos( stage ).Where( c => !c.Static ) ) values.TryAdd( combo.Name, combo.Min );
-
-			// Static combos the lines declare (an include's StaticCombo( S_X, F_X )) follow their features: read again with
-			// them until no new one shows, as vfx's preprocessor sees them from the start
-			var text = Code( module.CompiledLines( stage, values ) );
-			for ( int pass = 0; pass < 4; pass++ )
-			{
-				var added = false;
-				foreach ( Match combo in StaticComboLine().Matches( text ) )
-				{
-					if ( values.ContainsKey( combo.Groups["name"].Value ) ) continue;
-					values[combo.Groups["name"].Value] = values.GetValueOrDefault( combo.Groups["feature"].Value );
-					added = true;
-				}
-
-				if ( !added ) break;
-				text = Code( module.CompiledLines( stage, values ) );
-			}
+			var values = StageValues( module, stage, features );
+			var text = StageText( module, stage, values );
 
 			// A surface declares the vertex inputs in its block, read with the pixel stage's lines; a module in its vertex stage
 			if ( stage == (surface ? StageKind.Pixel : StageKind.Vertex) ) vertexInputs = ReadVertexInputs( module, stage, values, text );
 
-			// What an ActiveIf reads: these values, and the block's own defines (#define S_X F_X)
-			var conditions = new Dictionary<string, string>( StringComparer.Ordinal );
-			foreach ( Match define in DefineLine().Matches( module.Text ) ) conditions[define.Groups["name"].Value] = define.Groups["value"].Value.Trim();
-			foreach ( var (name, value) in values ) conditions[name] = value.ToString( CultureInfo.InvariantCulture );
+			var conditions = Conditions( module, values );
 			bool Active( string annotations ) => ActiveIf().Match( annotations ) is not { Success: true } condition || PassPreprocessor.Holds( condition.Groups["expression"].Value, conditions ) != false;
 
 			foreach ( Match m in FeatureLine().Matches( text ) )
@@ -203,33 +173,7 @@ public sealed partial class MaterialInputs
 				textures.Add( new Texture( name, type, format.Groups["format"].Value, srgbRead, channels ) );
 			}
 
-			foreach ( Match m in AttributeDeclaration().Matches( text ) )
-			{
-				var name = m.Groups["name"].Value;
-				var value = m.Groups["value"].Value.Trim();
-				if ( m.Groups["kind"].Value == "Texture" && name == "RepresentativeTexture" ) representative ??= value;
-				if ( attributes.Exists( a => a.Item1 == name ) ) continue;
-				// A literal, or an expression of the features (F_RENDER_BACKFACES ? true : false); one that reads a variable isn't kept
-				// A feature or combo the material doesn't set is 0, as vfx reads it, not a name
-				var known = new Dictionary<string, int>( values, StringComparer.Ordinal );
-				foreach ( Match feature in FeatureName().Matches( value ) ) known.TryAdd( feature.Value, 0 );
-				var evaluated = PassPreprocessor.Evaluate( value, known ) ?? value;
-				float[] parsed = evaluated.ToLowerInvariant() switch
-				{
-					"true" => [1],
-					"false" => [0],
-					_ => float.TryParse( evaluated, NumberStyles.Float, CultureInfo.InvariantCulture, out var number ) ? [number] : null,
-				};
-
-				// A bool of the block's own defines (S_GLASS_QUALITY != GLASS_CHEAP), when it names nothing else (an include's
-				// NEEDS_LIGHT_PROBE is defined where this can't see)
-				var named = Identifier().Matches( value ).Select( i => i.Value ).Where( i => i is not "true" and not "false" );
-				if ( m.Groups["kind"].Value == "Bool" && named.All( i => conditions.ContainsKey( i ) || FeatureName().IsMatch( i ) ) && PassPreprocessor.Holds( value, conditions ) is bool holds )
-					parsed = [holds ? 1 : 0];
-				if ( parsed is not null ) attributes.Add( (name, m.Groups["kind"].Value, parsed) );
-				// One of the material's features stays an expression in vfx; one of static combos is evaluated per combo
-				if ( parsed is not null && MaterialFeatureName().IsMatch( value ) ) expressionAttributes.Add( name );
-			}
+			ReadAttributes( text, values, conditions, attributes, expressionAttributes, ref representative );
 		}
 
 		// A representative texture a macro names (g_tColor for vr_shared_standard_ps_code.fxc's g_tColor2): the numbered one declared
@@ -237,6 +181,126 @@ public sealed partial class MaterialInputs
 			representative = numbered.Name;
 
 		return new MaterialInputs { Version = HeaderVersion().Match( module.Text ) is { Success: true } version ? int.Parse( version.Groups[1].Value, CultureInfo.InvariantCulture ) : 0, Inputs = inputs, Textures = [.. textures.Where( t => used.Contains( t.Name ) )], Declared = textures, Attributes = attributes, RepresentativeTexture = representative, Parameters = parameters, VertexInputs = vertexInputs, ExpressionAttributes = expressionAttributes, ShownTextures = [.. textures.Where( t => (used.Contains( t.Name ) || conditioned.Contains( t.Name )) && !hidden.Contains( t.Name ) )], FeatureLines = EditorLines( featureLines ) };
+	}
+
+	/// <summary>
+	/// Only the <see cref="Attributes"/> of <see cref="Read"/>, read as it reads them: what a material's renderer asks of a
+	/// surface (<c>BoolAttribute( overlay, true )</c>) for each set of feature values a load meets, without the textures,
+	/// parameters and vertex inputs it doesn't use (those read every stage's lines again with every dynamic combo on).
+	/// </summary>
+	public static IReadOnlyList<(string Name, string Kind, float[] Value)> ReadAttributes( PassModule module, IReadOnlyDictionary<string, int> features )
+	{
+		var attributes = new List<(string, string, float[])>();
+		var expressionAttributes = new HashSet<string>( StringComparer.Ordinal );
+		string representative = null;
+
+		features = FeatureRules.Read( module ).Apply( features );
+		foreach ( var stage in Stages( module, IsSurface( module ) ) )
+		{
+			var values = StageValues( module, stage, features );
+			var text = StageText( module, stage, values );
+			ReadAttributes( text, values, Conditions( module, values ), attributes, expressionAttributes, ref representative );
+		}
+
+		return attributes;
+	}
+
+	/// <summary>
+	/// The stages a material's inputs are read from. A surface has no entry points or features of its own: its inputs are in
+	/// its MATERIAL_INPUTS block (the textures its fields take, by name), read with the material's features as the pixel
+	/// stage would see them.
+	/// </summary>
+	static IEnumerable<StageKind> Stages( PassModule module, bool surface )
+	{
+		if ( surface )
+		{
+			yield return StageKind.Pixel;
+			yield break;
+		}
+
+		if ( module.Has( StageKind.Vertex ) ) yield return StageKind.Vertex;
+		if ( module.Has( StageKind.Pixel ) ) yield return StageKind.Pixel;
+		if ( module.Has( StageKind.Compute ) ) yield return StageKind.Compute;
+	}
+
+	/// <summary>A stage's values for these feature values: the module's features in their ranges, and its combos following them.</summary>
+	static Dictionary<string, int> StageValues( PassModule module, StageKind stage, IReadOnlyDictionary<string, int> features )
+	{
+		var values = new Dictionary<string, int>( StringComparer.Ordinal ) { ["MATERIAL_INPUTS"] = 1 };
+		foreach ( var (name, value) in features ) values[name] = value;
+		foreach ( var feature in module.Features ) values[feature.Name] = Math.Clamp( features.TryGetValue( feature.Name, out var v ) ? v : feature.Min, feature.Min, feature.Max );
+		foreach ( var combo in module.Combos( stage ).Where( c => c.Static ) )
+			values[combo.Name] = combo.Feature is not null && values.TryGetValue( combo.Feature, out var f ) ? Math.Clamp( f, combo.Min, combo.Max ) : combo.Min;
+		foreach ( var combo in module.Combos( stage ).Where( c => !c.Static ) ) values.TryAdd( combo.Name, combo.Min );
+		return values;
+	}
+
+	/// <summary>
+	/// A stage's code for <paramref name="values"/>. Static combos the lines declare (an include's <c>StaticCombo( S_X, F_X )</c>)
+	/// follow their features: added to the values and read again until no new one shows, as vfx's preprocessor sees them from the start.
+	/// </summary>
+	static string StageText( PassModule module, StageKind stage, Dictionary<string, int> values )
+	{
+		var text = Code( module.CompiledLines( stage, values ) );
+		for ( int pass = 0; pass < 4; pass++ )
+		{
+			var added = false;
+			foreach ( Match combo in StaticComboLine().Matches( text ) )
+			{
+				if ( values.ContainsKey( combo.Groups["name"].Value ) ) continue;
+				values[combo.Groups["name"].Value] = values.GetValueOrDefault( combo.Groups["feature"].Value );
+				added = true;
+			}
+
+			if ( !added ) break;
+			text = Code( module.CompiledLines( stage, values ) );
+		}
+
+		return text;
+	}
+
+	/// <summary>What an ActiveIf reads: these values, and the block's own defines (<c>#define S_X F_X</c>).</summary>
+	static Dictionary<string, string> Conditions( PassModule module, Dictionary<string, int> values )
+	{
+		var conditions = new Dictionary<string, string>( StringComparer.Ordinal );
+		foreach ( Match define in DefineLine().Matches( module.Text ) ) conditions[define.Groups["name"].Value] = define.Groups["value"].Value.Trim();
+		foreach ( var (name, value) in values ) conditions[name] = value.ToString( CultureInfo.InvariantCulture );
+		return conditions;
+	}
+
+	/// <summary>
+	/// The attributes a stage's code declares that aren't in <paramref name="attributes"/> yet, with a literal value or one
+	/// these values evaluate; the representative texture the first names.
+	/// </summary>
+	static void ReadAttributes( string text, Dictionary<string, int> values, Dictionary<string, string> conditions, List<(string, string, float[])> attributes, HashSet<string> expressionAttributes, ref string representative )
+	{
+		foreach ( Match m in AttributeDeclaration().Matches( text ) )
+		{
+			var name = m.Groups["name"].Value;
+			var value = m.Groups["value"].Value.Trim();
+			if ( m.Groups["kind"].Value == "Texture" && name == "RepresentativeTexture" ) representative ??= value;
+			if ( attributes.Exists( a => a.Item1 == name ) ) continue;
+			// A literal, or an expression of the features (F_RENDER_BACKFACES ? true : false); one that reads a variable isn't kept
+			// A feature or combo the material doesn't set is 0, as vfx reads it, not a name
+			var known = new Dictionary<string, int>( values, StringComparer.Ordinal );
+			foreach ( Match feature in FeatureName().Matches( value ) ) known.TryAdd( feature.Value, 0 );
+			var evaluated = PassPreprocessor.Evaluate( value, known ) ?? value;
+			float[] parsed = evaluated.ToLowerInvariant() switch
+			{
+				"true" => [1],
+				"false" => [0],
+				_ => float.TryParse( evaluated, NumberStyles.Float, CultureInfo.InvariantCulture, out var number ) ? [number] : null,
+			};
+
+			// A bool of the block's own defines (S_GLASS_QUALITY != GLASS_CHEAP), when it names nothing else (an include's
+			// NEEDS_LIGHT_PROBE is defined where this can't see)
+			var named = Identifier().Matches( value ).Select( i => i.Value ).Where( i => i is not "true" and not "false" );
+			if ( m.Groups["kind"].Value == "Bool" && named.All( i => conditions.ContainsKey( i ) || FeatureName().IsMatch( i ) ) && PassPreprocessor.Holds( value, conditions ) is bool holds )
+				parsed = [holds ? 1 : 0];
+			if ( parsed is not null ) attributes.Add( (name, m.Groups["kind"].Value, parsed) );
+			// One of the material's features stays an expression in vfx; one of static combos is evaluated per combo
+			if ( parsed is not null && MaterialFeatureName().IsMatch( value ) ) expressionAttributes.Add( name );
+		}
 	}
 
 	/// <summary>
@@ -283,12 +347,84 @@ public sealed partial class MaterialInputs
 		}
 	}
 
-	/// <summary>The lines as one text without comments, so declarations spanning lines read as one.</summary>
+	/// <summary>
+	/// The lines as one text without comments, so declarations spanning lines read as one: joined by newlines, each
+	/// <c>/* */</c> made a space, then each <c>//</c> to the end of its line taken out, made in one string. A material's
+	/// inputs are read for every set of feature values a load meets, and these texts are a module's lines with every include.
+	/// </summary>
 	internal static string Code( IReadOnlyList<string> lines )
 	{
-		var text = string.Join( "\n", lines );
-		text = BlockComment().Replace( text, " " );
-		return LineComment().Replace( text, "" );
+		var length = Math.Max( 0, lines.Count - 1 );
+		foreach ( var line in lines ) length += line.Length;
+		if ( length == 0 ) return "";
+
+		var rented = System.Buffers.ArrayPool<char>.Shared.Rent( length );
+		try
+		{
+			var text = rented.AsSpan( 0, length );
+			var at = 0;
+			for ( int i = 0; i < lines.Count; i++ )
+			{
+				if ( i > 0 ) text[at++] = '\n';
+				lines[i].CopyTo( text[at..] );
+				at += lines[i].Length;
+			}
+
+			// In place: neither pass writes past where it reads
+			length = WithoutBlockComments( text );
+			length = WithoutLineComments( text[..length] );
+			return new string( text[..length] );
+		}
+		finally
+		{
+			System.Buffers.ArrayPool<char>.Shared.Return( rented );
+		}
+	}
+
+	/// <summary>Each <c>/*</c> up to the first <c>*/</c> after it made a space, as <c>/\*.*?\*/</c> replaces them; an unclosed one stays.</summary>
+	static int WithoutBlockComments( Span<char> text )
+	{
+		int read = 0, write = 0;
+		while ( read < text.Length )
+		{
+			if ( text[read] == '/' && read + 1 < text.Length && text[read + 1] == '*' )
+			{
+				var close = text[(read + 2)..].IndexOf( "*/" );
+				if ( close < 0 )
+				{
+					// Nothing closes it, nor any opened after it: the rest stays as it is
+					text[read..].CopyTo( text[write..] );
+					return write + text.Length - read;
+				}
+
+				text[write++] = ' ';
+				read += 2 + close + 2;
+				continue;
+			}
+
+			text[write++] = text[read++];
+		}
+
+		return write;
+	}
+
+	/// <summary>Each <c>//</c> up to the end of its line taken out, as <c>//[^\n]*</c> replaces them.</summary>
+	static int WithoutLineComments( Span<char> text )
+	{
+		int read = 0, write = 0;
+		while ( read < text.Length )
+		{
+			if ( text[read] == '/' && read + 1 < text.Length && text[read + 1] == '/' )
+			{
+				var end = text[read..].IndexOf( '\n' );
+				read = end < 0 ? text.Length : read + end;
+				continue;
+			}
+
+			text[write++] = text[read++];
+		}
+
+		return write;
 	}
 
 	/// <summary>Whether a module is a surface (a <c>[Material]</c> struct), whose block is read with its pixel stage's lines alone.</summary>
@@ -361,12 +497,6 @@ public sealed partial class MaterialInputs
 
 	[GeneratedRegex( @"\bSemantic\s*\(\s*(?<semantic>\w+)\s*\)" )]
 	private static partial Regex SemanticAnnotation();
-
-	[GeneratedRegex( @"/\*.*?\*/", RegexOptions.Singleline )]
-	private static partial Regex BlockComment();
-
-	[GeneratedRegex( @"//[^\n]*" )]
-	private static partial Regex LineComment();
 
 	[GeneratedRegex( @"^[ \t]*//[ \t]*HEADER:[ \t]*Version[ \t]*=[ \t]*(\d+)[ \t]*;", RegexOptions.Multiline )]
 	private static partial Regex HeaderVersion();
