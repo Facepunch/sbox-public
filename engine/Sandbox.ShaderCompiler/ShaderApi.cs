@@ -81,4 +81,96 @@ public static partial class ShaderApi
 
 	[GeneratedRegex( @"^(?<path>.+?)\((?<line>\d+)\):\s*warning\s*\d*:\s*(?<message>.*deprecated.*)$", RegexOptions.IgnoreCase )]
 	private static partial Regex OneLine();
+
+	/// <summary>
+	/// The public headers and modules (decision 4, narrow): what an author's Slang may include or import and rely on from
+	/// one level to the next. Every other <c>sbox/*.slangh</c> is engine internals, and the <c>.fxc</c> names are legacy
+	/// shims (<see cref="SlangHeaders.Replaced"/>).
+	/// </summary>
+	public static IReadOnlyList<string> PublicHeaders { get; } =
+	[
+		"sbox/surface.slang", "sbox/material.slang", "sbox/pass.slangh", "sbox/engine.slangh",
+		"sbox/view.slangh", "sbox/lighting.slangh", "sbox/math.slangh", "sbox/samplers.slangh",
+	];
+
+	/// <summary>The public header that covers a non-public one, where there is one.</summary>
+	static readonly Dictionary<string, string> covers = new( StringComparer.OrdinalIgnoreCase )
+	{
+		["sbox/system.slangh"] = "sbox/pass.slangh",
+		["sbox/shading.slangh"] = "sbox/engine.slangh",
+		["sbox/final_combiner.slangh"] = "sbox/engine.slangh",
+		["sbox/features.slangh"] = "sbox/engine.slangh",
+		["sbox/vertex_input.slangh"] = "sbox/engine.slangh",
+		["sbox/pixel_input.slangh"] = "sbox/engine.slangh",
+		["sbox/vertex_processing.slangh"] = "sbox/engine.slangh",
+		["sbox/standard_features.slangh"] = "sbox/engine.slangh",
+		["sbox/standard_material_inputs.slangh"] = "sbox/engine.slangh",
+		["sbox/standard_vertex_input.slangh"] = "sbox/engine.slangh",
+		["sbox/standard_pixel_input.slangh"] = "sbox/engine.slangh",
+		["sbox/standard_vertex_processing.slangh"] = "sbox/engine.slangh",
+		["sbox/standard_pixel_processing.slangh"] = "sbox/engine.slangh",
+		["sbox/light_probe_volume.slangh"] = "sbox/lighting.slangh",
+		["sbox/irradiance_probe.slangh"] = "sbox/lighting.slangh",
+		["sbox/ambient_cube.slangh"] = "sbox/lighting.slangh",
+		["sbox/baked_lighting.slangh"] = "sbox/lighting.slangh",
+		["sbox/environment_map.slangh"] = "sbox/lighting.slangh",
+		["sbox/pcss.slangh"] = "sbox/lighting.slangh",
+		["sbox/volumetric_fog.slangh"] = "sbox/lighting.slangh",
+	};
+
+	/// <summary>Whether <paramref name="name"/> (as an include names it, <c>sbox/view.slangh</c>) is public.</summary>
+	public static bool IsPublic( string name ) => PublicHeaders.Contains( name.Replace( '\\', '/' ), StringComparer.OrdinalIgnoreCase );
+
+	/// <summary>
+	/// The warning for an author's Slang including <paramref name="name"/>, naming the public replacement where there is one;
+	/// null when it's public or not one of the engine's (the author's own files, HLSL headers). With <paramref name="import"/>
+	/// it's a module name (<c>sbox.surface</c>).
+	/// </summary>
+	public static string IncludeWarning( string name, bool import = false )
+	{
+		if ( import )
+		{
+			if ( !name.StartsWith( "sbox.", StringComparison.Ordinal ) ) return null;
+			name = name.Replace( '.', '/' ) + ".slang";
+		}
+
+		name = name.Replace( '\\', '/' );
+		if ( IsPublic( name ) ) return null;
+		if ( SlangHeaders.Replaced.TryGetValue( name, out var ours ) )
+		{
+			var replacement = IsPublic( ours ) ? ours : covers.GetValueOrDefault( ours );
+			return $"\"{name}\" is a legacy shim for old .shader code{(replacement is null ? $", and what it forwards to ({ours}) isn't public" : $": include \"{replacement}\" instead")}";
+		}
+
+		var fxc = name.EndsWith( ".fxc", StringComparison.OrdinalIgnoreCase ) && !name.Contains( '/' );
+		if ( !fxc && !(name.StartsWith( "sbox/", StringComparison.OrdinalIgnoreCase ) && (name.EndsWith( ".slangh", StringComparison.OrdinalIgnoreCase ) || name.EndsWith( ".slang", StringComparison.OrdinalIgnoreCase ))) ) return null;
+		var cover = covers.GetValueOrDefault( name );
+		return $"\"{name}\" isn't a public shader header and may change in any release{(cover is null ? $" (public: {string.Join( ", ", PublicHeaders )})" : $": include \"{cover}\" instead")}";
+	}
+
+	/// <summary>Every <c>#include "x"</c> and <c>import x;</c> in <paramref name="text"/>, with its line (from 1).</summary>
+	public static IEnumerable<(int Line, string Name, bool Import)> References( string text )
+	{
+		if ( text.IndexOf( "include", StringComparison.Ordinal ) < 0 && text.IndexOf( "import", StringComparison.Ordinal ) < 0 ) yield break;
+		var line = 1;
+		var at = 0;
+		foreach ( Match m in Reference().Matches( text ) )
+		{
+			for ( ; at < m.Index; at++ )
+			{
+				if ( text[at] == '\n' ) line++;
+			}
+
+			yield return m.Groups["include"].Success ? (line, m.Groups["include"].Value, false) : (line, m.Groups["import"].Value, true);
+		}
+	}
+
+	[GeneratedRegex( @"^[ \t]*(?:#[ \t]*include[ \t]*[""<](?<include>[^"">\r\n]+)[>""]|(?:__exported[ \t]+)?import[ \t]+(?<import>[A-Za-z_][\w.]*)[ \t]*;)", RegexOptions.Multiline )]
+	private static partial Regex Reference();
+
+	/// <summary>
+	/// Whether a module was made by the converters from a <c>.shader</c> (<see cref="PassConverter"/>): legacy code, which
+	/// includes the shims on purpose, so it isn't warned about.
+	/// </summary>
+	public static bool IsConverted( string text ) => text.StartsWith( "// ", StringComparison.Ordinal ) && text.AsSpan( 0, Math.Min( text.Length, 400 ) ).IndexOf( "as a pass module", StringComparison.Ordinal ) >= 0;
 }

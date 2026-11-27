@@ -160,7 +160,7 @@ public sealed partial class PassModule
 		// A player's install has none of the private headers the build leaves out: what they declare (instancing.fxc's
 		// D_CS_VERTEX_ANIMATION) comes from the offline compile's record of what this module declared where they were there,
 		// so draws ask for the combos it compiled
-		if ( missing && SlangOutput.At( SlangOutput.PathOf( Path ) )?.DeclarationsOf( Text ) is { } declarations ) ReadDeclarations( declarations );
+		if ( missing && SlangOutput.Of( Path )?.DeclarationsOf( Text ) is { } declarations ) ReadDeclarations( declarations );
 	}
 
 	/// <summary>

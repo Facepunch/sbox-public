@@ -27,6 +27,11 @@ public sealed partial class SlangCompiler
 	/// </summary>
 	public Task<CompiledPassStage> CompilePassAsync( PassModule module, StageKind stage, IReadOnlyDictionary<string, int> values, CompilePriority priority = null )
 	{
+		if ( Warning is not null ) includesChecked.GetValue( module, m =>
+		{
+			CheckIncludes( m.Path, m.Text );
+			return includesChecked;
+		} );
 		var defines = new SortedDictionary<string, string>( StringComparer.Ordinal );
 		foreach ( var (name, value) in values ) defines[name] = value.ToString( System.Globalization.CultureInfo.InvariantCulture );
 
@@ -45,6 +50,9 @@ public sealed partial class SlangCompiler
 
 		return SlangWorkers.Run( () => CompilePassStage( module, stage, values, defines, key ), priority );
 	}
+
+	/// <summary>Modules whose includes were checked (<see cref="CheckIncludes"/>): once each, not per variant.</summary>
+	readonly System.Runtime.CompilerServices.ConditionalWeakTable<PassModule, object> includesChecked = new();
 
 	CompiledPassStage CompilePassStage( PassModule module, StageKind stage, IReadOnlyDictionary<string, int> values, IReadOnlyDictionary<string, string> defines, string key )
 	{

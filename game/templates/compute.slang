@@ -3,8 +3,6 @@
 
 Mode( Default );
 
-#include "sbox/system.slangh"
-
 #if ( PROGRAM == VFX_PROGRAM_CS )
 	RWTexture2D<float4> Result < Attribute( "Result" ); >;
 

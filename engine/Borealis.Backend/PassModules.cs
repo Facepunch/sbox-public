@@ -28,7 +28,11 @@ public sealed partial class PassModules : IShaderModules
 
 		var name = compiledPath;
 		if ( name.EndsWith( "_c", StringComparison.OrdinalIgnoreCase ) ) name = name[..^2];
-		return slangPaths[compiledPath] = Path.GetFullPath( Path.ChangeExtension( name, ".slang" ) );
+		var path = Path.GetFullPath( Path.ChangeExtension( name, ".slang" ) );
+
+		// Only its compiled file (a package's .slang_c): the source it embeds (CompiledAlone)
+		if ( !File.Exists( path ) && File.Exists( SlangOutput.PathOf( path ) ) ) path = CompiledAlone.SourceFor( path, Path.GetDirectoryName( Core ), Error ) ?? path;
+		return slangPaths[compiledPath] = path;
 	}
 	readonly Dictionary<string, (ModuleStage Stage, IReadOnlyList<SpecializationSlot> Slots, (int Resource, Annotations Annotations)[] FeatureSamplers)> stages = new( StringComparer.Ordinal );
 

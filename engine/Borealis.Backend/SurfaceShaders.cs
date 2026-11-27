@@ -636,14 +636,25 @@ public sealed class SurfaceShaders : IDisposable
 
 	/// <summary>
 	/// A package's shader folder: searched like <see cref="AddFolder"/>, watched for changes, and every surface and raw
-	/// module in it compiled now on a worker, so its materials' first draws find them ready. Errors go to <see cref="Error"/>.
+	/// module in it compiled now on a worker, so its materials' first draws find them ready. A module shipped compiled alone
+	/// (<c>.slang_c</c>) compiles from the source it embeds when this compiler didn't make it (<see cref="CompiledAlone"/>).
+	/// Errors go to <see cref="Error"/>, naming <paramref name="package"/> when given.
 	/// </summary>
-	public System.Threading.Tasks.Task Mount( string folder )
+	public System.Threading.Tasks.Task Mount( string folder, string package = null )
 	{
 		folder = Path.GetFullPath( folder );
+		if ( package is not null )
+		{
+			lock ( programs ) packages[folder] = package;
+		}
+
 		AddFolder( folder );
 		Watch( folder );
-		var files = Directory.Exists( folder ) ? Directory.GetFiles( folder, "*.slang" ) : [];
+		var sources = Directory.Exists( folder ) ? Directory.GetFiles( folder, "*.slang" ) : [];
+		var alone = Directory.Exists( folder ) ? Directory.GetFiles( folder, "*.slang" + SlangOutput.Suffix ).Select( f => f[..^SlangOutput.Suffix.Length] ).Where( f => !File.Exists( f ) ) : [];
+
+		// Pass modules (sbox/pass.slangh) aren't surfaces: they compile per variant where their shader draws
+		var files = sources.Concat( alone.Where( f => SlangOutput.At( SlangOutput.PathOf( f ) ) is not { Sources: [var module, ..] } || !module.Text.Contains( "sbox/pass.slangh", StringComparison.Ordinal ) ) ).ToArray();
 		Task<SurfaceProgram>[] started;
 		lock ( programs )
 		{
@@ -726,12 +737,27 @@ public sealed class SurfaceShaders : IDisposable
 		return program;
 	}
 
-	/// <summary>A shader's file: <paramref name="file"/> itself when it's a path, else the first of <see cref="Folders"/> that has it.</summary>
+	/// <summary>
+	/// A shader's file: <paramref name="file"/> itself when it's a path, else the first of <see cref="Folders"/> that has it.
+	/// Where there's only its compiled file (a package's <c>.slang_c</c>), the source it embeds (<see cref="CompiledAlone"/>).
+	/// </summary>
 	string Find( string file )
 	{
 		if ( File.Exists( file ) ) return file;
-		lock ( programs ) return folders.Select( f => Path.Combine( f, file ) ).FirstOrDefault( File.Exists );
+		string[] searched;
+		lock ( programs ) searched = folders.ToArray();
+		var candidates = Path.IsPathRooted( file ) ? new[] { file } : searched.Select( f => Path.Combine( f, file ) ).ToArray();
+		if ( candidates.FirstOrDefault( File.Exists ) is { } found ) return found;
+
+		var alone = candidates.FirstOrDefault( c => File.Exists( SlangOutput.PathOf( c ) ) );
+		if ( alone is null ) return null;
+		string package;
+		lock ( programs ) package = packages.GetValueOrDefault( Path.GetDirectoryName( Path.GetFullPath( alone ) ) );
+		return CompiledAlone.SourceFor( alone, Path.GetDirectoryName( Path.GetDirectoryName( CoreShaders() ) ), Error, package );
 	}
+
+	/// <summary>The package each mounted folder is (<see cref="Mount"/>), for naming it in messages.</summary>
+	readonly Dictionary<string, string> packages = new( StringComparer.OrdinalIgnoreCase );
 
 	/// <summary>Programs are kept by full path, or by file name for one found in <see cref="Folders"/>.</summary>
 	static string Key( string file ) => Path.IsPathRooted( file ) ? Path.GetFullPath( file ) : file;

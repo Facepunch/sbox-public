@@ -81,7 +81,7 @@ public sealed partial class SlangCompiler
 		await Task.WhenAll( jobs ).ConfigureAwait( false );
 		if ( entries.IsEmpty ) return OfflineResult.Failed;
 
-		SlangOutput.Write( output, identity, text, failed == 0, read.Keys, entries, module?.Declarations() );
+		SlangOutput.Write( output, identity, text, failed == 0, read.Keys, entries, module?.Declarations(), EmbeddedSources( source, text, paths, read.Keys.Select( k => k.Item1 ) ) );
 		return failed > 0 ? OfflineResult.Failed : OfflineResult.Compiled;
 
 		async Task Report<T>( Task<T> job, string what )
@@ -96,6 +96,24 @@ public sealed partial class SlangCompiler
 				log?.Invoke( $"{what}: {e.Errors}" );
 			}
 		}
+	}
+
+	/// <summary>
+	/// What an offline compile embeds (<see cref="SlangOutput.Sources"/>): the module's text, then each file beside it that its
+	/// compiles read (<c>&lt;m&gt;/</c> names: the modules it imports and files it includes from its own folder), so the
+	/// compiled file alone can be compiled again. Files the engine ships (the search paths') aren't: the install has them.
+	/// </summary>
+	static List<(string Name, string Text)> EmbeddedSources( string source, string text, DependencyPaths paths, IEnumerable<string> read )
+	{
+		var self = Path.GetFileName( source );
+		var sources = new List<(string Name, string Text)> { (self, text) };
+		foreach ( var name in read.Distinct( StringComparer.Ordinal ).Order( StringComparer.Ordinal ) )
+		{
+			if ( !name.StartsWith( "<m>/", StringComparison.Ordinal ) || string.Equals( name[4..], self, StringComparison.OrdinalIgnoreCase ) ) continue;
+			if ( paths.Resolve( name ) is { } file && File.Exists( file ) ) sources.Add( (name[4..], File.ReadAllText( file )) );
+		}
+
+		return sources;
 	}
 
 	/// <summary>

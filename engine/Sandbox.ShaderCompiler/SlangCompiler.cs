@@ -219,7 +219,8 @@ public sealed partial class SlangCompiler
 
 	/// <summary>
 	/// Told each shader API warning once per process, as <c>path(line): warning: message</c>: a deprecated name (a shim kept
-	/// for the previous level, <see cref="ShaderApi"/>) used, naming its replacement. Null: none are looked for.
+	/// for the previous level, <see cref="ShaderApi"/>) used, or an author's file including a header that isn't public (an
+	/// engine-internal <c>sbox/*.slangh</c>, a legacy <c>.fxc</c> shim), naming the replacement. Null: none are looked for.
 	/// </summary>
 	public Action<string> Warning { get; init; }
 
@@ -235,11 +236,42 @@ public sealed partial class SlangCompiler
 		Warning( message );
 	}
 
+	/// <summary>
+	/// Tell <see cref="Warning"/> what an author's module at <paramref name="path"/> and the files beside it that it includes or
+	/// imports include that isn't public (<see cref="ShaderApi.IncludeWarning"/>). The engine's own shaders (under the search
+	/// paths) and modules converted from a <c>.shader</c> aren't checked.
+	/// </summary>
+	void CheckIncludes( string path, string text )
+	{
+		if ( Warning is null || Engine( path ) || ShaderApi.IsConverted( text ) ) return;
+		var seen = new HashSet<string>( StringComparer.OrdinalIgnoreCase ) { Path.GetFullPath( path ) };
+		var files = new Queue<(string Path, string Text)>();
+		files.Enqueue( (path, text) );
+		while ( files.TryDequeue( out var file ) )
+		{
+			foreach ( var (line, name, import) in ShaderApi.References( file.Text ) )
+			{
+				if ( ShaderApi.IncludeWarning( name, import ) is { } warning )
+				{
+					Warn( $"{file.Path}({line}): warning: {warning}" );
+					continue;
+				}
+
+				// The author's own files beside it: checked too
+				var local = Path.GetFullPath( Path.Combine( Path.GetDirectoryName( file.Path ), import ? name.Replace( '.', '/' ) + ".slang" : name ) );
+				if ( Engine( local ) || !seen.Add( local ) || !File.Exists( local ) ) continue;
+				files.Enqueue( (local, File.ReadAllText( local )) );
+			}
+		}
+
+		bool Engine( string file ) => searchPaths.Exists( p => Path.GetFullPath( file ).StartsWith( p.TrimEnd( '/', '\\' ) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase ) );
+	}
+
 	/// <summary>The offline compiles of the source at <paramref name="path"/> that exist.</summary>
 	IReadOnlyList<SlangOutput> Offline( string path )
 	{
 		if ( !UseOffline ) return [];
-		var beside = SlangOutput.At( SlangOutput.PathOf( path ) );
+		var beside = SlangOutput.Of( path );
 		var shipped = searchPaths.Count > 0 ? SlangOutput.At( SlangOutput.PathOf( Path.Combine( searchPaths[0], Path.GetFileName( path ) ) ) ) : null;
 		return beside is null ? (shipped is null ? [] : [shipped]) : shipped is null || ReferenceEquals( shipped, beside ) ? [beside] : [beside, shipped];
 	}
@@ -254,6 +286,7 @@ public sealed partial class SlangCompiler
 	{
 		path = Path.GetFullPath( path );
 		var text = File.ReadAllText( path );
+		CheckIncludes( path, text );
 		using ( Zone( CompilePhase.CacheLoad ) )
 		{
 			if ( CompileCache.Load( CacheFolder, Offline( path ), Paths( path ), slangDirectory, tier, path, text ) is { } cached )
