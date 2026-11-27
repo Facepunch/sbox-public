@@ -1198,6 +1198,21 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 		}
 	}
 
+	/// <summary>
+	/// The texture at <paramref name="path"/> when it's loaded, whole, and pinned for good (<see cref="LoadTexture"/>'s, the
+	/// view's lookup tables), so the engine's own <c>Texture.Load</c> of the same file can borrow it rather than read a second
+	/// copy; null otherwise. Its handle stays its own: moves out of a draining block swap the copy in under it.
+	/// </summary>
+	internal BackendTexture PinnedTexture( string path )
+	{
+		if ( string.IsNullOrEmpty( path ) ) return null;
+		lock ( loadedTextures )
+		{
+			if ( !textureLives.TryGetValue( path, out var life ) || !life.Pinned ) return null;
+			return loadedTextures.TryGetValue( path, out var loaded ) && loaded is BackendTexture { Stream: null } texture ? texture : null;
+		}
+	}
+
 	static bool IsCubePath( string path ) => path.Contains( "cube", StringComparison.OrdinalIgnoreCase );
 
 	BackendTexture Load( string path, bool streamed )

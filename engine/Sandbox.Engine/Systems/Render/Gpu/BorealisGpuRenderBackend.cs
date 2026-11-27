@@ -1472,6 +1472,16 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 
 	TextureHandle Make( Texture texture )
 	{
+		// A file the device has loaded for good (the view's lookup tables, which Borealis's view environment reads too):
+		// borrowed, as a frame's target is, rather than read into a second copy
+		if ( !texture.IsRenderTarget && SharedFile( texture ) is { } shared )
+		{
+			textures.Add( texture, new Backing<TextureHandle>( shared.Handle ) );
+			Track( shared.Handle, ImageLayout.ShaderRead );
+			return shared.Handle;
+		}
+
+
 		// The pixels it's made from, let go after only if nothing replaced them meanwhile
 		var madeFrom = texture.InitialPixels;
 		TextureHandle handle;
@@ -1650,6 +1660,14 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 			// A package mounting or unmounting while it reads: not found this time
 			return null;
 		}
+	}
+
+	/// <summary>The device's own texture for a compiled <c>.vtex</c> it has pinned (<see cref="BackendDevice.PinnedTexture"/>), when it's the file's size.</summary>
+	BackendTexture SharedFile( Texture texture )
+	{
+		var path = texture.ResourcePath;
+		if ( string.IsNullOrEmpty( path ) || !path.EndsWith( ".vtex", StringComparison.OrdinalIgnoreCase ) ) return null;
+		return services.PinnedTexture( path ) is { } shared && shared.Width == texture.Width && shared.Height == texture.Height ? shared : null;
 	}
 
 	/// <summary>A texture loaded from a compiled <c>.vtex</c>, read from that file.</summary>

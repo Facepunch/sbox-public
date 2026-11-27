@@ -60,7 +60,12 @@ internal sealed class BorealisGpuFrame : IDisposable
 	{
 		for ( int i = 0; i < ViewTextureFiles.Length; i++ )
 		{
-			if ( viewTextures[i] is not { IsValid: true } ) viewTextures[i] = Texture.Load( ViewTextureFiles[i].Path );
+			if ( viewTextures[i] is { IsValid: true } ) continue;
+
+			// Loaded by the device first, as Borealis's own draws load them, so the engine's texture borrows that copy rather
+			// than reading another (BorealisGpuRenderBackend.SharedFile)
+			if ( RenderBackend.Default is BorealisGpuRenderBackend borealis ) borealis.Services.LoadTexture( ViewTextureFiles[i].Path );
+			viewTextures[i] = Texture.Load( ViewTextureFiles[i].Path );
 		}
 	}
 

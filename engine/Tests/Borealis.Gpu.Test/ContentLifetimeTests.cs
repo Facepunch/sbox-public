@@ -33,6 +33,29 @@ public class ContentLifetimeTests : RenderGpuTest
 	}
 
 	/// <summary>
+	/// A texture loaded for good (<see cref="BackendDevice.LoadTexture"/>: the view's lookup tables) is what the engine's own
+	/// load of the file borrows (<see cref="BackendDevice.PinnedTexture"/>), rather than a second copy; one only held (a
+	/// model's material's) isn't, as it goes when its holders do.
+	/// </summary>
+	[TestMethod]
+	public void APinnedTextureIsSharedAndAHeldOneIsnt()
+	{
+		const string blueNoise = "textures/dev/blue_noise_256.vtex";
+		const string brdf = "textures/dev/ggx_integrate_brdf_lut_schlick.vtex";
+		using var backend = new BackendDevice( Device );
+		if ( backend.Content.TryRead( blueNoise ) is null || backend.Content.TryRead( brdf ) is null ) Assert.Inconclusive( "No compiled lookup tables" );
+
+		Assert.IsNull( backend.PinnedTexture( blueNoise ), "not loaded yet" );
+		var loaded = backend.LoadTexture( blueNoise );
+		Assert.AreSame( loaded, backend.PinnedTexture( blueNoise ) );
+
+		backend.HoldTexture( brdf );
+		Assert.IsNull( backend.PinnedTexture( brdf ), "held, not pinned" );
+		backend.ReleaseTexture( brdf );
+		Device.WaitIdle();
+	}
+
+	/// <summary>
 	/// A texture a material drawn as a surface names but its surface doesn't read (a water material's caustics, which only
 	/// the CPU reads: a WaterBody projects them with a LightModulator) is still the material's texture, borrowed with it
 	/// and gone with it. It used to be unreadable, and the caustics drew transparent.
