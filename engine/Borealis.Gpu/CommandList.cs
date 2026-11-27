@@ -1745,6 +1745,7 @@ public sealed unsafe class CommandList
 
 		ref var record = ref device.Get( buffer );
 		Interlocked.Add( ref device.UploadPageBytes, pageSize );
+		device.CountPage( record.Memory.Block, pageSize );
 		return new UploadPage { Buffer = buffer, VkBuffer = record.Buffer, Mapped = record.Memory.Mapped, Size = pageSize, Class = pageClass };
 	}
 

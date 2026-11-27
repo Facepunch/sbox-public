@@ -647,9 +647,10 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 	/// Whether a buffer of <paramref name="size"/> is an allocation of its own: over <see cref="OwnBufferSize"/> (content's,
 	/// and with <see cref="OwnBigBuffers"/> the rest), and one that isn't content at exactly that size too. The GPU-driven
 	/// frame's three 4 MiB upload buffers, long-lived, shared, held two 16 MiB blocks that upload pages came and went around,
-	/// 19 MiB of them unused with Construct loaded.
+	/// 19 MiB of them unused with Construct loaded. Upload pages asked into large blocks (<see cref="InLargeBlocks"/>,
+	/// <see cref="CommandList.SharedPages"/>) still share at exactly that size.
 	/// </summary>
-	bool OwnsBuffer( ulong size, bool content ) => size > OwnBufferSize ? content || OwnBigBuffers : size == OwnBufferSize && !content && OwnBigBuffers;
+	bool OwnsBuffer( ulong size, bool content ) => size > OwnBufferSize ? content || OwnBigBuffers : size == OwnBufferSize && !content && OwnBigBuffers && !InLargeBlocks;
 
 	/// <summary>
 	/// Whether every buffer over <see cref="OwnBufferSize"/> is its own (the default), or only content's (geometry pages)
@@ -984,7 +985,7 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 			var emptiestCompacts = false;
 			foreach ( var block in kind.Blocks )
 			{
-				if ( block.Used == 0 || block.Pinned || frame < block.DrainFrame ) continue;
+				if ( block.Used == 0 || block.Pinned || block.NoRoom || frame < block.DrainFrame ) continue;
 				if ( emptiest is not null && emptiestPacks && block.Used >= emptiest.Used ) continue;
 
 				// A content block over half full is compacted (CompactContent) once its kind has a block and a quarter free. The
@@ -1292,8 +1293,15 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 		{
 			var block = allocation.Block;
 			if ( block is not { Draining: true } ) return;
+			var couldMake = KindOf( block ).DrainMayMake;
 			StopDrain( block );
-			block.DrainFrame = frame + DrainRetryFrames;
+
+			// One drained into the others' room that had none for what's in it is tried at the next look as a drain into a
+			// block of its own (TailDrain), not the same again later: a content block under half full is taken to pack into
+			// the others' room, and Construct's 14 MiB one holding 4.7 MiB of 1 MiB textures was given up every 3600 frames
+			// while their holes were all smaller
+			block.NoRoom = true;
+			block.DrainFrame = frame + (couldMake ? DrainRetryFrames : DrainCheckFrames);
 			DrainsAbandoned++;
 		}
 	}
@@ -1401,28 +1409,27 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 
 	/// <summary>The shared blocks of a block's kind; under the lock.</summary>
 	/// <summary>
-	/// Whether the spare upload pages in <paramref name="block"/> (<paramref name="bytes"/>, the largest
-	/// <paramref name="largest"/>) should go, to be made again in the room other blocks of its kind have: when it's the
-	/// emptiest part-used block of its kind, at most a quarter full, and the largest free ranges of the others hold them. Pages
-	/// in use there come back spare and go at a later trim, so the block empties and goes back, while new pages fill the
-	/// fullest block with room (<see cref="Device"/>'s FreeLonePages). Allocates nothing.
+	/// Whether the spare upload pages in <paramref name="block"/> (<paramref name="spare"/> bytes, the largest
+	/// <paramref name="largest"/>) may go, to be made again in the room the other part-used blocks of its kind have: when it
+	/// holds nothing but pages (<paramref name="pages"/> bytes of them, spare or in use), is at most a quarter full, and the
+	/// others' largest free ranges hold the spares. Its used bytes when they may, else null (<see cref="Device"/>'s
+	/// FreeLonePages takes the emptiest). Allocates nothing.
 	/// </summary>
-	internal bool PagesMayMove( MemoryBlock block, ulong bytes, ulong largest )
+	internal ulong? PagesMayMove( MemoryBlock block, ulong pages, ulong spare, ulong largest )
 	{
 		lock ( allocationLock )
 		{
-			if ( block.Dedicated || block.Draining || block.Used == 0 || block.Used > block.Size / 4 ) return false;
+			if ( block.Dedicated || block.Draining || block.Used == 0 || block.Used != pages || block.Used > block.Size / 4 ) return null;
 			ulong room = 0, widest = 0;
 			foreach ( var other in KindOf( block ).Blocks )
 			{
 				if ( other == block || other.Used == 0 || other.Draining ) continue;
-				if ( other.Used < block.Used ) return false;
 				var free = other.LargestFree;
 				room += free;
 				widest = Math.Max( widest, free );
 			}
 
-			return room >= bytes && widest >= largest;
+			return room >= spare && widest >= largest ? block.Used : null;
 		}
 	}
 

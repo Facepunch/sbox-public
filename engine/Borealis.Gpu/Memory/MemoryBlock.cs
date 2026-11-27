@@ -52,6 +52,12 @@ internal sealed class MemoryBlock
 	/// <summary>Never drained: it holds something that can't move (<see cref="MemoryAllocator.Pin"/>).</summary>
 	public bool Pinned;
 
+	/// <summary>
+	/// A drain into the room its kind's other blocks have found none (<see cref="MemoryAllocator.Abandon(in Allocation)"/>): from then on it's
+	/// drained only into a block of its own size (<see cref="MemoryAllocator.TailDrain"/>).
+	/// </summary>
+	public bool NoRoom;
+
 	// Size classes: sizes under SecondLevels have one class each; above, each power of two splits into SecondLevels
 	const int SecondLevelBits = 5;
 	const int SecondLevels = 1 << SecondLevelBits;

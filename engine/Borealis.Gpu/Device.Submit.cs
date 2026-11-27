@@ -186,6 +186,7 @@ public sealed unsafe partial class Device
 	internal void DestroyPage( UploadPage page )
 	{
 		Interlocked.Add( ref UploadPageBytes, -page.Size );
+		CountPage( Get( page.Buffer ).Memory.Block, -page.Size );
 		Destroy( page.Buffer );
 	}
 
@@ -574,20 +575,30 @@ public sealed unsafe partial class Device
 	// FreeLonePages': the spare pages, and each shared block they're in with their bytes and largest there
 	readonly List<UploadPage> lonePages = new();
 	readonly Dictionary<Memory.MemoryBlock, (ulong Bytes, ulong Largest)> pagesInBlocks = new();
-	readonly HashSet<Memory.MemoryBlock> loneBlocks = new();
+
+	/// <summary>Bytes of upload pages, spare or in use, in each shared block that holds any (<see cref="FreeLonePages"/>).</summary>
+	readonly System.Collections.Concurrent.ConcurrentDictionary<Memory.MemoryBlock, long> pageBytesInBlocks = new();
+
+	/// <summary>A page of <paramref name="bytes"/> was made in <paramref name="block"/> (negative: destroyed). Any thread.</summary>
+	internal void CountPage( Memory.MemoryBlock block, long bytes )
+	{
+		if ( block is null || block.Dedicated ) return;
+		var now = pageBytesInBlocks.AddOrUpdate( block, static ( _, add ) => add, static ( _, held, add ) => held + add, bytes );
+		if ( now <= 0 ) pageBytesInBlocks.TryRemove( new KeyValuePair<Memory.MemoryBlock, long>( block, now ) );
+	}
 
 	/// <summary>
-	/// Free the spare upload pages in the emptiest part-used block of their kind when it's at most a quarter full and the
-	/// others have room for them (<see cref="Memory.MemoryAllocator.PagesMayMove"/>): the next pages lists need are made in
-	/// that room, those in use there go at later trims, and the block, emptied, goes back. Pages sat wherever they were
-	/// made: with Construct loaded, nine 256 KiB pages kept a 16 MiB upload block while another had room for them. Part of
+	/// Free the spare upload pages in the emptiest shared block that holds nothing but pages, when it's at most a quarter
+	/// full and the kind's other blocks have room for them (<see cref="Memory.MemoryAllocator.PagesMayMove"/>): the next
+	/// pages lists need are made in that room, those in use there go at later trims, and the block, emptied, goes back.
+	/// Pages sat wherever they were made: with Construct loaded, nine 256 KiB pages kept a 16 MiB upload block while another
+	/// had room for them. A block that holds something else as well is left alone, as it wouldn't empty. Part of
 	/// <see cref="TrimSpares"/>.
 	/// </summary>
 	void FreeLonePages()
 	{
 		lonePages.Clear();
 		pagesInBlocks.Clear();
-		loneBlocks.Clear();
 		for ( int c = 0; c < FreePages.Length; c++ )
 		{
 			while ( FreePages[c].TryTake( out var page ) ) lonePages.Add( page );
@@ -600,14 +611,22 @@ public sealed unsafe partial class Device
 			pagesInBlocks[block] = (held.Bytes + (ulong)page.Size, Math.Max( held.Largest, (ulong)page.Size ));
 		}
 
+		// The emptiest block of pages alone that may give its spares up
+		Memory.MemoryBlock emptiest = null;
+		ulong emptiestUsed = ulong.MaxValue;
 		foreach ( var (block, held) in pagesInBlocks )
 		{
-			if ( Allocator.PagesMayMove( block, held.Bytes, held.Largest ) ) loneBlocks.Add( block );
+			if ( !pageBytesInBlocks.TryGetValue( block, out var pages ) ) continue;
+			if ( Allocator.PagesMayMove( block, (ulong)pages, held.Bytes, held.Largest ) is { } used && used < emptiestUsed )
+			{
+				emptiest = block;
+				emptiestUsed = used;
+			}
 		}
 
 		foreach ( var page in lonePages )
 		{
-			if ( loneBlocks.Count == 0 || !loneBlocks.Contains( Get( page.Buffer ).Memory.Block ) )
+			if ( emptiest is null || Get( page.Buffer ).Memory.Block != emptiest )
 			{
 				FreePages[page.Class].Add( page );
 				continue;
@@ -621,7 +640,6 @@ public sealed unsafe partial class Device
 
 		lonePages.Clear();
 		pagesInBlocks.Clear();
-		loneBlocks.Clear();
 	}
 
 	/// <summary>Spare upload pages freed to be made again in fuller blocks (<see cref="FreeLonePages"/>), for tests.</summary>

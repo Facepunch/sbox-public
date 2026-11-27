@@ -896,39 +896,36 @@ public class MemoryAllocatorTests : GpuTest
 	}
 
 	/// <summary>
-	/// Spare upload pages leave a block (<see cref="MemoryAllocator.PagesMayMove"/>) when it's the emptiest part-used one of
-	/// its kind, at most a quarter full, and the others have room for them.
+	/// Spare upload pages leave a block (<see cref="MemoryAllocator.PagesMayMove"/>) when it holds nothing but pages, is at
+	/// most a quarter full, and the kind's other blocks have room for them.
 	/// </summary>
 	[TestMethod]
-	public void SparePagesLeaveOnlyAnEmptyBlockWithRoomBeside()
+	public void SparePagesLeaveOnlyABlockOfPagesWithRoomBeside()
 	{
 		using var allocator = new MemoryAllocator( Device.Vk, Device.Allocator.MemoryProperties, false ) { QuietSeconds = 0, GrowBlocks = false, MakeBlocksAhead = false };
 		var eighth = new VkMemoryRequirements { size = allocator.BlockSize / 8, alignment = 256, memoryTypeBits = ~0u };
+		var page = eighth.size;
 
-		// A full first block, then two pages' worth in a second
+		// A full first block, then two pages in a second
 		var first = new List<Allocation>();
 		for ( int i = 0; i < 8; i++ ) first.Add( allocator.Allocate( eighth, MemoryLocation.Upload, image: false ) );
 		var second = new List<Allocation> { allocator.Allocate( eighth, MemoryLocation.Upload, image: false ), allocator.Allocate( eighth, MemoryLocation.Upload, image: false ) };
 		Assert.AreNotSame( first[0].Block, second[0].Block );
-		Assert.IsFalse( allocator.PagesMayMove( second[0].Block, eighth.size, eighth.size ), "no room beside it" );
+		Assert.IsNull( allocator.PagesMayMove( second[0].Block, 2 * page, page, page ), "no room beside it" );
 
 		allocator.Free( first[6] );
 		allocator.Free( first[7] );
-		Assert.IsTrue( allocator.PagesMayMove( second[0].Block, eighth.size, eighth.size ), "a quarter full, the emptiest, with room beside" );
-		Assert.IsFalse( allocator.PagesMayMove( first[0].Block, eighth.size, eighth.size ), "not the emptiest, and over a quarter full" );
-
-		// Over a quarter full: stays
-		second.Add( allocator.Allocate( eighth, MemoryLocation.Upload, image: false ) );
-		Assert.AreSame( first[0].Block, second[^1].Block, "into the fuller block's room" );
-		second.Add( allocator.Allocate( eighth, MemoryLocation.Upload, image: false ) );
-		second.Add( allocator.Allocate( eighth, MemoryLocation.Upload, image: false ) );
-		Assert.AreSame( second[0].Block, second[^1].Block );
-		Assert.IsFalse( allocator.PagesMayMove( second[0].Block, eighth.size, eighth.size ), "over a quarter full" );
+		Assert.AreEqual( 2 * page, allocator.PagesMayMove( second[0].Block, 2 * page, page, page ), "pages alone, a quarter full, room beside" );
+		Assert.IsNull( allocator.PagesMayMove( second[0].Block, page, page, page ), "something else is in the block too" );
+		Assert.IsNull( allocator.PagesMayMove( first[0].Block, 6 * page, page, page ), "over a quarter full" );
 
 		foreach ( var allocation in first.Take( 6 ).Concat( second ) ) allocator.Free( allocation );
 	}
 
-	/// <summary>A drain is given up as soon as something in the block has no room elsewhere, and not tried again for a while.</summary>
+	/// <summary>
+	/// A drain is given up as soon as something in the block has no room elsewhere; the next look drains it into a block of
+	/// its own size instead (<see cref="MemoryAllocator.TailDrain"/>), and one of those given up isn't tried again for a while.
+	/// </summary>
 	[TestMethod]
 	public void DrainsWithNoRoomAreAbandoned()
 	{
@@ -944,7 +941,14 @@ public class MemoryAllocatorTests : GpuTest
 		allocator.Abandon( first[6] );
 		Assert.IsFalse( allocator.AnyDraining );
 		Assert.AreEqual( 1, allocator.DrainsAbandoned );
+		var tails = allocator.TailDrains;
 		allocator.Trim( MemoryAllocator.QuietFrames + 60 );
+		Assert.IsTrue( allocator.Draining( first[6] ), "drained into a block of its own at the next look" );
+		Assert.AreEqual( tails + 1, allocator.TailDrains );
+
+		allocator.Abandon( first[6] );
+		Assert.AreEqual( 2, allocator.DrainsAbandoned );
+		allocator.Trim( MemoryAllocator.QuietFrames + 90 );
 		Assert.IsFalse( allocator.Draining( first[6] ), "not tried again at once" );
 
 		foreach ( var allocation in first.Skip( 6 ).Where( ( _, i ) => i is < 2 or > 3 ) ) allocator.Free( allocation );
