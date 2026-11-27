@@ -1,23 +1,13 @@
-HEADER
-{
-    Description = "";
-    DevShader = true;
-}
+// sniper_scope: a standalone module, the whole shader for Borealis.Gpu (docs/reference/borealis-standalone-modules.md).
+// The sniper's scope overlay (SniperScopeEffect): black outside a circle with crosshair lines, revealed and blurred by attribute.
+// HEADER: DevShader = true;
 
-MODES
-{
-    Default();
-    VrForward();
-}
+#include "sbox/pass.slangh"
 
-FEATURES
-{
-}
+Mode( Default );
+Mode( VrForward );
 
-COMMON
-{
     #include "postprocess/shared.hlsl"
-}
 
 struct VertexInput
 {
@@ -40,18 +30,17 @@ struct PixelInput
     float2 vData : TEXCOORD1;
 };
 
-VS
-{
-    PixelInput MainVs( VertexInput i )
+#if ( PROGRAM == VFX_PROGRAM_VS )
+    [shader( "vertex" )] PixelInput MainVs( VertexInput i )
     {
         PixelInput o;
         o.vPositionPs = float4( i.vPositionOs.xyz, 1.0f );
         return o;
     }
-}
 
-PS
-{
+#endif // VS
+
+#if ( PROGRAM == VFX_PROGRAM_PS )
     #include "postprocess/common.hlsl"
 
     RenderState( BlendEnable, true );
@@ -73,7 +62,7 @@ PS
         return length( max( d, 0.0 ) ) + min( max( d.x, d.y ), 0.0 );
     }
 
-    float4 MainPs( PixelInput i ) : SV_Target0
+    [shader( "pixel" )] float4 MainPs( PixelInput i ) : SV_Target0
     {
         float2 pos = i.vPositionSs.xy;
 
@@ -94,4 +83,6 @@ PS
         d = saturate( d * BlurAmount );
         return float4( 0, 0, 0, d );
     }
-}
+
+#endif // PS
+

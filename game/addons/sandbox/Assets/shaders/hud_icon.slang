@@ -1,17 +1,12 @@
-FEATURES
-{
-}
+// hud_icon: a standalone module, the whole shader for Borealis.Gpu (docs/reference/borealis-standalone-modules.md).
+// The spawn menu's icon look (materials/default/hud_icon.vmat): bright edges from curvature and silhouette, screen-space hatching, alpha where neither is.
 
-MODES
-{
-    Forward();
-    Depth();
-}
+#include "sbox/pass.slangh"
 
-COMMON
-{
-	#include "common/shared.hlsl"
-}
+Mode( Forward );
+Mode( Depth );
+
+#include "common/shared.hlsl"
 
 struct VertexInput
 {
@@ -23,19 +18,18 @@ struct PixelInput
 	#include "common/pixelinput.hlsl"
 };
 
-VS
-{
-	#include "common/vertex.hlsl"
+#if ( PROGRAM == VFX_PROGRAM_VS )
+#include "common/vertex.hlsl"
 
-	PixelInput MainVs( VertexInput i )
-	{
-		PixelInput o = ProcessVertex( i );
-		return FinalizeVertex( o );
-	}
+[shader( "vertex" )] PixelInput MainVs( VertexInput i )
+{
+	PixelInput o = ProcessVertex( i );
+	return FinalizeVertex( o );
 }
 
-PS
-{
+#endif // VS
+
+#if ( PROGRAM == VFX_PROGRAM_PS )
     #include "common/pixel.hlsl"
 
 	RenderState( BlendEnable, false );
@@ -71,7 +65,7 @@ PS
 		return smoothstep( flThreshold - flAA, flThreshold + flAA, flValue );
 	}
 
-	float4 MainPs( PixelInput i ) : SV_Target0
+	[shader( "pixel" )] float4 MainPs( PixelInput i ) : SV_Target0
 	{
 		float3 vPositionWs = g_vCameraPositionWs + i.vPositionWithOffsetWs;
 		float3 vNormalWs = normalize( i.vNormalWs );
@@ -100,4 +94,6 @@ PS
 
 		return float4( final, flAlpha );
 	}
-}
+
+#endif // PS
+

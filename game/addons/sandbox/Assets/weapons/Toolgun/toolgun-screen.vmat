@@ -2,13 +2,13 @@
 
 Layer0
 {
-	shader "weapons/toolgun/toolgun-screen.shader"
+	shader "weapons/Toolgun/toolgun_screen.shader"
 
 	//---- Fog ----
 	g_bFogEnabled "1"
 
 	//---- Material ----
-	TextureAmbientOcclusion "weapons/toolgun/v_toolgun_screen_ao.png"
-	TextureNormal "weapons/toolgun/v_toolgun_screen_normal.png"
-	TextureRoughness "weapons/toolgun/v_toolgun_screen_rough.png"
+	TextureAmbientOcclusion "weapons/Toolgun/v_toolgun_screen_ao.png"
+	TextureNormal "weapons/Toolgun/v_toolgun_screen_normal.png"
+	TextureRoughness "weapons/Toolgun/v_toolgun_screen_rough.png"
 }
