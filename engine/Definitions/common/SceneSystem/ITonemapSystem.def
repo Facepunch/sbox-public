@@ -1,6 +1,0 @@
-﻿
-#include "scenesystem/itonemapsystem.h"
-
-
-native struct SceneTonemapParameters_t;
-
