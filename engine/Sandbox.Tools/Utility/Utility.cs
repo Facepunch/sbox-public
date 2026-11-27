@@ -954,6 +954,7 @@ public static partial class EditorUtility
 
 		var path = FileSystem.Content.GetFullPath( localPath );
 
+		ShaderUpgrade.WarnIfLegacy( path, localPath );
 		var result = await ShaderCompile.Compile( path, localPath, options, token );
 
 		if ( result.Success )

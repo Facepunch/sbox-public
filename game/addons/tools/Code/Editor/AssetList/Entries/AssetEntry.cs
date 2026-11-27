@@ -14,7 +14,15 @@ public class AssetEntry : IAssetListEntry
 	public DateTime? LastModified => FileInfo.Exists ? FileInfo.LastWriteTime : null;
 	public long? Size => FileInfo.Exists ? FileInfo.Length : null;
 
-	public string GetStatusText() => Asset?.AbsolutePath ?? FileInfo.FullName;
+	public string GetStatusText() => Legacy ? $"{Asset?.AbsolutePath ?? FileInfo.FullName} (legacy VFX shader: right-click, Upgrade to Slang)" : Asset?.AbsolutePath ?? FileInfo.FullName;
+
+	bool? _legacy;
+
+	/// <summary>
+	/// A VFX .shader (the legacy format), read from its source once: it shows a badge, and its context menu offers the upgrade.
+	/// </summary>
+	public bool Legacy => _legacy ??= (Asset?.AssetType == AssetType.Shader || FileInfo.Extension.Equals( ".shader", StringComparison.OrdinalIgnoreCase ))
+		&& ShaderUpgrade.IsLegacy( Asset?.GetSourceFile( true ) is { Length: > 0 } source ? source : FileInfo.FullName );
 
 	public string AbsolutePath => Asset?.AbsolutePath ?? FileInfo.FullName;
 	public AssetType AssetType => Asset?.AssetType ?? null;
@@ -94,6 +102,20 @@ public class AssetEntry : IAssetListEntry
 		stripRect.Right = rect.Right - 4;
 		stripRect.Height = 4;
 		Paint.DrawRect( stripRect );
+
+		//
+		// Legacy badge: a VFX shader
+		//
+		if ( Legacy )
+		{
+			Paint.SetDefaultFont( 6, 600 );
+			var badgeRect = new Rect( rect.Right - 44, rect.Top + 4, 40, 12 );
+			Paint.ClearPen();
+			Paint.SetBrush( Theme.Yellow.WithAlpha( 0.85f ) );
+			Paint.DrawRect( badgeRect, 2 );
+			Paint.SetPen( Color.Black );
+			Paint.DrawText( badgeRect, "LEGACY", TextFlag.Center );
+		}
 	}
 
 	public void OnScrollEnter()
@@ -155,7 +177,7 @@ public class AssetEntry : IAssetListEntry
 		rect.Top += 12;
 
 		Paint.SetPen( Theme.Text.WithAlpha( 0.5f ) );
-		Paint.DrawText( rect, TypeName, TextFlag.LeftTop );
+		Paint.DrawText( rect, Legacy ? $"{TypeName} (legacy)" : TypeName, TextFlag.LeftTop );
 	}
 
 	public void Delete()

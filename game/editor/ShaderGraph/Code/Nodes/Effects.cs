@@ -39,9 +39,8 @@ public sealed class Fresnel : ShaderNode
 	public NodeResult.Func Result => ( GraphCompiler compiler ) =>
 	{
 		var power = compiler.ResultOrDefault( Power, DefaultPower ).Cast( 1 );
-		var normal = Normal.IsValid ? compiler.Result( Normal ).Cast( 3 ) : "i.vNormalWs";
-		var direction = Direction.IsValid ? compiler.Result( Direction ).Cast( 3 ) :
-			$"CalculatePositionToCameraDirWs( {(compiler.IsVs ? "i.vPositionWs.xyz" : "i.vPositionWithOffsetWs.xyz + g_vHighPrecisionLightingOffsetWs.xyz")} )";
+		var normal = Normal.IsValid ? compiler.Result( Normal ).Cast( 3 ) : compiler.WorldNormal;
+		var direction = Direction.IsValid ? compiler.Result( Direction ).Cast( 3 ) : compiler.PositionToCamera( compiler.WorldPosition );
 
 		return new( 3, $"pow( 1.0 - dot( normalize( {normal} ), normalize( {direction} ) ), {power} )" );
 	};

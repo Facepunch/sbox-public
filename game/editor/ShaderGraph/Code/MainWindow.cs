@@ -138,7 +138,7 @@ public class MainWindow : DockWindow
 		}
 		else
 		{
-			var path = System.IO.Path.ChangeExtension( _asset.AbsolutePath, ".shader" );
+			var path = System.IO.Path.ChangeExtension( _asset.AbsolutePath, ".slang" );
 			var asset = AssetSystem.FindByPath( path );
 			asset?.OpenInEditor();
 		}
@@ -197,11 +197,16 @@ public class MainWindow : DockWindow
 			return;
 		}
 
-		var assetPath = $"shadergraph/{_asset?.Name ?? "untitled"}_shadergraph.generated.shader";
-		var resourcePath = System.IO.Path.Combine( ".source2/temp", assetPath );
+		// The preview's Slang file, named for what it holds: a change is a new module, so nothing compiled earlier is drawn
+		// for it, and the previous one goes
+		var previewName = PreviewName( _generatedCode );
+		var resourcePath = $".source2/temp/shadergraph/{previewName}.slang";
 
 		FileSystem.Root.CreateDirectory( ".source2/temp/shadergraph" );
 		FileSystem.Root.WriteAllText( resourcePath, _generatedCode );
+		if ( _previewPath is not null && _previewPath != resourcePath && FileSystem.Root.FileExists( _previewPath ) )
+			FileSystem.Root.DeleteFile( _previewPath );
+		_previewPath = resourcePath;
 
 		_isCompiling = true;
 		_preview.IsCompiling = _isCompiling;
@@ -210,29 +215,49 @@ public class MainWindow : DockWindow
 
 		_timeSinceCompile = 0;
 
-		CompileAsync( resourcePath );
+		CompileAsync( resourcePath, _graph.Domain == ShaderDomain.PostProcess );
 	}
 
-	private async void CompileAsync( string path )
+	private string _previewPath;
+
+	/// <summary>The preview's surface or module name: the graph's, and a hash of the code.</summary>
+	private string PreviewName( string code )
 	{
-		var options = new Sandbox.Engine.Shaders.ShaderCompileOptions
+		var hash = System.Security.Cryptography.SHA256.HashData( System.Text.Encoding.UTF8.GetBytes( code ) );
+		return $"sg_{SurfaceName( _asset?.Name ?? "untitled" )}_{Convert.ToHexString( hash, 0, 4 ).ToLowerInvariant()}";
+	}
+
+	/// <summary>
+	/// A graph's surface name: its file name, which a Slang module is named by, so letters, digits and underscores only.
+	/// </summary>
+	internal static string SurfaceName( string name )
+	{
+		var clean = new string( (name ?? "").Select( c => char.IsLetterOrDigit( c ) || c == '_' ? c : '_' ).ToArray() );
+		return clean.Length == 0 || char.IsDigit( clean[0] ) ? "_" + clean : clean;
+	}
+
+	private async void CompileAsync( string path, bool module )
+	{
+		var full = FileSystem.Root.GetFullPath( path );
+
+		// A surface compiles with every pass, a post-processing module with its stages: the shader compiler's own errors
+		string errors;
+		try
 		{
-			ConsoleOutput = true
-		};
-
-		var result = await EditorUtility.CompileShader( FileSystem.Root, path, options );
-
-		if ( result.Success )
+			errors = module ? await Task.Run( () => ShaderUpgrade.CompileModule( full ) ) : await ShaderUpgrade.CompileSurfaceAsync( full );
+		}
+		catch ( Exception e )
 		{
-			var asset = AssetSystem.RegisterFile( FileSystem.Root.GetFullPath( path ) );
-
-			while ( !asset.IsCompiledAndUpToDate )
-			{
-				await Task.Yield();
-			}
+			errors = e.Message;
 		}
 
-		MainThread.Queue( () => OnCompileFinished( result.Success ? 0 : 1 ) );
+		MainThread.Queue( () =>
+		{
+			if ( errors is not null )
+				_shaderCompileErrors.AddRange( errors.Split( '\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries ) );
+
+			OnCompileFinished( errors is null ? 0 : 1 );
+		} );
 	}
 
 	protected readonly List<string> _shaderCompileErrors = new();
@@ -298,13 +323,10 @@ public class MainWindow : DockWindow
 		{
 			Log.Info( $"Compile finished in {_timeSinceCompile}" );
 
-			var shaderPath = $"shadergraph/{_asset?.Name ?? "untitled"}_shadergraph.generated.shader";
+			// Named as a .shader (under the temporary folder the game reads): the material system finds the .slang in its place
+			var shaderPath = $"shadergraph/{System.IO.Path.GetFileNameWithoutExtension( _previewPath )}.shader";
 
-			// Reload the shader otherwise it's gonna be the old wank
-			// Alternatively Material.Create could be made to force reload the shader
-			ConsoleSystem.Run( $"mat_reloadshaders {shaderPath}" );
-
-			_preview.Material = Material.Create( $"{_asset?.Name ?? "untitled"}_shadergraph_generated", shaderPath );
+			_preview.Material = Material.Create( $"{System.IO.Path.GetFileNameWithoutExtension( _previewPath )}_generated", shaderPath );
 		}
 		else
 		{
@@ -382,7 +404,7 @@ public class MainWindow : DockWindow
 		ClearAttributes();
 
 		var resultNode = _graph.Nodes.OfType<BaseResult>().FirstOrDefault();
-		var compiler = new GraphCompiler( _graph, true );
+		var compiler = new GraphCompiler( _graph, true ) { Name = $"sg_{SurfaceName( _asset?.Name ?? "untitled" )}" };
 		compiler.OnAttribute = OnAttribute;
 
 		// Evaluate all nodes
@@ -482,9 +504,33 @@ public class MainWindow : DockWindow
 		return code;
 	}
 
+	/// <summary>
+	/// Remove the VFX shader an earlier save of the graph wrote, and its compiled file: only one this editor generated (its
+	/// template's lines), never a shader written by hand.
+	/// </summary>
+	private static void RemoveGeneratedVfx( string shaderPath )
+	{
+		if ( !System.IO.File.Exists( shaderPath ) )
+			return;
+
+		var text = System.IO.File.ReadAllText( shaderPath );
+		var generated = ShaderUpgrade.IsLegacySource( text ) && text.Contains( "#include \"procedural.hlsl\"" ) && text.Contains( "#define S_UV2 1" )
+			&& text.Contains( "PixelInput MainVs( VertexInput v )" ) && text.Contains( "float4 MainPs( PixelInput i ) : SV_Target0" );
+		if ( !generated )
+		{
+			Log.Warning( $"ShaderGraph: {System.IO.Path.GetFileName( shaderPath )} is beside the graph and isn't one it generated: materials draw with it instead of the graph's .slang until it's moved away" );
+			return;
+		}
+
+		AssetSystem.FindByPath( shaderPath )?.Delete();
+		if ( System.IO.File.Exists( shaderPath ) ) System.IO.File.Delete( shaderPath );
+		if ( System.IO.File.Exists( shaderPath + "_c" ) ) System.IO.File.Delete( shaderPath + "_c" );
+		Log.Info( $"ShaderGraph: the graph is Slang now; removed the VFX shader it generated before ({System.IO.Path.GetFileName( shaderPath )})" );
+	}
+
 	private string GenerateShaderCode()
 	{
-		var compiler = new GraphCompiler( _graph, false );
+		var compiler = new GraphCompiler( _graph, false ) { Name = SurfaceName( _asset?.Name ?? "untitled" ) };
 		return compiler.Generate();
 	}
 
@@ -1042,14 +1088,26 @@ public class MainWindow : DockWindow
 		}
 		else
 		{
-			var shaderPath = System.IO.Path.ChangeExtension( savePath, ".shader" );
+			// The graph's Slang: a surface, or a standalone module for post-processing. A Slang module is named by its file, so a
+			// graph whose name isn't one (spaces, dashes) is refused rather than written where it can't compile
+			var slangPath = System.IO.Path.ChangeExtension( savePath, ".slang" );
+			var stem = System.IO.Path.GetFileNameWithoutExtension( savePath );
+			if ( SurfaceName( stem ) != stem )
+			{
+				Log.Error( $"ShaderGraph: {stem} can't be a Slang shader's name: rename the graph with letters, digits and underscores only (as {SurfaceName( stem )})" );
+				return false;
+			}
 
 			var code = GenerateShaderCode();
 			if ( string.IsNullOrWhiteSpace( code ) )
 				return false;
 
 			// Write generated shader to file
-			System.IO.File.WriteAllText( shaderPath, code );
+			System.IO.File.WriteAllText( slangPath, code );
+
+			// The VFX shader the graph wrote before it emitted Slang: a .shader beside the .slang would still be the one
+			// materials draw with (the material system prefers it), so the graph's own goes, with what it compiled to
+			RemoveGeneratedVfx( System.IO.Path.ChangeExtension( savePath, ".shader" ) );
 		}
 
 		AddToRecentFiles( savePath );

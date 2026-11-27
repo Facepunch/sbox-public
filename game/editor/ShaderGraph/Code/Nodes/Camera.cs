@@ -9,19 +9,19 @@ public sealed class Camera : ShaderNode
 {
 	[Output( typeof( Vector3 ) ), Title( "Position" )]
 	[Hide]
-	public static NodeResult.Func WorldPosition => ( GraphCompiler compiler ) => new( 3, "g_vCameraPositionWs" );
+	public static NodeResult.Func WorldPosition => ( GraphCompiler compiler ) => new( 3, compiler.CameraPosition );
 
 	[Output( typeof( Vector3 ) )]
 	[Hide]
-	public static NodeResult.Func Direction => ( GraphCompiler compiler ) => new( 3, "g_vCameraDirWs" );
+	public static NodeResult.Func Direction => ( GraphCompiler compiler ) => compiler.Input( 3, compiler.CameraDirection, "The camera's direction" );
 
 	[Output( typeof( float ) )]
 	[Hide]
-	public static NodeResult.Func NearPlane => ( GraphCompiler compiler ) => new( 1, "g_flNearPlane" );
+	public static NodeResult.Func NearPlane => ( GraphCompiler compiler ) => compiler.Input( 1, compiler.NearPlane, "The near plane" );
 
 	[Output( typeof( float ) )]
 	[Hide]
-	public static NodeResult.Func FarPlane => ( GraphCompiler compiler ) => new( 1, "g_flFarPlane" );
+	public static NodeResult.Func FarPlane => ( GraphCompiler compiler ) => compiler.Input( 1, compiler.FarPlane, "The far plane" );
 }
 
 /// <summary>
@@ -36,10 +36,9 @@ public sealed class Depth : ShaderNode
 	[Output( typeof( float ) ), Hide]
 	public NodeResult.Func Out => ( GraphCompiler compiler ) =>
 	{
-		var result = UV.IsValid() ? compiler.Result( UV ).Cast( 2 ) :
-			compiler.IsVs ? "i.vPositionPs.xy" : "i.vPositionSs.xy";
+		var result = UV.IsValid() ? compiler.Result( UV ).Cast( 2 ) : compiler.ScreenPosition is { } p ? $"{p}.xy" : null;
 
-		return new NodeResult( 1, $"Depth::Get( {result} )" );
+		return compiler.Input( 1, result is null ? null : compiler.Depth( result ), "The depth" );
 	};
 }
 
@@ -55,9 +54,8 @@ public sealed class LinearDepth : ShaderNode
 	[Output( typeof( float ) ), Hide]
 	public NodeResult.Func Out => ( GraphCompiler compiler ) =>
 	{
-		var result = UV.IsValid() ? compiler.Result( UV ).Cast( 2 ) :
-			compiler.IsVs ? "i.vPositionPs.xy" : "i.vPositionSs.xy";
+		var result = UV.IsValid() ? compiler.Result( UV ).Cast( 2 ) : compiler.ScreenPosition is { } p ? $"{p}.xy" : null;
 
-		return new NodeResult( 1, $"Depth::GetLinear( {result} )" );
+		return compiler.Input( 1, result is null ? null : compiler.LinearDepth( result ), "The linear depth" );
 	};
 }

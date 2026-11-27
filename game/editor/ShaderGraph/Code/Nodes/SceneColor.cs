@@ -120,13 +120,17 @@ float2 MapSceneColorCoords( float2 vInput, float2 modes )
 			)} ).rgb" );
 		}
 
-		compiler.RegisterGlobal( "bWantsFBCopyTexture", "BoolAttribute( bWantsFBCopyTexture, true );" );
-		compiler.RegisterGlobal( "g_tFrameBufferCopyTexture", "Texture2D g_tFrameBufferCopyTexture < Attribute( \"FrameBufferCopyTexture\"); SrgbRead( false ); >;" );
-		var sample = $"g_tFrameBufferCopyTexture.Sample( g_sAniso, {(
-				coords.IsValid
-				? $"{compiler.ResultFunction( func, coords.Cast( 2 ), uvModes )}"
-				: $"CalculateViewportUv( {compiler.ResultFunction( func, "i.vPositionSs.xy", uvModes )} )"
-		)}{(compiler.IsPreview ? "* g_vFrameBufferCopyInvSizeAndUvScale.zw" : "")}).rgb";
-		return new NodeResult( NodeResultType.Vector3, sample );
+		if ( compiler.IsVs )
+		{
+			return NodeResult.Error( $"`{DisplayInfo.Name}` isn't available in the vertex stage" );
+		}
+
+		// A surface's frame-buffer copy, read with its own scale (it may be larger than the view), at the pixel or the
+		// coordinates given (0..1 across the view)
+		var (copy, uvScale) = compiler.FrameBufferCopy();
+		var uv = coords.IsValid
+			? compiler.ResultFunction( func, coords.Cast( 2 ), uvModes )
+			: compiler.ViewportUv( $"{compiler.ScreenPosition}.xy" );
+		return new NodeResult( NodeResultType.Vector3, $"{copy}.Sample( g_sSceneColor, ( {uv} ) * {uvScale} ).rgb" );
 	};
 }

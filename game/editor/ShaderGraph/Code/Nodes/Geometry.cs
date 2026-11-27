@@ -9,7 +9,7 @@ public sealed class WorldNormal : ShaderNode
 {
 	[Output( typeof( Vector3 ) )]
 	[Hide]
-	public static NodeResult.Func Result => ( GraphCompiler compiler ) => new( 3, "i.vNormalWs", compiler.IsNotPreview );
+	public static NodeResult.Func Result => ( GraphCompiler compiler ) => new( 3, compiler.WorldNormal, compiler.IsNotPreview );
 }
 
 /// <summary>
@@ -20,11 +20,11 @@ public sealed class WorldTangent : ShaderNode
 {
 	[Output( typeof( Vector3 ) )]
 	[Hide]
-	public static NodeResult.Func U => ( GraphCompiler compiler ) => new( 3, "i.vTangentUWs", compiler.IsNotPreview );
+	public static NodeResult.Func U => ( GraphCompiler compiler ) => new( 3, compiler.WorldTangentU, compiler.IsNotPreview );
 
 	[Output( typeof( Vector3 ) )]
 	[Hide]
-	public static NodeResult.Func V => ( GraphCompiler compiler ) => new( 3, "i.vTangentVWs", compiler.IsNotPreview );
+	public static NodeResult.Func V => ( GraphCompiler compiler ) => new( 3, compiler.WorldTangentV, compiler.IsNotPreview );
 }
 
 /// <summary>
@@ -37,7 +37,7 @@ public sealed class IsFrontFace : ShaderNode
 	[Hide]
 	public NodeResult.Func Result => ( GraphCompiler compiler ) =>
 	{
-		return new NodeResult( 1, compiler.IsPs ? "i.vFrontFacing" : "0", compiler.IsNotPreview );
+		return new NodeResult( 1, compiler.IsPs ? $"( {compiler.FrontFace} ? 1.0 : 0.0 )" : "0", compiler.IsNotPreview );
 	};
 }
 
@@ -50,7 +50,7 @@ public sealed class ObjectSpaceNormal : ShaderNode
 {
 	[Output( typeof( Vector3 ) )]
 	[Hide]
-	public static NodeResult.Func Result => ( GraphCompiler compiler ) => new( 3, "i.vNormalOs", compiler.IsNotPreview );
+	public static NodeResult.Func Result => ( GraphCompiler compiler ) => new( 3, compiler.ObjectNormal, compiler.IsNotPreview );
 }
 
 /// <summary>
@@ -64,19 +64,19 @@ public sealed class ScreenPosition : ShaderNode
 
 	[Output( typeof( Vector3 ) )]
 	[Hide]
-	public static NodeResult.Func XYZ => ( GraphCompiler compiler ) => compiler.IsVs ? new( 3, "i.vPositionPs.xyz" ) : new( 3, "i.vPositionSs.xyz" );
+	public static NodeResult.Func XYZ => ( GraphCompiler compiler ) => compiler.Input( 3, compiler.ScreenPosition is { } p ? $"{p}.xyz" : null, "Screen Position" );
 
 	[Output( typeof( Vector2 ) )]
 	[Hide]
-	public static NodeResult.Func XY => ( GraphCompiler compiler ) => compiler.IsVs ? new( 2, "i.vPositionPs.xy" ) : new( 2, "i.vPositionSs.xy" );
+	public static NodeResult.Func XY => ( GraphCompiler compiler ) => compiler.Input( 2, compiler.ScreenPosition is { } p ? $"{p}.xy" : null, "Screen Position" );
 
 	[Output( typeof( float ) )]
 	[Hide]
-	public static NodeResult.Func Z => ( GraphCompiler compiler ) => compiler.IsVs ? new( 1, "i.vPositionPs.z" ) : new( 1, "i.vPositionSs.z" );
+	public static NodeResult.Func Z => ( GraphCompiler compiler ) => compiler.Input( 1, compiler.ScreenPosition is { } p ? $"{p}.z" : null, "Screen Position" );
 
 	[Output( typeof( float ) )]
 	[Hide]
-	public static NodeResult.Func W => ( GraphCompiler compiler ) => compiler.IsVs ? new( 1, "i.vPositionPs.w" ) : new( 1, "i.vPositionSs.w" );
+	public static NodeResult.Func W => ( GraphCompiler compiler ) => compiler.Input( 1, compiler.ScreenPosition is { } p ? $"{p}.w" : null, "Screen Position" );
 }
 
 /// <summary>
@@ -88,9 +88,7 @@ public sealed class ScreenCoordinate : ShaderNode
 	[Output( typeof( Vector2 ) )]
 	[Hide]
 	public static NodeResult.Func Result => ( GraphCompiler compiler ) =>
-		compiler.IsVs ?
-		new( 2, "CalculateViewportUv( i.vPositionPs.xy )" ) :
-		new( 2, "CalculateViewportUv( i.vPositionSs.xy )" );
+		compiler.Input( 2, compiler.ScreenPosition is { } p ? compiler.ViewportUv( $"{p}.xy" ) : null, "Screen Coordinate" );
 }
 
 /// <summary>
@@ -102,9 +100,7 @@ public sealed class WorldPosition : ShaderNode
 	[Output( typeof( Vector3 ) )]
 	[Hide]
 	public static NodeResult.Func Result => ( GraphCompiler compiler ) =>
-		compiler.IsVs ?
-		new( 3, "i.vPositionWs" ) :
-		new( 3, "i.vPositionWithOffsetWs.xyz + g_vHighPrecisionLightingOffsetWs.xyz" );
+		new( 3, compiler.WorldPosition );
 }
 
 /// <summary>
@@ -115,7 +111,7 @@ public sealed class ObjectPosition : ShaderNode
 {
 	[Output( typeof( Vector3 ) )]
 	[Hide]
-	public static NodeResult.Func Result => ( GraphCompiler compiler ) => new( 3, "i.vPositionOs" );
+	public static NodeResult.Func Result => ( GraphCompiler compiler ) => new( 3, compiler.ObjectPosition );
 }
 
 /// <summary>
@@ -127,9 +123,7 @@ public sealed class ViewDirection : ShaderNode
 	[Output( typeof( Vector3 ) )]
 	[Hide]
 	public static NodeResult.Func Result => ( GraphCompiler compiler ) =>
-		compiler.IsVs ?
-		new( 3, "CalculatePositionToCameraDirWs( i.vPositionWs )" ) :
-		new( 3, "CalculatePositionToCameraDirWs( i.vPositionWithOffsetWs.xyz + g_vHighPrecisionLightingOffsetWs.xyz )" );
+		new( 3, compiler.PositionToCamera( compiler.WorldPosition ) );
 }
 
 /// <summary>
@@ -140,11 +134,11 @@ public sealed class VertexColor : ShaderNode
 {
 	[Output( typeof( Vector3 ) )]
 	[Hide]
-	public static NodeResult.Func RGB => ( GraphCompiler compiler ) => new( 3, "i.vColor.rgb" );
+	public static NodeResult.Func RGB => ( GraphCompiler compiler ) => new( 3, $"{compiler.VertexColor}.rgb" );
 
 	[Output( typeof( float ) )]
 	[Hide]
-	public static NodeResult.Func Alpha => ( GraphCompiler compiler ) => new( 1, "i.vColor.a" );
+	public static NodeResult.Func Alpha => ( GraphCompiler compiler ) => new( 1, $"{compiler.VertexColor}.a" );
 }
 
 /// <summary>
@@ -154,5 +148,5 @@ public sealed class VertexColor : ShaderNode
 public sealed class Tint : ShaderNode
 {
 	[Hide, Output( typeof( Color ) )]
-	public static NodeResult.Func RGBA => ( GraphCompiler compiler ) => new( 4, "i.vTintColor" );
+	public static NodeResult.Func RGBA => ( GraphCompiler compiler ) => new( 4, compiler.Tint );
 }

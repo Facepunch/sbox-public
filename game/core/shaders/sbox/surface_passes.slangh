@@ -260,6 +260,7 @@ SurfaceVertexOutputWith<S.Varyings> SurfaceOutputDisplacedWith<S : IInterpolated
 	v.TangentU = o.vTangentUWs;
 	v.TangentV = o.vTangentVWs;
 	VS_DecodeObjectSpaceNormalAndTangent( i, v.ObjectNormal, v.ObjectTangent );
+	v.ObjectPosition = i.vPositionOs.xyz;
 
 	SurfaceVertexOutputWith<S.Varyings> output;
 	output.Varyings = surface.Displace( v, surface.Vertex( varyings ) );
@@ -423,6 +424,13 @@ SurfaceInput MakeSurfaceInput( PixelInput i )
 	s.Skybox = kSurfaceSkybox;
 	s.ToneMapScale = g_flToneMapScalarLinear;
 	s.ViewportSize = g_vViewportSize;
+	s.ViewportOffset = g_vViewportOffset;
+	s.DepthRange = float2( g_flViewportMinZ, g_flViewportMaxZ );
+	s.NearPlane = g_flNearPlane;
+	s.FarPlane = g_flFarPlane;
+	s.ProjectionToView = g_matProjectionToView;
+	s.SunDirection = g_DirectionalLightDirection.xyz;
+	s.SunColor = g_DirectionalLightColor.rgb;
 	return s;
 }
 

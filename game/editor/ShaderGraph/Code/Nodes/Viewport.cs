@@ -8,21 +8,21 @@ public sealed class ViewportNode : ShaderNode
 {
 	[Output( typeof( Vector2 ) ), Title( "Size" )]
 	[Hide]
-	public static NodeResult.Func ViewportSize => ( GraphCompiler compiler ) => new( 2, "g_vViewportSize" );
+	public static NodeResult.Func ViewportSize => ( GraphCompiler compiler ) => compiler.Input( 2, compiler.ViewportSize, "The viewport" );
 
 	[Output( typeof( Vector2 ) ), Title( "Inverse Size" )]
 	[Hide]
-	public static NodeResult.Func ViewportInverseSize => ( GraphCompiler compiler ) => new( 2, "g_vInvViewportSize" );
+	public static NodeResult.Func ViewportInverseSize => ( GraphCompiler compiler ) => compiler.Input( 2, compiler.InverseViewportSize, "The viewport" );
 
 	[Output( typeof( Vector2 ) ), Title( "Offset" )]
 	[Hide]
-	public static NodeResult.Func ViewportOffset => ( GraphCompiler compiler ) => new( 2, "g_vViewportOffset" );
+	public static NodeResult.Func ViewportOffset => ( GraphCompiler compiler ) => compiler.Input( 2, compiler.ViewportOffset, "The viewport" );
 
 	[Output( typeof( float ) ), Title( "Min Z" )]
 	[Hide]
-	public static NodeResult.Func ViewportMinZ => ( GraphCompiler compiler ) => new( 1, "g_flViewportMinZ" );
+	public static NodeResult.Func ViewportMinZ => ( GraphCompiler compiler ) => compiler.Input( 1, compiler.ViewportMinZ, "The viewport" );
 
 	[Output( typeof( float ) ), Title( "Max Z" )]
 	[Hide]
-	public static NodeResult.Func ViewportMaxZ => ( GraphCompiler compiler ) => new( 1, "g_flViewportMaxZ" );
+	public static NodeResult.Func ViewportMaxZ => ( GraphCompiler compiler ) => compiler.Input( 1, compiler.ViewportMaxZ, "The viewport" );
 }

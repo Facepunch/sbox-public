@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Diagnostics;
 
 namespace ShaderGraphTests;
 
@@ -114,7 +113,7 @@ public class ShaderGraphTest
 	}
 
 	/// <summary>
-	/// Test that we can create a shader graph, generate shader code, and compile it using shadercompiler.exe.
+	/// Test that we can create a shader graph, generate its Slang surface, and compile it with every pass.
 	/// This also covers generating the code on its own, so the tools addon is only compiled once.
 	/// </summary>
 	[TestMethod]
@@ -126,44 +125,25 @@ public class ShaderGraphTest
 		var shaderGraph = CreateMinimalShaderGraph( shaderGraphType, resultNodeType, "Test shader graph for unit testing" );
 		var shaderCode = GenerateShaderCode( shaderGraph, shaderGraphType, graphCompilerType );
 
-		// Basic validation that it looks like shader code
-		Assert.IsTrue( shaderCode.Contains( "HEADER" ), "Generated shader doesn't contain expected HEADER section" );
-		Assert.IsTrue( shaderCode.Contains( "MainPs" ), "Generated shader doesn't contain expected MainPs function" );
+		// A graph is a Slang surface: a [Material] struct, its pixel stage Evaluate
+		Assert.IsTrue( shaderCode.Contains( "import sbox.surface;" ), "Generated shader isn't a Slang surface" );
+		Assert.IsTrue( shaderCode.Contains( "public Material Evaluate( SurfaceInput i )" ), "Generated surface doesn't contain Evaluate" );
+		Assert.IsFalse( Editor.ShaderUpgrade.IsLegacySource( shaderCode ), "Generated shader is still VFX" );
 
-		// Write the shader code to a file in the game directory
+		// Write it to the game's shaders, named as the compiler names its struct, and compile it
 		var gameDir = Directory.GetCurrentDirectory();
 		var shadersDir = Path.Combine( gameDir, "core", "shaders" );
 		Directory.CreateDirectory( shadersDir );
-
-		var shaderFileName = "test_shadergraph_unit_test.shader";
-		var shaderPath = Path.Combine( shadersDir, shaderFileName );
-		var shaderCPath = shaderPath + "_c";
-
-		// Delete stale artifacts from a previous run - a leftover shader_c
-		// would satisfy the File.Exists assert below without compiling anything
+		var shaderPath = Path.Combine( shadersDir, "ShaderGraph.slang" );
 		File.Delete( shaderPath );
-		File.Delete( shaderCPath );
 
 		try
 		{
 			File.WriteAllText( shaderPath, shaderCode );
 			Console.WriteLine( $"Wrote shader to: {shaderPath}" );
 
-			// Find shadercompiler.exe
-			var shaderCompilerPath = Path.Combine( gameDir, "bin", "managed", OperatingSystem.IsWindows() ? "shadercompiler.exe" : "ShaderCompiler" );
-			Assert.IsTrue( File.Exists( shaderCompilerPath ), $"Shader compiler not found at: {shaderCompilerPath}" );
-
-			// Run shadercompiler.exe on this specific shadershader
-			var success = await RunShaderCompiler( shaderCompilerPath, gameDir, shaderPath );
-			Assert.IsTrue( success, "Shader compilation with shadercompiler.exe failed" );
-
-			// Check if shader_c file was created
-			Assert.IsTrue( File.Exists( shaderCPath ), $"Compiled shader file not found at: {shaderCPath}" );
-
-			var shaderCSize = new FileInfo( shaderCPath ).Length;
-			Assert.IsTrue( shaderCSize > 0, "Compiled shader file is empty" );
-
-			Console.WriteLine( $"Successfully compiled shader to {shaderCPath} ({shaderCSize} bytes)" );
+			var errors = await Editor.ShaderUpgrade.CompileSurfaceAsync( shaderPath );
+			Assert.IsNull( errors, $"The generated surface didn't compile: {errors}" );
 		}
 		finally
 		{
@@ -171,67 +151,11 @@ public class ShaderGraphTest
 			try
 			{
 				File.Delete( shaderPath );
-				File.Delete( shaderCPath );
 			}
 			catch ( Exception ex )
 			{
 				Console.WriteLine( $"Failed to clean up temp files: {ex.Message}" );
 			}
-		}
-	}
-
-	private async Task<bool> RunShaderCompiler( string shaderCompilerPath, string workingDirectory, string shaderFile )
-	{
-		using ( var process = new Process() )
-		{
-			process.StartInfo.FileName = shaderCompilerPath;
-			process.StartInfo.Arguments = shaderFile; // Just compile this specific shader
-			process.StartInfo.UseShellExecute = false;
-			process.StartInfo.RedirectStandardOutput = true;
-			process.StartInfo.RedirectStandardError = true;
-			process.StartInfo.CreateNoWindow = true;
-			process.StartInfo.WorkingDirectory = workingDirectory;
-
-			var outputMessages = new List<string>();
-			var errorMessages = new List<string>();
-
-			process.OutputDataReceived += ( sender, e ) =>
-			{
-				if ( e.Data != null )
-				{
-					outputMessages.Add( e.Data );
-					Console.WriteLine( $"ShaderCompiler: {e.Data}" );
-				}
-			};
-
-			process.ErrorDataReceived += ( sender, e ) =>
-			{
-				if ( e.Data != null )
-				{
-					errorMessages.Add( e.Data );
-					Console.WriteLine( $"ShaderCompiler ERROR: {e.Data}" );
-				}
-			};
-
-			Console.WriteLine( $"Running: {shaderCompilerPath} {process.StartInfo.Arguments}" );
-			process.Start();
-
-			process.BeginOutputReadLine();
-			process.BeginErrorReadLine();
-
-			await process.WaitForExitAsync();
-
-			if ( process.ExitCode != 0 )
-			{
-				Console.WriteLine( $"Shader compiler failed with exit code: {process.ExitCode}" );
-				foreach ( var error in errorMessages )
-				{
-					Console.WriteLine( $"Error: {error}" );
-				}
-				return false;
-			}
-
-			return true;
 		}
 	}
 }

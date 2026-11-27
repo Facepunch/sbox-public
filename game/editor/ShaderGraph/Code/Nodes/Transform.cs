@@ -85,7 +85,7 @@ public sealed class TransformNormal : ShaderNode
 		if ( !result.IsValid )
 		{
 			// No input, just return the vertex normal in worldspace or a default tangent space output.
-			return OutputSpace == OutputNormalSpace.World ? new NodeResult( 3, "i.vNormalWs.xyz" ) : new NodeResult( 3, "float3( 0, 0, 1 )" );
+			return OutputSpace == OutputNormalSpace.World ? new NodeResult( 3, $"{compiler.WorldNormal}.xyz" ) : new NodeResult( 3, "float3( 0, 0, 1 )" );
 		}
 
 		// Cast the result to a float3
@@ -107,16 +107,17 @@ public sealed class TransformNormal : ShaderNode
 		if ( InputSpace == NormalSpace.Object )
 		{
 			inputNormal = compiler.ResultFunction( "Vec3OsToTs", inputNormal,
-				"i.vNormalOs.xyz",
-				"i.vTangentUOs_flTangentVSign.xyz",
-				"cross( i.vNormalOs.xyz, i.vTangentUOs_flTangentVSign.xyz ) * i.vTangentUOs_flTangentVSign.w" );
+				$"{compiler.ObjectNormal}.xyz",
+				$"{compiler.ObjectTangent}.xyz",
+				$"cross( {compiler.ObjectNormal}.xyz, {compiler.ObjectTangent}.xyz ) * {compiler.ObjectTangent}.w" );
 		}
 		else if ( InputSpace == NormalSpace.World )
 		{
-			inputNormal = $"Vec3WsToTs( {inputNormal}, i.vNormalWs, i.vTangentUWs, i.vTangentVWs )";
+			var toTangent = compiler.IsSurface ? compiler.ResultFunction( "Vec3WsToTs", inputNormal, compiler.WorldNormal, compiler.WorldTangentU, compiler.WorldTangentV ) : null;
+			inputNormal = toTangent ?? $"Vec3WsToTs( {inputNormal}, {compiler.WorldNormal}, {compiler.WorldTangentU}, {compiler.WorldTangentV} )";
 		}
 
-		return OutputSpace == OutputNormalSpace.World ? new NodeResult( 3, $"TransformNormal( {inputNormal}, i.vNormalWs, i.vTangentUWs, i.vTangentVWs )" ) : new NodeResult( 3, $"{inputNormal}" );
+		return OutputSpace == OutputNormalSpace.World ? new NodeResult( 3, $"TransformNormal( {inputNormal}, {compiler.WorldNormal}, {compiler.WorldTangentU}, {compiler.WorldTangentV} )" ) : new NodeResult( 3, $"{inputNormal}" );
 	};
 }
 
@@ -231,7 +232,7 @@ public sealed class PolarCoordinates : ShaderNode
 		var radialScale = compiler.ResultOrDefault( RadialScale, DefaultRadialScale );
 		var lengthScale = compiler.ResultOrDefault( LengthScale, DefaultLengthScale );
 
-		return new NodeResult( 2, $"PolarCoordinates( ( {(coords.IsValid ? coords : "i.vTextureCoords.xy")} ) - ( {(center.IsValid ? center : "0.0f")} ), {(radialScale.IsValid ? radialScale : "1.0f")}, {(lengthScale.IsValid ? lengthScale : "1.0f")} )" );
+		return new NodeResult( 2, $"PolarCoordinates( ( {(coords.IsValid ? coords : compiler.Uv)} ) - ( {(center.IsValid ? center : "0.0f")} ), {(radialScale.IsValid ? radialScale : "1.0f")}, {(lengthScale.IsValid ? lengthScale : "1.0f")} )" );
 	};
 }
 
@@ -269,7 +270,7 @@ public sealed class TileAndOffset : ShaderNode
 		var tile = compiler.ResultOrDefault( Tile, DefaultTile );
 		var offset = compiler.ResultOrDefault( Offset, DefaultOffset );
 
-		var resultCode = $"TileAndOffsetUv( {(coords.IsValid ? coords.Cast( 2 ) : "i.vTextureCoords.xy")}," +
+		var resultCode = $"TileAndOffsetUv( {(coords.IsValid ? coords.Cast( 2 ) : compiler.Uv)}," +
 			$" {(tile.IsValid ? tile.Cast( 2 ) : "1.0f")}," +
 			$" {(offset.IsValid ? offset.Cast( 2 ) : "0.0f")} )";
 

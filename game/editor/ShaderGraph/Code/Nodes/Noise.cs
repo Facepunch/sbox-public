@@ -14,7 +14,7 @@ public abstract class NoiseNode : ShaderNode
 	public NodeResult.Func Result => ( GraphCompiler compiler ) =>
 	{
 		var result = compiler.Result( Coords );
-		return new( 1, $"{Func}( {(result.IsValid ? $"{result.Cast( 2 )}" : "i.vTextureCoords.xy")} )" );
+		return new( 1, $"{Func}( {(result.IsValid ? $"{result.Cast( 2 )}" : compiler.Uv)} )" );
 	};
 }
 
@@ -94,6 +94,6 @@ public sealed class VoronoiNoise : ShaderNode
 		string angleStr = $"{(angleOffset.IsValid ? angleOffset.Cast( 1 ) : compiler.ResultValue( AngleOffset ))}";
 		string densityStr = $"{(cellDensity.IsValid ? cellDensity.Cast( 1 ) : compiler.ResultValue( CellDensity ))}";
 
-		return new( 1, $"{(Worley ? "1.0f - " : string.Empty)}VoronoiNoise( {(result.IsValid ? $"{result.Cast( 2 )}" : "i.vTextureCoords.xy")}, {angleStr}, {densityStr} )" );
+		return new( 1, $"{(Worley ? "1.0f - " : string.Empty)}VoronoiNoise( {(result.IsValid ? $"{result.Cast( 2 )}" : compiler.Uv)}, {angleStr}, {densityStr} )" );
 	};
 }

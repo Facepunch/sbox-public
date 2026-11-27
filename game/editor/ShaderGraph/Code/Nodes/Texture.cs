@@ -174,18 +174,7 @@ public sealed class TextureSampler : TextureSamplerBase
 		var result = compiler.ResultTexture( Sampler, input, texture );
 		var coords = compiler.Result( Coords );
 
-		if ( compiler.Stage == GraphCompiler.ShaderStage.Vertex )
-		{
-			return new NodeResult( 4, $"{result.Item1}.SampleLevel(" +
-				$" g_sSampler{result.Item2}," +
-				$" {(coords.IsValid ? $"{coords.Cast( 2 )}" : "i.vTextureCoords.xy")}, 0 )" );
-		}
-		else
-		{
-			return new NodeResult( 4, $"Tex2DS( {result.Item1}," +
-				$" g_sSampler{result.Item2}," +
-				$" {(coords.IsValid ? $"{coords.Cast( 2 )}" : "i.vTextureCoords.xy")} )" );
-		}
+		return new NodeResult( 4, compiler.Sample( result.Item1, $"g_sSampler{result.Item2}", coords.IsValid ? coords.Cast( 2 ) : compiler.Uv ) );
 	};
 
 	/// <summary>
@@ -288,9 +277,7 @@ public sealed class TextureCube : ShaderNode
 		var result = compiler.ResultTexture( Sampler, input, Sandbox.Texture.Load( Texture ) );
 		var coords = compiler.Result( Coords );
 
-		return new NodeResult( 4, $"TexCubeS( {result.Item1}," +
-			$" g_sSampler{result.Item2}," +
-			$" {(coords.IsValid ? $"{coords.Cast( 3 )}" : ViewDirection.Result.Invoke( compiler ))} )" );
+		return new NodeResult( 4, compiler.SampleCube( result.Item1, $"g_sSampler{result.Item2}", coords.IsValid ? coords.Cast( 3 ) : ViewDirection.Result.Invoke( compiler ).Code ) );
 	};
 
 	private NodeResult Component( string component, GraphCompiler compiler )
@@ -368,8 +355,8 @@ public sealed class TextureTriplanar : TextureSamplerBase
 		var result = compiler.ResultFunction( "TexTriplanar_Color",
 			tex,
 			$"g_sSampler{sampler}",
-			coords.IsValid ? coords.Cast( 3 ) : "(i.vPositionWithOffsetWs.xyz + g_vHighPrecisionLightingOffsetWs.xyz) / 39.3701",
-			normal.IsValid ? normal.Cast( 3 ) : "normalize( i.vNormalWs.xyz )" );
+			coords.IsValid ? coords.Cast( 3 ) : $"( {compiler.WorldPosition} ) / 39.3701",
+			normal.IsValid ? normal.Cast( 3 ) : $"normalize( {compiler.WorldNormal}.xyz )" );
 
 		return new NodeResult( 4, result );
 	};
@@ -458,8 +445,8 @@ public sealed class NormapMapTriplanar : TextureSamplerBase
 		var result = compiler.ResultFunction( "TexTriplanar_Normal",
 			tex,
 			$"g_sSampler{sampler}",
-			coords.IsValid ? coords.Cast( 3 ) : "(i.vPositionWithOffsetWs.xyz + g_vHighPrecisionLightingOffsetWs.xyz) / 39.3701",
-			normal.IsValid ? normal.Cast( 3 ) : "normalize( i.vNormalWs.xyz )" );
+			coords.IsValid ? coords.Cast( 3 ) : $"( {compiler.WorldPosition} ) / 39.3701",
+			normal.IsValid ? normal.Cast( 3 ) : $"normalize( {compiler.WorldNormal}.xyz )" );
 
 		return new NodeResult( 3, result );
 	};
@@ -493,12 +480,12 @@ public sealed class TextureCoord : ShaderNode
 	{
 		if ( compiler.IsPreview )
 		{
-			var result = $"{compiler.ResultValue( UseSecondaryCoord )} ? i.vTextureCoords.zw : i.vTextureCoords.xy";
+			var result = $"{compiler.ResultValue( UseSecondaryCoord )} ? {compiler.Uv2} : {compiler.Uv}";
 			return new( 2, $"{compiler.ResultValue( Tiling.IsNearZeroLength )} ? {result} : ({result}) * {compiler.ResultValue( Tiling )}" );
 		}
 		else
 		{
-			var result = UseSecondaryCoord ? "i.vTextureCoords.zw" : "i.vTextureCoords.xy";
+			var result = UseSecondaryCoord ? compiler.Uv2 : compiler.Uv;
 			return Tiling.IsNearZeroLength ? new( 2, result ) : new( 2, $"{result} * {compiler.ResultValue( Tiling )}" );
 		}
 	};

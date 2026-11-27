@@ -4,32 +4,25 @@ namespace Editor.ShaderGraph;
 
 public static class ShaderTemplate
 {
-	public static string Code => @"
-HEADER
-{{
-	Description = ""{0}"";
-}}
+	/// <summary>
+	/// A post-processing graph as a standalone module (docs/reference/borealis-standalone-modules.md). {0} the description as
+	/// comments, {1} the common defines, {2} {3} {4} the vertex stage's globals, functions and body, {5} {6} its and the pixel
+	/// stage's includes and render state, {7} {8} the pixel stage's globals and functions, {9} {10} its locals and output.
+	/// </summary>
+	public static string Module => @"// A post-processing shader ShaderGraph generated from its graph, as a standalone module. Edit the graph, not this file.
+{0}
+#include ""sbox/pass.slangh""
 
-FEATURES
-{{
-	#include ""common/features.hlsl""
-}}
+Mode( Forward );
+Mode( Depth );
 
-MODES
-{{
-	Forward();
-	Depth();
-	ToolsShadingComplexity( ""tools_shading_complexity.shader"" );
-}}
+#include ""common/features.hlsl""
 
-COMMON
-{{
 {1}
-	#include ""common/shared.hlsl""
-	#include ""procedural.hlsl""
+#include ""common/shared.hlsl""
+#include ""procedural.hlsl""
 
-	#define S_UV2 1
-}}
+#define S_UV2 1
 
 struct VertexInput
 {{
@@ -50,33 +43,28 @@ struct PixelInput
 	#endif
 }};
 
-VS
+#if ( PROGRAM == VFX_PROGRAM_VS )
+#include ""common/vertex.hlsl""
+{5}{2}{3}
+[shader( ""vertex"" )] PixelInput MainVs( VertexInput v )
 {{
-	#include ""common/vertex.hlsl""
-{7}{6}{10}
-	PixelInput MainVs( VertexInput v )
-	{{
-{5}
-	}}
-}}
-
-PS
-{{
-	#include ""common/pixel.hlsl""
-{8}{2}{9}
-	float4 MainPs( PixelInput i ) : SV_Target0
-	{{
-{11}
-{3}
 {4}
-{12}
-	}}
 }}
+#endif // VS
+
+#if ( PROGRAM == VFX_PROGRAM_PS )
+#include ""common/pixel.hlsl""
+{6}{7}{8}
+[shader( ""pixel"" )] float4 MainPs( PixelInput i ) : SV_Target0
+{{
+{9}
+{10}
+}}
+#endif // PS
 ";
 
-	public static string Material_init => @"
-Material m = Material::Init( i );
-m.GeometricNormal *= i.vFrontFacing ? 1.0f : -1.0f;
+	/// <summary>A lit surface's material before the graph's values: common/pixel.hlsl's defaults, the normal in tangent space.</summary>
+	public static string MaterialInit => @"Material m = Material.Init( i );
 m.Albedo = float3( 1, 1, 1 );
 m.Normal = float3( 0, 0, 1 );
 m.Roughness = 1;
@@ -85,23 +73,50 @@ m.AmbientOcclusion = 1;
 m.TintMask = 1;
 m.Opacity = 1;
 m.Emission = float3( 0, 0, 0 );
-m.Transmission = 0;";
+m.Transmission = 0;
+";
 
-	public static string Material_output => @"
+	/// <summary>A lit surface's material after the graph's values: clamped, and its normal from tangent space to world.</summary>
+	public static string MaterialOutput => @"
 m.AmbientOcclusion = saturate( m.AmbientOcclusion );
 m.Roughness = saturate( m.Roughness );
 m.Metalness = saturate( m.Metalness );
 m.Opacity = saturate( m.Opacity );
 
-// Result node takes normal as tangent space, convert it to world space now
-m.Normal = TransformNormal( m.Normal, i.vNormalWs, i.vTangentUWs, i.vTangentVWs );
+// The result node takes the normal in tangent space
+m.Normal = TransformNormal( m.Normal, i.Normal, i.TangentU, i.TangentV );
+";
 
-// for some toolvis shit
-m.WorldTangentU = i.vTangentUWs;
-m.WorldTangentV = i.vTangentVWs;
-m.TextureCoords = i.vTextureCoords.xy;
-		
-return ShadingModelStandard::Shade( m );";
+	/// <summary>
+	/// The scene's depth for a surface's Depth and Linear Depth nodes, as common/classes/Depth.hlsl reads it: the depth chain's
+	/// top mip at a pixel position, normalized by the viewport's depth range, then to view space at the view's centre.
+	/// </summary>
+	public static string SurfaceDepth => @"
+// The scene's depth, from the depth chain the engine binds by attribute
+Texture2D g_tDepthChain < Attribute( ""DepthChainDownsample"" ); SrgbRead( false ); >;
+
+float GraphDepth( float2 position )
+{
+	return g_tDepthChain.Load( int3( position, 0 ) ).r;
+}
+
+float GraphLinearDepth( SurfaceInput i, float2 position )
+{
+	float depth = saturate( ( GraphDepth( position ) - i.DepthRange.x ) / max( i.DepthRange.y - i.DepthRange.x, 1e-6 ) );
+	float4 view = mul( i.ProjectionToView, float4( 0, 0, depth, 1 ) );
+	return -( view.z / view.w );
+}
+";
+
+	/// <summary>
+	/// A function's code as a surface has it: a material texture is a bindless slot (<c>MaterialTexture2D</c>) outside the
+	/// preview, which binds its textures by attribute.
+	/// </summary>
+	public static string ForSurface( string code, bool preview )
+	{
+		code = code.Replace( "half3", "float3" ).Replace( "half4", "float4" );
+		return preview ? code : code.Replace( "in Texture2D ", "in MaterialTexture2D " );
+	}
 
 	[Function( "ColorBurn_blend" )]
 	public static string ColorBurn_blend => @"
@@ -458,9 +473,9 @@ float4 TexTriplanar_Color( in Texture2D tTex, in SamplerState sSampler, float3 v
 	uvY.x *= axisSign.y;
 	uvZ.x *= -axisSign.z;
 
-	float4 colX = Tex2DS( tTex, sSampler, uvX );
-	float4 colY = Tex2DS( tTex, sSampler, uvY );
-	float4 colZ = Tex2DS( tTex, sSampler, uvZ );
+	float4 colX = tTex.Sample( sSampler, uvX );
+	float4 colY = tTex.Sample( sSampler, uvY );
+	float4 colZ = tTex.Sample( sSampler, uvZ );
 
 	return colX * triblend.x + colY * triblend.y + colZ * triblend.z;
 }
@@ -483,9 +498,9 @@ float3 TexTriplanar_Normal( in Texture2D tTex, in SamplerState sSampler, float3 
 	uvY.x *= axisSign.y;
 	uvZ.x *= -axisSign.z;
 
-	float3 tnormalX = DecodeNormal( Tex2DS( tTex, sSampler, uvX ).xyz );
-	float3 tnormalY = DecodeNormal( Tex2DS( tTex, sSampler, uvY ).xyz );
-	float3 tnormalZ = DecodeNormal( Tex2DS( tTex, sSampler, uvZ ).xyz );
+	float3 tnormalX = DecodeNormal( tTex.Sample( sSampler, uvX ).xyz );
+	float3 tnormalY = DecodeNormal( tTex.Sample( sSampler, uvY ).xyz );
+	float3 tnormalZ = DecodeNormal( tTex.Sample( sSampler, uvZ ).xyz );
 
 	tnormalX.x *= axisSign.x;
 	tnormalY.x *= axisSign.y;
@@ -544,13 +559,12 @@ float4 Quaternion_FromAngles( float3 vAngles )
 	public static string Matrix_Identity => @"
 float4x4 Matrix_Identity()
 {
-	return
-	{
+	return float4x4(
 		1.0, 0.0, 0.0, 0.0,
 		0.0, 1.0, 0.0, 0.0,
 		0.0, 0.0, 1.0, 0.0,
 		0.0, 0.0, 0.0, 1.0
-	};
+	);
 }
 ";
 
@@ -641,6 +655,18 @@ float3 Vec3OsToTs( float3 vVectorOs, float3 vNormalOs, float3 vTangentUOs, float
 	vVectorTs.x = dot( vVectorOs.xyz, vTangentUOs.xyz );
 	vVectorTs.y = dot( vVectorOs.xyz, vTangentVOs.xyz );
 	vVectorTs.z = dot( vVectorOs.xyz, vNormalOs.xyz );
+	return vVectorTs.xyz;
+}
+";
+
+	[Function( "Vec3WsToTs" )]
+	public static string Vec3WsToTs => @"
+float3 Vec3WsToTs( float3 vVectorWs, float3 vNormalWs, float3 vTangentUWs, float3 vTangentVWs )
+{
+	float3 vVectorTs;
+	vVectorTs.x = dot( vVectorWs.xyz, vTangentUWs.xyz );
+	vVectorTs.y = dot( vVectorWs.xyz, vTangentVWs.xyz );
+	vVectorTs.z = dot( vVectorWs.xyz, vNormalWs.xyz );
 	return vVectorTs.xyz;
 }
 ";

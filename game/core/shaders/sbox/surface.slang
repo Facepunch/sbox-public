@@ -193,6 +193,13 @@ public struct SurfaceInput
 	public bool Skybox;              // drawn in the 3D skybox's view (today's D_SKYBOX combo), whose reprojection from the world is wrong
 	public float ToneMapScale;       // the view's tone map scalar (g_flToneMapScalarLinear): what the frame's exposure multiplies by
 	public float2 ViewportSize;      // the view's size in pixels
+	public float2 ViewportOffset;    // where the view starts in its render target, in pixels (ScreenPosition counts from the target's corner)
+	public float2 DepthRange;        // the viewport's depth range (min and max), what the depth buffer's values span
+	public float NearPlane;          // the view's near and far planes, in world units
+	public float FarPlane;
+	public float4x4 ProjectionToView;    // clip space to view space (the inverse projection)
+	public float3 SunDirection;      // world: the way the sun's light travels (towards the scene)
+	public float3 SunColor;          // the sun's colour, black where the view has no sun
 
 	public float4 Sample( MaterialTexture2D texture, float2 uv )
 	{
@@ -293,6 +300,7 @@ public struct WorldVertexInput
 	public float3 Wind;              // world: the view's wind direction times its strength
 	public float Time;
 	public MaterialTexture2D BlueNoise;   // the view's blue noise texture (vr_lighting.fxc's g_tBlueNoise)
+	public float3 ObjectPosition;    // object space, the mesh's (before skinning)
 
 	// The tangent frame: in world space after the engine's transform (and skinning), and the mesh's own in object space.
 	// Together they carry an object-space direction through skinning (citizen_eye's gaze axes)

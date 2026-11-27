@@ -142,6 +142,23 @@ public static class CreateAsset
 		return destName;
 	}
 
+	/// <summary>A Slang file's name as a module name: letters, digits and underscores, not starting with a digit.</summary>
+	static string SlangFileName( string fileName )
+	{
+		var stem = Path.GetFileNameWithoutExtension( fileName );
+		var clean = new string( stem.Select( c => char.IsLetterOrDigit( c ) || c == '_' ? c : '_' ).ToArray() );
+		if ( clean.Length == 0 || char.IsDigit( clean[0] ) ) clean = "_" + clean;
+		return clean + Path.GetExtension( fileName );
+	}
+
+	/// <summary>A struct name from a file's: <c>new_material_shader</c> is <c>NewMaterialShader</c>.</summary>
+	static string PascalName( string stem )
+	{
+		var name = string.Concat( stem.Split( '_', StringSplitOptions.RemoveEmptyEntries ).Select( p => char.ToUpperInvariant( p[0] ) + p[1..] ) );
+		if ( name.Length == 0 || char.IsDigit( name[0] ) ) name = "Surface" + name;
+		return name is "Material" or "Surface" ? name + "Shader" : name;
+	}
+
 	static void OpenCreateAssetFlyout( string resourceType, string defaultName, string extension, Action<string> onCreate )
 	{
 		AssetList.OpenCreateFlyout( resourceType, defaultName, extension,
@@ -167,12 +184,19 @@ public static class CreateAsset
 		OpenCreateAssetFlyout( name, defaultName, extension,
 			destName =>
 			{
+				// A Slang module is named by its file, like an identifier, and a surface's struct after it
+				if ( extension == ".slang" )
+					destName = SlangFileName( destName );
+
 				var destPath = Path.Combine( folder.FullName, destName );
 
 				if ( File.Exists( destPath ) )
 					return;
 
-				File.Copy( sourceFile, destPath );
+				if ( extension == ".slang" )
+					File.WriteAllText( destPath, File.ReadAllText( sourceFile ).Replace( "NewMaterial", PascalName( Path.GetFileNameWithoutExtension( destPath ) ) ) );
+				else
+					File.Copy( sourceFile, destPath );
 				var asset = AssetSystem.RegisterFile( destPath );
 				MainAssetBrowser.Instance?.Local.OnAssetCreated( asset, destPath );
 			} );

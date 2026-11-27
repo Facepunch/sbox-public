@@ -395,6 +395,7 @@ static class StartupLoadProject
 			EditorSplashScreen.SetMessage( $"Compiling shader {i + 1}/{gr.Length} {asset.RelativePath}" );
 			StepProgress( (float)i / gr.Length );
 
+			ShaderUpgrade.WarnIfLegacy( sourcePath, asset.RelativePath );
 			var result = await ShaderCompile.Compile( sourcePath, asset.RelativePath, options, default );
 			if ( result.Success && !result.Skipped )
 			{
