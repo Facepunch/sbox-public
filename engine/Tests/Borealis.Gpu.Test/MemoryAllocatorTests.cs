@@ -895,6 +895,39 @@ public class MemoryAllocatorTests : GpuTest
 		foreach ( var allocation in placed.Concat( content ) ) allocator.Free( allocation );
 	}
 
+	/// <summary>
+	/// Spare upload pages leave a block (<see cref="MemoryAllocator.PagesMayMove"/>) when it's the emptiest part-used one of
+	/// its kind, at most a quarter full, and the others have room for them.
+	/// </summary>
+	[TestMethod]
+	public void SparePagesLeaveOnlyAnEmptyBlockWithRoomBeside()
+	{
+		using var allocator = new MemoryAllocator( Device.Vk, Device.Allocator.MemoryProperties, false ) { QuietSeconds = 0, GrowBlocks = false, MakeBlocksAhead = false };
+		var eighth = new VkMemoryRequirements { size = allocator.BlockSize / 8, alignment = 256, memoryTypeBits = ~0u };
+
+		// A full first block, then two pages' worth in a second
+		var first = new List<Allocation>();
+		for ( int i = 0; i < 8; i++ ) first.Add( allocator.Allocate( eighth, MemoryLocation.Upload, image: false ) );
+		var second = new List<Allocation> { allocator.Allocate( eighth, MemoryLocation.Upload, image: false ), allocator.Allocate( eighth, MemoryLocation.Upload, image: false ) };
+		Assert.AreNotSame( first[0].Block, second[0].Block );
+		Assert.IsFalse( allocator.PagesMayMove( second[0].Block, eighth.size, eighth.size ), "no room beside it" );
+
+		allocator.Free( first[6] );
+		allocator.Free( first[7] );
+		Assert.IsTrue( allocator.PagesMayMove( second[0].Block, eighth.size, eighth.size ), "a quarter full, the emptiest, with room beside" );
+		Assert.IsFalse( allocator.PagesMayMove( first[0].Block, eighth.size, eighth.size ), "not the emptiest, and over a quarter full" );
+
+		// Over a quarter full: stays
+		second.Add( allocator.Allocate( eighth, MemoryLocation.Upload, image: false ) );
+		Assert.AreSame( first[0].Block, second[^1].Block, "into the fuller block's room" );
+		second.Add( allocator.Allocate( eighth, MemoryLocation.Upload, image: false ) );
+		second.Add( allocator.Allocate( eighth, MemoryLocation.Upload, image: false ) );
+		Assert.AreSame( second[0].Block, second[^1].Block );
+		Assert.IsFalse( allocator.PagesMayMove( second[0].Block, eighth.size, eighth.size ), "over a quarter full" );
+
+		foreach ( var allocation in first.Take( 6 ).Concat( second ) ) allocator.Free( allocation );
+	}
+
 	/// <summary>A drain is given up as soon as something in the block has no room elsewhere, and not tried again for a while.</summary>
 	[TestMethod]
 	public void DrainsWithNoRoomAreAbandoned()

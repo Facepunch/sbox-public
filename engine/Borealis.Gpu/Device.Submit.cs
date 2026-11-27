@@ -541,7 +541,7 @@ public sealed unsafe partial class Device
 		{
 			// Pages of this size made again since the last trim freed some: keep one more from now on
 			var made = Volatile.Read( ref UploadPagesMadeBySize[c] );
-			if ( madeWhenTrimmed[c] >= 0 && made != madeWhenTrimmed[c] )
+			if ( madeWhenTrimmed[c] >= 0 && made > madeWhenTrimmed[c] )
 			{
 				ExtraFreeUploadPages[c] = Math.Min( ExtraFreeUploadPages[c] + 1, MaxExtraFreeUploadPages );
 				madeWhenTrimmed[c] = -1;
@@ -566,9 +566,66 @@ public sealed unsafe partial class Device
 			trimPages.Clear();
 		}
 
+		FreeLonePages();
 		trimFrom = FrameNumber;
 		trimFromTicks = System.Diagnostics.Stopwatch.GetTimestamp();
 	}
+
+	// FreeLonePages': the spare pages, and each shared block they're in with their bytes and largest there
+	readonly List<UploadPage> lonePages = new();
+	readonly Dictionary<Memory.MemoryBlock, (ulong Bytes, ulong Largest)> pagesInBlocks = new();
+	readonly HashSet<Memory.MemoryBlock> loneBlocks = new();
+
+	/// <summary>
+	/// Free the spare upload pages in the emptiest part-used block of their kind when it's at most a quarter full and the
+	/// others have room for them (<see cref="Memory.MemoryAllocator.PagesMayMove"/>): the next pages lists need are made in
+	/// that room, those in use there go at later trims, and the block, emptied, goes back. Pages sat wherever they were
+	/// made: with Construct loaded, nine 256 KiB pages kept a 16 MiB upload block while another had room for them. Part of
+	/// <see cref="TrimSpares"/>.
+	/// </summary>
+	void FreeLonePages()
+	{
+		lonePages.Clear();
+		pagesInBlocks.Clear();
+		loneBlocks.Clear();
+		for ( int c = 0; c < FreePages.Length; c++ )
+		{
+			while ( FreePages[c].TryTake( out var page ) ) lonePages.Add( page );
+		}
+
+		foreach ( var page in lonePages )
+		{
+			if ( Get( page.Buffer ).Memory.Block is not { Dedicated: false } block ) continue;
+			pagesInBlocks.TryGetValue( block, out var held );
+			pagesInBlocks[block] = (held.Bytes + (ulong)page.Size, Math.Max( held.Largest, (ulong)page.Size ));
+		}
+
+		foreach ( var (block, held) in pagesInBlocks )
+		{
+			if ( Allocator.PagesMayMove( block, held.Bytes, held.Largest ) ) loneBlocks.Add( block );
+		}
+
+		foreach ( var page in lonePages )
+		{
+			if ( loneBlocks.Count == 0 || !loneBlocks.Contains( Get( page.Buffer ).Memory.Block ) )
+			{
+				FreePages[page.Class].Add( page );
+				continue;
+			}
+
+			// Made again in the other blocks' room: not pages the trim freed too soon (ExtraFreeUploadPages)
+			if ( madeWhenTrimmed[page.Class] >= 0 ) madeWhenTrimmed[page.Class]++;
+			DestroyPage( page );
+			LonePagesFreed++;
+		}
+
+		lonePages.Clear();
+		pagesInBlocks.Clear();
+		loneBlocks.Clear();
+	}
+
+	/// <summary>Spare upload pages freed to be made again in fuller blocks (<see cref="FreeLonePages"/>), for tests.</summary>
+	internal int LonePagesFreed { get; private set; }
 
 	/// <summary>
 	/// Seconds spare command lists have to go unused, as well as <see cref="UploadPageIdleFrames"/> frames, before they're

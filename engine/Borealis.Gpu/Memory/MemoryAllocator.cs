@@ -1400,6 +1400,32 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 	}
 
 	/// <summary>The shared blocks of a block's kind; under the lock.</summary>
+	/// <summary>
+	/// Whether the spare upload pages in <paramref name="block"/> (<paramref name="bytes"/>, the largest
+	/// <paramref name="largest"/>) should go, to be made again in the room other blocks of its kind have: when it's the
+	/// emptiest part-used block of its kind, at most a quarter full, and the largest free ranges of the others hold them. Pages
+	/// in use there come back spare and go at a later trim, so the block empties and goes back, while new pages fill the
+	/// fullest block with room (<see cref="Device"/>'s FreeLonePages). Allocates nothing.
+	/// </summary>
+	internal bool PagesMayMove( MemoryBlock block, ulong bytes, ulong largest )
+	{
+		lock ( allocationLock )
+		{
+			if ( block.Dedicated || block.Draining || block.Used == 0 || block.Used > block.Size / 4 ) return false;
+			ulong room = 0, widest = 0;
+			foreach ( var other in KindOf( block ).Blocks )
+			{
+				if ( other == block || other.Used == 0 || other.Draining ) continue;
+				if ( other.Used < block.Used ) return false;
+				var free = other.LargestFree;
+				room += free;
+				widest = Math.Max( widest, free );
+			}
+
+			return room >= bytes && widest >= largest;
+		}
+	}
+
 	Kind KindOf( MemoryBlock block )
 	{
 		var key = (block.TypeIndex, block.Images, block.Large, block.Content, block.Fallback);
