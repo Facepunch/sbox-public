@@ -392,6 +392,12 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 	internal bool Parallel { get; set; } = true;
 
 	/// <summary>
+	/// Whether <see cref="Prepare"/> works out where a view's frame buffer readers are on screen (<see cref="ReadArea"/>): only
+	/// a 3D skybox's system reads it, so other systems' views skip projecting every reader's bounds.
+	/// </summary>
+	internal bool KeepsReadArea { get; set; } = true;
+
+	/// <summary>
 	/// Visible objects a view needs before classifying them is split across threads. Classifying on one thread leaves
 	/// the objects in its cache for emitting them after; split, emitting fetches them again, which costs as much as the
 	/// split saves until there are too many objects to stay in cache anyway: even at 10-20k objects, 15% faster from 35k.
@@ -542,6 +548,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 		var opaque = buckets[0];
 		MeshRuns frameBufferReads = 0;
 		var readArea = FrameBufferReadArea.Empty;
+		var keepArea = KeepsReadArea && !pass.IsShadow;
 		var worldToProjection = pass.View.WorldToProjection;
 		MeshRuns callbacks = 0;
 		var stencil = false;
@@ -584,7 +591,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 			}
 
 			frameBufferReads |= c.FrameBufferReads;
-			if ( c.FrameBufferReads != 0 ) readArea.Add( centers[index], extents[index], worldToProjection );
+			if ( keepArea && c.FrameBufferReads != 0 ) readArea.Add( centers[index], extents[index], worldToProjection );
 			stencil |= c.Stencil;
 			if ( c.Callbacks ) callbacks |= c.Runs;
 

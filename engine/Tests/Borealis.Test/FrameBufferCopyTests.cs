@@ -83,6 +83,28 @@ public class FrameBufferCopyTests
 	}
 
 	/// <summary>
+	/// Only a 3D skybox's view works out where its readers are on screen (its frame copy is made only there); the main
+	/// view, whose copy is made whole, leaves it.
+	/// </summary>
+	[TestMethod]
+	public void OnlyTheSkyboxWorksOutWhereItsReadersAre()
+	{
+		using var material = new HeadlessMaterial( "glass", "complex" );
+		var sky = new RenderWorld();
+		sky.Add( new MeshObject( Glass( material ), new Transform( new Vector3( 5100, 0, 0 ) ) ) { WantsFrameBufferCopy = true } );
+		var world = new RenderWorld { Skybox3D = new Borealis.Skybox3D( sky ) { Origin = new Vector3( 5000, 0, 0 ), Scale = 16 } };
+		world.Add( new MeshObject( Glass( material ), new Transform( new Vector3( 50, 0, 0 ) ) ) { WantsFrameBufferCopy = true } );
+
+		using var system = new RenderSystem();
+		CollectAndPrepare( system, world, LookingDownX() );
+
+		Assert.IsTrue( system.GetFeature<Borealis.Features.MeshRenderFeature>().ReadArea( system.MainPass ).IsEmpty, "the main view's reader isn't projected" );
+		var skybox = system.SkyboxSystem;
+		var area = skybox.GetFeature<Borealis.Features.MeshRenderFeature>().ReadArea( skybox.MainPass );
+		Assert.IsFalse( area.IsEmpty || area.Whole, "the skybox's reader is somewhere on its screen" );
+	}
+
+	/// <summary>
 	/// Where a reader is on the screen (<see cref="FrameBufferReadArea"/>): in front, the rectangle around its bounds'
 	/// projection; crossing the camera's plane, the whole screen; behind it, past the far plane or off to the side, nowhere.
 	/// </summary>

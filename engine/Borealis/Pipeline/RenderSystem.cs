@@ -927,6 +927,7 @@ public sealed partial class RenderSystem : IDisposable
 		meshes.Occlusion = wanted ? Occlusion : null;
 		aggregates.Occlusion = meshes.Occlusion;
 		meshes.Parallel = ParallelRecording;
+		meshes.KeepsReadArea = isSkybox;
 		meshes.DebugViews = frame.DebugViews;
 
 		// Lights first: shadow views are chosen from them. The shadow views then cull on workers while the main view's

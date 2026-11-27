@@ -44,7 +44,7 @@ internal sealed partial class FrameRecorder : IDisposable
 		/// <summary>Draw segments: the first work's first run, and the last work's end run.</summary>
 		public int First, End;
 
-		/// <summary>Estimated draw count; heaviest segments are claimed first.</summary>
+		/// <summary>Estimated draw count: how heavy it is until its recording has been timed (<see cref="ExpectedMs"/>).</summary>
 		public int Weight;
 
 		public bool OnMainThread;
@@ -241,6 +241,37 @@ internal sealed partial class FrameRecorder : IDisposable
 	/// Segments recorded on the thread pool: <see cref="workerSegments"/>, claimed heaviest first.
 	/// </summary>
 	int[] workerSegments = new int[16];
+
+	/// <summary>What each of <see cref="workerSegments"/> is expected to cost, in milliseconds (<see cref="ExpectedMs"/>).</summary>
+	double[] workerCosts = new double[16];
+
+	/// <summary>
+	/// How long worker segments took to record, by their <see cref="Segment.Shape"/>, smoothed over frames: a frame's
+	/// segments come back with the same shapes frame after frame. Draw counts misjudge some by far (a GPU-driven run of
+	/// ten batches records a resident list's cull and multi-draws), and claimed last, a long one ends the frame late.
+	/// </summary>
+	readonly Dictionary<int, double> recordedMs = new();
+
+	/// <summary>Shapes kept in <see cref="recordedMs"/> before it's emptied and learnt again.</summary>
+	const int RecordedShapesKept = 4096;
+
+	/// <summary>Milliseconds a draw of a segment's <see cref="Segment.Weight"/> is taken to cost before its shape was timed.</summary>
+	const double UntimedMsPerDraw = 0.003;
+
+	/// <summary>A worker segment's expected recording time: its shape's last times, or its draws' until it has some.</summary>
+	double ExpectedMs( in Segment segment ) => recordedMs.TryGetValue( segment.Shape, out var ms ) ? ms : segment.Weight * UntimedMsPerDraw;
+
+	/// <summary>Learn the worker segments' recording times by shape, for <see cref="ExpectedMs"/>.</summary>
+	internal void LearnRecordedMs()
+	{
+		if ( recordedMs.Count > RecordedShapesKept ) recordedMs.Clear();
+		for ( int i = 0; i < segmentCount; i++ )
+		{
+			ref var segment = ref segments[i];
+			if ( segment.OnMainThread ) continue;
+			recordedMs[segment.Shape] = recordedMs.TryGetValue( segment.Shape, out var ms ) ? (ms + segment.Ms) * 0.5 : segment.Ms;
+		}
+	}
 
 	/// <summary>
 	/// Whether workers record segments. Async GPU work may still use separate contexts without CPU workers.
@@ -715,15 +746,9 @@ internal sealed partial class FrameRecorder : IDisposable
 	/// <summary>Whether <see cref="BeginRecording"/> started a recording <see cref="EndRecording"/> hasn't joined yet.</summary>
 	public bool Recording { get; private set; }
 
-	/// <summary>
-	/// Run layer prerequisites, hand the workers their segments and record this thread's: what <see cref="Record"/> does
-	/// before it waits for the workers. <see cref="EndRecording"/> waits for them; until then this thread may do other work.
-	/// </summary>
-	public void BeginRecording()
+	/// <summary>Each segment's <see cref="Segment.Shape"/>: the frame's shape up to and including it.</summary>
+	internal void ShapeSegments()
 	{
-		for ( int l = 0; l < layerCount; l++ )
-			layers[l].Layer.BeforeSegments( layers[l].Frame, layers[l].Frame.System.FrameContext );
-
 		var shaped = GraphMeasure.Now();
 		using ( Zones.PlanShapes.Start() )
 		{
@@ -733,32 +758,68 @@ internal sealed partial class FrameRecorder : IDisposable
 		}
 
 		if ( GraphMeasure.Enabled ) GraphMeasure.AddShapes( GraphMeasure.Now() - shaped );
+	}
 
-		var start = Stopwatch.GetTimestamp();
+	/// <summary>
+	/// The order workers claim their segments in (<see cref="workerSegments"/>): the longest expected first, to balance
+	/// completion times. Submission order is unchanged. How many there are.
+	/// </summary>
+	internal int OrderClaims()
+	{
 		var workers = 0;
 		for ( int i = 0; i < segmentCount; i++ )
 			if ( Parallel && !segments[i].OnMainThread ) workers++;
 
-		if ( workerSegments.Length < workers ) Array.Resize( ref workerSegments, Math.Max( workers, workerSegments.Length * 2 ) );
+		if ( workerSegments.Length < workers )
+		{
+			Array.Resize( ref workerSegments, Math.Max( workers, workerSegments.Length * 2 ) );
+			Array.Resize( ref workerCosts, workerSegments.Length );
+		}
+
 		var claimable = 0;
 		for ( int i = 0; i < segmentCount && workers > 0; i++ )
-			if ( !segments[i].OnMainThread ) workerSegments[claimable++] = i;
+		{
+			if ( segments[i].OnMainThread ) continue;
+			workerCosts[claimable] = ExpectedMs( segments[i] );
+			workerSegments[claimable++] = i;
+		}
 
-		// Claim heaviest work first to balance completion times. Submission order is unchanged.
 		for ( int i = 1; i < claimable; i++ )
 		{
-			var slot = workerSegments[i];
+			var (slot, cost) = (workerSegments[i], workerCosts[i]);
 			var j = i - 1;
-			for ( ; j >= 0 && segments[workerSegments[j]].Weight < segments[slot].Weight; j-- )
-				workerSegments[j + 1] = workerSegments[j];
-			workerSegments[j + 1] = slot;
+			for ( ; j >= 0 && workerCosts[j] < cost; j-- )
+				(workerSegments[j + 1], workerCosts[j + 1]) = (workerSegments[j], workerCosts[j]);
+			(workerSegments[j + 1], workerCosts[j + 1]) = (slot, cost);
 		}
+
+		return workers;
+	}
+
+	/// <summary>The segments workers claim, in the order <see cref="OrderClaims"/> put them, for the tests.</summary>
+	internal ReadOnlySpan<int> Claims( int count ) => workerSegments.AsSpan( 0, count );
+
+	/// <summary>Take segment <paramref name="slot"/> to have recorded in <paramref name="ms"/>, for the tests.</summary>
+	internal void TimedForTests( int slot, double ms ) => segments[slot].Ms = ms;
+
+	/// <summary>
+	/// Run layer prerequisites, hand the workers their segments and record this thread's: what <see cref="Record"/> does
+	/// before it waits for the workers. <see cref="EndRecording"/> waits for them; until then this thread may do other work.
+	/// </summary>
+	public void BeginRecording()
+	{
+		for ( int l = 0; l < layerCount; l++ )
+			layers[l].Layer.BeforeSegments( layers[l].Frame, layers[l].Frame.System.FrameContext );
+
+		ShapeSegments();
+		var start = Stopwatch.GetTimestamp();
+		var workers = OrderClaims();
 
 		if ( segmentStates.Length < segmentCount ) segmentStates = new int[segments.Length];
 		Array.Clear( segmentStates, 0, segmentCount );
 		segmentFailed = false;
 
-		// Heaviest first, one at a time, on up to MaxRecordThreads workers beside this thread
+		// Longest expected first, one at a time, on up to MaxRecordThreads workers beside this thread
 		recording = JobDispatcher.Begin( workers, this, static ( recorder, claim ) => recorder.RecordClaimed( recorder.workerSegments[claim] ), itemsPerBatch: 1, maxDegreeOfParallelism: MaxRecordThreads + 1 );
 		recordStart = start;
 		mainDone = start;
@@ -818,6 +879,8 @@ internal sealed partial class FrameRecorder : IDisposable
 			RenderStats.AddCounts( ref segment.Frame.Recorded, segment.Stats );
 			if ( !segment.OnMainThread && Parallel ) stats.WorkerRecordMs += segment.Ms;
 		}
+
+		if ( Parallel ) LearnRecordedMs();
 
 		foreach ( var frame in frames )
 			stats.StagesMs += frame.StagesMs;

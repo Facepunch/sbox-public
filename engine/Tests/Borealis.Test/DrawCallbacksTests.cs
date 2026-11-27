@@ -132,6 +132,41 @@ public class DrawCallbacksTests
 	}
 
 	/// <summary>
+	/// Workers claim the segments they expect to take longest first: by draw count until a segment's shape has been timed,
+	/// then by how long it took, so one of few draws that recorded slowly (a GPU-driven run) isn't left to end the frame.
+	/// </summary>
+	[TestMethod]
+	public void WorkersClaimTheSegmentsThatTookLongestFirst()
+	{
+		var world = new RenderWorld();
+		for ( int i = 0; i < 400; i++ )
+			world.Add( new MeshObject( TestMesh( false ), new Transform( new Vector3( 30 + i % 20, i / 20 - 10, 0 ) ) ) );
+
+		using var system = new RenderSystem();
+		CollectAndPrepare( system, world, LookingDownX() );
+		using var recorder = new FrameRecorder();
+
+		int[] Claims()
+		{
+			recorder.Plan( system.Frame, parallel: true );
+			recorder.ShapeSegments();
+			return recorder.Claims( recorder.OrderClaims() ).ToArray();
+		}
+
+		var byDraws = Claims();
+		Assert.IsTrue( byDraws.Length > 2, $"workers record several segments ({byDraws.Length})" );
+
+		// The last claimed took longest: the same plan claims it first
+		var slow = byDraws[^1];
+		foreach ( var segment in byDraws ) recorder.TimedForTests( segment, segment == slow ? 5 : 0.01 );
+		recorder.LearnRecordedMs();
+
+		var byTime = Claims();
+		CollectionAssert.AreEquivalent( byDraws, byTime, "the same segments" );
+		Assert.AreEqual( slow, byTime[0], "the one that took longest is claimed first" );
+	}
+
+	/// <summary>
 	/// An opaque custom object that marks where it draws in the frame's log with a barrier on its own buffer.
 	/// </summary>
 	sealed class MarkingCustom : CustomObject
