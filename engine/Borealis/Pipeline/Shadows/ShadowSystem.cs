@@ -82,6 +82,9 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 	{
 		public ShadowMap Map;
 
+		/// <summary>The map's version once this system last drew it: one that moved since was drawn by another (<see cref="Shared"/>).</summary>
+		public ulong MapVersion;
+
 		/// <summary>
 		/// The view drew no casters: the map holds only what it started from, a clear or <see cref="Source"/> copied in.
 		/// </summary>
@@ -269,6 +272,7 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 			}
 
 			pass.TargetMap.Version++;
+			if ( cascade >= 0 ) cascadeContents[cascade].MapVersion = pass.TargetMap.Version;
 			drawn.Add( pass );
 		}
 	}
@@ -314,7 +318,7 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 
 		// A whole clear or copy with nothing drawn on top. Resident lists draw what the visible lists don't show
 		var plain = !pass.ClearShadowRegion && pass.TargetSlice == 0 && !HasCasters( pass ) && !system.DrawsResident( pass );
-		if ( plain && held.Map == map && held.Plain && held.Source == source
+		if ( plain && held.Map == map && held.MapVersion == map.Version && held.Plain && held.Source == source
 			&& (source is null || (held.SourceVersion == source.Version && held.Offset == pass.CacheOffset)) )
 			return true;
 
@@ -659,14 +663,32 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 	}
 
 	/// <summary>
-	/// Reuse one persistent target per cascade.
+	/// Reuse one persistent target per cascade: the shared set's (<see cref="Shared"/>) when this system may draw into it.
 	/// </summary>
-	public ShadowMap GetCascadeTarget( int cascade, int resolution ) => KeepTarget( ref cascadeTargets[cascade], resolution );
+	public ShadowMap GetCascadeTarget( int cascade, int resolution ) => KeepTarget( ref (SharedNow()?.Cascades ?? cascadeTargets)[cascade], resolution );
 
 	/// <summary>
-	/// Reuse one persistent target per extra sun.
+	/// Reuse one persistent target per extra sun: the shared set's (<see cref="Shared"/>) when this system may draw into it.
 	/// </summary>
-	public ShadowMap GetExtraSunTarget( int sun, int resolution ) => KeepTarget( ref extraSunTargets[sun], resolution );
+	public ShadowMap GetExtraSunTarget( int sun, int resolution ) => KeepTarget( ref (SharedNow()?.ExtraSuns ?? extraSunTargets)[sun], resolution );
+
+	/// <summary>
+	/// Sun cascade and extra sun targets this system draws into in turn with others (a cube capture's six faces, each a system of
+	/// its own, render one after another and read their cascades only in their own frame), rather than a set of its own each:
+	/// six sets of driver allocations and their memory. Null for its own.
+	/// </summary>
+	internal SharedShadowTargets Shared { get; set; }
+
+	/// <summary>
+	/// The shared targets, unless another system's shadows drawn into them aren't submitted yet: then this frame draws into its own.
+	/// </summary>
+	SharedShadowTargets SharedNow()
+	{
+		if ( Shared is not { } shared ) return null;
+		if ( shared.User is { } user && user != this && user.mapper.InFlight ) return null;
+		shared.User = this;
+		return shared;
+	}
 
 	static ShadowMap KeepTarget( ref ShadowMap target, int resolution )
 	{

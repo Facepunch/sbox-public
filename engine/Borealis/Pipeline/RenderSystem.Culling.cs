@@ -16,7 +16,12 @@ public sealed partial class RenderSystem
 		frame.World = world;
 		frame.View = view;
 		// Not in a view rendered while another render of the world is under way (a child view's): its frame reads them
-		if ( world.Rendering <= 1 ) world.ResolveAnimation();
+		if ( world.Rendering <= 1 )
+		{
+			using var animation = Zones.CollectAnimation.Start();
+			world.ResolveAnimation();
+		}
+
 		mainPass.Reset( features.Count );
 		mainPass.View = view;
 		mainPass.Root = view;
@@ -40,6 +45,7 @@ public sealed partial class RenderSystem
 		collectedResident = CollectSkipsResident && !reasons && frame.DebugViews == DebugViews.None && !occlusionWanted;
 		if ( collectedResident )
 		{
+			using var resident = Zones.CollectResident.Start();
 			transforms.World = world;
 			transforms.Clear();
 			mainPass.ResidentHolds = aggregates.CollectHolds( world, mainPass, transforms );
@@ -50,6 +56,7 @@ public sealed partial class RenderSystem
 		stats.ObjectsSizeCulled += rejected;
 		if ( reasons ) stats.ObjectsFrustumCulled += world.Count - candidates.Count;
 
+		using var cull = Zones.CollectCull.Start();
 		var typeFeatures = PrepareCullFeatures( world );
 		if ( ParallelRecording && candidates.Count >= MinParallelCullCandidates && JobDispatcher.MaxDegreeOfParallelism > 1 )
 			CullInChunks( world, mainPass, candidates, inTree, inFrustum, typeFeatures, ref stats );

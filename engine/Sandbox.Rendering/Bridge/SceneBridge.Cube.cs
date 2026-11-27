@@ -13,6 +13,12 @@ internal sealed partial class SceneBridge
 	/// </summary>
 	readonly CameraState[] captureFaces = new CameraState[6];
 
+	/// <summary>
+	/// The sun cascades the faces draw into in turn, rather than a set each: a face reads its cascades only in its own frame, and
+	/// six sets were six times the driver allocations (2-3 ms each) in the first frames each face renders after a load.
+	/// </summary>
+	Borealis.Shadows.SharedShadowTargets captureShadows;
+
 	/// <summary>The face target, copy and filter of captures of each size.</summary>
 	readonly Dictionary<int, CubeCapture> cubeCaptures = new();
 
@@ -240,7 +246,10 @@ internal sealed partial class SceneBridge
 		// The faces' render systems draw one world: what they keep from a frame (lists, plans, tables) is that world's, and kept
 		// across a map change (KeepCaptures) it would point at the last map's freed buffers
 		if ( captureWorld != camera.World ) FreeCaptureFaces( camera.World );
+		var made = captureFaces[i] is null;
+		using var zone = (made ? Borealis.Zones.CaptureFaceMade : Borealis.Zones.CaptureFace).Start();
 		var state = captureFaces[i] ??= new CameraState( camera );
+		state.System.ShadowMaps.Shared = captureShadows ??= new Borealis.Shadows.SharedShadowTargets();
 		state.System.ParallelRecording = parallel && RenderSystem.ParallelRecordingDefault;
 		lastCaptureFace = Application.FrameCount;
 		lastCaptureFaceTicks = System.Diagnostics.Stopwatch.GetTimestamp();
@@ -276,6 +285,9 @@ internal sealed partial class SceneBridge
 			captureFaces[i]?.Dispose();
 			captureFaces[i] = null;
 		}
+
+		captureShadows?.Dispose();
+		captureShadows = null;
 	}
 
 	/// <summary>

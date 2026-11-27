@@ -400,6 +400,49 @@ public class CascadeCacheTests
 	}
 
 	/// <summary>
+	/// Systems that share their cascade targets (a cube capture's faces) draw into the same maps, and one never keeps a cascade
+	/// that another drew over since it last drew it.
+	/// </summary>
+	[TestMethod]
+	public void SharedCascadesAreDrawnAgainAfterAnotherSystemDrewThem()
+	{
+		var empty = SunWorld();
+		var busy = SunWorld();
+		var mesh = new RenderMesh( new HeadlessMesh( "box" ), UnitBox, [[new RenderMesh.Draw( 0, 0, 0, 36, 24, 0, null )]] );
+		busy.Add( new MeshObject( mesh, new Transform( new Vector3( 40, 0, 0 ) ) ) { LocalBounds = new BBox( new Vector3( -20 ), new Vector3( 20 ) ) } );
+		var view = LookingDownX();
+		using var target = ViewTarget.Create( new Vector2Int( 64, 64 ) );
+		using var shared = new SharedShadowTargets();
+		using var a = new RenderSystem();
+		using var b = new RenderSystem();
+		a.ShadowMaps.Shared = shared;
+		b.ShadowMaps.Shared = shared;
+
+		void Frame( RenderSystem system, RenderWorld world )
+		{
+			RenderHost.Current.NextFrame();
+			system.Render( world, view, target );
+		}
+
+		static ViewPass Cascade0( RenderSystem system ) => system.ShadowMaps.Passes.ToArray().Single( p => p.View.Name == "CSM Cascade 0" );
+		static bool DrewCascade0( RenderSystem system ) => system.ShadowMaps.Drawn.ToArray().Any( p => p.View.Name == "CSM Cascade 0" );
+
+		Frame( a, empty );
+		Frame( a, empty );
+		Assert.IsFalse( DrewCascade0( a ), "kept while nothing else draws into it" );
+
+		Frame( b, busy );
+		Assert.AreSame( Cascade0( a ).TargetMap, Cascade0( b ).TargetMap, "one map for both" );
+		Assert.IsTrue( DrewCascade0( b ), "the other system draws its caster into it" );
+
+		Frame( a, empty );
+		Assert.IsTrue( DrewCascade0( a ), "so it's drawn again, not kept with the other's caster in it" );
+
+		Frame( a, empty );
+		Assert.IsFalse( DrewCascade0( a ), "then kept" );
+	}
+
+	/// <summary>
 	/// A caster's stamp comes from the settling clock's own count of frames, not the render host's: a caster added after other
 	/// frames have settled hasn't, whatever host or world it's in (a render host's frame count starts again at 0).
 	/// </summary>

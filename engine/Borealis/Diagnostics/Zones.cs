@@ -8,6 +8,13 @@ namespace Borealis;
 internal static class Zones
 {
 	public static readonly Zone Collect = new( "Borealis Collect", Color.Cyan );
+	public static readonly Zone CollectAnimation = new( "Borealis Collect Animation", Color.Cyan );
+	public static readonly Zone CollectResident = new( "Borealis Collect Resident", Color.Cyan );
+	public static readonly Zone ResidentLists = new( "Borealis Resident Lists", Color.Cyan );
+	public static readonly Zone ResidentRescan = new( "Borealis Resident Rescan", Color.Cyan );
+	public static readonly Zone CollectCull = new( "Borealis Collect Cull", Color.Cyan );
+	public static readonly Zone CaptureFaceMade = new( "Borealis Capture Face (system made)", Color.Blue );
+	public static readonly Zone CaptureFace = new( "Borealis Capture Face", Color.Blue );
 	public static readonly Zone Prepare = new( "Borealis Prepare", Color.Green );
 	public static readonly Zone MeshPrepare = new( "Borealis Mesh Prepare", Color.Green );
 	public static readonly Zone AggregatePrepare = new( "Borealis Aggregate Prepare", Color.Green );

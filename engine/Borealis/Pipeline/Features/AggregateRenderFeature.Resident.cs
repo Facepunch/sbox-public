@@ -1100,6 +1100,7 @@ internal sealed partial class AggregateRenderFeature
 	/// <summary>Find every aggregate of the world again, its tag class and its arguments' place.</summary>
 	void Rescan( RenderWorld world )
 	{
+		using var zone = Zones.ResidentRescan.Start();
 		residentWorld = world;
 		residentStructure = world.MeshStructure;
 		quietChanges = -1;
@@ -1339,6 +1340,7 @@ internal sealed partial class AggregateRenderFeature
 
 		if ( residentLists.TryGetValue( (casters, mask), out var list ) ) return list;
 
+		using var zone = Zones.ResidentLists.Start();
 		list = new ResidentList { Version = residentVersion };
 		listedVersion = residentVersion;
 		if ( list.Holds.Length < residentWorld.Count ) list.Holds = new bool[residentWorld.Count];
