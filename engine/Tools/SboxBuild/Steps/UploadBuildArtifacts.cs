@@ -70,6 +70,7 @@ internal class UploadBuildArtifacts
 		"**/*.csproj",
 		"**/*.codegen",
 		"**/.intermediate/**",
+		"**/.sbox/**",
 		"**/.vs/**",
 		"**/*.code-workspace",
 		"**/unittest/**",
