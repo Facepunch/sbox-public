@@ -168,14 +168,14 @@ public static class Application
 #endif
 
 	/// <summary>
-	/// Returns true if the microphone is currently listening
+	/// Returns true if the microphone is currently listening, for voice chat or speech recognition
 	/// </summary>
-	public static bool IsMicrophoneListening => VoiceManager.IsListening;
+	public static bool IsMicrophoneListening => VoiceManager.IsListening || Speech.Recognition.IsListening;
 
 	/// <summary>
 	/// Returns true if the microphone is currently listening and actually hearing/capturing sounds
 	/// </summary>
-	public static bool IsMicrophoneRecording => VoiceManager.IsRecording;
+	public static bool IsMicrophoneRecording => VoiceManager.IsRecording || Speech.Recognition.IsHearingSound;
 
 	/// <summary>
 	/// Is the game window in focus?
