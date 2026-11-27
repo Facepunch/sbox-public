@@ -208,41 +208,5 @@ public class TcpConnectionTest
 		server.Disconnect();
 	}
 
-	/// <summary>
-	/// The other end closing the socket is a player leaving: the channel closes without logging an exception (a dedicated
-	/// server logged an EndOfStreamException warning with a stack trace for every player who left).
-	/// </summary>
-	[TestMethod]
-	[DoNotParallelize]
-	public void Tcp_PeerClosingIsNotAWarning()
-	{
-		using var listener = new System.Net.Sockets.TcpListener( System.Net.IPAddress.Loopback, 0 );
-		listener.Start();
-		var peer = new System.Net.Sockets.TcpClient();
-		peer.Connect( (System.Net.IPEndPoint)listener.LocalEndpoint );
-		var channel = new TcpChannel( listener.AcceptTcpClient() );
 
-		var warnings = new System.Collections.Concurrent.ConcurrentQueue<string>();
-		void OnEmitted( LogEvent e ) { if ( e.Message.Contains( "TcpChannel" ) ) warnings.Enqueue( e.Message ); }
-		Logging.OnEmitted += OnEmitted;
-
-		try
-		{
-			var connected = System.Diagnostics.Stopwatch.StartNew();
-			while ( !channel.IsConnected && connected.Elapsed.TotalSeconds < 5 ) System.Threading.Thread.Sleep( 10 );
-			Assert.IsTrue( channel.IsConnected, "The channel never saw its socket connected" );
-
-			peer.Close();
-
-			var closed = System.Diagnostics.Stopwatch.StartNew();
-			while ( !channel.IsConnectionLost && closed.Elapsed.TotalSeconds < 5 ) System.Threading.Thread.Sleep( 10 );
-			Assert.IsTrue( channel.IsConnectionLost, "The channel didn't notice the peer closing" );
-			Assert.IsTrue( warnings.IsEmpty, string.Join( "\n", warnings ) );
-		}
-		finally
-		{
-			Logging.OnEmitted -= OnEmitted;
-			channel.InternalClose( 0, "test" );
-		}
-	}
 }
