@@ -18,6 +18,8 @@ MODES
 
 COMMON
 {
+	// Turns its back faces' normals itself, in MainPs
+	#define SBOX_TURNS_BACK_FACES
 	#include "common/shared.hlsl"
 }
 
@@ -33,9 +35,6 @@ struct VertexInput
 struct PixelInput
 {
 	#include "common/pixelinput.hlsl"
-	#if ( PROGRAM == VFX_PROGRAM_PS )
-		bool face : SV_IsFrontFace;
-	#endif
 };
 
 VS
