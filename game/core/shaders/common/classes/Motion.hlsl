@@ -3,8 +3,12 @@
 
 #include "common_samplers.fxc"
 
+// Each pixel's object motion in world space, zeros where unknown (borealis-gpu-driven.md, "Object motion from the ids")
+Texture2D g_tObjectMotion < Attribute( "BorealisObjectMotion" ); SrgbRead( false ); >;
+int g_nObjectMotion < Attribute( "BorealisObjectMotionOn" ); Default( 0 ); >;
+
 // Raw dog motion vectors, use this to get where the offset pixel you're fetching was on last frame
-// Right now this is limited to camera motion only, includes depth delta as well
+// Camera motion, plus objects' own where the ids know them; includes depth delta as well
 struct Motion
 {
     // Reprojects a world position to screen space using the last frame's depth buffer
@@ -16,16 +20,12 @@ struct Motion
     // Returns the motion position in Screen Space, for UV just multiply by inverse viewport size
     static float3 Get(float2 screenPosition)
     {
-
-        #ifndef ABSOLUTE_MOTION
-            // Too close eg Viewmodels, return the screen position as-is instead of reprojecting
-            // We could read the overlay stencil bit but that's super slow on AMD
-            if( Depth::GetLinear(screenPosition) <= 32 )
-                return float3(screenPosition,0);
-        #endif
-
         // Calculate world space position based on the previous projection
-        const float3 worldPos = Depth::GetWorldPosition( screenPosition );
+        float3 worldPos = Depth::GetWorldPosition( screenPosition );
+
+        // Where the point was last frame, if its object moved
+        if ( g_nObjectMotion != 0 )
+            worldPos += g_tObjectMotion.Load( int3( screenPosition, 0 ) ).xyz;
 
         // Reproject the world space position to screen space in the previous frame
         const float3 prevFramePosSs = Motion::GetFromWorldPosition( worldPos );

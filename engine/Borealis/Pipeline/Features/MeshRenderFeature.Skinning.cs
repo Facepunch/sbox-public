@@ -109,7 +109,7 @@ internal sealed partial class MeshRenderFeature
 				skinScratch[b] = Matrix3x4.Concat( world, skin.InverseBindPoses[b] );
 			}
 
-			var slot = transforms.AddSkinned( tint, skin.BlendWeightCount, skinScratch.AsSpan( 0, skin.BoneCount ) );
+			var slot = transforms.AddSkinned( obj, m, tint, skin.BlendWeightCount, skinScratch.AsSpan( 0, skin.BoneCount ) );
 			obj.SkinSlots[m] = slot;
 
 			// Deformation and morphs require compute skinning even with one weight.

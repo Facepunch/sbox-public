@@ -8,6 +8,7 @@ internal enum TransientTextureRole
 	ContactShadowMask,
 	DepthChain,
 	IdsNormals,
+	IdsObjectMotion,
 	IdsView,
 	OcclusionChain,
 	ReactiveDepth,
@@ -23,7 +24,7 @@ internal sealed class TransientTextures : IDisposable
 {
 	const int IdleRendersBeforeRelease = 8;
 
-	static readonly string[] labels = ["Bloom", "Bloom Depth", "Contact Shadow Mask", "Depth Chain", "Ids Normals", "Ids View", "Occlusion Chain", "Reactive Depth", "Refraction Stencil"];
+	static readonly string[] labels = ["Bloom", "Bloom Depth", "Contact Shadow Mask", "Depth Chain", "Ids Normals", "Ids Object Motion", "Ids View", "Occlusion Chain", "Reactive Depth", "Refraction Stencil"];
 
 	readonly record struct Shape( int Width, int Height, int Depth, TextureFormat Format, int Samples, int Mips,
 		bool RenderTarget, bool Cube, bool Storage, bool GenerateMips, bool SampledMultisampled )

@@ -132,9 +132,12 @@ struct GpuDrivenOutput
 GpuDrivenVariant( !S_ALPHA_TEST && !S_TRANSLUCENT );
 
 // Shadows cut alpha-tested surfaces at the material's reference; a depth prepass only where they're almost opaque, since
-// what the colour pass softens with alpha to coverage would show unshaded through the prepass
+// what the colour pass softens with alpha to coverage would show unshaded through the prepass. No rule ties it to S_ALPHA_TEST:
+// the prepass sets it for every draw, and a combo its rules forbid draws with every dynamic combo at 0
 DynamicCombo( D_ALPHA_TEST_CONSERVATIVE, 0..1, Sys( ALL ) );
-DynamicComboRule( Requires1( D_ALPHA_TEST_CONSERVATIVE, S_ALPHA_TEST ) );
+
+// A skinned draw in a GPU-driven id prepass writes its ids from a pixel stage, for the object motion (borealis-gpu-driven.md)
+DynamicCombo( D_BOREALIS_IDS, 0..1, Sys( ALL ) );
 DynamicCombo( D_DISABLE_TRANSLUCENT_CLIP, 0..1, Sys( ALL ) );
 DynamicComboRule( Requires1( D_DISABLE_TRANSLUCENT_CLIP, S_TRANSLUCENT ) );
 DynamicCombo( D_RENDER_BACKFACES, 0..1, Sys( ALL ) );
@@ -191,7 +194,7 @@ void DepthPixel( PS_INPUT i )
 }
 
 // Opaque depth has no pixel stage, for double-speed depth-only rendering
-#if ( S_TRANSLUCENT || S_ALPHA_TEST || D_OPAQUE_FADE )
+#if ( S_TRANSLUCENT || S_ALPHA_TEST || D_OPAQUE_FADE || D_BOREALIS_IDS )
 #if ( BOREALIS_GPU_DRIVEN )
 #include "borealis_gpu_driven.fxc"
 

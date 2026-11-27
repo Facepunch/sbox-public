@@ -434,10 +434,11 @@ internal abstract class GpuContext : IDisposable
 	/// <summary>
 	/// After <paramref name="view"/>'s depth prepass: the normal of each pixel's triangle, found from its id, into
 	/// <paramref name="target"/> (the viewport's size, RGBA16F storage: the world-space normal facing the camera and 1, or
-	/// zeros where a pixel has none), from <paramref name="depth"/>, the view's world to clip transform (before y is
+	/// zeros where a pixel has none) and its object motion into <paramref name="motion"/> (the same size and format, against
+	/// <paramref name="previousTransforms"/>), from <paramref name="depth"/>, the view's world to clip transform (before y is
 	/// negated), its viewport in the depth target and the depth range it draws into. False when it wrote nothing.
 	/// </summary>
-	internal virtual bool ResolveIdsNormals( object view, GpuTexture depth, GpuTexture target, in System.Numerics.Matrix4x4 worldToClip, Rect viewport, float minZ, float maxZ ) => false;
+	internal virtual bool ResolveIdsNormals( object view, GpuTexture depth, GpuTexture target, GpuTexture motion, GpuBuffer previousTransforms, in System.Numerics.Matrix4x4 worldToClip, Rect viewport, float minZ, float maxZ ) => false;
 
 	/// <summary>
 	/// A visibility ids view (<see cref="IdsViewLayer"/>): <paramref name="view"/>'s ids this frame as colours, by

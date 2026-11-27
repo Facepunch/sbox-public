@@ -241,7 +241,7 @@ public class SkinningTests : RenderGpuTest
 	}
 
 	/// <summary>A model-space bone (<c>matrix3x4_t</c> rows) as a transform.</summary>
-	static Transform ToTransform( Matrix3x4 m )
+	internal static Transform ToTransform( Matrix3x4 m )
 	{
 		var matrix = new System.Numerics.Matrix4x4(
 			m.Row0.x, m.Row1.x, m.Row2.x, 0,

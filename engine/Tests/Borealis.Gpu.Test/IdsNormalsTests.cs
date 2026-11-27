@@ -136,6 +136,169 @@ public class IdsNormalsTests : RenderGpuTest
 	}
 
 	/// <summary>
+	/// Object motion from the ids (<see cref="IdsNormalsLayer.LastMotion"/>): a turned box slid since last frame has the slide back
+	/// at every pixel, one that stayed has zeros with its object known, and the sky has none.
+	/// </summary>
+	[TestMethod]
+	public void MovedBoxesGetTheirOwnMotion()
+	{
+		MeshObject slider = null;
+		WithMotion( backend =>
+		{
+			var model = backend.LoadModel( "models/dev/box.vmdl" );
+			if ( model is null ) Assert.Inconclusive( "models/dev/box.vmdl isn't built" );
+			var draw = model.DrawsForLod( 0 ).ToArray().MaxBy( d => d.IndexCount ) with { Material = backend.CreateMaterial( "Object motion box", new Color( 0.6f, 0.6f, 0.6f ) ) };
+			var mesh = new RenderMesh( model.Geometry, model.Bounds, [[draw]] );
+			var scale = 90 / MathF.Max( MathF.Max( model.Bounds.Size.x, model.Bounds.Size.y ), model.Bounds.Size.z );
+
+			// Left of the view (+y) and right of it
+			var world = new RenderWorld();
+			world.Lighting.SunShadowCascades = 0;
+			world.Add( slider = new MeshObject( mesh, new Transform( new Vector3( 0, 120, 0 ), Rotation.From( 10, 25, 0 ), scale ) ) );
+			world.Add( new MeshObject( mesh, new Transform( new Vector3( 0, -120, 0 ), Rotation.From( 20, 40, 10 ), scale ) ) );
+			var view = new RenderView { Name = "Object motion test", FieldOfView = 70, ZNear = 4, ZFar = 4000, ClearColor = Color.Black, Viewport = new Rect( 0, 0, Width, Height ) };
+			view.Position = new Vector3( -480, 0, 120 );
+			view.Rotation = Rotation.LookAt( new Vector3( 480, 0, -120 ).Normal );
+			return (world, view);
+		}, frame =>
+		{
+			var slide = new Vector3( 0, 6, 0 );
+			slider.Transform = slider.Transform.WithPosition( slider.Transform.Position + slide );
+			var texels = Texels( frame() );
+			var slid = texels.Where( t => t.Known && t.X < Width / 2 ).ToArray();
+			var stayed = texels.Where( t => t.Known && t.X >= Width / 2 ).ToArray();
+
+			Assert.IsTrue( slid.Length > 1000 && stayed.Length > 1000, $"the boxes cover their halves ({slid.Length}, {stayed.Length})" );
+			Assert.IsTrue( slid.All( t => (t.Motion + slide).Length < 0.05f ), "the slid box's pixels move by the slide back" );
+			Assert.IsTrue( stayed.All( t => t.Motion.Length < 1e-3f ), "the still box's pixels don't move" );
+			Assert.IsTrue( texels.All( t => t.Known || t.Motion == Vector3.Zero ), "the sky has no motion" );
+		} );
+	}
+
+	/// <summary>
+	/// Skinned object motion from the ids, from each pixel's first vertex's bones this frame and last: the citizen's turned
+	/// skeleton slid as a whole gives every pixel the slide back (one-weight meshes posed in the vertex shader, many-weight ones
+	/// through the vertex cache); then only its head bone nudged moves only pixels near its top, each by up to the nudge back.
+	/// </summary>
+	[TestMethod]
+	public void SkinnedBonesGetTheirOwnMotion()
+	{
+		RenderMesh mesh = null;
+		MeshObject citizen = null;
+		Transform[] bindPose = null;
+		var pose = new Transform( Vector3.Zero, Rotation.FromYaw( 30 ) );
+		WithMotion( backend =>
+		{
+			mesh = backend.LoadModel( "models/citizen/citizen.vmdl" );
+			if ( mesh is null ) Assert.Inconclusive( "models/citizen/citizen.vmdl isn't built" );
+			bindPose = mesh.BindPose.Select( SkinningTests.ToTransform ).ToArray();
+			citizen = new MeshObject( mesh, Transform.Zero ) { LocalBounds = new BBox( mesh.Bounds.Mins - 200, mesh.Bounds.Maxs + 200 ) };
+			citizen.SetBones( bindPose.Select( b => pose.ToWorld( b ) ).ToArray() );
+
+			var world = new RenderWorld();
+			world.Lighting.SunShadowCascades = 0;
+			world.Add( citizen );
+			var view = new RenderView { Name = "Skinned motion test", FieldOfView = 50, ZNear = 4, ZFar = 2000, ClearColor = Color.Black, Viewport = new Rect( 0, 0, Width, Height ) };
+			view.Rotation = Rotation.From( 10, 180, 0 );
+			view.Position = mesh.Bounds.Center - view.Rotation.Forward * mesh.Bounds.Size.Length * 1.3f;
+			return (world, view);
+		}, frame =>
+		{
+			var slide = new Vector3( 0, 3, 1 );
+			var bones = bindPose.Select( b => pose.WithPosition( slide ).ToWorld( b ) ).ToArray();
+			citizen.SetBones( bones );
+			var texels = Texels( frame() ).Where( t => t.Known ).ToArray();
+			Assert.IsTrue( texels.Length > 2000, $"the citizen's pixels know their motion ({texels.Length})" );
+			Assert.IsTrue( texels.All( t => (t.Motion + slide).Length < 0.05f ), "each moved by the slide back" );
+
+			// The highest bone the skins weight: a wrong bone index would move the wrong pixels
+			var head = Enumerable.Range( 0, mesh.ModelMeshCount ).Select( m => mesh.SkinFor( m ) ).Where( s => s is not null ).SelectMany( s => s.MasterBones ).MaxBy( b => bindPose[b].Position.z );
+			var nudge = new Vector3( 0, 4, 0 );
+			bones[head] = bones[head].WithPosition( bones[head].Position + nudge );
+			citizen.SetBones( bones );
+			texels = Texels( frame() ).Where( t => t.Known ).ToArray();
+			var moved = texels.Where( t => t.Motion.Length >= 0.05f ).ToArray();
+			var (top, bottom) = (texels.Min( t => t.Y ), texels.Max( t => t.Y ));
+			bool Nudged( Vector3 m )
+			{
+				var along = -Vector3.Dot( m, nudge ) / nudge.LengthSquared;
+				return along is >= 0 and <= 1.01f && (m + nudge * along).Length < 0.05f;
+			}
+
+			Assert.IsTrue( moved.Length >= 20 && moved.Length * 2 < texels.Length, $"the head's pixels move and the rest stay ({moved.Length} of {texels.Length})" );
+			Assert.IsTrue( moved.All( t => Nudged( t.Motion ) ), "each moved back along the nudge by its weight" );
+			Assert.IsTrue( moved.Average( t => t.Y ) < top + (bottom - top) * 0.3f, $"the moved pixels are near the top (rows {top} to {bottom})" );
+		} );
+	}
+
+	/// <summary><c>Motion::Get</c>'s callers bind the object motion: <c>motion_vectors</c>, the upscalers' input, reads it.</summary>
+	[TestMethod]
+	public void MotionVectorsReadObjectMotion()
+	{
+		using var backend = new BackendDevice( Device );
+		using var drawer = new ShaderDrawer( backend );
+		var shader = backend.Shaders.Load( "shaders/motion_vectors.shader" );
+		if ( shader is null ) Assert.Inconclusive( "motion_vectors isn't built" );
+		var variant = drawer.Variant( shader, new ShaderAttributes() );
+		Assert.IsTrue( variant?.Resources.Any( r => r.Name == "BorealisObjectMotion" ) == true, "motion_vectors reads the object motion" );
+	}
+
+	/// <summary>
+	/// <paramref name="test"/> on the scene <paramref name="scene"/> makes, drawn GPU-driven with the ids resolved: it gets a function
+	/// that draws a frame and returns its object motion (RGBA16F texels), once the meshlets are published.
+	/// </summary>
+	void WithMotion( Func<BackendDevice, (RenderWorld World, RenderView View)> scene, Action<Func<byte[]>> test )
+	{
+		var core = ContentFiles.FindGame().Roots.FirstOrDefault();
+		if ( core is not null ) Borealis.Backend.Meshlets.MeshOptimizer.Directory = EngineFolders.NativeIn( Path.GetDirectoryName( core ) );
+
+		using var backend = new BackendDevice( Device ) { GpuDrivenGeometry = true, GpuDriven = true, GpuDrivenMeshes = true, GpuDrivenSkinned = true, GpuDrivenVisibility = true, Meshlets = true, IdsNormals = true };
+		GpuDrivenTests.RequireGpuDrivenDepth( backend );
+		if ( backend.IdsNormalsShader is null ) Assert.Inconclusive( "borealis_ids_normals_cs isn't built, or pass modules are off" );
+
+		var previousHost = RenderHost.Current;
+		RenderHost.Current = new BackendRenderHost( backend );
+		try
+		{
+			var (world, view) = scene( backend );
+			using var system = new RenderSystem { ParallelRecording = false };
+			using var target = ViewTarget.Create( new Vector2Int( Width, Height ), 1, TextureFormat.RGBA16161616F, TextureFormat.D32FS8, "Object motion test" );
+			byte[] Frame()
+			{
+				backend.BeginFrame();
+				RenderHost.Current.NextFrame();
+				system.Render( world, view, target );
+				Device.WaitIdle();
+				if ( system.Layers.OfType<IdsNormalsLayer>().First().LastMotion is not { } motion ) return null;
+				var (texture, layout) = BackendDevice.Unwrap( motion );
+				var pixels = ReadBack( texture, layout );
+				BackendDevice.SetLayout( motion, ImageLayout.CopySource );
+				return pixels;
+			}
+
+			for ( int i = 0; i < 300 && (i < 4 || backend.MeshletStore is { Pending: > 0 }); i++ )
+			{
+				Frame();
+				if ( backend.MeshletStore is { Pending: > 0 } ) Thread.Sleep( 10 );
+			}
+
+			test( () => Frame() ?? throw new AssertFailedException( "the layer resolved the ids" ) );
+		}
+		finally
+		{
+			Device.WaitIdle();
+			RenderHost.Current = previousHost;
+		}
+	}
+
+	/// <summary>The object motion's texels: where each is, its world motion, and whether its object's last frame was known.</summary>
+	static (int X, int Y, Vector3 Motion, bool Known)[] Texels( byte[] motion ) => Enumerable.Range( 0, Width * Height ).Select( i =>
+	{
+		float Half( int c ) => (float)BitConverter.ToHalf( motion, i * 8 + c * 2 );
+		return (i % Width, i / Width, new Vector3( Half( 0 ), Half( 1 ), Half( 2 ) ), Half( 3 ) > 0);
+	} ).ToArray();
+
+	/// <summary>
 	/// The ids' readers declare their image with an unknown format: the ids target is <c>R32_UINT</c> without normals from the
 	/// ids and <c>R32G32_UINT</c> with them, and an image typed with a format (Slang types a <c>uint2</c> texture
 	/// <c>Rg32ui</c>) reads undefined values through a view of another.

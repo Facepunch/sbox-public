@@ -51,9 +51,9 @@ internal sealed partial class BackendContext
 	};
 
 	/// <inheritdoc/>
-	internal override bool ResolveIdsNormals( object view, GpuTexture depth, GpuTexture target, in System.Numerics.Matrix4x4 worldToClip, Rect viewport, float minZ, float maxZ )
+	internal override bool ResolveIdsNormals( object view, GpuTexture depth, GpuTexture target, GpuTexture motion, GpuBuffer previousTransforms, in System.Numerics.Matrix4x4 worldToClip, Rect viewport, float minZ, float maxZ )
 	{
-		if ( recording is null || depth is not BackendTexture depthTexture || target is not BackendTexture output ) return false;
+		if ( recording is null || depth is not BackendTexture depthTexture || target is not BackendTexture output || motion is not BackendTexture motionOutput || previousTransforms?.Resource is not BackendBuffer previous ) return false;
 		if ( !device.ResolvesIdsNormals || device.ExistingVisibility( view ) is not { } visibility || !IdsNormalsReady( visibility ) )
 		{
 			System.Threading.Interlocked.Increment( ref device.IdsNormalsSkipped );
@@ -74,6 +74,7 @@ internal sealed partial class BackendContext
 		// (written by transfers) after their writers
 		Barrier( depthTexture, ImageLayout.ShaderRead );
 		Barrier( output, ImageLayout.General );
+		Barrier( motionOutput, ImageLayout.General );
 		r.List.Barrier( PipelineStage.ColorTargetOutput | PipelineStage.ComputeShader | PipelineStage.Transfer, MemoryAccess.ColorTargetWrite | MemoryAccess.ShaderWrite | MemoryAccess.TransferWrite, PipelineStage.ComputeShader, MemoryAccess.ShaderRead );
 
 		var (width, height) = ((int)viewport.Width, (int)viewport.Height);
@@ -102,7 +103,9 @@ internal sealed partial class BackendContext
 		attributes.Set( "BorealisIdsDepth", depthTexture.Handle );
 		attributes.Set( "BorealisIdsCalls", visibility.IdsCalls );
 		attributes.Set( "BorealisIdsNormalsOut", output.Handle );
+		attributes.Set( "BorealisObjectMotionOut", motionOutput.Handle );
 		attributes.Set( "g_TransformBuffer", LentInstances.Transforms );
+		attributes.Set( "BorealisPrevTransformBuffer", previous.Handle );
 		attributes.SetCombo( "D_MSAA", visibility.Samples > 1 ? 1 : 0 );
 		attributes.SetData( "BorealisIdsNormals_t", idsNormalsConstants );
 		idsNormalsTables ??= new byte[Marshal.SizeOf<GpuDrivenConstants>()];

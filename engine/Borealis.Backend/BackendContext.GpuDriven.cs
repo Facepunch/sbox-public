@@ -337,6 +337,10 @@ internal sealed partial class BackendContext
 			var gpuCull = device.GpuDrivenCulling && cull.HasValue && CullShader is not null;
 			var vertexCache = (attributes.GetCombo( VertexAnimationCombo ) ?? 0) != 0;
 			int? vertexCacheWas = null;
+
+			// An id prepass the ids resolve reads: skinned depth draws write their ids with depth_only's pixel stage (D_BOREALIS_IDS)
+			var skinnedIds = device.ResolvesIdsNormals && cull is { Ids: true, View: not null } && r.Color is null;
+			var idsCombo = false;
 			ShaderParameters lastAttributes = null, lastOwn = null;
 			var lastAttributesSet = false;
 			var lastLighting = 0u;
@@ -431,6 +435,8 @@ internal sealed partial class BackendContext
 					attributes.SetCombo( VertexAnimationCombo, vertexCache ? 1 : 0 );
 				}
 
+				if ( skinnedIds && batch.Skinned != idsCombo ) attributes.SetCombo( BorealisIdsCombo, (idsCombo = batch.Skinned) ? 1 : 0 );
+
 				SetObjectAttributes( batch.OwnAttributes, batch.ObjectAttributes );
 				NextPassState( cache );
 				var mode = CachedModeName( shader, shaderMode );
@@ -472,7 +478,7 @@ internal sealed partial class BackendContext
 				}
 
 				var noColor = batch.StripPixelShader || r.Color is null;
-				var depthOnly = StripsPixelShader( m, variant, noColor, batch.StripPixelShader, LookupCombo( OpaqueFadeCombo ) is > 0 );
+				var depthOnly = StripsPixelShader( m, variant, noColor, batch.StripPixelShader, LookupCombo( OpaqueFadeCombo ) is > 0 || idsCombo && variant.Pixel is { Bytecode: not null, GpuDriven: true } );
 				if ( !depthOnly && variant.Pixel?.Bytecode is null )
 				{
 					LeftClassic( shader, mode, "no pixel variant" );
@@ -500,6 +506,7 @@ internal sealed partial class BackendContext
 			}
 
 			if ( vertexCacheWas is { } was ) attributes.SetCombo( VertexAnimationCombo, was );
+			if ( idsCombo ) attributes.SetCombo( BorealisIdsCombo, 0 );
 			SetObjectAttributes( null );
 			if ( plan is null && prefix == batches.Length ) prefixBuckets = gpuDrivenBucketCount;
 			if ( gpuDrivenBucketCount == 0 ) return true;
@@ -655,6 +662,7 @@ internal sealed partial class BackendContext
 	}
 
 	static readonly StringToken VertexAnimationCombo = new( "D_CS_VERTEX_ANIMATION" );
+	static readonly StringToken BorealisIdsCombo = new( "D_BOREALIS_IDS" );
 
 	/// <summary>The GPU-driven constants with the tables' slots as they are now.</summary>
 	void SetTableSlots( GpuDrivenTables tables, int frameSlot, uint vertexBases )

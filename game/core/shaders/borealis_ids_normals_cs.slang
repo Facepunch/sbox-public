@@ -40,6 +40,10 @@ ByteAddressBuffer g_Calls < Attribute( "BorealisIdsCalls" ); >;
 // zeros where the pixel has none (no id, no table, or a triangle that isn't at its depth)
 RWTexture2D<float4> g_Out < Attribute( "BorealisIdsNormalsOut" ); >;
 
+// Object motion, a texel per pixel of the viewport (ObjectMotion), and last frame's transforms (TransformBuffer.Previous)
+RWTexture2D<float4> g_OutMotion < Attribute( "BorealisObjectMotionOut" ); >;
+StructuredBuffer< TransformBufferData_t > g_PrevTransformData < Attribute( "BorealisPrevTransformBuffer" ); >;
+
 // Constants: the float members are g_n-named too, as the backend's checker reads one prefix
 cbuffer BorealisIdsNormals_t
 {
@@ -80,12 +84,65 @@ float3 ClipToWorld( float2 vNdc, float flZ )
 	return vWorld.xyz / vWorld.w;
 }
 
+// A world point in the space of an affine object to world transform: the cofactors are the inverse's columns
+float3 WorldToObject( float3x4 m, float3 vPoint )
+{
+	float3x3 r = (float3x3)m;
+	float3 d = vPoint - float3( m[0].w, m[1].w, m[2].w );
+	float3 c0 = cross( r[1], r[2] ), c1 = cross( r[2], r[0] ), c2 = cross( r[0], r[1] );
+	return ( c0 * d.x + c1 * d.y + c2 * d.z ) / dot( r[0], c0 );
+}
+
+// Where the pixel's point was last frame less where it is, in world space, and 1; zeros where its object's last frame isn't
+// known, which Motion::Get leaves to the camera's motion. The point goes into object space (or the bind pose) by this frame's
+// transform (or its first vertex's bones, blended as skinning blends them) and out by last frame's. A kept rigid slot holds
+// the frame it got its owner in m_nVertexCacheOffset, the same in both buffers while it's the same object; a skinned base
+// entry holds its mesh's base slot last frame plus 1 in Row2.w (TransformBuffer)
+float4 ObjectMotion( TransformBufferData_t current, uint2 vInstance, uint nVertex, float3 vPoint )
+{
+	float3x4 matCurrent = current.transform, matPrevious = 0;
+	uint nWeights = current.m_nBlendWeightCount;
+	if ( nWeights == 0 )
+	{
+		// Last frame's buffer may be smaller: a slot past it is new this frame
+		uint nSlots, nStride;
+		g_PrevTransformData.GetDimensions( nSlots, nStride );
+		TransformBufferData_t previous = g_PrevTransformData[ min( vInstance.x, nSlots - 1 ) ];
+		if ( vInstance.x >= nSlots || current.m_nVertexCacheOffset == 0 || previous.m_nVertexCacheOffset != current.m_nVertexCacheOffset || previous.m_nBlendWeightCount != 0 )
+			return 0;
+
+		matPrevious = previous.transform;
+	}
+	else
+	{
+		uint nPrevious = uint( current.transform[2].w ) - 1;
+		if ( nPrevious == None || nVertex == None )
+			return 0;
+
+		// BLENDINDICES (usage 2) and BLENDWEIGHT (usage 1); one weight is all the first bone's
+		uint4 vDraw = BorealisGpuDrivenDraw( vInstance.y );
+		uint4 vBones = BorealisGpuDrivenFetch( vDraw.x, 32, nVertex, false );
+		float4 vWeights = nWeights == 1 ? float4( 1, 0, 0, 0 ) : asfloat( BorealisGpuDrivenFetch( vDraw.x, 16, nVertex, true ) );
+		matCurrent = 0;
+		for ( uint k = 0; k < min( nWeights, 4u ); k++ )
+		{
+			matCurrent += vWeights[k] * g_TransformData[ vInstance.x + 2 + vBones[k] ].transform;
+			matPrevious += vWeights[k] * g_PrevTransformData[ nPrevious + 2 + vBones[k] ].transform;
+		}
+	}
+
+	return float4( mul( matPrevious, float4( WorldToObject( matCurrent, vPoint ), 1.0 ) ) - vPoint, 1.0 );
+}
+
+// The pixel's object motion, which Resolve finds once it knows the pixel's object
+static float4 s_vMotion;
+
 // The normal of the pixel's triangle and 1, or zeros. The id names its instance record (in a call's region of a frame chunk)
 // and its triangle's first corner: the call's fragment words give the vertex, the draw record its range, the range's
 // first-corner table its triangles, and of those the one sample 0's ray meets at its depth is the pixel's
 float4 Resolve( uint2 vPixel, uint2 vId, float flDepth )
 {
-	if ( vId.x == 0 || vId.y == 0 || vId.y == None || g_nIdsCorners == None )
+	if ( vId.x == 0 || vId.y == 0 || vId.y == None )
 		return 0;
 
 	uint nChunk = vId.y >> 22;
@@ -114,13 +171,19 @@ float4 Resolve( uint2 vPixel, uint2 vId, float flDepth )
 	uint2 vInstance = chunk.Load2( nInstance * 8 );
 	vInstance.x &= 0xffffffu; // the top byte is a LOD fade's (sbox/lod_fade.slangh)
 	uint nBase = chunk.Load( vCall.w + nInstance * 4 );
-	if ( nBase == None || g_TransformData[ vInstance.x ].m_nBlendWeightCount > 0 )
+	uint nVertex = nBase == None ? None : ( vId.x - 1 ) - nBase;
+
+	// Sample 0's ray, from the near plane (reverse-Z: 1) to its depth, in the view's depth range
+	float2 vSample = ( float2( vPixel ) + g_nIdsSample.zw ) / float2( g_nIdsWidth, g_nIdsHeight );
+	float2 vNdc = float2( vSample.x * 2.0 - 1.0, 1.0 - vSample.y * 2.0 );
+	float flZ = ( flDepth - g_nIdsSample.x ) / max( g_nIdsSample.y - g_nIdsSample.x, 1e-6 );
+	s_vMotion = ObjectMotion( g_TransformData[ vInstance.x ], vInstance, nVertex, ClipToWorld( vNdc, flZ ) );
+	if ( nVertex == None || g_nIdsCorners == None || g_TransformData[ vInstance.x ].m_nBlendWeightCount > 0 )
 		return 0;
 
 	// The draw: geometry record and flags, then first index, index count, base vertex and index page
 	uint4 vDraw = BorealisGpuDrivenDraw( vInstance.y );
 	uint4 vRange = g_bindless_VertexBuffers[ g_nBorealisDraws ].Load4( vInstance.y * 32 + 16 );
-	uint nVertex = ( vId.x - 1 ) - nBase;
 
 	// Its range's triangles whose first corner is the vertex: the corner run (data slot + 1, table, lowest value, values)
 	uint4 vCorners = g_bindless_VertexBuffers[ g_nIdsCorners ].Load4( vInstance.y * 16 );
@@ -132,10 +195,6 @@ float4 Resolve( uint2 vPixel, uint2 vId, float flDepth )
 	uint2 vRun = data.Load2( vCorners.y + nValue * 4 );
 	uint nTrianglesAt = vCorners.y + ( vCorners.w + 1 ) * 4;
 
-	// Sample 0's ray, from the near plane (reverse-Z: 1) to its depth, in the view's depth range
-	float2 vSample = ( float2( vPixel ) + g_nIdsSample.zw ) / float2( g_nIdsWidth, g_nIdsHeight );
-	float2 vNdc = float2( vSample.x * 2.0 - 1.0, 1.0 - vSample.y * 2.0 );
-	float flZ = ( flDepth - g_nIdsSample.x ) / max( g_nIdsSample.y - g_nIdsSample.x, 1e-6 );
 	float3 vNear = ClipToWorld( vNdc, 1.0 );
 	float3 vRay = ClipToWorld( vNdc, flZ ) - vNear;
 
@@ -202,7 +261,9 @@ float4 Resolve( uint2 vPixel, uint2 vId, float flDepth )
 		float flDepth = g_tDepth.Load( int3( vAt, 0 ) );
 	#endif
 
+	s_vMotion = 0;
 	g_Out[vThreadId.xy] = Resolve( vThreadId.xy, vId, flDepth );
+	g_OutMotion[vThreadId.xy] = s_vMotion;
 }
 
 #endif // CS

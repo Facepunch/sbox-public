@@ -265,7 +265,7 @@ public class WorkTests
 				var slot = transforms.SlotOf( obj );
 				if ( slot < 0 ) continue;
 
-				Assert.AreEqual( TransformBuffer.MakeEntry( world.LocalToWorld[obj.Index], ((MeshObject)obj).Tint ), entries[slot], $"frame {frame}, object {obj.Index}" );
+				Assert.AreEqual( TransformBuffer.MakeEntry( world.LocalToWorld[obj.Index], ((MeshObject)obj).Tint ), entries[slot] with { VertexCacheOffset = 0 }, $"frame {frame}, object {obj.Index}" );
 				drawn++;
 			}
 
@@ -344,7 +344,7 @@ public class WorkTests
 					var fragment = aggregate.Fragments[i];
 					var tint = new Color( aggregate.Tint.r * fragment.DrawTint.x, aggregate.Tint.g * fragment.DrawTint.y, aggregate.Tint.b * fragment.DrawTint.z, aggregate.Tint.a );
 					var expected = new TransformBuffer.Entry { Row0 = fragment.Transform.Row0, Row1 = fragment.Transform.Row1, Row2 = fragment.Transform.Row2, Alpha = tint.a, TintRgb888 = TransformBuffer.PackRgb888( tint ) };
-					Assert.AreEqual( expected, entries[transforms.InstanceSlot( firstInstance + i )], $"frame {frame}, aggregate {obj.Index}, fragment {i}" );
+					Assert.AreEqual( expected, entries[transforms.InstanceSlot( firstInstance + i )] with { VertexCacheOffset = 0 }, $"frame {frame}, aggregate {obj.Index}, fragment {i}" );
 				}
 
 				drawn++;

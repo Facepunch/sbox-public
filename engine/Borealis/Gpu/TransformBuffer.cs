@@ -28,6 +28,8 @@ internal sealed class TransformBuffer : IDisposable
 		public Vector4 Row2;
 		public float Alpha;
 		public uint TintRgb888;
+
+		/// <summary>A skinned base entry's first vertex in the vertex cache; a kept rigid entry's frame it got its owner (<see cref="Previous"/>).</summary>
 		public uint VertexCacheOffset;
 
 		/// <summary>
@@ -76,6 +78,12 @@ internal sealed class TransformBuffer : IDisposable
 	/// The buffer this frame's entries went into, after <see cref="Upload"/>.
 	/// </summary>
 	public GpuBuffer<Entry> Current { get; private set; }
+
+	/// <summary>
+	/// Last frame's buffer, or null: kept slots hold the same object in both while their owner stamps agree
+	/// (<see cref="Entry.VertexCacheOffset"/>), and skinned base entries name theirs (<see cref="AddSkinned"/>).
+	/// </summary>
+	public GpuBuffer<Entry> Previous { get; private set; }
 
 	/// <summary>
 	/// Globally unique frame generation, preventing slot reuse across cameras' buffers.
@@ -199,6 +207,7 @@ internal sealed class TransformBuffer : IDisposable
 		slot = free[--freeCount];
 		owners[slot] = obj;
 		used[slot] = frame;
+		kept[slot].VertexCacheOffset = (uint)frame;
 		keep = (slot, version);
 		Write( slot, m, obj.Tint );
 		return slot;
@@ -206,7 +215,7 @@ internal sealed class TransformBuffer : IDisposable
 
 	void Write( int slot, in Matrix m, Color tint )
 	{
-		kept[slot] = MakeEntry( m, tint );
+		kept[slot] = MakeEntry( m, tint ) with { VertexCacheOffset = kept[slot].VertexCacheOffset };
 		dirty[frame % FramesInFlight].Add( slot );
 		KeptWrites++;
 	}
@@ -242,7 +251,7 @@ internal sealed class TransformBuffer : IDisposable
 	/// <summary>Write a kept entry of a run from a transform in native's row layout and a tint.</summary>
 	public void WriteKept( int slot, in Matrix3x4 m, Color tint )
 	{
-		kept[slot] = new Entry { Row0 = m.Row0, Row1 = m.Row1, Row2 = m.Row2, Alpha = tint.a, TintRgb888 = PackRgb888( tint ) };
+		kept[slot] = new Entry { Row0 = m.Row0, Row1 = m.Row1, Row2 = m.Row2, Alpha = tint.a, TintRgb888 = PackRgb888( tint ), VertexCacheOffset = kept[slot].VertexCacheOffset };
 		dirty[frame % FramesInFlight].Add( slot );
 		KeptWrites++;
 	}
@@ -284,6 +293,7 @@ internal sealed class TransformBuffer : IDisposable
 			{
 				owners[start + i] = owner;
 				runs[start + i] = i == 0 ? count : -1;
+				kept[start + i].VertexCacheOffset = (uint)frame;
 			}
 
 			used[start] = frame;
@@ -334,6 +344,9 @@ internal sealed class TransformBuffer : IDisposable
 			owners[slot] = null;
 			free[freeCount++] = slot;
 		}
+
+		for ( int i = 0; i < skins.Length; i++ )
+			if ( skins[i].Owner is not null && frame - skins[i].Frame >= SlotLifetime ) skins[i] = default;
 	}
 
 	/// <summary>
@@ -524,11 +537,17 @@ internal sealed class TransformBuffer : IDisposable
 		};
 	}
 
+	/// <summary>A skinned object's base slots plus 1 by model mesh, each with the frame it was written, and the last of those.</summary>
+	record struct Skin( MeshObject Owner, RenderMesh Mesh, int Frame, (int Frame, int Slot)[] Meshes );
+
+	/// <summary>Skinned objects' base slots, by world index.</summary>
+	Skin[] skins = [];
+
 	/// <summary>
-	/// Append base, morph and bone frame entries; return the base slot
-	/// (<c>CAnimatableSceneObjectDesc::AllocateTransforms</c>, <c>SetupBones</c>). Vertex-cache offset is assigned later.
+	/// Append base, morph and bone frame entries for <paramref name="owner"/>'s model mesh <paramref name="mesh"/>; return the
+	/// base slot (<c>CAnimatableSceneObjectDesc::AllocateTransforms</c>, <c>SetupBones</c>). Vertex-cache offset is assigned later.
 	/// </summary>
-	public int AddSkinned( Color tint, int blendWeights, ReadOnlySpan<Matrix3x4> bones )
+	public int AddSkinned( MeshObject owner, int mesh, Color tint, int blendWeights, ReadOnlySpan<Matrix3x4> bones )
 	{
 		var count = 2 + bones.Length;
 		while ( Count + count > entries.Length ) Array.Resize( ref entries, entries.Length * 2 );
@@ -537,8 +556,9 @@ internal sealed class TransformBuffer : IDisposable
 		ref var first = ref entries[local];
 		first = default;
 
-		// Match native's base-entry animation fields.
+		// Match native's base-entry animation fields; Row2.w, which no shader reads, is the mesh's base slot last frame plus 1
 		first.Row0 = new( 0, 0, 1, 1 );
+		first.Row2.w = LastSkinSlot( owner, mesh, FrameBase + local );
 		first.Alpha = tint.a;
 		first.TintRgb888 = PackRgb888( tint );
 		first.VertexCacheOffset = uint.MaxValue;
@@ -567,6 +587,20 @@ internal sealed class TransformBuffer : IDisposable
 
 		Count += count;
 		return FrameBase + local;
+	}
+
+	/// <summary>Note <paramref name="slot"/> as the owner's mesh's base slot this frame; its base slot last frame plus 1, or 0.</summary>
+	int LastSkinSlot( MeshObject owner, int mesh, int slot )
+	{
+		var index = IndexOf( owner );
+		if ( (uint)index >= (uint)skins.Length ) Array.Resize( ref skins, Math.Max( index + 1, skins.Length * 2 ) );
+
+		ref var skin = ref skins[index];
+		if ( skin.Owner != owner || skin.Mesh != owner.Mesh ) skin = new( owner, owner.Mesh, frame, new (int, int)[owner.Mesh.ModelMeshCount] );
+		ref var last = ref skin.Meshes[mesh];
+		var previous = last.Frame == frame - 1 ? last.Slot : 0;
+		(last, skin.Frame) = ((frame, slot + 1), frame);
+		return previous;
 	}
 
 	/// <summary>
@@ -610,6 +644,7 @@ internal sealed class TransformBuffer : IDisposable
 	/// </summary>
 	public void Upload( GpuContext context )
 	{
+		Previous = bufferFrames[ring] == frame - 1 ? Current : null;
 		ring = (ring + 1) % FramesInFlight;
 		ref var buffer = ref buffers[ring];
 
@@ -706,7 +741,7 @@ internal sealed class TransformBuffer : IDisposable
 			buffers[i] = null;
 		}
 
-		Current = null;
+		Current = Previous = null;
 		idRing.Dispose();
 	}
 }
