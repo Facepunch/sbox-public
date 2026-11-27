@@ -189,6 +189,10 @@ internal static class ShaderUpgrade
 		if ( outdated.Length == 0 )
 			return;
 
+		// A device that draws them from the source embedded in each compiles them itself, on workers, without holding the mount
+		if ( RenderBackend.CompilePackageShadersOnDefault( packageTitle, outdated.Select( x => x.AbsolutePath ).ToArray() ) )
+			return;
+
 		// Compiling goes through native shader objects
 		await MainThread.Wait();
 		await gate.WaitAsync( token );

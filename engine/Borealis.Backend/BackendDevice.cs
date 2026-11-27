@@ -608,6 +608,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 		Shaders = new ShaderLibrary( gpu, Content );
 		Passes = new PassModules( this );
 		Shaders.Modules = Passes;
+		Shaders.IsVfxSource = Sandbox.ShaderCompiler.ShaderFormat.IsVfxSourceFile;
 		SlangPasses = SlangPassesByDefault;
 		CompileGpuDrivenWithShaderCompiler();
 		Defaults = new ShaderDefaults( gpu );

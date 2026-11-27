@@ -2216,6 +2216,22 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		}
 	}
 
+	/// <summary>
+	/// A package's outdated shaders draw from modules made from their embedded source (<see cref="PassModules.FromEmbeddedSource"/>):
+	/// their first stages start compiling now, on the compile threads, and the files aren't recompiled through vfx.
+	/// </summary>
+	public override bool CompilePackageShaders( string package, IReadOnlyList<string> files )
+	{
+		if ( !services.Passes.FromEmbeddedSource ) return false;
+
+		_ = services.Passes.CompileMounted( package, files ).ContinueWith( t =>
+		{
+			if ( t.IsFaulted ) Log.Warning( t.Exception, $"Borealis.Gpu: {package}: compiling its shaders on mount failed: {t.Exception?.InnerException?.Message}" );
+			else if ( t.Result is { Modules: > 0 } r ) Log.Info( $"Borealis.Gpu: {package}: compiled {r.Stages - r.Failed} of {r.Stages} stages of {r.Modules} package shaders on mount in {r.Elapsed.TotalSeconds:F1} s{(r.Failed > 0 ? $", {r.Failed} failed" : "")}{(r.NoModule > 0 ? $", {r.NoModule} without a module" : "")}" );
+		}, System.Threading.Tasks.TaskScheduler.Default );
+		return true;
+	}
+
 	/// <summary>Learn the attribute and combo names a shader reads, so tokens can be turned back into them.</summary>
 	ShaderFile AddNames( ShaderFile shader )
 	{

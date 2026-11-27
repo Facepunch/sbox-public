@@ -36,7 +36,7 @@ internal class SlangMaterialCompiler : ResourceCompiler
 		// A name standing for another shader (complex for standard) compiles as that one's material
 		shader = standsFor;
 		var relative = Context.RelativePath.Replace( '\\', '/' );
-		Context.AddCompileReference( Path.ChangeExtension( shader, ".slang" ) );
+		Context.AddCompileReference( modulePath.EndsWith( ".shader", StringComparison.OrdinalIgnoreCase ) ? shader : Path.ChangeExtension( shader, ".slang" ) );
 
 		var module = Module( modulePath, roots );
 		var inputs = Inputs( module, material.Features );
@@ -128,9 +128,9 @@ internal class SlangMaterialCompiler : ResourceCompiler
 	static (string Path, string Shader)? ModuleOnly( string shader, List<string> roots )
 	{
 		var standsFor = ShaderAliases.Resolve( shader );
-		if ( roots.Exists( r => File.Exists( Path.Combine( r, shader ) ) || File.Exists( Path.Combine( r, standsFor ) ) ) ) return null;
-		var stem = standsFor[..^".shader".Length];
-		return roots.Select( r => Path.Combine( r, stem + ".slang" ) ).FirstOrDefault( File.Exists ) is { } path ? (path, standsFor) : null;
+		// A .shader in the way is a VFX source; a Slang one (told by content, ShaderFormat) is the module itself
+		if ( roots.Exists( r => ShaderFormat.IsVfxSourceFile( Path.Combine( r, shader ) ) || ShaderFormat.IsVfxSourceFile( Path.Combine( r, standsFor ) ) ) ) return null;
+		return roots.Select( r => ShaderFormat.SlangSourceBeside( Path.Combine( r, standsFor ) ) ).FirstOrDefault( p => p is not null ) is { } path ? (path, standsFor) : null;
 	}
 
 	static readonly Dictionary<string, (DateTime Written, PassModule Module)> modules = new( StringComparer.OrdinalIgnoreCase );

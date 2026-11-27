@@ -58,6 +58,51 @@ public class EmbeddedSourceTests : GpuTest
 	}
 
 	/// <summary>
+	/// A package's outdated shaders compile as it mounts (<see cref="PassModules.CompileMounted"/>): each mode's first stages,
+	/// on the compile threads, so the first draw finds them made and compiles nothing; a shader whose source doesn't compile
+	/// is told once, by package, and a file that isn't outdated or has no source is left alone.
+	/// </summary>
+	[TestMethod]
+	public void PackageShadersCompileOnMount()
+	{
+		var folder = Folder();
+		try
+		{
+			using var backend = Backend( folder, out var current );
+			var errors = new List<string>();
+			backend.Passes.Error = errors.Add;
+			var compiles = new List<string>();
+			backend.Passes.Info = compiles.Add;
+			backend.Passes.UseOffline = false;
+
+			Write( folder, Outdated( current, Embedded( File.ReadAllText( Source() ) ) ) );
+			var broken = Embedded( File.ReadAllText( Source() ) );
+			broken["VFX_PROGRAM_PS"] = broken["VFX_PROGRAM_PS"].Replace( "MainPs(", "MainPs( NotAType t," );
+			Write( folder, Outdated( current, broken ), "package_broken" );
+			Write( folder, Outdated( current, null ), "package_nosource" );
+			Write( folder, current, "package_current" );
+
+			var files = new[] { "package_vignette", "package_broken", "package_nosource", "package_current" }.Select( n => Path.Combine( folder, "shaders", $"{n}.shader_c" ) ).ToList();
+			var mounted = backend.Passes.CompileMounted( "Test Package", files ).GetAwaiter().GetResult();
+			Assert.AreEqual( 4, mounted.Files );
+			Assert.AreEqual( 2, mounted.Modules, "the two with source" );
+			Assert.AreEqual( 1, mounted.NoModule );
+			Assert.IsTrue( mounted.Stages > 0 && mounted.Failed > 0 && mounted.Failed < mounted.Stages, $"{mounted}" );
+			Assert.IsTrue( errors.Count > 0 && errors.TrueForAll( e => e.StartsWith( "Test Package: package_broken.shader_c doesn't compile", StringComparison.Ordinal ) ), string.Join( "\n", errors ) );
+
+			// The first draw compiles nothing more
+			compiles.Clear();
+			var shader = backend.Shaders.Load( "shaders/package_vignette.shader" );
+			Assert.IsTrue( backend.Shaders.Variant( shader, "Default", [] ) is { FromModule: true }, "drawn from its embedded source" );
+			Assert.AreEqual( 0, compiles.Count( c => c.Contains( "compiling", StringComparison.Ordinal ) ), string.Join( "\n", compiles ) );
+		}
+		finally
+		{
+			Directory.Delete( folder, true );
+		}
+	}
+
+	/// <summary>
 	/// An outdated shader whose embedded source doesn't compile, or that has none, is recompiled through the ShaderCompiler
 	/// as before, and draws from the recompiled file.
 	/// </summary>

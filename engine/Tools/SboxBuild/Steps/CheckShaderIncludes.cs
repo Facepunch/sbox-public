@@ -37,7 +37,9 @@ internal static partial class CheckShaderIncludes
 		var problems = new SortedSet<string>( StringComparer.Ordinal );
 		reached = new HashSet<string>( StringComparer.OrdinalIgnoreCase );
 		checkedCount = 0;
-		foreach ( var source in shipped.Where( f => f.EndsWith( ".slang", StringComparison.OrdinalIgnoreCase ) || f.EndsWith( ".slangh", StringComparison.OrdinalIgnoreCase ) ).Order( StringComparer.Ordinal ) )
+		// A .shader is a Slang source too when its content says so (Sandbox.ShaderCompiler.ShaderFormat), not only a VFX one
+		foreach ( var source in shipped.Where( f => f.EndsWith( ".slang", StringComparison.OrdinalIgnoreCase ) || f.EndsWith( ".slangh", StringComparison.OrdinalIgnoreCase )
+			|| (f.EndsWith( ".shader", StringComparison.OrdinalIgnoreCase ) && Sandbox.ShaderCompiler.ShaderFormat.IsSlangSourceFile( Path.Combine( gameRoot, f ) )) ).Order( StringComparer.Ordinal ) )
 		{
 			checkedCount++;
 			var walk = new Walk( gameRoot, shipped, source, problems, reached );

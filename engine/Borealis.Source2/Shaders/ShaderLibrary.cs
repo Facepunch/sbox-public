@@ -217,12 +217,25 @@ public sealed class ShaderLibrary : IDisposable
 		var module = false;
 		foreach ( var root in Files.Roots )
 		{
-			if ( File.Exists( Path.Combine( root, relative ) ) || File.Exists( Path.Combine( root, standsFor ) ) ) return false;
+			// A .shader is a VFX source or a Slang one, told by content: only a VFX one has compiled programs of its own
+			foreach ( var source in (ReadOnlySpan<string>)[Path.Combine( root, relative ), Path.Combine( root, standsFor )] )
+			{
+				if ( !File.Exists( source ) ) continue;
+				if ( IsVfxSource( source ) ) return false;
+				module = true;
+			}
+
 			module |= File.Exists( Path.Combine( root, slang ) ) || File.Exists( Path.Combine( root, slang + "_c" ) );
 		}
 
 		return module;
 	}
+
+	/// <summary>
+	/// Whether the <c>.shader</c> at a path is a VFX source rather than a Slang one, by its content: every <c>.shader</c> is,
+	/// unless set (the device sets <c>ShaderFormat.IsVfxSourceFile</c>).
+	/// </summary>
+	public Func<string, bool> IsVfxSource { get; set; } = _ => true;
 
 	/// <summary>
 	/// Recompiles a shader an older engine compiled (<see cref="ShaderOutdatedException"/>, a package's) from the source

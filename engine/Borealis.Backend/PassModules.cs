@@ -26,12 +26,18 @@ public sealed partial class PassModules : IShaderModules
 	{
 		if ( slangPaths.TryGetValue( compiledPath, out var known ) ) return known;
 
+		// x.slang, or x.shader when that's a Slang source rather than a VFX one (ShaderFormat)
 		var name = compiledPath;
 		if ( name.EndsWith( "_c", StringComparison.OrdinalIgnoreCase ) ) name = name[..^2];
-		var path = Path.GetFullPath( Path.ChangeExtension( name, ".slang" ) );
+		var path = Path.GetFullPath( ShaderFormat.SlangSourceBeside( name ) ?? Path.ChangeExtension( name, ".slang" ) );
 
-		// Only its compiled file (a package's .slang_c): the source it embeds (CompiledAlone)
-		if ( !File.Exists( path ) && File.Exists( SlangOutput.PathOf( path ) ) ) path = CompiledAlone.SourceFor( path, Path.GetDirectoryName( Core ), Error ) ?? path;
+		// Only its compiled file (a package's .slang_c, or a .shader_c that's a Slang compile by content): the source it embeds (CompiledAlone)
+		if ( !File.Exists( path ) )
+		{
+			var alone = File.Exists( SlangOutput.PathOf( path ) ) ? path : ShaderFormat.IsSlangCompiledFile( SlangOutput.PathOf( name ) ) ? Path.GetFullPath( name ) : null;
+			if ( alone is not null ) path = CompiledAlone.SourceFor( alone, Path.GetDirectoryName( Core ), Error ) ?? path;
+		}
+
 		return slangPaths[compiledPath] = path;
 	}
 	readonly Dictionary<string, (ModuleStage Stage, IReadOnlyList<SpecializationSlot> Slots, (int Resource, Annotations Annotations)[] FeatureSamplers)> stages = new( StringComparer.Ordinal );

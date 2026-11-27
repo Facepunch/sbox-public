@@ -94,7 +94,7 @@ public static class OfflineShaders
 	public static async Task<int> CompileGameShadersAsync( string game, string folder, Action<string> log, CancellationToken cancel = default )
 	{
 		if ( !Directory.Exists( folder ) ) return 0;
-		var sources = Directory.GetFiles( folder, "*.slang", SearchOption.AllDirectories ).Where( f => !IsHidden( folder, f ) ).ToList();
+		var sources = SlangSources( folder ).Where( f => !IsHidden( folder, f ) ).ToList();
 		var failed = 0;
 		using var gate = new SemaphoreSlim( Math.Max( 1, Environment.ProcessorCount / 4 ) );
 		await Task.WhenAll( sources.Select( async s =>
@@ -128,7 +128,7 @@ public static class OfflineShaders
 	{
 		var described = new List<(string, string)>();
 		if ( !Directory.Exists( folder ) || GameCompiler( game ) is not { } compiler ) return described;
-		foreach ( var source in Directory.GetFiles( folder, "*.slang", SearchOption.AllDirectories ).Where( f => !IsHidden( folder, f ) ).Order( StringComparer.Ordinal ) )
+		foreach ( var source in SlangSources( folder ).Where( f => !IsHidden( folder, f ) ).Order( StringComparer.Ordinal ) )
 		{
 			var relative = Path.GetRelativePath( folder, source ).Replace( '\\', '/' );
 			string text;
@@ -158,7 +158,7 @@ public static class OfflineShaders
 			try
 			{
 				var shader = compiler.ReflectAsync( source ).GetAwaiter().GetResult();
-				if ( shader.Material is not null ) description = MaterialClassWriter.Describe( shader, relative[..^".slang".Length] + ".shader" );
+				if ( shader.Material is not null ) description = MaterialClassWriter.Describe( shader, Path.ChangeExtension( relative, ".shader" ) );
 			}
 			catch ( ShaderCompileException )
 			{
@@ -175,6 +175,10 @@ public static class OfflineShaders
 	static bool IsHidden( string folder, string file ) =>
 		Path.GetRelativePath( folder, file ).Split( Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar ).SkipLast( 1 ).Any( d => d.StartsWith( '.' ) || d.Equals( "obj", StringComparison.OrdinalIgnoreCase ) );
 
+	/// <summary>The Slang sources under a folder: every <c>.slang</c>, and every <c>.shader</c> that's Slang by content (<see cref="ShaderFormat"/>).</summary>
+	static IEnumerable<string> SlangSources( string folder ) =>
+		Directory.GetFiles( folder, "*.slang", SearchOption.AllDirectories ).Concat( Directory.GetFiles( folder, "*.shader", SearchOption.AllDirectories ).Where( ShaderFormat.IsSlangSourceFile ) );
+
 	/// <summary>
 	/// The Slang sources <see cref="CompileAll"/> compiles, each with where its offline compile goes (null: beside it): every
 	/// <c>.slang</c> under the content roots' <c>shaders</c> folders but the surface library, and the surfaces converted from
@@ -186,7 +190,7 @@ public static class OfflineShaders
 		var roots = ContentFiles.FindGame().Roots;
 		var library = Path.Combine( shaders, "sbox" ) + Path.DirectorySeparatorChar;
 		var sources = roots.Select( r => Path.Combine( r, "shaders" ) ).Prepend( shaders ).Distinct( StringComparer.OrdinalIgnoreCase ).Where( Directory.Exists )
-			.SelectMany( f => Directory.GetFiles( f, "*.slang", SearchOption.AllDirectories ) )
+			.SelectMany( f => Directory.GetFiles( f, "*.slang", SearchOption.AllDirectories ).Concat( Directory.GetFiles( f, "*.shader", SearchOption.AllDirectories ).Where( ShaderFormat.IsSlangSourceFile ) ) )
 			.Where( f => !Path.GetFullPath( f ).StartsWith( library, StringComparison.OrdinalIgnoreCase ) )
 			.Select( f => (Source: f, Output: (string)null) )
 			.ToList();

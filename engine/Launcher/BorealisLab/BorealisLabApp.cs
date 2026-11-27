@@ -27,6 +27,8 @@ namespace Sandbox.BorealisLab;
 /// <item><c>-shadergraph-parity cases</c> - draw ShaderGraph's VFX output and its surface for each case and compare (<see cref="ShaderGraphParity"/>).</item>
 /// <item><c>-convert-passes a,b|all</c> - write a pass module beside each named non-material shader and compile it (<see cref="PassConversion"/>).</item>
 /// <item><c>-package-shaders folder -package-roots "a;b"</c> - sort package shaders by what the converter makes of them (<see cref="PackageShaders"/>).</item>
+/// <item><c>-package-mount-cost folder -package-roots "a;b"</c> - time compiling each package's shaders on mount, cold and warm (<see cref="PackageMountCost"/>).</item>
+/// <item><c>-convert-local folder -local-roots "a;b"</c> - make each local VFX .shader a standalone module and compile it (<see cref="LocalShaders"/>).</item>
 /// <item><c>-crowd</c> - SceneLab's Crowd Near, animated, on a Borealis.Gpu device in a window, timed (<see cref="CrowdRun"/>).</item>
 /// <item><c>-cook-meshlets out</c> - copy a compiled map package with the meshlets the resource compiler cooks added to its meshes (<see cref="Maps.MeshletCook"/>).</item>
 /// <item><c>-error-census ident,...</c> - what of each map doesn't draw as its content says: fallen-back materials, shaders that don't load or compile, error draws (<see cref="Maps.ErrorCensus"/>).</item>
@@ -59,6 +61,8 @@ internal static class BorealisLabApp
 
 		// Package shaders through the converter: nothing of the engine starts
 		if ( PackageShaders.Requested ) return PackageShaders.Run();
+		if ( PackageMountCost.Requested ) return PackageMountCost.Run();
+		if ( LocalShaders.Requested ) return LocalShaders.Run();
 
 		// Posing skinned presets and models takes the animation system, which only the longer list of native modules starts
 		var presets = PresetRun.Selected();

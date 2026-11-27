@@ -210,8 +210,10 @@ internal class ShaderStats( string[] asics, string[] shaders )
 		}
 
 		// .shader files through vfx; the Slang surfaces (.slang) through their own compile, a combo per pass
-		var vfxTargets = targets.Where( x => !x.EndsWith( ".slang", StringComparison.OrdinalIgnoreCase ) ).ToArray();
-		var slangTargets = targets.Where( x => x.EndsWith( ".slang", StringComparison.OrdinalIgnoreCase ) ).ToArray();
+		// (a .shader that's a Slang source by content, Sandbox.ShaderCompiler.ShaderFormat, is a Slang target)
+		static bool IsSlang( string x ) => x.EndsWith( ".slang", StringComparison.OrdinalIgnoreCase ) || (x.EndsWith( ".shader", StringComparison.OrdinalIgnoreCase ) && Sandbox.ShaderCompiler.ShaderFormat.IsSlangSourceFile( x ));
+		var vfxTargets = targets.Where( x => !IsSlang( x ) ).ToArray();
+		var slangTargets = targets.Where( IsSlang ).ToArray();
 		var failed = new List<string>();
 		string current = null;
 		var success = true;

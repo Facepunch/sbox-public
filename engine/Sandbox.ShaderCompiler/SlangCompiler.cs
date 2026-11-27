@@ -359,7 +359,8 @@ public sealed partial class SlangCompiler
 	/// </summary>
 	static string Rewrite( string path, string text, Dictionary<string, Annotations> annotations )
 	{
-		if ( path.EndsWith( ".slang", StringComparison.OrdinalIgnoreCase ) ) return VfxIncludes.Rewrite( MaterialSource.Rewrite( text, out _ ), annotations );
+		if ( path.EndsWith( ".slang", StringComparison.OrdinalIgnoreCase ) || (path.EndsWith( ".shader", StringComparison.OrdinalIgnoreCase ) && !ShaderFormat.IsVfxSource( text )) )
+			return VfxIncludes.Rewrite( MaterialSource.Rewrite( text, out _ ), annotations );
 		return VfxIncludes.Rewrite( text, annotations );
 	}
 

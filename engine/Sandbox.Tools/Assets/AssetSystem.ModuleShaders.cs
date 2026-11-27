@@ -37,9 +37,9 @@ public static partial class AssetSystem
 	{
 		if ( MaterialCompile.ShaderName( shader ) is not { } name || EngineFileSystem.Root?.GetFullPath( "/core" ) is not { } core ) return null;
 		var standsFor = ShaderAliases.Resolve( name );
-		if ( File.Exists( Path.Combine( core, name ) ) || File.Exists( Path.Combine( core, standsFor ) ) ) return null;
-		var path = Path.Combine( core, standsFor[..^".shader".Length] + ".slang" );
-		return File.Exists( path ) ? DescribedModule( path ) : null;
+		if ( ShaderFormat.IsVfxSourceFile( Path.Combine( core, name ) ) || ShaderFormat.IsVfxSourceFile( Path.Combine( core, standsFor ) ) ) return null;
+		var path = ShaderFormat.SlangSourceBeside( Path.Combine( core, standsFor ) ) ?? ShaderFormat.SlangSourceBeside( Path.Combine( core, name ) );
+		return path is not null ? DescribedModule( path ) : null;
 	}
 
 	/// <summary>A module read once while its file is unchanged, its includes found beside it and in the engine's shaders.</summary>

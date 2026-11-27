@@ -177,6 +177,19 @@ internal abstract class RenderBackend
 	/// </summary>
 	public virtual void ShaderCompiled( string path, byte[] compiled ) { }
 
+	/// <summary>
+	/// A package with shaders an older engine compiled is mounting (<paramref name="files"/>, their compiled files on disk):
+	/// start compiling them for this device, on workers, without waiting. True when this device draws them that way (from the
+	/// source embedded in each), so nothing needs to recompile the files themselves.
+	/// </summary>
+	public virtual bool CompilePackageShaders( string package, IReadOnlyList<string> files ) => false;
+
+	/// <summary>
+	/// Hand a mounting package's outdated shaders to <see cref="Default"/> (<see cref="CompilePackageShaders"/>); true when it
+	/// compiles them itself.
+	/// </summary>
+	internal static bool CompilePackageShadersOnDefault( string package, IReadOnlyList<string> files ) => Default.CompilePackageShaders( package, files );
+
 	/// <summary>Whether any device needs <see cref="ShaderCompiled"/>: a Borealis.Gpu one.</summary>
 	internal static bool TakesCompiledShaders => Default is BorealisGpuRenderBackend || others.Length > 0;
 

@@ -294,7 +294,7 @@ public class ShaderDrawTests : GpuTest
 
 	/// <summary>
 	/// A compiled shader with no .shader where a Slang file stands in its place is a leftover (a package's copy of an engine
-	/// shader the module replaced, or a stale local one) and isn't loaded; with its .shader it is.
+	/// shader the module replaced, or a stale local one) and isn't loaded; with its .shader (a VFX source) it is.
 	/// </summary>
 	[TestMethod]
 	public void CompiledLeftoversBesideSlangDontLoad()
@@ -313,7 +313,8 @@ public class ShaderDrawTests : GpuTest
 				Assert.IsNull( backend.Shaders.Load( "shaders/leftover_test.shader_c" ) );
 			}
 
-			System.IO.File.WriteAllText( System.IO.Path.Combine( shaders, "leftover_test.shader" ), "" );
+			// A VFX source, told by content (a Slang .shader would be the module itself)
+			System.IO.File.WriteAllText( System.IO.Path.Combine( shaders, "leftover_test.shader" ), "MODES\n{\n\tDefault();\n}\nPS\n{\n}\n" );
 			using ( var backend = new Borealis.Backend.BackendDevice( Device ) )
 			{
 				backend.Content.Add( folder );
