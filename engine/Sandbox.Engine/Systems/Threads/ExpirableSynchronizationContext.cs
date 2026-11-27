@@ -444,7 +444,7 @@ internal class ExpirableSynchronizationContext : SynchronizationContext
 		if ( m_queue.Reader.Count == 0 ) return;
 
 		using var cpu = CpuContinuations.Start();
-		var recording = Profiler.IsRecording;
+		var profiling = Profiler.ScopesActive;
 		var maxProcess = m_queue.Reader.Count + 8;
 		var oldContext = Current;
 		SetSynchronizationContext( this );
@@ -478,7 +478,7 @@ internal class ExpirableSynchronizationContext : SynchronizationContext
 
 				try
 				{
-					using var callback = recording ? GetContinuationProfileScope( data ).Start() : default;
+					using var callback = profiling ? GetContinuationProfileScope( data ).Start() : default;
 					data.Callback( data.State );
 				}
 				catch ( OperationCanceledException )

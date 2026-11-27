@@ -47,13 +47,13 @@ class CallbackBatch : System.IDisposable
 			if ( Actions.Count == 0 )
 				return;
 
-			var recording = Profiler.IsRecording;
+			var profiling = Profiler.ScopesActive;
 			foreach ( var action in Actions )
 			{
 				try
 				{
 					using var scope = action.Scene is not null ? new ScenePushScope( action.Scene ) : default;
-					using var cpu = recording && (action.Target is not null || action.FallbackAction is not null) ? GetProfileScope( action ).Start() : default;
+					using var cpu = profiling && (action.Target is not null || action.FallbackAction is not null) ? GetProfileScope( action ).Start() : default;
 
 					switch ( action.Target )
 					{

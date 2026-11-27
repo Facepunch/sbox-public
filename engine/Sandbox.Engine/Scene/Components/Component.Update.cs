@@ -27,7 +27,7 @@ public abstract partial class Component
 		if ( !ShouldExecute ) return;
 
 		if ( StartCalled ) return;
-		using var cpu = Profiler.IsRecording ? ProfileCallbackScopes.ForType( GetType(), "OnStart" ).Start() : default;
+		using var cpu = Profiler.ScopesActive ? ProfileCallbackScopes.ForType( GetType(), "OnStart" ).Start() : default;
 
 		// Disable any interpolation during OnStart. We might be created in a Fixed Update context.
 		using ( GameTransform.DisableInterpolation() )

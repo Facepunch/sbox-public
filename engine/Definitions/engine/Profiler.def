@@ -8,6 +8,8 @@ native static class Profiler as NativeEngine.Profiler
 	static int GetScopeLine( uint scope );
 
 	static bool AttachThread();
+	[nogc]
+	static bool ScopesActive();
 
 	[nogc]
 	static ulong Begin( uint scope );

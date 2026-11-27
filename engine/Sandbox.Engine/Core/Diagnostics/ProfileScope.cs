@@ -5,7 +5,7 @@ namespace Sandbox.Diagnostics;
 
 /// <summary>
 /// A named region for profiler captures. Declare one as a static readonly field and time work with <c>using var scope = Scope.Start();</c>.
-/// Name a fixed operation, not an object. Costs a flag check when no capture is recording.
+/// Name a fixed operation, not an object. Costs a flag check while nothing profiles.
 /// </summary>
 public sealed class ProfileScope
 {
@@ -26,17 +26,17 @@ public sealed class ProfileScope
 	[MethodImpl( MethodImplOptions.AggressiveInlining )]
 	public Instance Start()
 	{
-		if ( !Profiler.IsRecording ) return default;
+		if ( !Profiler.ScopesActive ) return default;
 		var id = Volatile.Read( ref _id );
 		if ( id == 0 ) id = Register();
 		if ( id < 0 ) return default;
-		if ( !t_attached && !Attach() ) return default;
+		if ( !t_attached && Profiler.IsRecording && !Attach() ) return default;
 		return new( NativeEngine.Profiler.Begin( (uint)id ) );
 	}
 
 	[ThreadStatic] static bool t_attached;
 
-	// Begin runs without a GC transition, so the thread's ring is claimed and allocated here first
+	// Begin runs without a GC transition, so a recording thread's ring is claimed and allocated here first
 	[MethodImpl( MethodImplOptions.NoInlining )]
 	static bool Attach() => t_attached = NativeEngine.Profiler.AttachThread();
 

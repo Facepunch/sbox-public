@@ -146,7 +146,7 @@ public static partial class Rpc
 	{
 		try
 		{
-			using var cpu = Profiler.IsRecording && m.Resume is not null ? ProfileCallbackScopes.ForRpc( m ).Start() : default;
+			using var cpu = Profiler.ScopesActive && m.Resume is not null ? ProfileCallbackScopes.ForRpc( m ).Start() : default;
 			if ( Caller != Connection.Local )
 			{
 				m.Resume?.Invoke();

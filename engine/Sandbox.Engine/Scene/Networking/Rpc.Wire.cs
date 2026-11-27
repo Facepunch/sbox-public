@@ -190,7 +190,7 @@ public static partial class Rpc
 			return;
 		}
 
-		using var cpu = Profiler.IsRecording ? ProfileCallbackScopes.ForMethod( method ).Start() : default;
+		using var cpu = Profiler.ScopesActive ? ProfileCallbackScopes.ForMethod( method ).Start() : default;
 
 		if ( NetworkDebugSystem.Current is { TracksCalls: true } debug )
 			debug.Track( $"{(typeDesc ?? member.TypeDescription).FullName}.{method.Name}", bs.Length, outbound: false, source );

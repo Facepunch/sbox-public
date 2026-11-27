@@ -7,12 +7,12 @@ public partial class Scene : GameObject
 	/// </summary>
 	public override void RunEvent<T>( Action<T> action, FindMode find = FindMode.EnabledInSelfAndDescendants )
 	{
-		var recording = Profiler.IsRecording;
+		var profiling = Profiler.ScopesActive;
 		foreach ( var c in Query<T>() )
 		{
 			try
 			{
-				using var cpu = recording && c is not null ? ProfileCallbackScopes.ForType( c.GetType(), EventScopeName<T>.Value ).Start() : default;
+				using var cpu = profiling && c is not null ? ProfileCallbackScopes.ForType( c.GetType(), EventScopeName<T>.Value ).Start() : default;
 				action( c );
 			}
 			catch ( System.Exception e )
@@ -35,12 +35,12 @@ public partial class Scene : GameObject
 	/// </summary>
 	internal void RunRenderThreadEvent( CameraComponent camera, Sandbox.Rendering.Stage stage )
 	{
-		var recording = Profiler.IsRecording;
+		var profiling = Profiler.ScopesActive;
 		foreach ( var c in renderThreadEventTargets )
 		{
 			try
 			{
-				using var cpu = recording ? ProfileCallbackScopes.ForType( c.GetType(), "OnRenderStage" ).Start() : default;
+				using var cpu = profiling ? ProfileCallbackScopes.ForType( c.GetType(), "OnRenderStage" ).Start() : default;
 				c.OnRenderStage( camera, stage );
 			}
 			catch ( System.Exception e )

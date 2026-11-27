@@ -107,13 +107,13 @@ public static class MainThread
 		using var cpu = CpuActions.Start();
 		ThreadSafe.AssertIsMainThread();
 
-		var recording = Profiler.IsRecording;
+		var profiling = Profiler.ScopesActive;
 		while ( Actions.Reader.TryRead( out var action ) )
 		{
 			try
 			{
 				using var scope = new GlobalContext.GlobalContextScope( action.Context );
-				using var callback = recording ? ProfileCallbackScopes.ForMethod( action.Method.Method ).Start() : default;
+				using var callback = profiling ? ProfileCallbackScopes.ForMethod( action.Method.Method ).Start() : default;
 				action.Method();
 			}
 			catch ( System.Exception e )

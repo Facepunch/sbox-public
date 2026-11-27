@@ -352,7 +352,7 @@ public partial class Panel : IPanel, IValid, IComponent
 
 				if ( razorTreeDirty )
 				{
-					using var cpu = Profiler.IsRecording ? ProfileCallbackScopes.ForType( ProfileScopeType, "BuildRenderTree" ).Start() : default;
+					using var cpu = Profiler.ScopesActive ? ProfileCallbackScopes.ForType( ProfileScopeType, "BuildRenderTree" ).Start() : default;
 					InternalRenderTree();
 					didBuildRenderTree = true;
 				}
@@ -397,7 +397,7 @@ public partial class Panel : IPanel, IValid, IComponent
 			// A child's event can delete this panel
 			if ( IsDeleted ) return;
 
-			using ( Profiler.IsRecording && OverridesTick ? ProfileCallbackScopes.ForType( ProfileScopeType, "Tick" ).Start() : default )
+			using ( Profiler.ScopesActive && OverridesTick ? ProfileCallbackScopes.ForType( ProfileScopeType, "Tick" ).Start() : default )
 				Tick();
 			RunPendingEvents();
 

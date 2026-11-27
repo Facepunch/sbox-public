@@ -480,7 +480,7 @@ public class ComponentList
 	internal void ExecuteEnabledInSelfAndDescendants<T>( Action<T> action )
 	{
 		if ( !go.IsValid() || !go.Enabled ) return;
-		var recording = Profiler.IsRecording;
+		var profiling = Profiler.ScopesActive;
 
 		if ( _internalList is not null )
 		{
@@ -492,7 +492,7 @@ public class ComponentList
 
 				if ( component is T target && component.Active )
 				{
-					using var cpu = recording ? ProfileCallbackScopes.ForType( component.GetType(), Sandbox.Scene.EventScopeName<T>.Value ).Start() : default;
+					using var cpu = profiling ? ProfileCallbackScopes.ForType( component.GetType(), Sandbox.Scene.EventScopeName<T>.Value ).Start() : default;
 					action.Invoke( target );
 				}
 			}
@@ -515,7 +515,7 @@ public class ComponentList
 	internal void ExecuteEnabledInSelfAndDescendants<T, TState>( TState state, Action<T, TState> action )
 	{
 		if ( !go.IsValid() || !go.Enabled ) return;
-		var recording = Profiler.IsRecording;
+		var profiling = Profiler.ScopesActive;
 
 		if ( _internalList is not null )
 		{
@@ -527,7 +527,7 @@ public class ComponentList
 
 				if ( component is T target && component.Active )
 				{
-					using var cpu = recording ? ProfileCallbackScopes.ForType( component.GetType(), Sandbox.Scene.EventScopeName<T>.Value ).Start() : default;
+					using var cpu = profiling ? ProfileCallbackScopes.ForType( component.GetType(), Sandbox.Scene.EventScopeName<T>.Value ).Start() : default;
 					action.Invoke( target, state );
 				}
 			}
@@ -583,7 +583,7 @@ public class ComponentList
 
 	private void ExecuteGeneric<T>( Action<T> action, FindMode find = FindMode.EnabledInSelfAndDescendants )
 	{
-		var recording = Profiler.IsRecording;
+		var profiling = Profiler.ScopesActive;
 		bool enabledOnly = find.Contains( FindMode.Enabled );
 		bool disabledOnly = find.Contains( FindMode.Disabled );
 
@@ -610,7 +610,7 @@ public class ComponentList
 
 				if ( component is T target )
 				{
-					using var cpu = recording ? ProfileCallbackScopes.ForType( component.GetType(), Sandbox.Scene.EventScopeName<T>.Value ).Start() : default;
+					using var cpu = profiling ? ProfileCallbackScopes.ForType( component.GetType(), Sandbox.Scene.EventScopeName<T>.Value ).Start() : default;
 					action.Invoke( target );
 				}
 			}

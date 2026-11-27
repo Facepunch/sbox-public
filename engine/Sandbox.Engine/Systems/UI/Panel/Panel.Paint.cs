@@ -72,7 +72,7 @@ public partial class Panel
 				{
 					if ( _hasDrawCallback )
 					{
-						using var cpu = Profiler.IsRecording ? ProfileCallbackScopes.ForType( ProfileScopeType, "OnDraw" ).Start() : default;
+						using var cpu = Profiler.ScopesActive ? ProfileCallbackScopes.ForType( ProfileScopeType, "OnDraw" ).Start() : default;
 						OnDraw( content.Painter );
 					}
 					LayoutTree?.DrawInlineContent( content.Painter );
@@ -88,7 +88,7 @@ public partial class Panel
 		{
 			try
 			{
-				using var cpu = Profiler.IsRecording ? ProfileCallbackScopes.ForType( ProfileScopeType, "IPanelDraw.Draw" ).Start() : default;
+				using var cpu = Profiler.ScopesActive ? ProfileCallbackScopes.ForType( ProfileScopeType, "IPanelDraw.Draw" ).Start() : default;
 				custom.Draw( painter.NativeCommands( objectSpace: true ) );
 			}
 			finally

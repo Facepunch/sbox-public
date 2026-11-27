@@ -13,6 +13,8 @@ namespace Sandbox.Diagnostics;
 internal static partial class Profiler
 {
 	internal static volatile bool IsRecording;
+	// Recording or another native consumer; refreshed every frame and when a capture starts or stops
+	internal static volatile bool ScopesActive;
 
 	// The scope whose instances are frames
 	internal const string FrameScopeName = "Engine.Frame";
@@ -306,9 +308,11 @@ internal static partial class Profiler
 		}
 
 		builder.DroppedAtStart = Native.DroppedEvents();
+		// True whenever a native session is live, so threads claim their ring in Attach, not inside GC-suppressed Begin
+		IsRecording = true;
 		builder.Session = Native.Start();
 		_builder = builder;
-		IsRecording = true;
+		ScopesActive = true;
 
 		if ( collector )
 		{
@@ -316,8 +320,7 @@ internal static partial class Profiler
 			try { builder.Collector.Start(); }
 			catch
 			{
-				IsRecording = false;
-				Native.Stop();
+				StopRecording();
 				_builder = null;
 				builder.GcPauses?.Dispose();
 				if ( builder.Archive is not null ) _ = Task.Run( builder.Archive.Abort );
@@ -326,6 +329,13 @@ internal static partial class Profiler
 		}
 
 		return builder.Completion.Task;
+	}
+
+	static void StopRecording()
+	{
+		Native.Stop();
+		IsRecording = false;
+		ScopesActive = Native.ScopesActive();
 	}
 
 	static void Collect( Builder builder )
@@ -343,8 +353,7 @@ internal static partial class Profiler
 		{
 			if ( builder.CollectorError is not null || builder.Archive?.StopReason is not null )
 			{
-				IsRecording = false;
-				Native.Stop();
+				StopRecording();
 				builder.RecordingEnd = builder.Archive?.StopTick is > 0 ? builder.Archive.StopTick : Native.Now();
 			}
 		}
@@ -355,6 +364,7 @@ internal static partial class Profiler
 	/// </summary>
 	internal static void Update( bool frameBoundary = false )
 	{
+		ScopesActive = Native.ScopesActive();
 		var builder = _builder;
 		if ( builder is null ) return;
 
@@ -382,8 +392,7 @@ internal static partial class Profiler
 		if ( builder is null ) return;
 		ThreadSafe.AssertIsMainThread();
 
-		IsRecording = false;
-		Native.Stop();
+		StopRecording();
 		var end = Native.Now();
 		builder.StopCollector.Set();
 		builder.Collector?.Join();
@@ -542,11 +551,7 @@ internal static partial class Profiler
 			builder.LimitEnd = builder.RejectedTick != 0 ? builder.RejectedTick : Native.Now();
 			builder.LimitDropped = Native.DroppedEvents();
 		}
-		if ( builder.Finished && IsRecording )
-		{
-			IsRecording = false;
-			Native.Stop();
-		}
+		if ( builder.Finished && IsRecording ) StopRecording();
 		var ms = Stopwatch.GetElapsedTime( start ).TotalMilliseconds;
 		if ( builder.DrainTimes.Count < MaxDrainTimes ) builder.DrainTimes.Add( ms );
 		else builder.DrainTimes[builder.DrainCount % MaxDrainTimes] = ms;

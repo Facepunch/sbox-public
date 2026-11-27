@@ -107,7 +107,7 @@ public partial class Scene : GameObject
 
 		using ( CpuSignalInterpolation.Start() ) Signal( GameObjectSystem.Stage.Interpolation );
 
-		if ( Profiler.IsRecording ) TickComponentsProfiled( updateComponents, TickPhase.Update );
+		if ( Profiler.ScopesActive ) TickComponentsProfiled( updateComponents, TickPhase.Update );
 		else foreach ( var c in updateComponents.EnumerateLocked( true ) ) c.InternalUpdate();
 	}
 
@@ -158,7 +158,7 @@ public partial class Scene : GameObject
 		GetAll( renderScreenPanels );
 		SortScreenPanels( renderScreenPanels );
 
-		if ( Profiler.IsRecording ) TickComponentsProfiled( preRenderComponents, TickPhase.PreRender );
+		if ( Profiler.ScopesActive ) TickComponentsProfiled( preRenderComponents, TickPhase.PreRender );
 		else foreach ( var c in preRenderComponents.EnumerateLocked() ) c.OnPreRenderInternal();
 	}
 
@@ -394,7 +394,7 @@ public partial class Scene : GameObject
 
 			using ( PerformanceStats.Timings.Update.Scope() )
 			{
-				if ( Profiler.IsRecording )
+				if ( Profiler.ScopesActive )
 					TickComponentsProfiled( fixedUpdateComponents, TickPhase.FixedUpdate );
 				else
 				{

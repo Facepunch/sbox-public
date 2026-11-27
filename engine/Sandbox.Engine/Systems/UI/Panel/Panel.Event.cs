@@ -215,7 +215,7 @@ public partial class Panel
 	/// </summary>
 	internal void DispatchEventImmediate( PanelEvent evnt )
 	{
-		using var cpu = Profiler.IsRecording ? ProfileCallbackScopes.ForType( ProfileScopeType, "OnEvent" ).Start() : default;
+		using var cpu = Profiler.ScopesActive ? ProfileCallbackScopes.ForType( ProfileScopeType, "OnEvent" ).Start() : default;
 		OnEvent( evnt );
 	}
 
