@@ -449,11 +449,11 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 		var size = requirements.size;
 		var alignment = Math.Max( requirements.alignment, 1 );
 		var ownAbove = (ShareLargeBlocks && !target && !(content && OwnBigContentImages) ? LargeBlockSize : blockSize) / 4;
-		if ( ExistingBlocksOnly && (fallback || (!image && size > OwnBufferSize && (content || OwnBigBuffers)) || size > ownAbove) ) throw NoRoom();
+		if ( ExistingBlocksOnly && (fallback || (!image && OwnsBuffer( size, content )) || size > ownAbove) ) throw NoRoom();
 
 		// A buffer over a quarter of a small block is its own (a map's vertex and index pages, views' visibility buffers,
 		// tables that grow): one still used after what was made beside it has gone doesn't hold a large block
-		if ( !image && (OwnAllocation || (size > OwnBufferSize && (content || OwnBigBuffers))) ) return OwnBuffer( type, size, alignment, content, refusable, fallback, ahead: content || OwnAllocation );
+		if ( !image && (OwnAllocation || OwnsBuffer( size, content )) ) return OwnBuffer( type, size, alignment, content, refusable, fallback, ahead: content || OwnAllocation );
 
 		// Anything over a quarter of a large block gets its own allocation, and so does a target too big for a small block
 		if ( size > ownAbove )
@@ -642,6 +642,14 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 	/// been placed among the map's.
 	/// </summary>
 	public ulong OwnBufferSize => blockSize / 4;
+
+	/// <summary>
+	/// Whether a buffer of <paramref name="size"/> is an allocation of its own: over <see cref="OwnBufferSize"/> (content's,
+	/// and with <see cref="OwnBigBuffers"/> the rest), and one that isn't content at exactly that size too. The GPU-driven
+	/// frame's three 4 MiB upload buffers, long-lived, shared, held two 16 MiB blocks that upload pages came and went around,
+	/// 19 MiB of them unused with Construct loaded.
+	/// </summary>
+	bool OwnsBuffer( ulong size, bool content ) => size > OwnBufferSize ? content || OwnBigBuffers : size == OwnBufferSize && !content && OwnBigBuffers;
 
 	/// <summary>
 	/// Whether every buffer over <see cref="OwnBufferSize"/> is its own (the default), or only content's (geometry pages)

@@ -169,8 +169,8 @@ public class MemoryAllocatorTests : GpuTest
 	}
 
 	/// <summary>
-	/// A buffer over a quarter of a small block that isn't content (a view's visibility buffers, a growing table) is its own
-	/// allocation too, and none of its size is made ahead: shared, a 4 MiB table held a 128 MiB block at the menu.
+	/// A buffer of a quarter of a small block or more that isn't content (a view's visibility buffers, a growing table) is its
+	/// own allocation too, and none of its size is made ahead: shared, a 4 MiB table held a 128 MiB block at the menu.
 	/// </summary>
 	[TestMethod]
 	public void BigBuffersThatArentContentAreTheirOwnWithNoneMadeAhead()
@@ -183,8 +183,17 @@ public class MemoryAllocatorTests : GpuTest
 		System.Threading.Thread.Sleep( 200 );
 		Assert.AreEqual( 2 * table.size, allocator.Reserved, "no spares of its size are made ahead" );
 
+		// Exactly a quarter (the GPU-driven frame's upload buffers) is its own too; content of that size shares a block
+		var quarter = table with { size = allocator.OwnBufferSize };
+		var own = allocator.Allocate( quarter, MemoryLocation.Device, image: false );
+		Assert.IsTrue( own.Block.Dedicated, "a quarter of a block is its own" );
+		var content = allocator.Allocate( quarter, MemoryLocation.Device, image: false, content: true );
+		Assert.IsFalse( content.Block.Dedicated, "content of that size shares" );
+
 		allocator.Free( first );
 		allocator.Free( second );
+		allocator.Free( own );
+		allocator.Free( content );
 	}
 
 	/// <summary>
