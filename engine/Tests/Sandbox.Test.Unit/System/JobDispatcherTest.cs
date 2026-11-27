@@ -185,6 +185,28 @@ public class JobDispatcherTest
 			FloatingPointMode.Set( previous );
 		}
 
+		// Workers wake one after another, so 512 short jobs can all finish on the caller before the first is up (CI's runner,
+		// 2026-11-25): when none took part, give them jobs long enough to join in before asking again
+		if ( Parallel && threads.All( x => x == Environment.CurrentManagedThreadId ) )
+		{
+			FloatingPointMode.Set( FloatingPointMode.FlushDenormals );
+			try
+			{
+				JobDispatcher.For( 64, 0, ( _, i ) =>
+				{
+					Thread.SpinWait( 200_000 );
+					results[i] = BitConverter.SingleToInt32Bits( tiny * half );
+					threads[i] = Environment.CurrentManagedThreadId;
+				}, itemsPerBatch: 1 );
+			}
+			finally
+			{
+				FloatingPointMode.Set( previous );
+			}
+
+			Assert.IsTrue( results.Take( 64 ).All( x => x == 0 ), "long jobs flush the denormal too" );
+		}
+
 		if ( Parallel ) Assert.IsTrue( threads.Any( x => x != Environment.CurrentManagedThreadId ), "Workers took part" );
 	}
 
