@@ -10,10 +10,15 @@ public sealed class ThrusterTool : ToolMode
 	public override bool UseSnapGrid => true;
 	public override IEnumerable<string> TraceIgnoreTags => IgnoreConstraintTags;
 
-	[Property, ResourceSelect( Extension = "tdef", AllowPackages = true ), Title( "#tool.name.thruster" )]
+	[Property, ResourceSelect( Extension = "tdef", AllowPackages = true ), Change( nameof( OnDefinitionChanged ) ), Title( "#tool.name.thruster" )]
 	public string Definition { get; set; } = "entities/thruster/basic.tdef";
 
-	// the same settings as ThrusterEntity, put on the placed thruster. Power and Invert are left to each thruster's prefab
+	[Property, Range( 0, 10 ), Title( "#tool.setting.power" ), Group( "#tool.setting.group.behavior" ), Order( 0 )]
+	public float Power { get; set; } = 0.5f;
+
+	[Property, Title( "#tool.setting.invert" ), Group( "#tool.setting.group.behavior" ), Order( 0 )]
+	public bool Invert { get; set; } = false;
+
 	[Property, Title( "#tool.setting.hide_effects" ), Group( "#tool.setting.group.behavior" ), Order( 0 )]
 	public bool HideEffects { get; set; } = false;
 
@@ -33,6 +38,7 @@ public sealed class ThrusterTool : ToolMode
 	protected override void OnStart()
 	{
 		base.OnStart();
+		OnDefinitionChanged();
 
 		RegisterAction( ToolInput.Primary, () => "#tool.hint.thrustertool.place", OnPlace );
 		RegisterAction( ToolInput.Secondary, () => "#tool.hint.thrustertool.place_no_weld", OnPlaceNoWeld );
@@ -42,6 +48,26 @@ public sealed class ThrusterTool : ToolMode
 	void OnToggleAxis()
 	{
 		_axis = _axis == Vector3.Right ? Vector3.Up : Vector3.Right;
+	}
+
+	void OnDefinitionChanged()
+	{
+		var thrusterDef = ResourceLibrary.Get<ThrusterDefinition>( Definition );
+		if ( thrusterDef?.Prefab?.GetScene() is not Scene scene ) return;
+
+		var prefab = scene.Clone( new CloneConfig { StartEnabled = false } );
+		try
+		{
+			var thruster = prefab.GetComponentInChildren<ThrusterEntity>( true );
+			if ( thruster is null ) return;
+
+			Power = thruster.Power;
+			Invert = thruster.Invert;
+		}
+		finally
+		{
+			prefab.Destroy();
+		}
 	}
 
 	void OnPlace()
