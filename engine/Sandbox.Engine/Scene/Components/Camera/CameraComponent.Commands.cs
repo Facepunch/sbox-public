@@ -151,7 +151,7 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 			for ( var i = 0; i < count; i++ )
 			{
 				var entry = entries[i];
-				using ( _executeCommandList.Start() )
+				using ( _executeCommandList.Start( entry.List.DebugName ) )
 				{
 					// The view decides too: a reflection or other secondary view can turn post processing off.
 					if ( entry.List.Flags.Contains( CommandList.Flag.PostProcess )

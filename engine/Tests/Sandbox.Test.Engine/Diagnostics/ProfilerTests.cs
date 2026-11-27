@@ -123,7 +123,7 @@ public class ProfilerTests
 		var task = StartCapture( 2 );
 		using ( Parent.Start() )
 		{
-			var native = NativeProfiler.Begin( nativeSite );
+			var native = NativeProfiler.Begin( nativeSite, 0 );
 			try { using var sample = Child.Start(); }
 			finally { NativeProfiler.End( native ); }
 		}
@@ -491,6 +491,60 @@ public class ProfilerTests
 		CollectionAssert.AreEqual( original.Spans, loaded.Spans );
 	}
 
+	static readonly ProfileScope Labelled = new( "Test.Profiler.Labelled" );
+
+	[TestMethod]
+	public void InstanceLabelsAreRecordedSavedAndStreamed()
+	{
+		string path = null;
+		try
+		{
+			var nativeSite = NativeProfiler.RegisterScope( "Test.Profiler.NativeLabelled", "test.cpp", 3 );
+			var task = Profiler.StartCapture( 2, collector: false, streamToDisk: true );
+			using ( Labelled.Start( "Opaque" ) ) { }
+			using ( Labelled.Start( "Translucent" ) ) { }
+			using ( Labelled.Start() ) { }
+			NativeProfiler.End( NativeProfiler.Begin( nativeSite, NativeProfiler.Label( "View #3" ) ) );
+			using ( Labelled.Start( "Opaque" ) ) { }
+			Profiler.StopCapture();
+			var capture = task.GetAwaiter().GetResult();
+			Assert.IsNotNull( capture.SourceFile, capture.StorageError );
+			path = Profiler.CapturePath( capture.SourceFile );
+
+			static string[] Labels( Profiler.Capture c )
+			{
+				var sites = c.Sites.Where( x => x.Name is "Test.Profiler.Labelled" or "Test.Profiler.NativeLabelled" ).Select( x => x.Id ).ToHashSet();
+				return c.Spans.Where( x => sites.Contains( x.ScopeId ) ).Select( x => c.LabelOf( x ) ).ToArray();
+			}
+			var expected = new[] { "Opaque", "Translucent", null, "View #3", "Opaque" };
+			CollectionAssert.AreEqual( expected, Labels( capture ) );
+			var site = capture.Sites.Single( x => x.Name == "Test.Profiler.Labelled" );
+			var first = capture.Spans.First( x => x.ScopeId == site.Id );
+			Assert.AreEqual( "Test.Profiler.Labelled · Opaque", capture.InstanceName( first, site.Name ) );
+			Assert.AreEqual( 4, capture.Costs.Single( x => x.ScopeId == site.Id ).Calls, "Stats stay grouped by scope" );
+
+			using var saved = new System.IO.MemoryStream();
+			Profiler.WriteCapture( capture, saved );
+			saved.Position = 0;
+			CollectionAssert.AreEqual( expected, Labels( Profiler.ReadCapture( saved ) ) );
+
+			var streamed = Profiler.LoadCapture( capture.SourceFile ).GetAwaiter().GetResult();
+			CollectionAssert.AreEqual( expected, Labels( streamed ) );
+		}
+		finally { if ( path is not null ) System.IO.File.Delete( path ); }
+	}
+
+	[TestMethod]
+	public void LabelsInternByContentAndCutOnACharacterBoundary()
+	{
+		Assert.AreEqual( 0u, NativeProfiler.Label( "" ) );
+		var id = NativeProfiler.Label( "Test.Label.Same" );
+		Assert.AreNotEqual( 0u, id );
+		Assert.AreEqual( id, NativeProfiler.Label( new string( "Test.Label.Same".ToCharArray() ) ) );
+		var accents = NativeProfiler.GetLabel( NativeProfiler.Label( new string( 'é', 40 ) ) );
+		Assert.AreEqual( new string( 'é', 31 ), accents );
+	}
+
 	[TestMethod]
 	public void GarbageCollectionsShowAsPausesWithFrameAllocations()
 	{
@@ -722,7 +776,7 @@ public class ProfilerTests
 		var dropped = NativeProfiler.DroppedEvents();
 		for ( int i = 0; i < NativeProfiler.ThreadSlots() + 8; i++ )
 		{
-			var thread = new Thread( () => { NativeProfiler.AttachThread(); var token = NativeProfiler.Begin( site ); NativeProfiler.End( token ); } );
+			var thread = new Thread( () => { NativeProfiler.AttachThread(); var token = NativeProfiler.Begin( site, 0 ); NativeProfiler.End( token ); } );
 			thread.Start();
 			Assert.IsTrue( thread.Join( TimeSpan.FromSeconds( 10 ) ) );
 			fixed ( Event* buffer = events )

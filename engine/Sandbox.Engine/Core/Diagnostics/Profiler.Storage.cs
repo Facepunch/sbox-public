@@ -8,7 +8,8 @@ namespace Sandbox.Diagnostics;
 internal static partial class Profiler
 {
 	const ulong FileMagic = 0x3146505543425353;
-	const int FileVersion = 1, SpanBytes = 48;
+	// Version 2 adds instance labels after the threads
+	const int FileVersion = 2, SpanBytes = 48;
 	static readonly SemaphoreSlim FileGate = new( 1 );
 	internal static string CaptureDirectory => Path.Combine( Environment.GetFolderPath( Environment.SpecialFolder.LocalApplicationData ), "sbox", "profiles" );
 	internal static bool FileBusy => FileGate.CurrentCount == 0;
@@ -181,6 +182,8 @@ internal static partial class Profiler
 			var range = capture.ThreadSpans[thread.Key];
 			writer.Write( range.Offset ); writer.Write( range.Count );
 		}
+		writer.Write( capture.Labels.Length );
+		for ( int i = 1; i < capture.Labels.Length; i++ ) WriteText( writer, capture.Labels[i] );
 		if ( stream.Position - metadataStart > MaxMetadataBytes ) throw new InvalidDataException( "Profiler capture metadata exceeds its limit." );
 		writer.Flush();
 		stream.Write( MemoryMarshal.AsBytes( capture.Spans.AsSpan() ) );
@@ -230,7 +233,9 @@ internal static partial class Profiler
 	{
 		if ( !BitConverter.IsLittleEndian || Marshal.SizeOf<Span>() != SpanBytes ) throw new NotSupportedException( "Unsupported profiler capture layout." );
 		using var reader = new BinaryReader( stream, Encoding.UTF8, leaveOpen: true );
-		if ( reader.ReadUInt64() != FileMagic || reader.ReadInt32() != FileVersion || reader.ReadInt32() != SpanBytes ) throw new InvalidDataException( "Unrecognized profiler capture format or version." );
+		var magic = reader.ReadUInt64();
+		var version = reader.ReadInt32();
+		if ( magic != FileMagic || version is not (1 or FileVersion) || reader.ReadInt32() != SpanBytes ) throw new InvalidDataException( "Unrecognized profiler capture format or version." );
 		var duration = reader.ReadDouble();
 		var dropped = reader.ReadUInt64();
 		var flags = reader.ReadInt32();
@@ -263,6 +268,15 @@ internal static partial class Profiler
 			position += length; threads[i] = thread;
 			if ( stream.Position > MaxMetadataBytes ) throw new InvalidDataException( "Profiler capture metadata exceeds its limit." );
 		}
+		string[] labels = [null];
+		if ( version >= 2 )
+		{
+			var labelCount = reader.ReadInt32();
+			if ( labelCount is < 1 or > MaxLabels ) throw new InvalidDataException( "Invalid profiler capture label count." );
+			labels = new string[labelCount];
+			for ( int i = 1; i < labelCount; i++ ) labels[i] = ReadText( reader );
+			if ( stream.Position > MaxMetadataBytes ) throw new InvalidDataException( "Profiler capture metadata exceeds its limit." );
+		}
 		if ( position != count || stream.Length - stream.Position != (long)count * SpanBytes ) throw new InvalidDataException( "Invalid profiler span section length." );
 		var spans = GC.AllocateUninitializedArray<Span>( count );
 		stream.ReadExactly( MemoryMarshal.AsBytes( spans.AsSpan() ) );
@@ -275,7 +289,7 @@ internal static partial class Profiler
 			for ( int i = range.Offset; i < range.Offset + range.Count; i++ )
 			{
 				ref readonly var s = ref spans[i];
-				if ( s.Index != i || s.ThreadKey != key || !siteIds.Contains( s.ScopeId ) || !s.ValidFlags
+				if ( s.Index != i || s.ThreadKey != key || !siteIds.Contains( s.ScopeId ) || s.Label >= labels.Length
 					|| !double.IsFinite( s.StartMs ) || !double.IsFinite( s.EndMs ) || s.StartMs < previousStart || s.EndMs < s.StartMs || s.EndMs > duration
 					|| s.Depth > stack.Count || (s.SelfMs is { } self && (!double.IsFinite( self ) || self < 0 || self > s.DurationMs || s.Incomplete)) ) throw new InvalidDataException( "Invalid profile scope instance." );
 				for ( int j = s.Depth; j < stack.Count; j++ )
@@ -291,6 +305,7 @@ internal static partial class Profiler
 		return Analyze( new( 0, duration, dropped, (flags & 1) != 0, incomplete, threads, sites, spans, [] )
 		{
 			ThreadSpans = threadSpans,
+			Labels = labels,
 			InstanceLimit = instanceLimit,
 			LimitReason = flags == 0 ? null : reason.Length > 0 ? reason : (flags & 2) != 0 ? "memory limit" : "event limit"
 		} );

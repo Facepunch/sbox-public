@@ -1,5 +1,6 @@
 using Sandbox.Diagnostics;
 using System.IO;
+using System.Text.Json.Serialization;
 
 namespace Editor.Mcp;
 
@@ -127,18 +128,17 @@ internal static partial class PerfTools
 			return (object)new
 			{
 				CaptureId = capture.Id,
-				Root = new { Name = names[root.ScopeId], Thread = CaptureThreadName( capture, root.ThreadKey ), StartMs = Round( root.StartMs, 3 ), DurationMs = Round( root.DurationMs, 3 ), root.Incomplete },
+				Root = new RootRow( names[root.ScopeId], capture.LabelOf( root ), CaptureThreadName( capture, root.ThreadKey ), Round( root.StartMs, 3 ), Round( root.DurationMs, 3 ), root.Incomplete ),
 				Truncated = truncated,
-				Rows = rows.Select( x => new
-				{
+				Rows = rows.Select( x => new TreeRow(
 					x.SpanIndex,
 					x.Depth,
-					Name = names[x.ScopeId],
-					InclusiveMs = Round( x.InclusiveMs, 3 ),
-					SelfMs = RoundOrNull( x.SelfMs, 3 ),
-					PercentOfRoot = RoundOrNull( x.PercentOfRoot, 1 ),
-					PercentOfParent = RoundOrNull( x.PercentOfParent, 1 )
-				} ).ToArray()
+					names[x.ScopeId],
+					capture.LabelOf( capture.Spans[x.SpanIndex] ),
+					Round( x.InclusiveMs, 3 ),
+					RoundOrNull( x.SelfMs, 3 ),
+					RoundOrNull( x.PercentOfRoot, 1 ),
+					RoundOrNull( x.PercentOfParent, 1 ) ) ).ToArray()
 			};
 		} );
 	}
@@ -203,15 +203,14 @@ internal static partial class PerfTools
 				Scopes = scopes.Take( 50 ).ToArray(),
 				TotalInstances = total,
 				NextOffset = NextOffset( start, page.Length, total ),
-				Instances = page.Select( x => new
-				{
-					SpanIndex = x.Index,
-					Name = names[x.ScopeId],
-					Thread = CaptureThreadName( capture, x.ThreadKey ),
-					StartMs = Round( x.StartMs, 3 ),
-					DurationMs = Round( x.DurationMs, 3 ),
-					SelfMs = RoundOrNull( x.SelfMs, 3 )
-				} ).ToArray()
+				Instances = page.Select( x => new ScopeInstanceRow(
+					x.Index,
+					names[x.ScopeId],
+					capture.LabelOf( x ),
+					CaptureThreadName( capture, x.ThreadKey ),
+					Round( x.StartMs, 3 ),
+					Round( x.DurationMs, 3 ),
+					RoundOrNull( x.SelfMs, 3 ) ) ).ToArray()
 			};
 		} );
 	}
@@ -252,18 +251,17 @@ internal static partial class PerfTools
 				CaptureId = capture.Id,
 				TotalInstances = total,
 				NextOffset = NextOffset( start, page.Count, total ),
-				Instances = page.Select( x => new
-				{
-					SpanIndex = x.Index,
+				Instances = page.Select( x => new TimelineRow(
+					x.Index,
 					x.Parent,
 					x.Depth,
 					x.ThreadKey,
-					Name = names[x.ScopeId],
-					StartMs = Round( x.StartMs, 3 ),
-					DurationMs = Round( x.DurationMs, 3 ),
-					SelfMs = RoundOrNull( x.SelfMs, 3 ),
-					x.Incomplete
-				} ).ToArray()
+					names[x.ScopeId],
+					capture.LabelOf( x ),
+					Round( x.StartMs, 3 ),
+					Round( x.DurationMs, 3 ),
+					RoundOrNull( x.SelfMs, 3 ),
+					x.Incomplete ) ).ToArray()
 			};
 		} );
 	}
@@ -430,6 +428,12 @@ internal static partial class PerfTools
 		if ( threadKey != 0 && !capture.ThreadSpans.ContainsKey( threadKey ) )
 			throw ProfilerError( $"No thread {threadKey} in capture {capture.Id}. Keys: {string.Join( ", ", capture.Threads.Select( x => $"{x.Key} ({x.Name})" ) )}." );
 	}
+
+	// Rows with a label leave it out when there's none, which is most of them
+	sealed record RootRow( string Name, [property: JsonIgnore( Condition = JsonIgnoreCondition.WhenWritingNull )] string Label, string Thread, double StartMs, double DurationMs, bool Incomplete );
+	sealed record TreeRow( int SpanIndex, int Depth, string Name, [property: JsonIgnore( Condition = JsonIgnoreCondition.WhenWritingNull )] string Label, double InclusiveMs, double? SelfMs, double? PercentOfRoot, double? PercentOfParent );
+	sealed record ScopeInstanceRow( int SpanIndex, string Name, [property: JsonIgnore( Condition = JsonIgnoreCondition.WhenWritingNull )] string Label, string Thread, double StartMs, double DurationMs, double? SelfMs );
+	sealed record TimelineRow( int SpanIndex, int Parent, int Depth, ulong ThreadKey, string Name, [property: JsonIgnore( Condition = JsonIgnoreCondition.WhenWritingNull )] string Label, double StartMs, double DurationMs, double? SelfMs, bool Incomplete );
 
 	static int? NextOffset( int offset, int count, int total ) => offset + count < total ? offset + count : null;
 

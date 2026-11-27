@@ -190,7 +190,7 @@ internal sealed class DevToolsProfilerScopeDetails : Panel
 			// DevToolsTable caches keyed rows. Reuse page slots rather than retaining every instance ever visited.
 			_instances.Row( $"instance:{rowIndex++}", [new( $"{span.StartMs:0.000}", Swatch: DevToolsProfilerTimeline.SiteColor( site ) ),
 				new( $"{span.DurationMs:0.000}", "number" ), new( span.SelfMs is { } self ? $"{self:0.000}" : "-", "number" )],
-				() => SelectInstance( span.Index ), $"{_timeline.ThreadLabel( span.ThreadKey )}\n{Profiler.SourceLocation( site )}", span.Index == _selected ? "selected" : null );
+				() => SelectInstance( span.Index ), $"{_capture.InstanceName( span, site.Name )}\n{_timeline.ThreadLabel( span.ThreadKey )}\n{Profiler.SourceLocation( site )}", span.Index == _selected ? "selected" : null );
 		}
 		_instances.End( _matches.Length == 0 ? "No complete instances recorded" : "No instances in this duration bin" );
 		_pageLabel.Text = _filtered.Length == _matches.Length ? $"{_filtered.Length:N0} instances · slowest first" : $"{_filtered.Length:N0} of {_matches.Length:N0} instances";
@@ -299,7 +299,7 @@ internal sealed class DevToolsProfilerScopeDetails : Panel
 			hiddenBelowDepth = _collapsed.Contains( row.SpanIndex ) ? row.Depth : int.MaxValue;
 			var site = _sites[row.ScopeId];
 			var marker = _parents.Contains( row.SpanIndex ) ? _collapsed.Contains( row.SpanIndex ) ? "+" : "−" : "";
-			_tree.Row( $"tree:{rowIndex++}", [new( site.Name, Indent: Math.Min( row.Depth, 24 ) * 14, Marker: marker ),
+			_tree.Row( $"tree:{rowIndex++}", [new( _capture.InstanceName( _capture.Spans[row.SpanIndex], site.Name ), Indent: Math.Min( row.Depth, 24 ) * 14, Marker: marker ),
 				new( $"{row.InclusiveMs:0.000}", "number" ), new( row.SelfMs is { } self ? $"{self:0.000}" : "-", "number" ),
 				new( row.PercentOfRoot is { } root ? $"{root:0.0}%" : "-", "number" ), new( row.PercentOfParent is { } parent ? $"{parent:0.0}%" : "-", "number" )],
 				() =>

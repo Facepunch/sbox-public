@@ -334,6 +334,8 @@ internal static partial class Profiler
 			if ( stack[i].Token == e.Token ) { stack.RemoveRange( i, stack.Count - i ); return; }
 	}
 
+	static bool ValidBegin( uint scope, HashSet<uint> sites, int labelCount ) => sites.Contains( scope & ScopeMask ) && scope >> LabelShift < labelCount;
+
 	static Capture ReadStreamCapture( Stream stream, ulong start, ulong frequency, Dictionary<uint, FileSection> sections, int maximumSpans, double startMs, double durationMs )
 	{
 		if ( !sections.TryGetValue( MetadataSection, out var info ) || !sections.TryGetValue( IndexSection, out var index ) || info.Version != 1 || index.Version != 1 ) throw new InvalidDataException( "Missing or unsupported profiler stream index." );
@@ -362,7 +364,7 @@ internal static partial class Profiler
 				lastTimes[block.Thread] = block.Last;
 				if ( block.Last < windowStart || (block.First > windowEnd && started.Contains( block.Thread )) ) continue;
 				ValidateSection( stream, block.Section, Math.Min( info.Offset - 16, index.Offset - 16 ), restorePosition: false );
-				ReadEventBlock( stream, block, builder, windowEnd, threads[block.Thread], sites, started.Add( block.Thread ) );
+				ReadEventBlock( stream, block, builder, windowEnd, threads[block.Thread], sites, metadata.Labels.Length, started.Add( block.Thread ) );
 			}
 			// A window cut short by the span limit ends where it was cut
 			var captureEnd = builder.RejectedTick != 0 ? Math.Clamp( builder.RejectedTick, windowStart, windowEnd ) : windowEnd;
@@ -371,6 +373,7 @@ internal static partial class Profiler
 			{
 				SourceOffsetMs = startMs,
 				RecordedDurationMs = metadata.DurationMs,
+				Labels = metadata.Labels,
 				EventLimitReached = capture.EventLimitReached || metadata.EventLimitReached,
 				LimitReason = capture.LimitReason ?? metadata.LimitReason
 			};
@@ -378,7 +381,7 @@ internal static partial class Profiler
 		finally { ArrayPool<byte>.Shared.Return( indexData ); foreach ( var state in builder.Threads.Values ) state.Spans.Dispose(); builder.StopCollector.Dispose(); }
 	}
 
-	static void ReadEventBlock( Stream stream, EventBlock block, Builder builder, ulong end, ThreadInfo threadInfo, HashSet<uint> sites, bool firstBlock )
+	static void ReadEventBlock( Stream stream, EventBlock block, Builder builder, ulong end, ThreadInfo threadInfo, HashSet<uint> sites, int labelCount, bool firstBlock )
 	{
 		using var section = new SectionStream( stream, block.Section );
 		using var reader = new BinaryReader( section, Encoding.UTF8, true );
@@ -388,7 +391,7 @@ internal static partial class Profiler
 		for ( int i = 0; i < openCount; i++ )
 		{
 			var e = new NativeEvent { Ticks = reader.ReadUInt64(), Token = reader.ReadUInt64(), Scope = reader.ReadUInt32(), Session = 1 };
-			if ( e.Ticks > first || !sites.Contains( e.Scope ) || e.Token == 0 ) throw new InvalidDataException( "Invalid profiler stack checkpoint." );
+			if ( e.Ticks > first || !ValidBegin( e.Scope, sites, labelCount ) || e.Token == 0 ) throw new InvalidDataException( "Invalid profiler stack checkpoint." );
 			if ( firstBlock ) opens.Add( e );
 		}
 		var data = ArrayPool<byte>.Shared.Rent( count * stride );
@@ -419,7 +422,7 @@ internal static partial class Profiler
 				var delta = stride == 16 ? BinaryPrimitives.ReadUInt32LittleEndian( bytes[12..] ) : BinaryPrimitives.ReadUInt64LittleEndian( bytes[12..] );
 				if ( delta > ulong.MaxValue - first ) throw new InvalidDataException( "Invalid profiler timestamp delta." );
 				var e = new NativeEvent { Token = BinaryPrimitives.ReadUInt64LittleEndian( bytes ), Scope = BinaryPrimitives.ReadUInt32LittleEndian( bytes[8..] ), Ticks = first + delta, Session = 1 };
-				if ( e.Ticks < previous || e.Ticks > block.Last || (e.Scope != 0 && e.Scope != uint.MaxValue && !sites.Contains( e.Scope )) || (e.Scope != uint.MaxValue && e.Token == 0) ) throw new InvalidDataException( "Invalid profiler event." );
+				if ( e.Ticks < previous || e.Ticks > block.Last || (e.Scope != 0 && e.Scope != uint.MaxValue && !ValidBegin( e.Scope, sites, labelCount )) || (e.Scope != uint.MaxValue && e.Token == 0) ) throw new InvalidDataException( "Invalid profiler event." );
 				previous = e.Ticks;
 				if ( e.Ticks < builder.Start ) { if ( firstBlock ) ApplyStackEvent( opens, e ); continue; }
 				InitializeStack();

@@ -6,13 +6,15 @@ native static class Profiler as NativeEngine.Profiler
 	static string GetScopeName( uint scope );
 	static string GetScopeFile( uint scope );
 	static int GetScopeLine( uint scope );
+	static uint Label( string text );
+	static string GetLabel( uint label );
 
 	static bool AttachThread();
 	[nogc]
 	static bool ScopesActive();
 
 	[nogc]
-	static ulong Begin( uint scope );
+	static ulong Begin( uint scope, uint label );
 	[nogc]
 	static void End( ulong token );
 

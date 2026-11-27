@@ -27,11 +27,24 @@ public sealed class ProfileScope
 	public Instance Start()
 	{
 		if ( !Profiler.ScopesActive ) return default;
+		return Begin( null );
+	}
+
+	/// <summary>Begin a scope with a short label for this instance, like the object it works on. Labels are interned, so keep their variety small.</summary>
+	[MethodImpl( MethodImplOptions.AggressiveInlining )]
+	internal Instance Start( string label )
+	{
+		if ( !Profiler.ScopesActive ) return default;
+		return Begin( label );
+	}
+
+	Instance Begin( string label )
+	{
 		var id = Volatile.Read( ref _id );
 		if ( id == 0 ) id = Register();
 		if ( id < 0 ) return default;
 		if ( !t_attached && Profiler.IsRecording && !Attach() ) return default;
-		return new( NativeEngine.Profiler.Begin( (uint)id ) );
+		return new( NativeEngine.Profiler.Begin( (uint)id, Profiler.Label( label ) ) );
 	}
 
 	[ThreadStatic] static bool t_attached;

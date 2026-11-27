@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -27,11 +28,16 @@ internal static partial class Profiler
 	internal const int MaxEvents = 33_554_432;
 	const int MaxRetainedSpans = 6_291_456;
 	internal const int RingCapacity = 32768; // Matches tier0/profiler.cpp
+											 // A begin event's scope field: the scope id below, its label above (tier0/profiler.cpp)
+	const int LabelShift = 16;
+	const uint ScopeMask = 0xffff;
+	internal const int MaxLabels = 4096;
 	const int RetainedCaptures = 4;
 	const int MaxDrainTimes = 65536;
 
 	static NativeEvent[] Scratch;
 	static readonly Dictionary<uint, Site> Sites = new();
+	static readonly ConcurrentDictionary<string, uint> LabelIds = new();
 	static readonly Queue<Capture> History = new();
 	static readonly object HistoryLock = new();
 	static readonly object CollectorLock = new();
@@ -90,14 +96,15 @@ internal static partial class Profiler
 		readonly ushort _depth, _flags;
 		public int Depth => _depth;
 		public bool Incomplete => (_flags & 1) != 0;
+		/// <summary>Index into the capture's <see cref="Capture.Labels"/>, 0 for none.</summary>
+		public int Label => _flags >> 1;
 		public double? SelfMs => double.IsNaN( _self ) ? null : _self;
 		public double DurationMs => EndMs - StartMs;
-		internal bool ValidFlags => _flags <= 1;
 
-		public Span( int index, uint scopeId, ulong threadKey, int parent, int depth, double startMs, double endMs, double? selfMs, bool incomplete )
+		public Span( int index, uint scopeId, ulong threadKey, int parent, int depth, double startMs, double endMs, double? selfMs, bool incomplete, int label = 0 )
 		{
 			Index = index; ScopeId = scopeId; ThreadKey = threadKey; Parent = parent;
-			_depth = checked((ushort)depth); _flags = (ushort)(incomplete ? 1 : 0);
+			_depth = checked((ushort)depth); _flags = checked((ushort)((incomplete ? 1 : 0) | label << 1));
 			StartMs = startMs; EndMs = endMs; _self = selfMs ?? double.NaN;
 		}
 	}
@@ -124,6 +131,12 @@ internal static partial class Profiler
 		public bool HasGcData { get; init; }
 		// Where allocation samples stop because the capture hit its sample limit, or null
 		public double? AllocationCutoffMs { get; init; }
+		// Instance labels by Span.Label; 0 is no label
+		public string[] Labels { get; init; } = [null];
+
+		public string LabelOf( in Span span ) => span.Label > 0 && span.Label < Labels.Length ? Labels[span.Label] : null;
+		// "Scope · label" for one instance
+		public string InstanceName( in Span span, string scopeName ) => LabelOf( span ) is { Length: > 0 } label ? $"{scopeName} · {label}" : scopeName;
 	}
 
 	struct PendingSpan
@@ -132,6 +145,7 @@ internal static partial class Profiler
 		public uint Scope;
 		public int Parent, Depth;
 		public bool Incomplete;
+		public ushort Label;
 	}
 
 	sealed class PendingSpans : IDisposable
@@ -193,6 +207,7 @@ internal static partial class Profiler
 		public double MaxDrainMs;
 		public readonly Dictionary<ulong, ThreadState> Threads = new();
 		public readonly HashSet<uint> ScopeIds = new();
+		public readonly HashSet<uint> LabelIds = new();
 		public GcPauseListener GcPauses;
 		public readonly List<(ulong Ticks, long Bytes)> FrameAllocations = new( 4096 );
 		public bool FrameAllocationsDone;
@@ -229,13 +244,17 @@ internal static partial class Profiler
 			{
 				if ( stack.Count >= ushort.MaxValue ) { Reject( e.Ticks, "nesting limit" ); return; }
 				if ( SpanCount >= EventLimit / 2 ) { Reject( e.Ticks, null ); return; }
+				var scope = e.Scope & ScopeMask;
+				var label = e.Scope >> LabelShift;
+				if ( label >= MaxLabels ) label = 0;
 				if ( AllocatedPendingBytes + spans.NextAllocationBytes + (SpanCount + 1L) * (RecordingBytesPerSpan - PendingSpanBytes) > PendingBudgetBytes )
 				{ Reject( e.Ticks, "memory limit" ); return; }
 				AllocatedPendingBytes += spans.NextAllocationBytes;
 				var index = spans.Count;
 				SpanCount++;
-				ScopeIds.Add( e.Scope );
-				spans.Add( new() { Scope = e.Scope, Start = e.Ticks, Parent = stack.Count == 0 ? -1 : stack[^1].Index, Depth = stack.Count } );
+				ScopeIds.Add( scope );
+				if ( label != 0 ) LabelIds.Add( label );
+				spans.Add( new() { Scope = scope, Label = (ushort)label, Start = e.Ticks, Parent = stack.Count == 0 ? -1 : stack[^1].Index, Depth = stack.Count } );
 				stack.Add( (index, e.Token) );
 				return;
 			}
@@ -411,9 +430,11 @@ internal static partial class Profiler
 			var dropped = Native.DroppedEvents() - builder.DroppedAtStart;
 			var clockToMs = 1000.0 / Native.Frequency();
 			var sites = builder.ScopeIds.Select( GetSite ).ToArray();
+			var labels = new string[builder.LabelIds.Count == 0 ? 1 : (int)builder.LabelIds.Max() + 1];
+			foreach ( var id in builder.LabelIds ) labels[id] = Native.GetLabel( id );
 			var threads = builder.Threads.Values.Select( x => new ThreadInfo( x.Info.Key, x.Info.Id, string.IsNullOrWhiteSpace( x.Name ) ? $"Thread {x.Info.Id}" : x.Name ) ).ToArray();
 			var snapshotMs = Stopwatch.GetElapsedTime( snapshotStart ).TotalMilliseconds;
-			_ = Task.Run( () => FinishOnWorker( builder, end, dropped, clockToMs, sites, threads, snapshotMs ) );
+			_ = Task.Run( () => FinishOnWorker( builder, end, dropped, clockToMs, sites, labels, threads, snapshotMs ) );
 		}
 		catch ( Exception e )
 		{
@@ -439,7 +460,7 @@ internal static partial class Profiler
 		catch ( Exception e ) { Log.Warning( $"Profiler capture shutdown: {e.Message}" ); }
 	}
 
-	static void FinishOnWorker( Builder builder, ulong end, ulong dropped, double clockToMs, Site[] sites, ThreadInfo[] threads, double snapshotMs )
+	static void FinishOnWorker( Builder builder, ulong end, ulong dropped, double clockToMs, Site[] sites, string[] labels, ThreadInfo[] threads, double snapshotMs )
 	{
 		Capture capture = null;
 		Exception error = null;
@@ -450,7 +471,7 @@ internal static partial class Profiler
 			if ( builder.Archive is not null )
 			{
 				var metadata = new Capture( builder.Id, (end - builder.Start) * clockToMs, dropped, false, 0, threads, sites, [], [] )
-				{ ThreadSpans = threads.ToDictionary( x => x.Key, _ => ArraySegment<Span>.Empty ) };
+				{ ThreadSpans = threads.ToDictionary( x => x.Key, _ => ArraySegment<Span>.Empty ), Labels = labels };
 				try { archiveFile = builder.Archive.Finish( metadata, end ); }
 				catch ( Exception e ) { storageError = e.Message; }
 				if ( builder.Archive.StopTick != 0 ) end = Math.Max( builder.Start, Math.Min( end, builder.Archive.StopTick ) );
@@ -459,7 +480,7 @@ internal static partial class Profiler
 			var limited = builder.LimitEnd != 0;
 			var captureEnd = limited ? Math.Min( builder.LimitEnd, end ) : end;
 			var rawAllocations = AddGcPauses( builder, captureEnd, ref sites, ref threads, out var allocationCutoff );
-			capture = Finish( builder, captureEnd, limited ? builder.LimitDropped - builder.DroppedAtStart : dropped, clockToMs, sites, threads );
+			capture = Finish( builder, captureEnd, limited ? builder.LimitDropped - builder.DroppedAtStart : dropped, clockToMs, sites, threads ) with { Labels = labels };
 
 			var frameAllocations = builder.FrameAllocations.Select( x => ((double)((long)x.Ticks - (long)builder.Start) * clockToMs, x.Bytes) ).ToList();
 			var drains = DescribeDurations( builder.DrainTimes );
@@ -577,7 +598,11 @@ internal static partial class Profiler
 						var e = Scratch[i];
 						if ( e.Session != builder.Session || e.Ticks < builder.Start ) continue;
 						Scratch[filtered++] = e;
-						if ( e.Scope != 0 && e.Scope != uint.MaxValue ) builder.ScopeIds.Add( e.Scope );
+						if ( e.Scope != 0 && e.Scope != uint.MaxValue )
+						{
+							builder.ScopeIds.Add( e.Scope & ScopeMask );
+							if ( e.Scope >> LabelShift is > 0 and < MaxLabels ) builder.LabelIds.Add( e.Scope >> LabelShift );
+						}
 					}
 					count = filtered;
 					if ( count == 0 ) continue;
@@ -588,6 +613,21 @@ internal static partial class Profiler
 				for ( int i = 0; i < count; i++ ) builder.Accept( thread, Scratch[i], ref state );
 			}
 		}
+	}
+
+	// Texts cached, misses included once native's table is full
+	static int _labelCacheCount;
+
+	/// <summary>
+	/// A label's id, interned by content in native and cached here. 0 for none, or once the label table is full.
+	/// </summary>
+	internal static uint Label( string text )
+	{
+		if ( string.IsNullOrEmpty( text ) ) return 0;
+		if ( LabelIds.TryGetValue( text, out var id ) ) return id;
+		id = Native.Label( text );
+		if ( Volatile.Read( ref _labelCacheCount ) < 2 * MaxLabels && LabelIds.TryAdd( text, id ) ) Interlocked.Increment( ref _labelCacheCount );
+		return id;
 	}
 
 	static Site GetSite( uint id )
@@ -618,7 +658,7 @@ internal static partial class Profiler
 				var endMs = Math.Clamp( (endTicks >= builder.Start ? endTicks - builder.Start : 0) * toMs, startMs, duration );
 				var elapsed = endMs - startMs;
 				double? self = !incomplete && !incompleteChildren[i] ? Math.Max( 0, elapsed - childMs[i] ) : null;
-				spans[offset + i] = new( offset + i, s.Scope, state.Info.Key, s.Parent < 0 ? -1 : offset + s.Parent, s.Depth, startMs, endMs, self, incomplete );
+				spans[offset + i] = new( offset + i, s.Scope, state.Info.Key, s.Parent < 0 ? -1 : offset + s.Parent, s.Depth, startMs, endMs, self, incomplete, s.Label );
 				if ( s.Parent >= 0 )
 				{
 					childMs[s.Parent] += elapsed;

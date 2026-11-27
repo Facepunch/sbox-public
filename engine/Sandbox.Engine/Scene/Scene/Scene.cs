@@ -356,7 +356,7 @@ public partial class Scene : GameObject
 				if ( cc.Active == false ) continue;
 				if ( cc.IsSceneEditorCamera ) continue;
 
-				using var _cam = _cameraRenderTimer.Start();
+				using var _cam = _cameraRenderTimer.Start( cc.GameObject.Name );
 				cc.AddToRenderList( swapChain, size );
 			}
 		}

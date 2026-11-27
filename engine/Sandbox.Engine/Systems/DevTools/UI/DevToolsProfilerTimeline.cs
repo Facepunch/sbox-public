@@ -646,7 +646,7 @@ internal sealed class DevToolsProfilerTimeline : Panel
 				}
 				if ( span.ScopeId == _selected ) { painter.Fill = Color.White; painter.Rect( new Rect( rect.Left, rect.Bottom - 1, rect.Width, 1 ) ); }
 				_hits.Add( (rect, span) );
-				var nameText = _sites[span.ScopeId].Name;
+				var nameText = _capture.InstanceName( span, _sites[span.ScopeId].Name );
 				if ( rect.Width >= 10 )
 				{
 					using var labelState = painter.Scope();
@@ -679,7 +679,7 @@ internal sealed class DevToolsProfilerTimeline : Panel
 			var (rect, span) = _hits[i];
 			if ( !rect.IsInside( mouse ) ) continue;
 			var site = _sites[span.ScopeId];
-			Tooltip = $"{site.Name}\n{span.DurationMs:0.000} ms · self {(span.SelfMs is { } self ? $"{self:0.000} ms" : "unavailable")}{(span.Incomplete ? " · unfinished" : "")}\n{Profiler.SourceLocation( site )}{DevToolsProfilerGc.OverlapLine( _capture, span.StartMs, span.EndMs )}";
+			Tooltip = $"{_capture.InstanceName( span, site.Name )}\n{span.DurationMs:0.000} ms · self {(span.SelfMs is { } self ? $"{self:0.000} ms" : "unavailable")}{(span.Incomplete ? " · unfinished" : "")}\n{Profiler.SourceLocation( site )}{DevToolsProfilerGc.OverlapLine( _capture, span.StartMs, span.EndMs )}";
 			break;
 		}
 	}
