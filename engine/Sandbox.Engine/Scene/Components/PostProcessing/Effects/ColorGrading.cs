@@ -124,14 +124,6 @@ public sealed class ColorGrading : BasePostProcess<ColorGrading>
 		public readonly StringToken[] Frame = [new( "CurveFrame" + channel + 0 ), new( "CurveFrame" + channel + 1 ), new( "CurveFrame" + channel + 2 ), new( "CurveFrame" + channel + 3 )];
 	}
 
-	sealed class CurveTokens( string channel )
-	{
-		public static readonly CurveTokens R = new( "R" ), G = new( "G" ), B = new( "B" ), H = new( "H" ), S = new( "S" ), V = new( "V" );
-
-		public readonly StringToken Frames = new( "CurveFrames" + channel );
-		public readonly StringToken Divisors = new( "CurveDivisors" + channel );
-		public readonly StringToken[] Frame = [new( "CurveFrame" + channel + 0 ), new( "CurveFrame" + channel + 1 ), new( "CurveFrame" + channel + 2 ), new( "CurveFrame" + channel + 3 )];
-	}
 
 	/// <summary>
 	/// Represent our curves into shaders
