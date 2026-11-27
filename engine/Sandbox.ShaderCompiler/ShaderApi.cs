@@ -83,47 +83,20 @@ public static partial class ShaderApi
 	private static partial Regex OneLine();
 
 	/// <summary>
-	/// The public headers and modules (decision 4, narrow): what an author's Slang may include or import and rely on from
-	/// one level to the next. Every other <c>sbox/*.slangh</c> is engine internals, and the <c>.fxc</c> names are legacy
-	/// shims (<see cref="SlangHeaders.Replaced"/>).
+	/// Whether <paramref name="name"/> (as an include names it, <c>sbox/view.slangh</c>) is public: every <c>sbox/*.slangh</c>
+	/// header and <c>sbox/*.slang</c> module is, and authors may rely on it from one level to the next. Only the <c>.fxc</c>
+	/// names, Valve's old headers, aren't: they're legacy shims (<see cref="SlangHeaders.Replaced"/>).
 	/// </summary>
-	public static IReadOnlyList<string> PublicHeaders { get; } =
-	[
-		"sbox/surface.slang", "sbox/material.slang", "sbox/pass.slangh", "sbox/engine.slangh",
-		"sbox/view.slangh", "sbox/lighting.slangh", "sbox/math.slangh", "sbox/samplers.slangh",
-	];
-
-	/// <summary>The public header that covers a non-public one, where there is one.</summary>
-	static readonly Dictionary<string, string> covers = new( StringComparer.OrdinalIgnoreCase )
+	public static bool IsPublic( string name )
 	{
-		["sbox/system.slangh"] = "sbox/pass.slangh",
-		["sbox/shading.slangh"] = "sbox/engine.slangh",
-		["sbox/final_combiner.slangh"] = "sbox/engine.slangh",
-		["sbox/features.slangh"] = "sbox/engine.slangh",
-		["sbox/vertex_input.slangh"] = "sbox/engine.slangh",
-		["sbox/pixel_input.slangh"] = "sbox/engine.slangh",
-		["sbox/vertex_processing.slangh"] = "sbox/engine.slangh",
-		["sbox/standard_features.slangh"] = "sbox/engine.slangh",
-		["sbox/standard_material_inputs.slangh"] = "sbox/engine.slangh",
-		["sbox/standard_vertex_input.slangh"] = "sbox/engine.slangh",
-		["sbox/standard_pixel_input.slangh"] = "sbox/engine.slangh",
-		["sbox/standard_vertex_processing.slangh"] = "sbox/engine.slangh",
-		["sbox/standard_pixel_processing.slangh"] = "sbox/engine.slangh",
-		["sbox/light_probe_volume.slangh"] = "sbox/lighting.slangh",
-		["sbox/irradiance_probe.slangh"] = "sbox/lighting.slangh",
-		["sbox/ambient_cube.slangh"] = "sbox/lighting.slangh",
-		["sbox/baked_lighting.slangh"] = "sbox/lighting.slangh",
-		["sbox/environment_map.slangh"] = "sbox/lighting.slangh",
-		["sbox/pcss.slangh"] = "sbox/lighting.slangh",
-		["sbox/volumetric_fog.slangh"] = "sbox/lighting.slangh",
-	};
-
-	/// <summary>Whether <paramref name="name"/> (as an include names it, <c>sbox/view.slangh</c>) is public.</summary>
-	public static bool IsPublic( string name ) => PublicHeaders.Contains( name.Replace( '\\', '/' ), StringComparer.OrdinalIgnoreCase );
+		name = name.Replace( '\\', '/' );
+		return name.StartsWith( "sbox/", StringComparison.OrdinalIgnoreCase )
+			&& (name.EndsWith( ".slangh", StringComparison.OrdinalIgnoreCase ) || name.EndsWith( ".slang", StringComparison.OrdinalIgnoreCase ));
+	}
 
 	/// <summary>
-	/// The warning for an author's Slang including <paramref name="name"/>, naming the public replacement where there is one;
-	/// null when it's public or not one of the engine's (the author's own files, HLSL headers). With <paramref name="import"/>
+	/// The warning for an author's Slang including <paramref name="name"/>, naming our header to use where there is one; null
+	/// when it's public or not a Valve <c>.fxc</c> name (the author's own files, HLSL headers). With <paramref name="import"/>
 	/// it's a module name (<c>sbox.surface</c>).
 	/// </summary>
 	public static string IncludeWarning( string name, bool import = false )
@@ -137,15 +110,10 @@ public static partial class ShaderApi
 		name = name.Replace( '\\', '/' );
 		if ( IsPublic( name ) ) return null;
 		if ( SlangHeaders.Replaced.TryGetValue( name, out var ours ) )
-		{
-			var replacement = IsPublic( ours ) ? ours : covers.GetValueOrDefault( ours );
-			return $"\"{name}\" is a legacy shim for old .shader code{(replacement is null ? $", and what it forwards to ({ours}) isn't public" : $": include \"{replacement}\" instead")}";
-		}
+			return $"\"{name}\" is a legacy shim for old .shader code: include \"{ours}\" instead";
 
-		var fxc = name.EndsWith( ".fxc", StringComparison.OrdinalIgnoreCase ) && !name.Contains( '/' );
-		if ( !fxc && !(name.StartsWith( "sbox/", StringComparison.OrdinalIgnoreCase ) && (name.EndsWith( ".slangh", StringComparison.OrdinalIgnoreCase ) || name.EndsWith( ".slang", StringComparison.OrdinalIgnoreCase ))) ) return null;
-		var cover = covers.GetValueOrDefault( name );
-		return $"\"{name}\" isn't a public shader header and may change in any release{(cover is null ? $" (public: {string.Join( ", ", PublicHeaders )})" : $": include \"{cover}\" instead")}";
+		if ( !name.EndsWith( ".fxc", StringComparison.OrdinalIgnoreCase ) || name.Contains( '/' ) ) return null;
+		return $"\"{name}\" is one of Valve's old headers and may change in any release: include an sbox/ header instead";
 	}
 
 	/// <summary>Every <c>#include "x"</c> and <c>import x;</c> in <paramref name="text"/>, with its line (from 1).</summary>
