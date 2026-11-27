@@ -104,9 +104,10 @@ public class LightTests
 		Assert.AreEqual( 50, extents.x, 1e-3f );
 		Assert.AreEqual( 50, extents.y, 1e-3f );
 
-		// A wide cone falls back to the whole sphere
-		light.ConeOuter = 60;
-		Assert.AreEqual( 100, world.BoundsExtents[light.Index].x, 1e-3f );
-		Assert.AreEqual( 0, world.BoundsCenter[light.Index].z, 1e-3f );
+		// A wide cone keeps to its side of the light too, as native bounds it: sin(80) * 100 to the sides, nothing above
+		light.ConeOuter = 80;
+		Assert.AreEqual( MathF.Sin( 80 * MathF.PI / 180 ) * 100, world.BoundsExtents[light.Index].x, 1e-3f );
+		Assert.AreEqual( -50, world.BoundsCenter[light.Index].z, 1e-3f );
+		Assert.AreEqual( 50, world.BoundsExtents[light.Index].z, 1e-3f );
 	}
 }

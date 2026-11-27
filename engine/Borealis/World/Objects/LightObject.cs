@@ -140,11 +140,12 @@ public sealed class LightObject : RenderObject
 	}
 
 	/// <summary>
-	/// Fit influence bounds, using a tighter box for narrow spot cones.
+	/// Fit influence bounds: a spot light's cone (its reach along the axis, sin(cone) of it to the sides), as native's
+	/// <c>LightDesc_t</c> bounds a spot whatever its angle, so a wide spot behind the camera isn't taken as in view.
 	/// </summary>
 	void UpdateBounds()
 	{
-		if ( kind == LightKind.Spot && coneOuter < 45 )
+		if ( kind == LightKind.Spot )
 		{
 			var width = radius * MathF.Sin( coneOuter.DegreeToRadian() );
 			LocalBounds = new BBox( new Vector3( 0, -width, -width ), new Vector3( radius, width, width ) );
