@@ -112,9 +112,11 @@ public abstract class BasePostProcess : Component, Component.ExecuteInEditor, Co
 	/// <summary>
 	/// Helper to do a blit with the current camera's post process
 	/// </summary>
-	protected void Blit( BlitMode blit, string debugName )
+	protected void Blit( BlitMode blit, string debugName ) => BlitLayer( blit, debugName );
+
+	PostProcessLayer BlitLayer( BlitMode blit, string debugName )
 	{
-		if ( !blit.Material.IsValid() ) return;
+		if ( !blit.Material.IsValid() ) return null;
 
 		var layer = AddLayer( blit.RenderStage, blit.Order, debugName );
 
@@ -130,6 +132,7 @@ public abstract class BasePostProcess : Component, Component.ExecuteInEditor, Co
 		cl.Blit( blit.Material, blit.Attributes ?? Attributes );
 
 		layer.CommandList = cl;
+		return layer;
 	}
 
 
@@ -152,11 +155,24 @@ public abstract class BasePostProcess : Component, Component.ExecuteInEditor, Co
 	/// <summary>
 	/// Add this standard effect to the camera's post process as a part of the uber post pass, with its parameters in
 	/// <see cref="Attributes"/>. Layers next to each other in the stage's order are drawn as one pass
-	/// (<see cref="PostProcessLayers.FoldUberLayers"/>).
+	/// (<see cref="PostProcessLayers.FoldUberLayers"/>). The draw follows <c>prefix</c>, the effect's own commands (bloom's
+	/// copy and chain), when there are any.
 	/// </summary>
-	internal void AddUberEffect( UberPostEffect effect, Sandbox.Rendering.Stage stage, int order, string debugName )
+	internal void AddUberEffect( UberPostEffect effect, Sandbox.Rendering.Stage stage, int order, string debugName, CommandList prefix = null )
 	{
 		var layer = AddLayer( stage, order, debugName );
+		layer.Uber = effect;
+		layer.UberSource = Attributes;
+		layer.UberPrefix = prefix;
+	}
+
+	/// <summary>
+	/// The same for an effect with a cheaper pass of its own (<paramref name="alone"/>, drawn as <see cref="Blit"/> draws it),
+	/// which it keeps when no standard effect is next to it.
+	/// </summary>
+	internal void AddUberEffect( UberPostEffect effect, BlitMode alone, string debugName )
+	{
+		if ( BlitLayer( alone, debugName ) is not { } layer ) return;
 		layer.Uber = effect;
 		layer.UberSource = Attributes;
 	}

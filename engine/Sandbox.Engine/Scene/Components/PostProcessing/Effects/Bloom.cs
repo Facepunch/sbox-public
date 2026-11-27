@@ -43,8 +43,6 @@ public class Bloom : BasePostProcess<Bloom>
 
 	CommandList command = new CommandList( "Bloom" );
 
-	private static Material Shader = Material.FromShader( "shaders/postprocess/postprocess_bloom.shader" );
-
 	private static ComputeShader ShaderCs = new ComputeShader( "postprocess/postprocess_bloom_cs" );
 
 	// Half res down to 1/64th res
@@ -99,15 +97,13 @@ public class Bloom : BasePostProcess<Bloom>
 			command.ResourceBarrierTransition( Mip( i ), i == 0 ? ResourceState.PixelShaderResource : ResourceState.NonPixelShaderResource );
 		}
 
-		// Composite: sample the bloom texture in PS and apply selected mode
+		// Composite: the uber post pass samples the bloom texture and applies the selected mode, after these commands
 		command.Attributes.Set( "BloomTexture", Mip( 0 ).ColorTexture );
 		command.Attributes.Set( "CompositeMode", (int)GetCompositeMode() );
 		command.Attributes.Set( "BloomScale", strength / (2.0f * MipCount) );
 		command.Attributes.Set( "Tint", GetWeighted( x => x.Tint, Color.White ) );
 
-		command.Blit( Shader );
-
-		InsertCommandList( command, Stage.BeforePostProcess, 100, "Bloom" );
+		AddUberEffect( UberPostEffect.Bloom, Stage.BeforePostProcess, 100, "Bloom", prefix: command );
 	}
 
 	private SceneCamera.BloomAccessor.BloomMode GetCompositeMode()

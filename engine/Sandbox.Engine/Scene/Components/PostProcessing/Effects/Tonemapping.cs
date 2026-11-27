@@ -55,17 +55,14 @@ public class Tonemapping : BasePostProcess<Tonemapping>
 	[ShowIf( nameof( Mode ), TonemappingMode.HableFilmic )]
 	[Property] public ExposureColorSpaceEnum ExposureMethod { get; set; } = ExposureColorSpaceEnum.RGB;
 
-	private static Material Shader = Material.FromShader( "shaders/tonemapping/tonemapping.shader" );
-
 	public override void Render()
 	{
 		UpdateExposure( Camera );
 
-		Attributes.SetComboEnum( "D_TONEMAPPING", Mode );
-		Attributes.SetComboEnum( "D_EXPOSUREMETHOD", ExposureMethod );
+		// The uber post pass's tonemap: the mode + 8 * the exposure method
+		Attributes.Set( "UberTonemap", (int)Mode + 8 * (int)ExposureMethod );
 
-		var blit = BlitMode.WithBackbuffer( Shader, Stage.Tonemapping, 0 );
-		Blit( blit, "Tonemapping" );
+		AddUberEffect( UberPostEffect.Tonemap, Stage.Tonemapping, 0, "Tonemapping" );
 	}
 
 	//

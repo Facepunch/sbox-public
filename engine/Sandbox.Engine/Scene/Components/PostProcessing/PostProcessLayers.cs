@@ -150,6 +150,9 @@ internal class PostProcessLayer : IComparable<PostProcessLayer>
 	public UberPostEffect Uber;
 	public RenderAttributes UberSource;
 
+	/// <summary>The effect's own commands, which the uber pass's draw follows in the same list (bloom's chain).</summary>
+	public CommandList UberPrefix;
+
 	/// <summary>Owned by this layer for the uber pass of the run it starts: the run's parameters together.</summary>
 	public RenderAttributes UberAttributes;
 
@@ -168,6 +171,7 @@ internal class PostProcessLayer : IComparable<PostProcessLayer>
 		Index = 0;
 		Uber = UberPostEffect.None;
 		UberSource = null;
+		UberPrefix = null;
 	}
 
 	public int CompareTo( PostProcessLayer other )

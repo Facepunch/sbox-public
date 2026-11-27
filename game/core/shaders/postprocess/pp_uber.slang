@@ -1,13 +1,16 @@
 // pp_uber: a standalone module, the whole shader for Borealis.Gpu (docs/reference/borealis-standalone-modules.md).
 // The standard post effects that read only their own pixel, or a fixed few around it, in one pass: one read of the frame
 // and one write, whichever of them are on (docs/reference/borealis-uber-post.md). PostProcessLayers folds a run of these
-// effects' layers into one draw; each effect is a bit of UberEffects, a specialization constant, so a pipeline holds only
-// the effects it draws, and their parameters are one constant buffer.
+// effects' layers into one draw; each effect is a bit of UberEffects, a feature bit in the pass's constants that every
+// pixel of a draw branches on the same way, so an effect that's off costs a skipped branch, with no combos; the effects'
+// parameters are the same one constant buffer.
 //
 // In a run's order, as the effects' own layers drew them, each over the last one's result:
 //   the source: sharpen (3x3), chromatic aberration (three taps) or pixelate (a block's mip) when one starts the run, else
 //   this pixel; then film grain, colour adjustments and colour grading (temperature or LUT, then per-channel curves), each
 //   over a colour clamped to 0..1, as the 8-bit target clamped it between passes.
+// Before the tonemap (BeforePostProcess, HDR, nothing clamped): bloom's composite as the source, then the vignette.
+// The tonemap (its own stage): the frame's pixel, exposed and mapped.
 // HEADER: Description = "Uber post";
 // HEADER: DevShader = true;
 
@@ -62,11 +65,15 @@ struct PixelInput
     #define UBER_COLOR          8
     #define UBER_GRADING        16
     #define UBER_PIXELATE       32
+    #define UBER_BLOOM          64
+    #define UBER_VIGNETTE       128
+    #define UBER_TONEMAP        256
 
-    int UberEffects < Attribute( "UberEffects" ); Default( 0 ); SpecializedConstant(); >;
+    // Not specialization constants: Borealis.Gpu keys a standalone module's pipelines by its dynamic combos only
+    int UberEffects < Attribute( "UberEffects" ); Default( 0 ); >;
 
     // Colour grading's method (0 none, 1 temperature, 2 LUT) and per-channel colour space (0 none, 1 RGB, 2 HSV): method + 4 * space
-    int UberGrading < Attribute( "UberGrading" ); Default( 0 ); SpecializedConstant(); >;
+    int UberGrading < Attribute( "UberGrading" ); Default( 0 ); >;
 
     bool Has( int effect ) { return ( UberEffects & effect ) != 0; }
 
@@ -408,6 +415,228 @@ struct PixelInput
         return float4( lerp( originalColor.rgb, color, BlendFactor ), originalColor.a );
     }
 
+    //
+    // Bloom's composite: the bloom chain's result (BloomTexture, made by bloom's own command list before this pass) over
+    // the frame, in HDR (BeforePostProcess)
+    //
+    Texture2D BloomTexture < Attribute( "BloomTexture" ); >;
+    int CompositeMode < Attribute( "CompositeMode" ); Default( 0 ); >;
+    float BloomScale < Attribute( "BloomScale" ); Default( 0.0f ); >;
+    float3 Tint < Attribute( "Tint" ); Default3( 1.0f, 1.0f, 1.0f ); >;
+
+    float3 ScreenHDR( float3 base, float3 blend )
+    {
+        base = max( base, 0.0f );
+        blend = max( blend, 0.0f );
+        float3 screenTerm = 1.0f - ( 1.0f - saturate( base ) ) * ( 1.0f - saturate( blend ) );
+        float3 excessBase = max( base - 1.0f, 0.0f );
+        float3 excessBlend = max( blend - 1.0f, 0.0f );
+        return screenTerm + excessBase + excessBlend;
+    }
+
+    float4 BloomComposite( float2 vScreenUv )
+    {
+        float4 baseColor = g_tColorBuffer.Sample( g_sBilinearMirror, vScreenUv.xy );
+        float4 bloom = BloomTexture.Sample( g_sBilinearMirror, vScreenUv.xy );
+        bloom.rgb *= Tint * BloomScale;
+
+        float3 finalColor = 0;
+        if ( CompositeMode == 0 )
+        {
+            finalColor = baseColor.rgb + bloom.rgb; // Additive
+        }
+        else if ( CompositeMode == 1 )
+        {
+            finalColor = ScreenHDR( baseColor.rgb, bloom.rgb ); // Screen
+        }
+        else // 2: Lerp by bloom luminance
+        {
+            float bloomLuminance = Luminance( bloom.rgb );
+            finalColor = lerp( baseColor.rgb, bloom.rgb, saturate( bloomLuminance ) );
+        }
+
+        // Approximate bloom alpha with brightness so it bleeds fine on translucent backgrounds
+        float alpha = max( baseColor.a, Luminance( finalColor.rgb ) );
+
+        return float4( finalColor, alpha );
+    }
+
+    //
+    // Vignette: the frame multiplied toward the vignette's colour at the edges, in HDR (BeforePostProcess). Alone it draws
+    // with pp_vignette, blending over the frame; after bloom's composite it's part of that pass, blended here the same way
+    //
+    float4 VignetteColor < Attribute( "VignetteColor" ); Default4( 0.0f, 0.0f, 0.0f, 1.0f ); >;
+    float VignetteIntensity < Attribute( "VignetteIntensity" ); Default( 1.0f ); >;
+    float VignetteFeather < Attribute( "VignetteSmoothness" ); Default( 1.0f ); >;
+    float VignetteRoundness < Attribute( "VignetteRoundness" ); Default( 1.0f ); >;
+    float2 VignetteCenter < Attribute( "VignetteCenter" ); Default2( 0.5f, 0.5f ); >;
+
+    float ComputeVignetteAmount( float2 uv )
+    {
+        float2 offset = abs( uv - VignetteCenter );
+
+        // Apply roundness/aspect correction
+        float2 aspect = float2( g_vRenderTargetSize.x / g_vRenderTargetSize.y, 1.0 );
+        offset *= lerp( float2( 1.0, 1.0 ), aspect, VignetteRoundness );
+
+        // Scale radius by intensity
+        float dist = length( offset ) * ( 0.5 + VignetteIntensity );
+
+        // Falloff using smooth feathering
+        return smoothstep( 0.0, 1.0, pow( saturate( dist ), lerp( 1.0, 6.0, 1.0 - VignetteFeather ) ) );
+    }
+
+    float4 Vignette( float4 dst, float2 uv )
+    {
+        float4 src = lerp( 1.0f, VignetteColor, ComputeVignetteAmount( uv ) * VignetteColor.a );
+
+        // pp_vignette's blending: colour src * dst (ZERO, SRC_COLOR), alpha src.a * src.a + dst.a (the default alpha factors)
+        return float4( dst.rgb * src.rgb, src.a * src.a + dst.a );
+    }
+
+    //
+    // Tonemap: the auto exposure's scale, then the curve (the Tonemapping stage, HDR in, display range out)
+    //
+    #define TONEMAPPING_HABLE_FILMIC 1
+    #define TONEMAPPING_ACES 2
+    #define TONEMAPPING_REINHARDJODIE 3
+    #define TONEMAPPING_LINEAR 4
+    #define TONEMAPPING_AGX 5
+
+    float TonemapLuminance( float3 color )
+    {
+        return dot( color, float3( 0.2126f, 0.7152f, 0.0722f ) );
+    }
+
+    // Hable only: the curve on the colour (RGB) or on its luminance, put back with the colour's hue and saturation
+    float3 RemapForExposureBias( float3 RGB, int exposureMethod )
+    {
+        if ( exposureMethod == 1 )
+        {
+            float3 HSV = GradingRgbToHsv( RGB );
+            HSV.z = TonemapLuminance( RGB );
+            RGB = GradingHsvToRgb( HSV );
+        }
+        return RGB;
+    }
+
+    float3 ToneMapping_ReinhardJodie( float3 color )
+    {
+        float L = TonemapLuminance( color );
+        float3 tv = color / ( 1.0f + color );
+        return lerp( color / ( 1.0f + L ), tv, tv );
+    }
+
+    float3 uncharted2_tonemap_partial( float3 x )
+    {
+        const float A = 0.15f;
+        const float B = 0.50f;
+        const float C = 0.10f;
+        const float D = 0.20f;
+        const float E = 0.02f;
+        const float F = 0.30f;
+        return ( ( x * ( A * x + C * B ) + D * E ) / ( x * ( A * x + B ) + D * F ) ) - E / F;
+    }
+
+    float3 ToneMapping_HableFilmic( float3 color, int exposureMethod )
+    {
+        color = RemapForExposureBias( color, exposureMethod );
+        float3 curr = uncharted2_tonemap_partial( color );
+        float3 W = 11.2f;
+        float3 white_scale = 1.0f / uncharted2_tonemap_partial( W );
+        return curr * white_scale;
+    }
+
+    float3 ToneMapping_Aces( float3 color )
+    {
+        const float3x3 m1 =
+        {
+            0.59719, 0.07600, 0.02840,
+            0.35458, 0.90834, 0.13383,
+            0.04823, 0.01566, 0.83777
+        };
+
+        const float3x3 m2 =
+        {
+             1.60475, -0.10208, -0.00327,
+            -0.53108,  1.10813, -0.07276,
+            -0.07367, -0.00605,  1.07602
+        };
+
+        // mul( rgb, m1 ) == mul( transpose( m1 ), rgb )
+        float3 v = mul( color, m1 );
+        float3 a = v * ( v + 0.0245786 ) - 0.000090537;
+        float3 b = v * ( 0.983729 * v + 0.4329510 ) + 0.238081;
+        return saturate( mul( ( a / b ), m2 ) );
+    }
+
+    float3 AgxTonescale( float3 v )
+    {
+        // Similar implementation to Blender
+        float3 v2 = v * v;
+        float3 v4 = v2 * v2;
+        return -0.20687445 * v + 6.80888933 * v2 - 37.60519607 * v2 * v + 93.32681938 * v4 - 95.2780858 * v4 * v + 33.96372259 * v4 * v2;
+    }
+
+    float3 ToneMapping_Agx( float3 vColor )
+    {
+        float3x3 mAgx = float3x3(
+            0.856627153315983,      0.137318972929847,      0.11189821299995,
+            0.0951212405381588,     0.761241990602591,      0.0767994186031903,
+            0.0482516061458583,     0.101439036467562,      0.811302368396859
+        );
+
+        // Prevent negative values
+        vColor = max( vColor, 0.0.xxx );
+        vColor = mul( vColor, mAgx );
+
+        // Log2 transform
+        float flExposureMin = -12.47393f;
+        float flExposureMax = 4.026069f;
+
+        vColor = max( vColor, 1e-10.xxx );
+        vColor = clamp( log2( vColor ), flExposureMin, flExposureMax );
+        vColor = ( vColor - flExposureMin ) / ( flExposureMax - flExposureMin );
+
+        vColor = AgxTonescale( vColor );
+
+        // AgX Punchy look
+        float3 vPower = float3( 1.35.xxx );
+        float flSat = 1.4;
+
+        vColor = pow( vColor, vPower );
+
+        float flLuma = TonemapLuminance( vColor );
+        vColor = flLuma + flSat * ( vColor - flLuma );
+
+        // AgX outset matrix combined with Rec2020 to linear sRGB
+        const float3x3 mAgxInv = float3x3(
+            1.19687900512017,       -0.0528968517574562,    -0.0529716355144438,
+            -0.0980208811401368,     1.15190312990417,      -0.0980434501171241,
+            -0.0990297440797205,    -0.0989611768448433,    1.15107367264116
+        );
+
+        vColor = mul( vColor, mAgxInv );
+        vColor = pow( vColor, 2.2.xxx );
+        return max( vColor, 0.0.xxx );
+    }
+
+    // UberTonemap: the mode (Tonemapping.TonemappingMode, 0 none) + 8 * the exposure method (0 RGB, 1 luminance)
+    int UberTonemap < Attribute( "UberTonemap" ); Default( 0 ); >;
+
+    float4 Tonemap( float4 color )
+    {
+        int mode = UberTonemap & 7;
+        float3 rgb = max( 0.0.xxx, color.rgb ) * g_flToneMapScalarLinear;
+
+        if ( mode == TONEMAPPING_REINHARDJODIE ) rgb = ToneMapping_ReinhardJodie( rgb );
+        else if ( mode == TONEMAPPING_HABLE_FILMIC ) rgb = ToneMapping_HableFilmic( rgb, UberTonemap >> 3 );
+        else if ( mode == TONEMAPPING_ACES ) rgb = ToneMapping_Aces( rgb );
+        else if ( mode == TONEMAPPING_AGX ) rgb = ToneMapping_Agx( rgb );
+
+        return float4( rgb, color.a );
+    }
+
     [shader( "pixel" )] float4 MainPs( PixelInput i ) : SV_Target0
     {
         float2 uv = CalculateViewportUv( i.vPositionSs.xy );
@@ -417,12 +646,18 @@ struct PixelInput
         if ( Has( UBER_SHARPEN ) ) color = Sharpen( uv, SharpenStrength * 25 );
         else if ( Has( UBER_CHROMATIC ) ) color = ChromaticAberration( uv );
         else if ( Has( UBER_PIXELATE ) ) color = Pixelate( uv );
+        else if ( Has( UBER_BLOOM ) ) color = BloomComposite( ( i.vPositionSs.xy + g_vViewportOffset ) / g_vViewportSize );
         else color = Fetch( uv );
+
+        if ( Has( UBER_TONEMAP ) ) color = Tonemap( color );
 
         // Then each per-pixel effect over the last one's result, clamped as an 8-bit target between passes clamped it
         if ( Has( UBER_FILMGRAIN ) ) color = saturate( float4( ApplyFilmGrain( saturate( color.rgb ), uv ), color.a ) );
         if ( Has( UBER_COLOR ) ) color = saturate( ColorAdjust( saturate( color ) ) );
         if ( Has( UBER_GRADING ) ) color = ColorGrade( saturate( color ) );
+
+        // HDR, before the tonemap
+        if ( Has( UBER_VIGNETTE ) ) color = Vignette( color, i.vPositionSs.xy / g_vRenderTargetSize );
 
         return color;
     }

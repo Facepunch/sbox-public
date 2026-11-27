@@ -1309,6 +1309,39 @@ public class PostProcessingComponentTest
 			// Drawn in stage order: the runs, with the game's effect between them
 			var drawn = cam.PostProcess.Layers[Stage.AfterPostProcess].Where( x => x.CommandList is not null ).Select( x => x.Name ).ToArray();
 			CollectionAssert.AreEqual( new[] { "Sharpen", "ChromaticAberration", "Custom", "ColorAdjustments", "Pixelate" }, drawn );
+
+			// The tonemap is the uber pass too, alone in its stage
+			var tonemap = camGo.Components.Create<Tonemapping>();
+			tonemap.Mode = Tonemapping.TonemappingMode.AgX;
+			scene.GameTick();
+			var tonemapLayer = FindLayer( cam, Stage.Tonemapping, "Tonemapping" );
+			Assert.IsNotNull( tonemapLayer.CommandList );
+			Assert.AreEqual( (int)UberPostEffect.Tonemap, Effects( tonemapLayer ) );
+			Assert.AreEqual( (int)Tonemapping.TonemappingMode.AgX, tonemapLayer.UberAttributes.GetInt( "UberTonemap" ) );
+
+			// The vignette alone keeps its own pass, a blend over the frame
+			camGo.Components.Create<Vignette>();
+			scene.GameTick();
+			var vignette = FindLayer( cam, Stage.BeforePostProcess, "Vignette" );
+			Assert.IsNotNull( vignette.CommandList );
+			Assert.IsNull( vignette.UberAttributes, "Not drawn by the uber post pass" );
+
+			// After bloom's composite it's part of that pass, which follows bloom's own commands in its list
+			var bloom = camGo.Components.Create<Bloom>();
+			scene.GameTick();
+			var bloomLayer = FindLayer( cam, Stage.BeforePostProcess, "Bloom" );
+			vignette = FindLayer( cam, Stage.BeforePostProcess, "Vignette" );
+			Assert.IsNull( vignette.CommandList );
+			Assert.AreEqual( (int)(UberPostEffect.Bloom | UberPostEffect.Vignette), Effects( bloomLayer ) );
+			Assert.AreSame( bloomLayer.UberPrefix, bloomLayer.CommandList, "Bloom's chain, then the composite and vignette" );
+
+			// Blur between them splits the run: the vignette has its own pass again
+			camGo.Components.Create<Blur>();
+			scene.GameTick();
+			bloomLayer = FindLayer( cam, Stage.BeforePostProcess, "Bloom" );
+			vignette = FindLayer( cam, Stage.BeforePostProcess, "Vignette" );
+			Assert.AreEqual( (int)UberPostEffect.Bloom, Effects( bloomLayer ) );
+			Assert.IsNotNull( vignette.CommandList );
 		}
 		finally
 		{

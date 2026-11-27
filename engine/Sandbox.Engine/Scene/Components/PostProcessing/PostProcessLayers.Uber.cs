@@ -15,9 +15,15 @@ internal enum UberPostEffect
 	ColorAdjustments = 8,
 	ColorGrading = 16,
 	Pixelate = 32,
+	Bloom = 64,
+	Vignette = 128,
+	Tonemap = 256,
 
-	/// <summary>Effects that read pixels other than their own, so read the frame itself: each starts a run.</summary>
-	ReadsNeighbours = Sharpen | ChromaticAberration | Pixelate,
+	/// <summary>
+	/// Effects that read the frame as the layer before them left it: those reading pixels other than their own, and bloom's
+	/// composite, whose own command list copies the frame first. Each starts a run.
+	/// </summary>
+	StartsRun = Sharpen | ChromaticAberration | Pixelate | Bloom,
 }
 
 internal partial class PostProcessLayers
@@ -35,8 +41,10 @@ internal partial class PostProcessLayers
 	/// and one draw of the uber post shader with every effect of the run on, in place of a copy and a draw each. A layer with
 	/// a command list of its own between two of them (a game's own effect) ends the run, so nothing is reordered. An effect
 	/// that reads its neighbours (sharpen, chromatic aberration, pixelate) reads the frame as the layer before left it, so it
-	/// starts a run. The run's first layer draws it; the others are left without a command list. On the main thread, after
-	/// the camera's effects are built.
+	/// starts a run, as bloom does: its own commands (the copy and the downsample chain) come first, then the run's draw. The
+	/// run's first layer draws it; the others are left without a command list. A run of one effect that has a pass of its
+	/// own (the vignette, a blend over the frame with no copy) keeps it. On the main thread, after the camera's effects are
+	/// built.
 	/// </summary>
 	public void FoldUberLayers()
 	{
@@ -54,9 +62,11 @@ internal partial class PostProcessLayers
 				}
 
 				var end = i + 1;
-				while ( end < list.Count && list[end].Uber != UberPostEffect.None && (list[end].Uber & UberPostEffect.ReadsNeighbours) == 0 ) end++;
+				while ( end < list.Count && list[end].Uber != UberPostEffect.None && (list[end].Uber & UberPostEffect.StartsRun) == 0 ) end++;
 
-				FoldRun( list, i, end );
+				// Alone, an effect with a pass of its own keeps it
+				if ( end - i > 1 || list[i].CommandList is null )
+					FoldRun( list, i, end );
 				i = end;
 			}
 		}
@@ -79,12 +89,18 @@ internal partial class PostProcessLayers
 
 		attributes.Set( UberEffectsName, (int)effects );
 
-		var cl = head.BlitCommandList ??= new CommandList();
-		cl.Reset();
-		cl.DebugName = end - start == 1 ? head.Name : RunName( effects );
+		// After the first effect's own commands (bloom's copy and chain), or a copy of the frame
+		var cl = head.UberPrefix;
+		if ( cl is null )
+		{
+			cl = head.BlitCommandList ??= new CommandList();
+			cl.Reset();
 
-		// Pixelate reads the block's mips
-		cl.Attributes.GrabFrameTexture( "ColorBuffer", (effects & UberPostEffect.Pixelate) != 0 );
+			// Pixelate reads the block's mips
+			cl.Attributes.GrabFrameTexture( "ColorBuffer", (effects & UberPostEffect.Pixelate) != 0 );
+		}
+
+		cl.DebugName = end - start == 1 ? head.Name : RunName( effects );
 		cl.Blit( UberMaterial, attributes );
 		head.CommandList = cl;
 	}

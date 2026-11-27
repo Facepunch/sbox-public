@@ -52,7 +52,13 @@ public sealed class Vignette : BasePostProcess<Vignette>
 		Attributes.Set( "roundness", GetWeighted( x => x.Roundness, onlyLerpBetweenVolumes: true ) );
 		Attributes.Set( "center", GetWeighted( x => x.Center, onlyLerpBetweenVolumes: true ) );
 
-		var blit = BlitMode.Simple( Shader, Stage.BeforePostProcess, 5000 );
-		Blit( blit, "Vignette" );
+		// The same for the uber post pass, when it follows bloom's composite
+		Attributes.Set( "VignetteColor", color );
+		Attributes.Set( "VignetteIntensity", intensity );
+		Attributes.Set( "VignetteSmoothness", GetWeighted( x => x.Smoothness, onlyLerpBetweenVolumes: true ) );
+		Attributes.Set( "VignetteRoundness", GetWeighted( x => x.Roundness, onlyLerpBetweenVolumes: true ) );
+		Attributes.Set( "VignetteCenter", GetWeighted( x => x.Center, onlyLerpBetweenVolumes: true ) );
+
+		AddUberEffect( UberPostEffect.Vignette, BlitMode.Simple( Shader, Stage.BeforePostProcess, 5000 ), "Vignette" );
 	}
 }
