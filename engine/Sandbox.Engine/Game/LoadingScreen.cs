@@ -220,7 +220,7 @@ public static class LoadingScreen
 		{
 			try
 			{
-				var package = await FetchForSizing( ident );
+				var package = await Package.Fetch( ident, false );
 				if ( package is null ) return;
 
 				// What it pulls in, sized alongside it rather than after
@@ -270,10 +270,7 @@ public static class LoadingScreen
 	/// only fill the loading bar, and a package lookup the backend never answers would hold the join for the request's whole
 	/// timeout. Lookups that answer later still size the bar, for downloads that haven't started.
 	/// </summary>
-	internal static TimeSpan ReserveWait = TimeSpan.FromSeconds( 5 );
-
-	/// <summary>The package lookup <see cref="ReserveDownloads"/> sizes with; the tests stand in for the backend.</summary>
-	internal static Func<string, Task<Package>> FetchForSizing = static ident => Package.Fetch( ident, false );
+	static readonly TimeSpan ReserveWait = TimeSpan.FromSeconds( 5 );
 
 	/// <summary>
 	/// A URL or filepath to show as the background image.
