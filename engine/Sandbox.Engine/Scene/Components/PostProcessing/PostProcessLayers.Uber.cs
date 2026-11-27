@@ -112,8 +112,10 @@ internal partial class PostProcessLayers
 		head.CommandList = cl;
 	}
 
-	// The layers the camera's output copy draws this frame, which their stages skip: the tonemap, and the first run after it
-	PostProcessLayer _outputTonemap, _outputRun;
+	// The layers the output copy draws in the frame this thread is recording, which their stages skip: the tonemap, and the
+	// first run after it. Per thread: a thread records a camera's frame and its output in turn, and the editor can record two
+	// frames at once (main and render threads) whose cameras can share a camera component's layers
+	[ThreadStatic] static PostProcessLayer _outputTonemap, _outputRun;
 
 	/// <summary>
 	/// Whether the tonemap can be drawn by the camera's output copy (<see cref="OutputPostProcess"/>) instead of its own pass,
