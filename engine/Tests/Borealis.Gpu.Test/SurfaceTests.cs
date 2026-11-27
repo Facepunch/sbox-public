@@ -1222,6 +1222,64 @@ public class SurfaceTests : GpuTest
 		}
 	}
 
+	/// <summary>
+	/// Each compile at run time is told once it's done, with why it wasn't read from an offline compile: no <c>_c</c>, a stale
+	/// one (the source changed), or a current one without the variant asked for. One read from its <c>_c</c> isn't told.
+	/// </summary>
+	[TestMethod]
+	[TestCategory( "Slow" )]
+	public void RuntimeCompilesSayWhy()
+	{
+		Compiler();
+		var folder = Path.Combine( Path.GetTempPath(), "borealis-runtime-cause-test-" + Guid.NewGuid().ToString( "N" ) );
+		Directory.CreateDirectory( folder );
+		try
+		{
+			var bin = EngineFolders.NativeIn( Path.GetDirectoryName( Core ) );
+			var shaders = Path.Combine( Core, "shaders" );
+			var module = Path.Combine( folder, "cause_rock.slang" );
+			File.WriteAllText( module, File.ReadAllText( Path.Combine( Surfaces, "rock.slang" ) ).Replace( "public struct Rock", "public struct CauseRock", StringComparison.Ordinal ) );
+			var told = new List<RuntimeCompile>();
+			SlangCompiler Game( string cache ) => new( bin, [folder, shaders] ) { CacheFolder = Path.Combine( folder, cache ), Compiled = c => { lock ( told ) told.Add( c ); } };
+
+			Game( "cache1" ).CompileSurface( module );
+			Assert.AreEqual( 1, told.Count, string.Join( "; ", told ) );
+			Assert.AreEqual( RuntimeCompileCause.NoCompiled, told[0].Cause );
+			Assert.AreEqual( "cause_rock.slang", told[0].What );
+			Assert.IsFalse( told[0].Failed );
+			Assert.IsTrue( told[0].Milliseconds > 0 );
+
+			var offline = new SlangCompiler( bin, [folder, shaders] ) { CacheFolder = Path.Combine( folder, "offline" ), UseOffline = false };
+			var pass = PassModule.Read( Path.Combine( shaders, "depthresolve.slang" ), [shaders] );
+			Assert.AreEqual( OfflineResult.Compiled, offline.CompileOfflineAsync( module ).GetAwaiter().GetResult() );
+			Assert.AreEqual( OfflineResult.Compiled, offline.CompileOfflineAsync( pass.Path, Path.Combine( folder, "depthresolve.slang_c" ) ).GetAwaiter().GetResult() );
+
+			told.Clear();
+			var game = Game( "cache2" );
+			Assert.IsTrue( game.CompileSurface( module ).Offline );
+			var values = pass.Combos( StageKind.Pixel ).ToDictionary( c => c.Name, c => c.Min );
+			Assert.IsTrue( game.CompilePass( pass, StageKind.Pixel, values ).Offline );
+			Assert.AreEqual( 0, told.Count, "read from the _c: nothing compiled" );
+
+			// Values the offline compile never compiled: a variant it lacks
+			values["D_CAUSE_TEST"] = 1;
+			Assert.IsFalse( game.CompilePass( pass, StageKind.Pixel, values ).Offline );
+			Assert.AreEqual( 1, told.Count, string.Join( "; ", told ) );
+			Assert.AreEqual( RuntimeCompileCause.MissingVariant, told[0].Cause );
+			StringAssert.StartsWith( told[0].What, "depthresolve.slang Pixel " );
+
+			told.Clear();
+			File.AppendAllText( module, "\n// changed\n" );
+			Assert.IsFalse( Game( "cache3" ).CompileSurface( module ).Offline );
+			Assert.AreEqual( 1, told.Count, string.Join( "; ", told ) );
+			Assert.AreEqual( RuntimeCompileCause.Stale, told[0].Cause );
+		}
+		finally
+		{
+			Directory.Delete( folder, true );
+		}
+	}
+
 	/// <summary>A lit surface turns on the light loop's hook and hands it the material; an unlit one leaves the loop alone.</summary>
 	[TestMethod]
 	public void LitSurfaceHooksTheLightLoop()

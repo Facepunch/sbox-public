@@ -154,6 +154,24 @@ public sealed class SlangOutput
 	internal bool Current( string compiler, string text, DependencyPaths paths ) =>
 		complete && identity == compiler && textHash == CompileCache.Hash( text ) && dependencies.TrueForAll( d => paths.Resolve( d.Name ) is { } path && PassCache.FileHash( path ) == d.Hash );
 
+	/// <summary>
+	/// Why a compile missed these offline compiles of a source with <paramref name="text"/> and asked for entry
+	/// <paramref name="key"/> (<see cref="RuntimeCompileCause"/>): none there, one made by this compiler from this text without
+	/// that entry (a variant it didn't compile), or none that is (stale).
+	/// </summary>
+	internal static RuntimeCompileCause MissCause( IReadOnlyList<SlangOutput> offline, string compiler, string text, string key )
+	{
+		if ( offline.Count == 0 ) return RuntimeCompileCause.NoCompiled;
+		var hash = CompileCache.Hash( text );
+		foreach ( var output in offline )
+		{
+			if ( output.problem is null && output.textHash == hash && output.identity is { } identity && identity.StartsWith( compiler + "|", StringComparison.Ordinal ) && !output.entries.ContainsKey( key ) )
+				return RuntimeCompileCause.MissingVariant;
+		}
+
+		return RuntimeCompileCause.Stale;
+	}
+
 	/// <summary>Write a compiled file at <paramref name="path"/>; not <paramref name="complete"/> when some of it failed, so it's compiled again next time.</summary>
 	internal static void Write( string path, string compiler, string text, bool complete, IEnumerable<(string Name, string Hash)> dependencies, IEnumerable<KeyValuePair<string, byte[]>> entries, byte[] declarations = null, IReadOnlyList<(string Name, string Text)> sources = null )
 	{

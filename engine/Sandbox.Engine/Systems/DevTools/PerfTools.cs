@@ -58,6 +58,7 @@ internal static class PerfTools
 			},
 			DrawCalls = f.Managed.Renders > 0 ? f.Managed.TotalDraws : f.DrawCalls,
 			Triangles = f.Managed.Renders > 0 ? f.Managed.Triangles : f.TrianglesRendered,
+			ShaderCompiles = RenderBackend.Default is BorealisGpuRenderBackend ? Borealis.Backend.RuntimeShaderCompiles.Summary() : null,
 		};
 	}
 

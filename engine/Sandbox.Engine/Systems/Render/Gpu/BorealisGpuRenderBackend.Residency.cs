@@ -10,8 +10,8 @@ internal sealed partial class BorealisGpuRenderBackend
 	/// <summary>A texture on the device: its name, shape, format and the memory it holds.</summary>
 	internal readonly record struct ResidentTexture( string Name, ImageFormat Format, int Width, int Height, int Depth, int Layers, int Mips, bool Cube, bool Volume, bool Array, bool RenderTarget, bool Depthbuffer, bool Storage, bool Multisampled, long Bytes );
 
-	/// <summary>What the device holds, as a line for the frame stats (Source 2's GPU summary).</summary>
-	internal string DescribeResources() => gpu.DescribeResources();
+	/// <summary>What the device holds, as a line for the frame stats (Source 2's GPU summary), and the shaders compiled at run time.</summary>
+	internal string DescribeResources() => $"{gpu.DescribeResources()}\n{Borealis.Backend.RuntimeShaderCompiles.Summary()}";
 
 	/// <summary>Every texture on the device now.</summary>
 	internal List<ResidentTexture> ResidentTextures()

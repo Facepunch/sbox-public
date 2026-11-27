@@ -1034,17 +1034,26 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 		{
 			// Core shaders embed no source: build-shaders makes theirs, and one without stays classic
 			if ( Path.GetFullPath( source ).StartsWith( core, StringComparison.OrdinalIgnoreCase ) ) return false;
-			return RunShaderCompiler( compiler, game, ["--recompile", source, "-gpudriven", "-q", "--out", output] );
+			return Timed( source, " GPU-driven variant (ShaderCompiler)", Sandbox.ShaderCompiler.RuntimeCompileCause.MissingVariant, () => RunShaderCompiler( compiler, game, ["--recompile", source, "-gpudriven", "-q", "--out", output] ) );
 		};
 
 		// A package shader an older engine compiled is recompiled from its embedded source as it loads, as the engine's
 		// ShaderUpgrade does when a package installs
 		Shaders.UpgradeCache = Path.Combine( game, ".source2", "borealisshaderupgrade" );
 		Shaders.UpgraderVersion = $"{File.GetLastWriteTimeUtc( compiler ).Ticks}";
-		Shaders.Upgrader = ( source, output ) => RunShaderCompiler( compiler, game, ["--recompile", source, "-q", "--out", output] );
+		Shaders.Upgrader = ( source, output ) => Timed( source, " (ShaderCompiler)", Sandbox.ShaderCompiler.RuntimeCompileCause.EmbeddedSource, () => RunShaderCompiler( compiler, game, ["--recompile", source, "-q", "--out", output] ) );
 
 		// In the game, on a worker: its materials draw nothing until it's done, rather than the frame waiting seconds for it
 		Shaders.UpgradeInBackground = SurfaceShaders.CompileInBackgroundByDefault;
+	}
+
+	/// <summary>A ShaderCompiler run for <paramref name="source"/> at run time, counted and logged (<see cref="RuntimeShaderCompiles"/>).</summary>
+	bool Timed( string source, string what, Sandbox.ShaderCompiler.RuntimeCompileCause cause, Func<bool> run )
+	{
+		var clock = Stopwatch.StartNew();
+		var compiled = run();
+		RuntimeShaderCompiles.Record( new Sandbox.ShaderCompiler.RuntimeCompile( Path.GetFileName( source ) + what, source, cause, clock.Elapsed.TotalMilliseconds, !compiled ), Passes.Info );
+		return compiled;
 	}
 
 	static bool RunShaderCompiler( string compiler, string workingDirectory, string[] arguments )

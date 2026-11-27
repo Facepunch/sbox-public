@@ -46,9 +46,11 @@ public sealed partial class SlangCompiler
 			}
 		}
 
-		Compiling?.Invoke( $"{Path.GetFileName( module.Path )} {stage} {string.Join( ' ', defines.Select( d => $"{d.Key}={d.Value}" ) )}" );
+		var what = $"{Path.GetFileName( module.Path )} {stage} {string.Join( ' ', defines.Select( d => $"{d.Key}={d.Value}" ) )}";
+		Compiling?.Invoke( what );
+		var cause = Compiled is null ? default : MissCause( module.Path, module.Text, PassCache.Key( slangDirectory, key, module ) );
 
-		return SlangWorkers.Run( () => CompilePassStage( module, stage, values, defines, key ), priority );
+		return SlangWorkers.Run( () => Reported( what, module.Path, cause, () => CompilePassStage( module, stage, values, defines, key ) ), priority );
 	}
 
 	/// <summary>Modules whose includes were checked (<see cref="CheckIncludes"/>): once each, not per variant.</summary>
@@ -281,7 +283,7 @@ internal static class PassCache
 	}
 
 	/// <summary>An entry's key: the compiler, the stage, module file name and values (<paramref name="key"/>), and the module's text.</summary>
-	static string Key( string slangDirectory, string key, PassModule module ) => CompileCache.Hash( $"{Format}|{CompileCache.Identity( slangDirectory )}|{key}|{module.Text}" );
+	internal static string Key( string slangDirectory, string key, PassModule module ) => CompileCache.Hash( $"{Format}|{CompileCache.Identity( slangDirectory )}|{key}|{module.Text}" );
 
 	static string Place( string folder, string key, PassModule module ) =>
 		Path.Combine( folder, $"{Path.GetFileNameWithoutExtension( module.Path )}.{CompileCache.Hash( $"{Path.GetFullPath( module.Path ).ToLowerInvariant()}|{key}" )[..16].ToLowerInvariant()}.bin" );

@@ -602,7 +602,7 @@ public sealed partial class SurfaceShaders : IDisposable
 			{
 				CacheFolder = CacheFolder ?? Path.Combine( game, ".source2", "borealissurfaces" ),
 				UseOffline = UseOffline,
-				Compiling = what => Info?.Invoke( $"Borealis.Gpu: compiling {what} with Slang at run time (no offline compile)" ),
+				Compiled = compile => RuntimeShaderCompiles.Record( compile, Info ),
 				Warning = message => Info?.Invoke( $"Borealis.Gpu: {message}" ),
 			};
 		}
@@ -630,8 +630,9 @@ public sealed partial class SurfaceShaders : IDisposable
 	public bool UseOffline { get; set; } = !Environment.GetCommandLineArgs().Any( a => a.Equals( "-no-offline-shaders", StringComparison.OrdinalIgnoreCase ) );
 
 	/// <summary>
-	/// Told of each Slang compile here at run time, which the build's offline compile didn't cover: hotload, game code's
-	/// shaders, package shaders. The console's output unless set.
+	/// Told of each Slang compile here at run time, which the build's offline compile didn't cover (hotload, game code's
+	/// shaders, package shaders), one line each with why and how long (<see cref="RuntimeShaderCompiles"/>). The console's
+	/// output unless set.
 	/// </summary>
 	public Action<string> Info { get; set; } = message => Console.WriteLine( message );
 

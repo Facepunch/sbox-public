@@ -218,6 +218,36 @@ public sealed partial class SlangCompiler
 	public Action<string> Compiling { get; init; }
 
 	/// <summary>
+	/// Told of each compile here that wasn't read from an offline compile or the cache once it's done or failed: what, why
+	/// (<see cref="RuntimeCompileCause"/>) and how long it took. Null: not told. For logging and counting run-time compiles.
+	/// </summary>
+	public Action<RuntimeCompile> Compiled { get; init; }
+
+	/// <summary>Why a compile of <paramref name="path"/> missed its offline compiles, for <see cref="Compiled"/>.</summary>
+	RuntimeCompileCause MissCause( string path, string text, string key ) =>
+		SlangOutput.MissCause( Offline( path ), CompileCache.Identity( slangDirectory ), text, key );
+
+	/// <summary><paramref name="compile"/>, told to <see cref="Compiled"/> with its wall time when it ends.</summary>
+	T Reported<T>( string what, string path, RuntimeCompileCause cause, Func<T> compile )
+	{
+		if ( Compiled is null ) return compile();
+		var clock = Stopwatch.StartNew();
+		T result;
+		try
+		{
+			result = compile();
+		}
+		catch ( ShaderCompileException )
+		{
+			Compiled( new RuntimeCompile( what, path, cause, clock.Elapsed.TotalMilliseconds, true ) );
+			throw;
+		}
+
+		Compiled( new RuntimeCompile( what, path, cause, clock.Elapsed.TotalMilliseconds, false ) );
+		return result;
+	}
+
+	/// <summary>
 	/// Told each shader API warning once per process, as <c>path(line): warning: message</c>: a deprecated name (a shim kept
 	/// for the previous level, <see cref="ShaderApi"/>) used, or an author's file including a header that isn't public (an
 	/// engine-internal <c>sbox/*.slangh</c>, a legacy <c>.fxc</c> shim), naming the replacement. Null: none are looked for.
@@ -298,7 +328,20 @@ public sealed partial class SlangCompiler
 		}
 
 		Compiling?.Invoke( path );
-		var compiled = await compile( path ).ConfigureAwait( false );
+		var cause = Compiled is null ? default : MissCause( path, text, CompileCache.Key( slangDirectory, tier, path, text, false ) );
+		var clock = Stopwatch.StartNew();
+		CompiledShader compiled;
+		try
+		{
+			compiled = await compile( path ).ConfigureAwait( false );
+		}
+		catch ( ShaderCompileException )
+		{
+			Compiled?.Invoke( new RuntimeCompile( Path.GetFileName( path ), path, cause, clock.Elapsed.TotalMilliseconds, true ) );
+			throw;
+		}
+
+		Compiled?.Invoke( new RuntimeCompile( Path.GetFileName( path ), path, cause, clock.Elapsed.TotalMilliseconds, false ) );
 		using ( Zone( CompilePhase.CacheSave ) ) CompileCache.Save( CacheFolder, Paths( path ), slangDirectory, path, text, compiled, saved: saved );
 		return compiled;
 	}

@@ -124,8 +124,9 @@ public sealed partial class PassModules : IShaderModules
 	public bool UseOffline { get; set; } = !Environment.GetCommandLineArgs().Any( a => a.Equals( "-no-offline-shaders", StringComparison.OrdinalIgnoreCase ) );
 
 	/// <summary>
-	/// Told of each Slang compile here at run time, which the build's offline compile didn't cover: hotload, game code's
-	/// shaders, package shaders. The console's output unless set.
+	/// Told of each Slang compile here at run time, which the build's offline compile didn't cover (hotload, game code's
+	/// shaders, package shaders), one line each with why and how long (<see cref="RuntimeShaderCompiles"/>). The console's
+	/// output unless set.
 	/// </summary>
 	public Action<string> Info { get; set; } = message => Console.WriteLine( message );
 
@@ -146,7 +147,8 @@ public sealed partial class PassModules : IShaderModules
 			{
 				CacheFolder = CacheFolder ?? Path.Combine( game, ".source2", "borealispasses" ),
 				UseOffline = UseOffline,
-				Compiling = what => Info?.Invoke( $"Borealis.Gpu: compiling {what} with Slang at run time (no offline compile)" ),
+				// A module made from a package shader's embedded source never has a _c: told as such
+				Compiled = compile => RuntimeShaderCompiles.Record( compile.Cause == RuntimeCompileCause.NoCompiled && IsEmbedded( compile.Path ) ? compile with { Cause = RuntimeCompileCause.EmbeddedSource } : compile, Info ),
 				Warning = message => Info?.Invoke( $"Borealis.Gpu: {message}" ),
 			};
 		}
@@ -353,7 +355,16 @@ public sealed partial class PassModules : IShaderModules
 		{
 		}
 
+		lock ( embeddedPaths ) embeddedPaths.Add( Path.GetFullPath( path ) );
 		return Kept( PassModule.FromText( path, text, [Path.Combine( Core, "shaders" )] ) );
+	}
+
+	readonly HashSet<string> embeddedPaths = new( StringComparer.OrdinalIgnoreCase );
+
+	/// <summary>Whether the module at <paramref name="path"/> was made from a shader's embedded source (<see cref="MakeEmbedded"/>).</summary>
+	bool IsEmbedded( string path )
+	{
+		lock ( embeddedPaths ) return embeddedPaths.Contains( Path.GetFullPath( path ) );
 	}
 
 	/// <summary>
