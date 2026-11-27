@@ -26,7 +26,7 @@ public class RendererAllocationTests
 	/// <summary>
 	/// A scene with something of each kind the renderer draws: static and moving models (GPU-driven), a skinned and
 	/// animating citizen, a sun with cascaded shadows, shadowed point and spot lights, particles, a screen panel and a world
-	/// panel, and post processing (bloom, tonemapping, ambient occlusion, sharpening). Once it has warmed up, frames in a row
+	/// panel, and post processing (bloom, tonemapping, ambient occlusion and every standard effect the uber post pass draws). Once it has warmed up, frames in a row
 	/// allocate nothing in the renderer.
 	/// </summary>
 	[TestMethod]
@@ -91,6 +91,15 @@ public class RendererAllocationTests
 		camera.GameObject.Components.Create<Tonemapping>();
 		camera.GameObject.Components.Create<AmbientOcclusion>();
 		camera.GameObject.Components.Create<Sharpen>();
+		// Every standard effect the uber post pass draws, and the vignette after bloom's composite
+		camera.GameObject.Components.Create<FilmGrain>();
+		camera.GameObject.Components.Create<ChromaticAberration>();
+		camera.GameObject.Components.Create<ColorAdjustments>().Saturation = 1.2f;
+		var grading = camera.GameObject.Components.Create<ColorGrading>();
+		grading.GradingMethod = ColorGrading.GradingType.TemperatureControl;
+		grading.ColorSpace = ColorGrading.ColorSpaceEnum.RGB;
+		camera.GameObject.Components.Create<Pixelate>().Scale = 0.001f;
+		camera.GameObject.Components.Create<Vignette>();
 
 		// Ground and a ring of boxes and spheres, one of them turning
 		var ground = scene.CreateObject().Components.Create<ModelRenderer>();

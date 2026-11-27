@@ -149,6 +149,18 @@ public abstract class BasePostProcess : Component, Component.ExecuteInEditor, Co
 		AddLayer( stage, order, debugName ).CommandList = cl;
 	}
 
+	/// <summary>
+	/// Add this standard effect to the camera's post process as a part of the uber post pass, with its parameters in
+	/// <see cref="Attributes"/>. Layers next to each other in the stage's order are drawn as one pass
+	/// (<see cref="PostProcessLayers.FoldUberLayers"/>).
+	/// </summary>
+	internal void AddUberEffect( UberPostEffect effect, Sandbox.Rendering.Stage stage, int order, string debugName )
+	{
+		var layer = AddLayer( stage, order, debugName );
+		layer.Uber = effect;
+		layer.UberSource = Attributes;
+	}
+
 	PostProcessLayer AddLayer( Sandbox.Rendering.Stage stage, int order, string debugName )
 	{
 		var layer = context.Camera.PostProcess.CreateLayer( stage );

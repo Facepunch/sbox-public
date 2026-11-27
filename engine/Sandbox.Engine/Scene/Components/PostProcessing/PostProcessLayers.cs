@@ -5,7 +5,7 @@ namespace Sandbox;
 /// <summary>
 /// Holds a list of post processing layers for a camera
 /// </summary>
-internal class PostProcessLayers
+internal partial class PostProcessLayers
 {
 	public Dictionary<Stage, List<PostProcessLayer>> Layers = new();
 
@@ -37,6 +37,7 @@ internal class PostProcessLayers
 
 		var layer = _pool[_poolUsed++];
 		layer.Reset();
+		layer.Index = _poolUsed;
 
 		if ( !Layers.TryGetValue( stage, out var list ) )
 		{
@@ -132,6 +133,19 @@ internal class PostProcessLayer : IComparable<PostProcessLayer>
 	public PostProcessQueue? EarlyQueue;
 	public bool RanEarly;
 
+	/// <summary>Creation order this build: equal orders run in it.</summary>
+	public int Index;
+
+	/// <summary>
+	/// A standard effect drawn by the uber post pass (<see cref="PostProcessLayers.FoldUberLayers"/>), with its parameters in
+	/// <see cref="UberSource"/>; none for a layer with its own command list.
+	/// </summary>
+	public UberPostEffect Uber;
+	public RenderAttributes UberSource;
+
+	/// <summary>Owned by this layer for the uber pass of the run it starts: the run's parameters together.</summary>
+	public RenderAttributes UberAttributes;
+
 	/// <summary>
 	/// Owned by this layer for <see cref="BasePostProcess"/> blits, reused while the layer is.
 	/// </summary>
@@ -144,16 +158,23 @@ internal class PostProcessLayer : IComparable<PostProcessLayer>
 		Name = null;
 		EarlyQueue = null;
 		RanEarly = false;
+		Index = 0;
+		Uber = UberPostEffect.None;
+		UberSource = null;
 	}
 
-	public int CompareTo( PostProcessLayer other ) => Order.CompareTo( other.Order );
+	public int CompareTo( PostProcessLayer other )
+	{
+		var order = Order.CompareTo( other.Order );
+		return order != 0 ? order : Index.CompareTo( other.Index );
+	}
 
 	/// <summary>
-	/// Render this layer
+	/// Render this layer. Nothing for one folded into the uber pass of the run before it.
 	/// </summary>
 	public void Render()
 	{
-		CommandList.ExecuteOnRenderThread();
+		CommandList?.ExecuteOnRenderThread();
 	}
 }
 

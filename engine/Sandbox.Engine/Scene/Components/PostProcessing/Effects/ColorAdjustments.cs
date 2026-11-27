@@ -16,8 +16,6 @@ public sealed class ColorAdjustments : BasePostProcess<ColorAdjustments>
 	[Range( 0, 2 ), Property] public float Brightness { get; set; } = 1.0f;
 	[Range( 0, 2 ), Property] public float Contrast { get; set; } = 1.0f;
 
-	private static Material Shader = Material.FromShader( "shaders/postprocess/pp_color.shader" );
-
 	public override void Render()
 	{
 		var blend = GetWeighted( x => x.Blend, 0 );
@@ -31,14 +29,13 @@ public sealed class ColorAdjustments : BasePostProcess<ColorAdjustments>
 		// Neutral adjustments don't need a frame copy or a fullscreen pass.
 		if ( saturation == 1.0f && hueRotate == 0.0f && brightness == 1.0f && contrast == 1.0f ) return;
 
-		Attributes.Set( "blend", blend );
-		Attributes.Set( "saturate", saturation );
-		Attributes.Set( "hue_rotate", hueRotate );
-		Attributes.Set( "brightness", brightness );
-		Attributes.Set( "contrast", contrast );
+		Attributes.Set( "ColorBlend", blend );
+		Attributes.Set( "ColorSaturation", saturation );
+		Attributes.Set( "ColorHueRotate", hueRotate );
+		Attributes.Set( "ColorBrightness", brightness );
+		Attributes.Set( "ColorContrast", contrast );
 
-		var blit = BlitMode.WithBackbuffer( Shader, Stage.AfterPostProcess, 3000, false );
-		Blit( blit, "ColorAdjustments" );
+		AddUberEffect( UberPostEffect.ColorAdjustments, Stage.AfterPostProcess, 3000, "ColorAdjustments" );
 	}
 
 }

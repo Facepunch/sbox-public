@@ -104,6 +104,10 @@ public sealed partial class PostProcessSystem
 				var group = _groups[i];
 				group[0].Effect.Build( new PostProcessContext { Camera = camera, TargetCamera = target, Components = group } );
 			}
+
+			// The standard effects' layers next to each other drawn as one pass each
+			if ( target is null && camera.IsValid() )
+				camera.PostProcess.FoldUberLayers();
 		}
 
 		public void Clear()

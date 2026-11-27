@@ -77,8 +77,6 @@ public sealed class ColorGrading : BasePostProcess<ColorGrading>
 	[ShowIf( nameof( ColorSpace ), ColorSpaceEnum.HSV )]
 	public Curve ValueCurve { get; set; } = new Curve( new Curve.Frame( 0.0f, 0.5f ), new Curve.Frame( 1.0f, 1.0f ) );
 
-	private static Material Shader = Material.FromShader( "ColorGrading.shader" );
-
 	public override void Render()
 	{
 		if ( GradingMethod == GradingType.None && ColorSpace == ColorSpaceEnum.None )
@@ -93,14 +91,13 @@ public sealed class ColorGrading : BasePostProcess<ColorGrading>
 		Attributes.Set( "BlendFactor", blendFactor );
 		Attributes.Set( "ColorTempK", colorTempK );
 
-		Attributes.SetComboEnum( "D_CGRAD_PASS", GradingMethod );
+		// The method and colour space pick the uber pass's grading (a specialization constant): method + 4 * space
+		Attributes.Set( "UberGrading", (int)GradingMethod + 4 * (int)ColorSpace );
 
 		if ( GradingMethod == GradingType.LUT )
 		{
 			Attributes.Set( "LookupTexture", LookupTexture );
 		}
-
-		Attributes.SetComboEnum( "D_COLORSPACE", ColorSpace );
 
 		if ( ColorSpace == ColorSpaceEnum.RGB )
 		{
@@ -115,8 +112,7 @@ public sealed class ColorGrading : BasePostProcess<ColorGrading>
 			ProcessCurve( ValueCurve, CurveTokens.V, Attributes );
 		}
 
-		var blit = BlitMode.WithBackbuffer( Shader, Stage.AfterPostProcess, 4000, false );
-		Blit( blit, "ColorGrading" );
+		AddUberEffect( UberPostEffect.ColorGrading, Stage.AfterPostProcess, 4000, "ColorGrading" );
 	}
 
 	sealed class CurveTokens( string channel )

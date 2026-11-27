@@ -1238,6 +1238,85 @@ public class PostProcessingComponentTest
 	}
 
 	/// <summary>
+	/// The standard per-pixel effects next to each other in a stage's order fold into one uber post pass: the run's first
+	/// layer holds one command list with every effect's bit and parameters, the rest none. A game's own effect between two
+	/// of them splits the run there, and an effect that reads its neighbours (chromatic aberration, pixelate) starts one.
+	/// </summary>
+	[TestMethod]
+	public void StandardEffectsFoldIntoUberPostRuns()
+	{
+		var oldEnable = PostProcessSystem.EnablePostProcess;
+		PostProcessSystem.EnablePostProcess = true;
+
+		try
+		{
+			var scene = new Scene();
+			using var sceneScope = scene.Push();
+
+			var camGo = scene.CreateObject();
+			var cam = camGo.Components.Create<CameraComponent>();
+
+			camGo.Components.Create<Sharpen>();
+			camGo.Components.Create<FilmGrain>();
+			camGo.Components.Create<ChromaticAberration>();
+			var adjust = camGo.Components.Create<ColorAdjustments>();
+			adjust.Saturation = 1.5f;
+			var grading = camGo.Components.Create<ColorGrading>();
+			grading.GradingMethod = ColorGrading.GradingType.TemperatureControl;
+			grading.ColorSpace = ColorGrading.ColorSpaceEnum.HSV;
+			camGo.Components.Create<Pixelate>();
+
+			scene.GameTick();
+
+			static int Effects( PostProcessLayer layer ) => layer.UberAttributes.GetInt( "UberEffects" );
+
+			var sharpen = FindLayer( cam, Stage.AfterPostProcess, "Sharpen" );
+			var grain = FindLayer( cam, Stage.AfterPostProcess, "FilmGrain" );
+			var ca = FindLayer( cam, Stage.AfterPostProcess, "ChromaticAberration" );
+			var adjustLayer = FindLayer( cam, Stage.AfterPostProcess, "ColorAdjustments" );
+			var gradingLayer = FindLayer( cam, Stage.AfterPostProcess, "ColorGrading" );
+			var pixelate = FindLayer( cam, Stage.AfterPostProcess, "Pixelate" );
+
+			Assert.IsNotNull( sharpen.CommandList, "Sharpen starts the first run" );
+			Assert.IsNull( grain.CommandList, "Film grain is drawn by sharpen's pass" );
+			Assert.AreEqual( (int)(UberPostEffect.Sharpen | UberPostEffect.FilmGrain), Effects( sharpen ) );
+			Assert.AreEqual( 0.1f, sharpen.UberAttributes.GetFloat( "GrainIntensity" ), 0.0001f, "The run's parameters are together" );
+
+			Assert.IsNotNull( ca.CommandList, "Chromatic aberration reads its neighbours, so starts a run" );
+			Assert.IsNull( adjustLayer.CommandList );
+			Assert.IsNull( gradingLayer.CommandList );
+			Assert.AreEqual( (int)(UberPostEffect.ChromaticAberration | UberPostEffect.ColorAdjustments | UberPostEffect.ColorGrading), Effects( ca ) );
+			Assert.AreEqual( 1.5f, ca.UberAttributes.GetFloat( "ColorSaturation" ), 0.0001f );
+			Assert.AreEqual( 1 + 4 * 2, ca.UberAttributes.GetInt( "UberGrading" ), "Grading's method and colour space" );
+
+			Assert.IsNotNull( pixelate.CommandList );
+			Assert.AreEqual( (int)UberPostEffect.Pixelate, Effects( pixelate ) );
+
+			// A game's own effect between chromatic aberration and the colour adjustments splits that run there
+			var custom = camGo.Components.Create<CustomAfterPostEffect>();
+			custom.Order = 2000;
+			scene.GameTick();
+
+			ca = FindLayer( cam, Stage.AfterPostProcess, "ChromaticAberration" );
+			adjustLayer = FindLayer( cam, Stage.AfterPostProcess, "ColorAdjustments" );
+			gradingLayer = FindLayer( cam, Stage.AfterPostProcess, "ColorGrading" );
+			Assert.IsNotNull( FindLayer( cam, Stage.AfterPostProcess, "Custom" ).CommandList );
+			Assert.AreEqual( (int)UberPostEffect.ChromaticAberration, Effects( ca ) );
+			Assert.IsNotNull( adjustLayer.CommandList, "The colour adjustments start a run after the game's effect" );
+			Assert.IsNull( gradingLayer.CommandList );
+			Assert.AreEqual( (int)(UberPostEffect.ColorAdjustments | UberPostEffect.ColorGrading), Effects( adjustLayer ) );
+
+			// Drawn in stage order: the runs, with the game's effect between them
+			var drawn = cam.PostProcess.Layers[Stage.AfterPostProcess].Where( x => x.CommandList is not null ).Select( x => x.Name ).ToArray();
+			CollectionAssert.AreEqual( new[] { "Sharpen", "ChromaticAberration", "Custom", "ColorAdjustments", "Pixelate" }, drawn );
+		}
+		finally
+		{
+			PostProcessSystem.EnablePostProcess = oldEnable;
+		}
+	}
+
+	/// <summary>
 	/// The obsolete PostProcess base class manages a raw camera command list instead of
 	/// going through the PostProcessSystem: enabling creates a CommandList and adds it to
 	/// the camera, OnUpdate resets and refills it once per tick, disabling removes and
@@ -1356,3 +1435,15 @@ class LegacyPostProcessProbe : PostProcess
 }
 
 #pragma warning restore CS0618
+
+/// <summary>
+/// A game's own post process effect: a command list of its own at AfterPostProcess, at <see cref="Order"/>.
+/// </summary>
+public sealed class CustomAfterPostEffect : BasePostProcess<CustomAfterPostEffect>
+{
+	public int Order { get; set; } = 2000;
+
+	readonly CommandList _commandList = new( "Custom" );
+
+	public override void Render() => InsertCommandList( _commandList, Stage.AfterPostProcess, Order, "Custom" );
+}

@@ -230,7 +230,7 @@ internal sealed partial class SceneBridge
 		{
 			CopyFrame( frame, encode, flipX, flipY );
 
-			// What draws over the output reads the view's constants, sized for the output (pp_color's g_vRenderTargetSize)
+			// What draws over the output reads the view's constants, sized for the output (pp_uber's g_vRenderTargetSize)
 			var output = gpuView.Target?.ColorTarget;
 			frame.SetOutputConstants( gpuView.Viewport, output is null ? gpuView.Viewport.Size : new Vector2( output.Width, output.Height ) );
 		}

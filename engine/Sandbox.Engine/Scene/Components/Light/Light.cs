@@ -194,7 +194,7 @@ public abstract partial class Light : Component, IColorProvider, ExecuteInEditor
 	}
 
 	/// <summary>
-	/// Approximate a blackbody tint using the same RGB fit as ColorGrading.shader,
+	/// Approximate a blackbody tint using the same RGB fit as colour grading (pp_uber.slang),
 	/// converted from sRGB to linear for multiplication with the light's energy.
 	/// </summary>
 	static Color TemperatureColor( float kelvin )
