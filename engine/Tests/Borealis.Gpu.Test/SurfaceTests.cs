@@ -880,6 +880,51 @@ public class SurfaceTests : GpuTest
 	}
 
 	/// <summary>
+	/// An engine draw of a surface that's redrawn every frame (a custom object's, <see cref="RedrawnEveryFrame"/>: a terrain's
+	/// grass) doesn't make its pipeline where it's asked for: the device's workers make it and its draws are skipped meanwhile.
+	/// A one-off draw's is made at once.
+	/// </summary>
+	[TestMethod]
+	[DoNotParallelize]
+	public void RedrawnEngineDrawsOfASurfaceMakeTheirPipelineOnWorkers()
+	{
+		Compiler();
+		var folder = Path.Combine( Path.GetTempPath(), "borealis-surface-redrawn-test-" + Guid.NewGuid().ToString( "N" ) );
+		Directory.CreateDirectory( folder );
+		try
+		{
+			using var backend = new BackendDevice( Device );
+			backend.Surfaces.CacheFolder = Path.Combine( folder, "cache" );
+			backend.Surfaces.AddFolder( Surfaces );
+			backend.Surfaces.UseOffline = false;
+			backend.Surfaces.CompileInBackground = false;
+			using var material = new Rock();
+			var program = backend.Surfaces.For( material );
+			Assert.IsNotNull( program );
+			var pass = program.Pass( ShaderPasses.Forward );
+			var layout = new VertexLayout( 12, [new VertexLayout.Field( VertexSemantic.Position, 0, VertexFormat.Float3, 0 )] );
+			Device.SkipDrawsUntilReady = true;
+
+			static int Deferred( Device device ) => device.DeferredPipelines.Made + device.DeferredPipelines.Pending;
+			var before = Deferred( Device );
+			var redrawn = program.ImmediatePipeline( pass, layout, Format.RGBA16Float, Format.D32Float, 1, null, null, material.RenderState, PrimitiveTopology.TriangleList, false, false, ToolsPass.None, OverlayStencil.None, redrawn: true );
+			Assert.AreEqual( before + 1, Deferred( Device ), "the redrawn draw's pipeline went to the workers" );
+
+			var once = program.ImmediatePipeline( pass, layout, Format.RGBA16Float, Format.D32Float, 1, null, null, material.RenderState, PrimitiveTopology.TriangleList, false, false, ToolsPass.None, OverlayStencil.None );
+			Assert.IsTrue( Device.IsReady( once ), "a one-off draw's pipeline is made at once" );
+			Assert.AreEqual( before + 1, Deferred( Device ) );
+
+			Assert.IsTrue( Device.WaitForPendingPipelines( TimeSpan.FromSeconds( 60 ) ) );
+			Assert.IsTrue( Device.IsReady( redrawn ), "the workers made it" );
+			Assert.IsTrue( Device.WaitForOptimisedPipelines( TimeSpan.FromSeconds( 60 ) ) );
+		}
+		finally
+		{
+			Directory.Delete( folder, true );
+		}
+	}
+
+	/// <summary>
 	/// A pass module keeps what it read from its preprocessed lines (<see cref="PassModule.DerivedCacheFolder"/>): the next
 	/// run's module reads the same entry and render states without preprocessing, and one whose include was edited
 	/// preprocesses again. Before, every run preprocessed each module once per combo values.

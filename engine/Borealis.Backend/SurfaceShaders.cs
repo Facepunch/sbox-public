@@ -999,7 +999,7 @@ internal sealed class SurfaceProgram : IDisposable
 	// Pipelines' keys are record structs, not tuples: a tuple of eight or more keeps the rest in a tuple of its own, which its
 	// hash and equality box until the JIT has optimised them, so every draw's lookup allocated in a run's first seconds
 	readonly record struct PipelineKey( PassObjects Pass, VertexLayout Layout, Format Color, Format Depth, int Samples, ulong Constants, bool Ids, bool OpaqueFade, SurfaceRenderState State, bool DepthEqual, ulong Features, bool Normals, OverlayStencil Stencil, bool FragmentWave32 );
-	readonly record struct ImmediateKey( PassObjects Pass, VertexLayout Layout, Format Color, Format Depth, int Samples, SpecializationConstant[] VertexConstants, SpecializationConstant[] PixelConstants, SurfaceRenderState State, PrimitiveTopology Topology, bool Ids, bool OpaqueFade, ToolsPass Tools, OverlayStencil Stencil, bool FragmentWave32 );
+	readonly record struct ImmediateKey( PassObjects Pass, VertexLayout Layout, Format Color, Format Depth, int Samples, SpecializationConstant[] VertexConstants, SpecializationConstant[] PixelConstants, SurfaceRenderState State, PrimitiveTopology Topology, bool Ids, bool OpaqueFade, ToolsPass Tools, OverlayStencil Stencil, bool FragmentWave32, bool Redrawn );
 	readonly record struct ToolsKey( PassObjects Pass, VertexLayout Layout, Format Color, Format Depth, int Samples, ulong Constants, bool OpaqueFade, SurfaceRenderState State, bool DepthEqual, bool Normals, ToolsPass Tools, OverlayStencil Stencil );
 
 	readonly ConcurrentDictionary<PipelineKey, PipelineHandle> pipelines = new();
@@ -1263,19 +1263,21 @@ internal sealed class SurfaceProgram : IDisposable
 	/// code, custom objects) of a pass with vertices laid out as <paramref name="layout"/> drawn as <paramref name="topology"/>,
 	/// made at once. Instance ids are stream 1, per instance where the draw has them (<paramref name="ids"/>), else read from
 	/// the start of the default stream as a classic draw's are; the default stream is 2. In a tools pass the colour pass draws
-	/// with the engine's pixel stage, as scene draws do.
+	/// with the engine's pixel stage, as scene draws do. For draws <paramref name="redrawn"/> every frame (a custom object's,
+	/// <see cref="RedrawnEveryFrame"/>) one not made yet is made on the device's workers and its draws skipped meanwhile, as
+	/// <see cref="ShaderDrawer"/>'s own pipelines are: made here, a terrain's grass took 870 ms of the render thread in a load.
 	/// </summary>
-	public PipelineHandle ImmediatePipeline( PassObjects pass, VertexLayout layout, Format color, Format depth, int samples, SpecializationConstant[] vertexConstants, SpecializationConstant[] pixelConstants, SurfaceRenderState state, PrimitiveTopology topology, bool ids, bool opaqueFade, ToolsPass tools, OverlayStencil stencil )
+	public PipelineHandle ImmediatePipeline( PassObjects pass, VertexLayout layout, Format color, Format depth, int samples, SpecializationConstant[] vertexConstants, SpecializationConstant[] pixelConstants, SurfaceRenderState state, PrimitiveTopology topology, bool ids, bool opaqueFade, ToolsPass tools, OverlayStencil stencil, bool redrawn = false )
 	{
 		tools = color == Format.Unknown ? ToolsPass.None : ToolsViewStage.ReadyPass( device.Shaders, tools );
 		if ( !depth.HasStencil() ) stencil = OverlayStencil.None;
 		var wave32 = tools == ToolsPass.None && WantsForwardWave32( pass, color, false, state );
-		var key = new ImmediateKey( pass, layout, color, depth, samples, vertexConstants, pixelConstants, state, topology, ids, opaqueFade, tools, stencil, wave32 );
+		var key = new ImmediateKey( pass, layout, color, depth, samples, vertexConstants, pixelConstants, state, topology, ids, opaqueFade, tools, stencil, wave32, redrawn );
 		lock ( pipelines )
 		{
 			if ( immediatePipelines.TryGetValue( key, out var made ) ) return made;
 			var info = Info( pass, layout, color, depth, samples, vertexConstants, pixelConstants, state, false, opaqueFade, false, false, stencil );
-			info = info with { SkipUntilReady = false, Topology = topology, FragmentWave32 = wave32 };
+			info = info with { SkipUntilReady = redrawn, Topology = topology, FragmentWave32 = wave32 };
 			if ( !ids ) info.VertexBuffers[1] = new VertexBufferLayout( 0, VertexStepRate.Instance );
 			if ( tools != ToolsPass.None ) ToolsViewStage.Apply( device.Shaders, ref info, tools, ToolsViews.ShaderColor( Compiled.Name ) );
 			using ( Zones.PipelineCreate.Start() ) made = device.Gpu.CreateGraphicsPipeline( info );

@@ -53,6 +53,15 @@ public sealed partial class BackendDevice
 		("shaders/skinning_cs.shader", [("D_MORPH", 0), ("D_DEFORMATION_VOLUME", 0)]),
 		("shaders/skinning_cs.shader", [("D_MORPH", 1), ("D_DEFORMATION_VOLUME", 0)]),
 		("shaders/skinning_cs.shader", [("D_MORPH", 0), ("D_DEFORMATION_VOLUME", 1)]),
+		// Screen-space reflections (ScreenSpaceReflectionsPass.Trace): the classify, then the intersect and the upscale, with
+		// the G-buffer's normals multisampled or not. The load's last frames made them on the render thread (60-210 ms each
+		// with an empty driver cache, 0.3 s before the load ended on Mow)
+		("shaders/screen_space_reflections_classify_cs.shader", [("D_MSAA_NORMALS", 1)]),
+		("shaders/screen_space_reflections_classify_cs.shader", [("D_MSAA_NORMALS", 0)]),
+		("shaders/screen_space_reflections_cs.shader", [("D_PASS", 1), ("D_MSAA_NORMALS", 1)]),
+		("shaders/screen_space_reflections_cs.shader", [("D_PASS", 2), ("D_MSAA_NORMALS", 1)]),
+		("shaders/screen_space_reflections_cs.shader", [("D_PASS", 1), ("D_MSAA_NORMALS", 0)]),
+		("shaders/screen_space_reflections_cs.shader", [("D_PASS", 2), ("D_MSAA_NORMALS", 0)]),
 	];
 
 	// GPU-driven visibility's compute (BackendContext.GpuDriven: the cull, the ids' mark at either sample count, the
@@ -88,7 +97,7 @@ public sealed partial class BackendDevice
 	/// As a load starts (<see cref="Loading"/>), the compute pipelines its first frames make whatever the map are made on the
 	/// device's builders (<see cref="Device.QueueComputePipeline"/>), their variants on a worker: the resident cull's, the
 	/// cube capture filter's, the engine's line renderer's, the frame buffer copy's, the depth chain's,
-	/// skinning's and GPU-driven visibility's. Made where
+	/// skinning's, screen-space reflections' and GPU-driven visibility's. Made where
 	/// they're first dispatched, each took 0.04-0.6 s of the render thread around a load with an empty driver cache.
 	/// Each load (a pipeline once made isn't queued again); the load waits behind its screen for them
 	/// (<see cref="CompilingShaders"/>).

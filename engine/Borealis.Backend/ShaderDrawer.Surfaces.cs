@@ -28,7 +28,7 @@ public sealed partial class ShaderDrawer
 		var vertexConstants = SurfaceStageConstants( pass.Pass.Vertex, attributes );
 		var pixelConstants = pass.Pass.Pixel is { } pixel ? SurfaceStageConstants( pixel, attributes ) : null;
 		var fade = attributes.GetCombo( OpaqueFadeId ) is > 0;
-		var pipeline = program.ImmediatePipeline( pass, SurfaceLayoutOf( draw.Layout ), color, depth, samples, vertexConstants, pixelConstants, state, draw.Topology, ids, fade, ToolsPass, OverlayStencil );
+		var pipeline = program.ImmediatePipeline( pass, SurfaceLayoutOf( draw.Layout ), color, depth, samples, vertexConstants, pixelConstants, state, draw.Topology, ids, fade, ToolsPass, OverlayStencil, RedrawnEveryFrame.Active );
 
 		if ( BackendDevice.DrawMarkers ) list.Marker( $"{material.Name} {pass.Pass.Name} (engine draw)" );
 		list.SetPipeline( pipeline );
