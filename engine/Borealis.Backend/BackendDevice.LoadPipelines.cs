@@ -40,6 +40,18 @@ public sealed partial class BackendDevice
 		("shaders/framecopy_mips_cs.shader", []),
 		("shaders/framecopy_tail_cs.shader", []),
 		("shaders/downsample_cs.shader", [("D_DOWNSAMPLE_METHOD", 1)]),
+		// The depth chain (SharedPasses.BuildDepthChain): min/max, fused with the depth's resolve or not, from multisampled
+		// depth (the main view) or not (an envmap capture face, whose first frame after a load made them inline)
+		("shaders/downsample_spd.shader", [("D_DOWNSAMPLE_METHOD", 5), ("D_FUSED_DEPTH", 1), ("D_MSAA", 0)]),
+		("shaders/downsample_spd.shader", [("D_DOWNSAMPLE_METHOD", 5), ("D_FUSED_DEPTH", 0), ("D_MSAA", 0)]),
+		("shaders/downsample_spd.shader", [("D_DOWNSAMPLE_METHOD", 5), ("D_FUSED_DEPTH", 1), ("D_MSAA", 1)]),
+		("shaders/downsample_spd.shader", [("D_DOWNSAMPLE_METHOD", 5), ("D_FUSED_DEPTH", 0), ("D_MSAA", 1)]),
+		("shaders/depthresolve_cs.shader", [("D_MSAA", 0), ("D_CONSERVATIVE_QUARTER", 0)]),
+		("shaders/depthresolve_cs.shader", [("D_MSAA", 1), ("D_CONSERVATIVE_QUARTER", 0)]),
+		// Skinning (BackendContext.DispatchSkinning), plain and deformed: the first skinned model drawn after a load made it
+		("shaders/skinning_cs.shader", [("D_MORPH", 0), ("D_DEFORMATION_VOLUME", 0)]),
+		("shaders/skinning_cs.shader", [("D_MORPH", 1), ("D_DEFORMATION_VOLUME", 0)]),
+		("shaders/skinning_cs.shader", [("D_MORPH", 0), ("D_DEFORMATION_VOLUME", 1)]),
 	];
 
 	// GPU-driven visibility's compute (BackendContext.GpuDriven: the cull, the ids' mark at either sample count, the
@@ -66,7 +78,8 @@ public sealed partial class BackendDevice
 	/// <summary>
 	/// As a load starts (<see cref="Loading"/>), the compute pipelines its first frames make whatever the map are made on the
 	/// device's builders (<see cref="Device.QueueComputePipeline"/>), their variants on a worker: the resident cull's, the
-	/// cube capture filter's, the engine's line renderer's, the frame buffer copy's and GPU-driven visibility's. Made where
+	/// cube capture filter's, the engine's line renderer's, the frame buffer copy's, the depth chain's,
+	/// skinning's and GPU-driven visibility's. Made where
 	/// they're first dispatched, each took 0.04-0.6 s of the render thread around a load with an empty driver cache.
 	/// Each load (a pipeline once made isn't queued again); the load waits behind its screen for them
 	/// (<see cref="CompilingShaders"/>).

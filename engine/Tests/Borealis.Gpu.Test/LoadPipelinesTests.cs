@@ -66,27 +66,34 @@ public class LoadPipelinesTests : GpuTest
 			using var objectDrawer = new ShaderDrawer( backend );
 			backend.BeginFrame();
 			var list = device.BeginCommandList( QueueType.Graphics, "Load pipelines" );
-			(string Path, string Combo, int Value)[] dispatches =
+			(string Path, (string Name, int Value)[] Combos)[] dispatches =
 			[
-				("shaders/line_cs.shader", null, 0),
-				("shaders/depthaware_mask_cs.shader", null, 0),
-				("shaders/framecopy_mask_cs.shader", "D_COPY", 1),
-				("shaders/framecopy_mask_cs.shader", "D_COPY", 2),
-				("shaders/framecopy_mips_cs.shader", null, 0),
-				("shaders/framecopy_tail_cs.shader", null, 0),
-				("shaders/downsample_cs.shader", "D_DOWNSAMPLE_METHOD", 1),
-				("shaders/borealis_gpu_driven_cull_cs.shader", null, 0),
-				("shaders/borealis_gpu_driven_mark_cs.shader", "D_MSAA", 0),
-				("shaders/borealis_gpu_driven_mark_cs.shader", "D_MSAA", 1),
-				("shaders/borealis_gpu_driven_compact_cs.shader", "D_PARTS", 0),
-				("shaders/borealis_gpu_driven_compact_cs.shader", "D_PARTS", 4),
-				("shaders/borealis_meshlet_cull_cs.shader", null, 0),
+				("shaders/line_cs.shader", []),
+				("shaders/depthaware_mask_cs.shader", []),
+				("shaders/framecopy_mask_cs.shader", [("D_COPY", 1)]),
+				("shaders/framecopy_mask_cs.shader", [("D_COPY", 2)]),
+				("shaders/framecopy_mips_cs.shader", []),
+				("shaders/framecopy_tail_cs.shader", []),
+				("shaders/downsample_cs.shader", [("D_DOWNSAMPLE_METHOD", 1)]),
+				("shaders/downsample_spd.shader", [("D_DOWNSAMPLE_METHOD", 5), ("D_FUSED_DEPTH", 1), ("D_MSAA", 0)]),
+				("shaders/downsample_spd.shader", [("D_DOWNSAMPLE_METHOD", 5), ("D_FUSED_DEPTH", 0), ("D_MSAA", 0)]),
+				("shaders/downsample_spd.shader", [("D_DOWNSAMPLE_METHOD", 5), ("D_FUSED_DEPTH", 1), ("D_MSAA", 1)]),
+				("shaders/depthresolve_cs.shader", [("D_MSAA", 0)]),
+				("shaders/skinning_cs.shader", []),
+				("shaders/skinning_cs.shader", [("D_MORPH", 1)]),
+				("shaders/skinning_cs.shader", [("D_DEFORMATION_VOLUME", 1)]),
+				("shaders/borealis_gpu_driven_cull_cs.shader", []),
+				("shaders/borealis_gpu_driven_mark_cs.shader", [("D_MSAA", 0)]),
+				("shaders/borealis_gpu_driven_mark_cs.shader", [("D_MSAA", 1)]),
+				("shaders/borealis_gpu_driven_compact_cs.shader", [("D_PARTS", 0)]),
+				("shaders/borealis_gpu_driven_compact_cs.shader", [("D_PARTS", 4)]),
+				("shaders/borealis_meshlet_cull_cs.shader", []),
 			];
-			foreach ( var (path, combo, value) in dispatches )
+			foreach ( var (path, combos) in dispatches )
 			{
 				if ( backend.Shaders.Load( path ) is not { } shader ) continue;
 				attributes.Clear();
-				if ( combo is not null ) attributes.SetCombo( combo, value );
+				foreach ( var (name, value) in combos ) attributes.SetCombo( name, value );
 				objectDrawer.Dispatch( list, shader, attributes, 0, 0, 0 );
 			}
 
