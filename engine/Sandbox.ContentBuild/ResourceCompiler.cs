@@ -18,9 +18,9 @@ public sealed class ResourceCompiler( string executable, AssetTypeTable types, I
 	public TimeSpan Timeout { get; init; } = TimeSpan.FromMinutes( 15 );
 
 	/// <summary>
-	/// Jobs a build runs at once by default: one per core and 2 GB of memory.
+	/// Jobs a build runs at once by default: one per core and 1 GB of memory beyond a 2 GB baseline for the shared worker process.
 	/// </summary>
-	public static int DefaultMaxJobs => (int)Math.Clamp( GC.GetGCMemoryInfo().TotalAvailableMemoryBytes / (2L << 30), 1, Environment.ProcessorCount );
+	public static int DefaultMaxJobs => (int)Math.Clamp( (GC.GetGCMemoryInfo().TotalAvailableMemoryBytes - (2L << 30)) / (1L << 30), 1, Environment.ProcessorCount );
 
 	/// <summary>
 	/// Workers get a render device. Without one, as on a build machine with no GPU, they have the empty render system:
