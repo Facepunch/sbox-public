@@ -87,7 +87,9 @@ public class DeviceLostTests : GpuTest
 		Assert.IsTrue( Device.IsLost );
 		StringAssert.Contains( Device.LostReport, "vkWaitSemaphores returned VK_ERROR_DEVICE_LOST" );
 
-		var errors = TakeValidationErrors();
+		// The loss is made up, so the device isn't really lost: on a driver with VK_EXT_device_fault the report's fault query
+		// then breaks the rule that it follows a real loss, which a real one doesn't
+		var errors = TakeValidationErrors().Where( e => !e.StartsWith( "VUID-vkGetDeviceFaultInfoEXT-device-", StringComparison.Ordinal ) ).ToArray();
 		CollectionAssert.AreEqual( new[] { "Borealis.Gpu.DeviceLost" }, errors, string.Join( ", ", errors ) );
 	}
 
