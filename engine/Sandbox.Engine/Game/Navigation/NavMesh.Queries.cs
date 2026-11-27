@@ -8,6 +8,8 @@ namespace Sandbox.Navigation;
 /// </summary>
 public sealed partial class NavMesh
 {
+	static readonly ProfileScope CpuCalculatePath = new( "Navigation.CalculatePath" );
+
 	// One per thread that is asking at the moment. Queries take no lock.
 	private sealed record QueryScratch( Nav.NavMesh Mesh, NavQuery Query, NavPath Path );
 	private readonly ConcurrentQueue<QueryScratch> queryPool = new();
@@ -89,6 +91,7 @@ public sealed partial class NavMesh
 
 	private NavMeshPath CalculatePathCore( QueryScratch scratch, Vector3 start, Vector3 target, Vector3 extents, in NavFilter filter )
 	{
+		using var cpu = CpuCalculatePath.Start();
 		if ( scratch is null ) return new() { Status = NavMeshPathStatus.StartNotFound };
 
 		scratch.Query.FindPath( start, target, extents, filter, scratch.Path );

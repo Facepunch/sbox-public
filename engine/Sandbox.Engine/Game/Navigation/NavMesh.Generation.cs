@@ -7,6 +7,10 @@ namespace Sandbox.Navigation;
 
 public sealed partial class NavMesh
 {
+	static readonly ProfileScope CpuUpdateCache = new( "Navigation.UpdateTileCache" );
+	static readonly ProfileScope CpuLoadTiles = new( "Navigation.LoadTiles" );
+	static readonly ProfileScope CpuBuildTile = new( "Navigation.BuildTile" );
+
 	private readonly record struct TileBuild( TileJob Job, Task Task, NVector3[] Vertices, int[] Indices );
 
 	// A library mesh with the areas and links it was given, by component, and its builds under way
@@ -198,6 +202,7 @@ public sealed partial class NavMesh
 	// One round of the tile flow. A mesh built aside takes over once every tile it started with has been built.
 	internal void UpdateCache( PhysicsWorld world )
 	{
+		using var cpu = CpuUpdateCache.Start();
 		ThreadSafe.AssertIsMainThread();
 
 		if ( live is null ) return;
@@ -249,7 +254,8 @@ public sealed partial class NavMesh
 		}
 
 		// Also publishes link changes and removed tiles
-		failedBuilds += work.Mesh.Commit( jobs.AsSpan( 0, done ) );
+		using ( CpuLoadTiles.Start() )
+			failedBuilds += work.Mesh.Commit( jobs.AsSpan( 0, done ) );
 
 		for ( int i = 0; i < done; i++ )
 		{
@@ -285,6 +291,7 @@ public sealed partial class NavMesh
 
 			var task = Task.Run( () =>
 			{
+				using var cpu = CpuBuildTile.Start();
 				if ( !builders.TryDequeue( out var builder ) ) builder = new NavBuilder();
 				try { builder.Build( job ); }
 				finally { builders.Enqueue( builder ); }

@@ -9,6 +9,8 @@ namespace Sandbox;
 internal sealed class NavMeshGameSystem : GameObjectSystem, ISceneCompile
 {
 	private static readonly string[] NpcGroundExcludedTags = ["npc"];
+	static readonly ProfileScope CpuGroundAgents = new( "Navigation.GroundAgentsAndWait" );
+
 	private readonly List<NavMeshAgent> _agents = new();
 
 	/// <summary>
@@ -39,7 +41,8 @@ internal sealed class NavMeshGameSystem : GameObjectSystem, ISceneCompile
 		Scene.GetAll<NavMeshAgent>( _agents );
 		if ( _agents.Count == 0 ) return;
 
-		JobDispatcher.For( _agents.Count, this, static ( system, i ) => system.FindPhysicsGroundZ( system._agents[i] ) );
+		using ( CpuGroundAgents.Start() )
+			JobDispatcher.For( _agents.Count, this, static ( system, i ) => system.FindPhysicsGroundZ( system._agents[i] ) );
 	}
 
 	/// <summary>

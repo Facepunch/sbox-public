@@ -6,6 +6,11 @@ namespace Sandbox;
 
 public partial class Scene : GameObject
 {
+	static readonly ProfileScope CpuNetworkUpdate = new( "Scene.NetworkUpdate" );
+	static readonly ProfileScope CpuNetworkSnapshots = new( "Scene.NetworkSnapshots" );
+	static readonly ProfileScope CpuNetworkProbeChanges = new( "Networking.ProbeChanges" );
+	static readonly ProfileScope CpuNetworkSendSnapshots = new( "Networking.BuildAndSendSnapshots" );
+
 	[Obsolete( "Moved to ProjectSettings.Networking.UpdateRate" )]
 	public float NetworkFrequency { get; set; }
 
@@ -96,6 +101,7 @@ public partial class Scene : GameObject
 	/// </summary>
 	internal void SceneNetworkUpdate()
 	{
+		using var cpu = CpuNetworkUpdate.Start();
 		DrainWorkerThreadNetworkWakes();
 
 		_networkMapInstanceCache.Clear();
@@ -127,6 +133,7 @@ public partial class Scene : GameObject
 	/// </summary>
 	internal void SceneNetworkSnapshots()
 	{
+		using var cpu = CpuNetworkSnapshots.Start();
 		if ( !_sendSnapshots )
 			return;
 
@@ -167,7 +174,7 @@ public partial class Scene : GameObject
 			}
 		}
 
-		ProbeCleanNetworkObjects( _sendConnections );
+		using ( CpuNetworkProbeChanges.Start() ) ProbeCleanNetworkObjects( _sendConnections );
 
 		// Partition objects into dirty (pending changes) and clean (fully ACK'd).
 		// Dirty objects are processed first so they end up in earlier clusters,
@@ -190,7 +197,7 @@ public partial class Scene : GameObject
 			}
 		}
 
-		system.DeltaSnapshots.Send( CollectionsMarshal.AsSpan( _snapshotObjects ), _sendConnections );
+		using ( CpuNetworkSendSnapshots.Start() ) system.DeltaSnapshots.Send( CollectionsMarshal.AsSpan( _snapshotObjects ), _sendConnections );
 
 		RetireSettledNetworkObjects( Time.NowDouble );
 

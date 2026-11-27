@@ -25,6 +25,26 @@ internal static class EngineLoop
 	static readonly ProfileScope CpuFrame = new( Diagnostics.Profiler.FrameScopeName );
 	static readonly ProfileScope CpuFrameStart = new( "Engine.FrameStart" );
 	static readonly ProfileScope CpuFrameEnd = new( "Engine.FrameEnd" );
+	static readonly ProfileScope CpuPerformance = new( "Engine.PerformanceStats" );
+	static readonly ProfileScope CpuOverlay = new( "Engine.DebugOverlay" );
+	static readonly ProfileScope CpuFileWatch = new( "Engine.FileWatch" );
+	static readonly ProfileScope CpuVr = new( "Engine.VR" );
+	static readonly ProfileScope CpuResources = new( "Engine.Resources" );
+	static readonly ProfileScope CpuPreviews = new( "Engine.PreviewRenders" );
+	static readonly ProfileScope CpuMenuTick = new( "Engine.MenuTick" );
+	static readonly ProfileScope CpuGameTick = new( "Engine.GameTick" );
+	static readonly ProfileScope CpuMenuLateTick = new( "Engine.MenuLateTick" );
+	static readonly ProfileScope CpuToolsTick = new( "Engine.ToolsTick" );
+	static readonly ProfileScope CpuVoice = new( "Engine.VoiceChat" );
+	static readonly ProfileScope CpuText = new( "Engine.TextRendering" );
+	static readonly ProfileScope CpuLogging = new( "Engine.Logging" );
+	static readonly ProfileScope CpuServices = new( "Engine.Services" );
+	static readonly ProfileScope CpuUi = new( "Engine.SimulateUI" );
+	static readonly ProfileScope CpuDevTools = new( "Engine.DevTools" );
+	static readonly ProfileScope CpuAudioEngine = new( "Engine.AudioEngine" );
+	static readonly ProfileScope CpuInputRouter = new( "Engine.InputRouter" );
+	static readonly ProfileScope CpuParty = new( "Engine.PartyRoom" );
+	static readonly ProfileScope CpuToolsFrame = new( "Engine.ToolsFrame" );
 	static readonly ProfileScope CpuOutput = new( "Engine.ClientOutput" );
 	static readonly ProfileScope CpuToolsRender = new( "Engine.ToolsRender" );
 
@@ -94,7 +114,7 @@ internal static class EngineLoop
 				{
 					FrameEnd();
 				}
-				IToolsDll.Current?.RunFrame();
+				using ( CpuToolsFrame.Start() ) IToolsDll.Current?.RunFrame();
 				Bootstrap.TryFinishStartup();
 			}
 			catch ( System.Exception e )
@@ -145,14 +165,14 @@ internal static class EngineLoop
 		//
 		// Update performance stats (should be called every frame)
 		//
-		UpdatePerformance();
-		DebugOverlay.Draw();
+		using ( CpuPerformance.Start() ) UpdatePerformance();
+		using ( CpuOverlay.Start() ) DebugOverlay.Draw();
 		UpdateInput();
 
 		//
 		// Dispatch callbacks for any changed files
 		//
-		FileWatch.Tick();
+		using ( CpuFileWatch.Start() ) FileWatch.Tick();
 
 		//
 		// Update any animated textures
@@ -165,14 +185,17 @@ internal static class EngineLoop
 		//
 		// Update VR
 		//
-		VRSystem.FrameStart();
+		using ( CpuVr.Start() ) VRSystem.FrameStart();
 
 		//
 		// Expire any unused resources
 		//
-		NativeResourceCache.Tick();
-		Game.Resources.PruneWeakIndex();
-		Mounting.MountUtility.TickPreviewRenders();
+		using ( CpuResources.Start() )
+		{
+			NativeResourceCache.Tick();
+			Game.Resources.PruneWeakIndex();
+		}
+		using ( CpuPreviews.Start() ) Mounting.MountUtility.TickPreviewRenders();
 
 		//
 		// Run Tasks
@@ -183,10 +206,10 @@ internal static class EngineLoop
 		// Let the context's tick
 		//
 
-		IMenuDll.Current?.Tick();
-		IGameInstanceDll.Current?.Tick();
-		IMenuDll.Current?.LateTick();
-		IToolsDll.Current?.Tick();
+		using ( CpuMenuTick.Start() ) IMenuDll.Current?.Tick();
+		using ( CpuGameTick.Start() ) IGameInstanceDll.Current?.Tick();
+		using ( CpuMenuLateTick.Start() ) IMenuDll.Current?.LateTick();
+		using ( CpuToolsTick.Start() ) IToolsDll.Current?.Tick();
 
 
 		//
@@ -201,22 +224,25 @@ internal static class EngineLoop
 		{
 			using ( IGameInstanceDll.Current?.PushScope() ?? default )
 			{
-				VoiceChat.Tick();
-				Sandbox.TextRendering.Tick();
+				using ( CpuVoice.Start() ) VoiceChat.Tick();
+				using ( CpuText.Start() ) Sandbox.TextRendering.Tick();
 			}
 		}
 
 		//
 		// If we have any queued console messages, we can print them now
 		//
-		Logging.PushQueuedMessages();
+		using ( CpuLogging.Start() ) Logging.PushQueuedMessages();
 
 		//
 		// Allow the events to push if they want
 		//
-		Api.Events.TickEvents();
-		Api.Stats.TickStats();
-		Sandbox.Services.Messaging.ProcessMessages();
+		using ( CpuServices.Start() )
+		{
+			Api.Events.TickEvents();
+			Api.Stats.TickStats();
+			Sandbox.Services.Messaging.ProcessMessages();
+		}
 
 		// Simulate UI last. This works out all the styles and shit, so we want
 		// that to be reflected right BEFORE the frame is rendered.
@@ -226,7 +252,7 @@ internal static class EngineLoop
 		}
 
 		// After the game and menu UI so it draws over them. Outside the UI scope so it doesn't count as the game's UI.
-		DevTools.Simulate();
+		using ( CpuDevTools.Start() ) DevTools.Simulate();
 
 		// Give each sound handle an opportunity to for a frame think
 		using ( PerformanceStats.Timings.Audio.Scope() )
@@ -239,13 +265,13 @@ internal static class EngineLoop
 		//
 		if ( !Application.IsHeadless )
 		{
-			Engine.InputRouter.Frame();
+			using ( CpuInputRouter.Start() ) Engine.InputRouter.Frame();
 		}
 
 		// Keep room up to date
-		PartyRoom.Current?.Tick();
+		using ( CpuParty.Start() ) PartyRoom.Current?.Tick();
 
-		Audio.AudioEngine.Tick();
+		using ( CpuAudioEngine.Start() ) Audio.AudioEngine.Tick();
 	}
 
 	public static void RunAsyncTasks()
@@ -311,6 +337,7 @@ internal static class EngineLoop
 
 	private static void SimulateUI()
 	{
+		using var cpu = CpuUi.Start();
 		ThreadSafe.AssertIsMainThread();
 		VideoTextureLoader.TickVideoPlayers();
 		PanelRealTime.Update();

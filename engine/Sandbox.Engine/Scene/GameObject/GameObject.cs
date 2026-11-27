@@ -11,6 +11,8 @@ namespace Sandbox;
 [Expose, ActionGraphIgnore, ActionGraphExposeWhenCached]
 public partial class GameObject : IJsonConvert, IComponentLister, BytePack.ISerializer
 {
+	static readonly ProfileScope CpuCreate = new( "GameObject.Create" );
+
 	/// <summary>
 	/// The scene that this GameObject is in.
 	/// </summary>
@@ -115,6 +117,7 @@ public partial class GameObject : IJsonConvert, IComponentLister, BytePack.ISeri
 	/// </summary>
 	public GameObject( GameObject parent, bool enabled = true, string name = null )
 	{
+		using var cpu = CpuCreate.Start();
 		Scene = this as Scene ?? parent?.Scene ?? Game.ActiveScene;
 		parent ??= Scene;
 

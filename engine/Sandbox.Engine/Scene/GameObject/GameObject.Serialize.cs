@@ -9,6 +9,8 @@ namespace Sandbox;
 
 public partial class GameObject
 {
+	static readonly ProfileScope CpuDeserialize = new( "GameObject.Deserialize" );
+
 	internal const int GameObjectVersion = 2;
 
 	// The only flags we actually save. Everything else is runtime junk (Loading, Bone, etc) and saving it
@@ -334,6 +336,7 @@ public partial class GameObject
 
 	public virtual void Deserialize( JsonObject node, DeserializeOptions options )
 	{
+		using var cpu = CpuDeserialize.Start();
 		ArgumentNullException.ThrowIfNull( node, nameof( node ) );
 
 		using var sceneScope = Scene.Push();

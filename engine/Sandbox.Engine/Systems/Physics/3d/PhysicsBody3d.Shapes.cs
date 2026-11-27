@@ -8,6 +8,12 @@ namespace Sandbox;
 
 partial class PhysicsBody3d
 {
+	static readonly ProfileScope CpuPrimitiveShape = new( "Physics3D.AddPrimitiveShape" );
+	static readonly ProfileScope CpuHullShape = new( "Physics3D.BuildHullShape" );
+	static readonly ProfileScope CpuMeshShape = new( "Physics3D.BuildMeshShape" );
+	static readonly ProfileScope CpuHeightFieldShape = new( "Physics3D.BuildHeightFieldShape" );
+	static readonly ProfileScope CpuModelShape = new( "Physics3D.AddModelShape" );
+
 	unsafe PhysicsShapeSettings GetNativeShapeSettings( bool rebuildMass = true )
 	{
 		var settings = GetShapeSettings( rebuildMass );
@@ -64,6 +70,7 @@ partial class PhysicsBody3d
 	/// </summary>
 	public override PhysicsShape AddSphereShape( Vector3 center, float radius, bool rebuildMass = true )
 	{
+		using var cpu = CpuPrimitiveShape.Start();
 		var shape = native.AddSphereShape( center, radius, GetNativeShapeSettings( rebuildMass ) );
 		return CompleteShapeCreation( shape );
 	}
@@ -73,6 +80,7 @@ partial class PhysicsBody3d
 	/// </summary>
 	public override PhysicsShape AddSphereShape( in Sphere sphere, bool rebuildMass = true )
 	{
+		using var cpu = CpuPrimitiveShape.Start();
 		var shape = native.AddSphereShape( sphere.Center, sphere.Radius, GetNativeShapeSettings( rebuildMass ) );
 		return CompleteShapeCreation( shape );
 	}
@@ -82,6 +90,7 @@ partial class PhysicsBody3d
 	/// </summary>
 	public override PhysicsShape AddCapsuleShape( Vector3 center, Vector3 center2, float radius, bool rebuildMass = true )
 	{
+		using var cpu = CpuPrimitiveShape.Start();
 		var shape = native.AddCapsuleShape( center, center2, radius, GetNativeShapeSettings( rebuildMass ) );
 		return CompleteShapeCreation( shape );
 	}
@@ -91,6 +100,7 @@ partial class PhysicsBody3d
 	/// </summary>
 	public override PhysicsShape AddBoxShape( Vector3 position, Rotation rotation, Vector3 extent, bool rebuildMass = true )
 	{
+		using var cpu = CpuPrimitiveShape.Start();
 		var shape = native.AddBoxShape( position, rotation, extent.Abs(), GetNativeShapeSettings( rebuildMass ) );
 		return CompleteShapeCreation( shape );
 	}
@@ -100,6 +110,7 @@ partial class PhysicsBody3d
 	/// </summary>
 	public override PhysicsShape AddBoxShape( BBox box, Rotation rotation, bool rebuildMass = true )
 	{
+		using var cpu = CpuPrimitiveShape.Start();
 		var shape = native.AddBoxShape( box.Center, rotation, box.Size * 0.5f, GetNativeShapeSettings( rebuildMass ) );
 		return CompleteShapeCreation( shape );
 	}
@@ -115,6 +126,7 @@ partial class PhysicsBody3d
 	/// </summary>
 	public override unsafe PhysicsShape AddHullShape( Vector3 position, Rotation rotation, Span<Vector3> points, bool rebuildMass = true )
 	{
+		using var cpu = CpuHullShape.Start();
 		if ( points.Length == 0 )
 			return null;
 
@@ -147,6 +159,7 @@ partial class PhysicsBody3d
 
 	unsafe PhysicsShape AddMeshShape( Span<Vector3> vertices, Span<int> indices, bool rebuildMass )
 	{
+		using var cpu = CpuMeshShape.Start();
 		if ( vertices.Length == 0 )
 			return null;
 
@@ -201,6 +214,7 @@ partial class PhysicsBody3d
 	/// <inheritdoc />
 	internal override unsafe PhysicsShape AddHeightFieldShape( ushort[] heights, ReadOnlySpan<byte> materials, int sizeX, int sizeY, float sizeScale, float heightScale, int materialCount, ReadOnlySpan<int> surfaceIndices = default )
 	{
+		using var cpu = CpuHeightFieldShape.Start();
 		if ( heights == null )
 			throw new ArgumentException( "Height data is null" );
 
@@ -267,6 +281,7 @@ partial class PhysicsBody3d
 
 	public override PhysicsShape AddShape( HullPart part, Transform transform, bool rebuildMass = true )
 	{
+		using var cpu = CpuModelShape.Start();
 		var shape = native.AddHullShape( part.hull, transform, GetNativeShapeSettings( rebuildMass ) );
 
 		if ( !shape.IsValid() || shape.ShapeType == PhysicsShapeType.SHAPE_SPHERE )
@@ -279,6 +294,7 @@ partial class PhysicsBody3d
 
 	public override unsafe PhysicsShape AddShape( MeshPart part, Transform transform, bool convertToHull, bool rebuildMass = true )
 	{
+		using var cpu = CpuModelShape.Start();
 		PhysicsShape3d shape;
 		var settings = GetNativeShapeSettings( rebuildMass );
 

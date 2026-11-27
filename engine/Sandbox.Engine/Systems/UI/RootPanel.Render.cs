@@ -4,12 +4,17 @@ namespace Sandbox.UI;
 
 public partial class RootPanel
 {
+	static readonly ProfileScope CpuBuildCommands = new( "UI.BuildCommandList" );
+	static readonly ProfileScope CpuRecordPanelTree = new( "UI.RecordPanelTree" );
+	static readonly ProfileScope CpuFlushBatches = new( "UI.FlushBatches" );
+
 	/// <summary>
 	/// Called by the UI frame renderer to rebuild this root's command list on the main thread.
 	/// Creates the Painter destination, records the panel tree, flushes its batches and captures frame statistics.
 	/// </summary>
 	internal void BuildCommandList( float opacity = 1.0f )
 	{
+		using var cpu = CpuBuildCommands.Start();
 		ThreadSafe.AssertIsMainThread();
 
 		lock ( PanelCommandList.SyncRoot )
@@ -21,8 +26,8 @@ public partial class RootPanel
 			painter.SetViewport( PanelBounds, this is WorldPanel world ? ScenePanelObject.BuildPanelToWorldMatrix( world.Transform ) : null );
 			using var destination = painter.WithDestination( PanelBounds, ScaleToScreen, opacity, BlendMode.Normal, Matrix.Identity );
 			var counters = new FrameStats();
-			Render( destination.Painter, ref counters );
-			painter.Flush();
+			using ( CpuRecordPanelTree.Start() ) Render( destination.Painter, ref counters );
+			using ( CpuFlushBatches.Start() ) painter.Flush();
 			counters.DrawCalls = painter.DrawCount;
 			counters.InstanceCount = painter.InstanceCount;
 			counters.FrameGrabs = painter.FrameGrabCount;

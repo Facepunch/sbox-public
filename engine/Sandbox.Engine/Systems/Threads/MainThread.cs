@@ -9,6 +9,9 @@ namespace Sandbox;
 /// </summary>
 public static class MainThread
 {
+	static readonly ProfileScope CpuDisposals = new( "Tasks.DisposeQueuedObjects" );
+	static readonly ProfileScope CpuActions = new( "Tasks.RunQueuedActions" );
+
 	static Channel<IDisposable> Disposables = Channel.CreateUnbounded<IDisposable>();
 	static Channel<(Action Method, GlobalContext Context)> Actions = Channel.CreateUnbounded<(Action, GlobalContext)>();
 
@@ -69,9 +72,12 @@ public static class MainThread
 	{
 		ThreadSafe.AssertIsMainThread();
 
-		while ( Disposables.Reader.TryRead( out var disposable ) )
+		using ( CpuDisposals.Start() )
 		{
-			disposable.Dispose();
+			while ( Disposables.Reader.TryRead( out var disposable ) )
+			{
+				disposable.Dispose();
+			}
 		}
 
 		RunMainThreadQueues();
@@ -98,13 +104,16 @@ public static class MainThread
 	/// </summary>
 	internal static void RunMainThreadQueues()
 	{
+		using var cpu = CpuActions.Start();
 		ThreadSafe.AssertIsMainThread();
 
+		var recording = Profiler.IsRecording;
 		while ( Actions.Reader.TryRead( out var action ) )
 		{
 			try
 			{
 				using var scope = new GlobalContext.GlobalContextScope( action.Context );
+				using var callback = recording ? ProfileCallbackScopes.ForMethod( action.Method.Method ).Start() : default;
 				action.Method();
 			}
 			catch ( System.Exception e )

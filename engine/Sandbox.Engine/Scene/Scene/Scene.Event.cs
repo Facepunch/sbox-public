@@ -7,10 +7,12 @@ public partial class Scene : GameObject
 	/// </summary>
 	public override void RunEvent<T>( Action<T> action, FindMode find = FindMode.EnabledInSelfAndDescendants )
 	{
+		var recording = Profiler.IsRecording;
 		foreach ( var c in Query<T>() )
 		{
 			try
 			{
+				using var cpu = recording && c is not null ? ProfileCallbackScopes.ForType( c.GetType(), EventScopeName<T>.Value ).Start() : default;
 				action( c );
 			}
 			catch ( System.Exception e )
@@ -21,6 +23,11 @@ public partial class Scene : GameObject
 
 	}
 
+	internal static class EventScopeName<T>
+	{
+		internal static readonly string Value = $"Event<{typeof( T ).FullName ?? typeof( T ).Name}>";
+	}
+
 	/// <summary>
 	/// Run an IRenderThread event using the snapshot captured in PreRender().
 	/// Safe to call from the render thread — iterates a plain List that the main thread
@@ -28,10 +35,12 @@ public partial class Scene : GameObject
 	/// </summary>
 	internal void RunRenderThreadEvent( CameraComponent camera, Sandbox.Rendering.Stage stage )
 	{
+		var recording = Profiler.IsRecording;
 		foreach ( var c in renderThreadEventTargets )
 		{
 			try
 			{
+				using var cpu = recording ? ProfileCallbackScopes.ForType( c.GetType(), "OnRenderStage" ).Start() : default;
 				c.OnRenderStage( camera, stage );
 			}
 			catch ( System.Exception e )

@@ -5,6 +5,10 @@ namespace Sandbox;
 
 public partial class GameObject
 {
+	static readonly ProfileScope CpuClone = new( "GameObject.Clone" );
+	static readonly ProfileScope CpuCloneHierarchy = new( "GameObject.CloneHierarchy" );
+	static readonly ProfileScope CpuCloneProperties = new( "GameObject.CloneProperties" );
+
 	// Set only during the cloning process
 	// We store this on the GameObject to avoid the need reverse lookup table during the clone process
 	private GameObject _cloneOriginal = null;
@@ -14,6 +18,7 @@ public partial class GameObject
 	/// </summary>
 	public GameObject Clone( in CloneConfig cloneConfig )
 	{
+		using var cpu = CpuClone.Start();
 		Assert.NotNull( Game.ActiveScene, "No Active Scene" );
 
 		if ( !this.IsValid() )
@@ -49,8 +54,8 @@ public partial class GameObject
 			cloneTransform = cloneTransform.WithRotation( cloneConfig.Transform.Rotation * LocalRotation );
 			cloneTransform = cloneTransform.WithPosition( cloneConfig.Transform.Position + LocalPosition );
 		}
-		// Initialize root clone and hierarchy
-		clone.InitClone( this, cloneTransform, enabled: false, context );
+		using ( CpuCloneHierarchy.Start() )
+			clone.InitClone( this, cloneTransform, enabled: false, context );
 
 		// Set config overrides
 		if ( cloneConfig.Parent is not null )
@@ -75,8 +80,11 @@ public partial class GameObject
 		clone.Enabled = cloneConfig.StartEnabled;
 
 		// Restore prefab state, copy properties, then run load/validation callbacks.
-		clone.PostClone( context );
-		clone.Scene.CopyInstanceLinks( this, context.OriginalIdToCloneId );
+		using ( CpuCloneProperties.Start() )
+		{
+			clone.PostClone( context );
+			clone.Scene.CopyInstanceLinks( this, context.OriginalIdToCloneId );
+		}
 
 		// Legacy support for restoring prefab vars
 		if ( prefabVariablesOverride is not null && clone.IsPrefabInstanceRoot )

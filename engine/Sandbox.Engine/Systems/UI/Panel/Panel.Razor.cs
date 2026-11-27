@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Rendering;
+using System.Runtime.CompilerServices;
 
 namespace Sandbox.UI;
 
@@ -31,6 +32,18 @@ public partial class Panel
 	internal virtual bool HasRenderTree => GetRenderTreeChecksum() is not null;
 
 	PanelRenderTreeBuilder renderTree;
+
+	/// <summary>
+	/// The type profiler scopes for this panel are named after.
+	/// </summary>
+	internal virtual Type ProfileScopeType => GetType();
+
+	static readonly ConditionalWeakTable<Type, StrongBox<bool>> _tickOverrides = new();
+
+	/// <summary>
+	/// Whether this panel's type overrides <see cref="Tick"/>. Only those get a profile scope, so empty ticks don't fill captures.
+	/// </summary>
+	internal bool OverridesTick => _tickOverrides.GetValue( GetType(), static type => new( type.GetMethod( nameof( Tick ), Type.EmptyTypes )?.DeclaringType != typeof( Panel ) ) ).Value;
 
 	/// <summary>
 	/// Overridden/implemented by Razor templating to build a render tree.

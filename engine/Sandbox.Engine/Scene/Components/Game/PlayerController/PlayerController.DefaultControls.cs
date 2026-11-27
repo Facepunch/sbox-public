@@ -30,6 +30,13 @@ public sealed partial class PlayerController : Component
 	public float Headroom { get; set; }
 
 
+	static readonly ProfileScope CpuPreInput = new( "PlayerController.PreInput" );
+	static readonly ProfileScope CpuLook = new( "PlayerController.Look" );
+	static readonly ProfileScope CpuCameraInput = new( "PlayerController.CameraInput" );
+	static readonly ProfileScope CpuAnimation = new( "PlayerController.Animation" );
+	static readonly ProfileScope CpuHeadroom = new( "PlayerController.Headroom" );
+	static readonly ProfileScope CpuInputMove = new( "PlayerController.InputMove" );
+
 	protected override void OnUpdate()
 	{
 		UpdateGroundEyeRotation();
@@ -41,21 +48,23 @@ public sealed partial class PlayerController : Component
 
 		if ( !IsProxy )
 		{
-			GameObject.RunEvent<IEvents>( x => x.PreInput() );
+			using ( CpuPreInput.Start() ) GameObject.RunEvent<IEvents>( x => x.PreInput() );
 
 			if ( UseLookControls )
 			{
+				using var look = CpuLook.Start();
 				UpdateEyeAngles();
 				UpdateLookAt();
 			}
 
-			UpdateCameraInput();
+			using ( CpuCameraInput.Start() ) UpdateCameraInput();
 
 			UpdateEyeTransform();
 		}
 
 		if ( UseAnimatorControls && Renderer.IsValid() )
 		{
+			using var animation = CpuAnimation.Start();
 			UpdateAnimation( Renderer );
 		}
 	}
@@ -66,14 +75,18 @@ public sealed partial class PlayerController : Component
 		// Seats disable the body, so mode changes cannot rely on physics callbacks alone.
 		if ( !Body.Enabled ) ChooseBestMoveMode();
 
-		UpdateHeadroom();
-		UpdateFalling();
+		using ( CpuHeadroom.Start() )
+		{
+			UpdateHeadroom();
+			UpdateFalling();
+		}
 
 		prevPosition = WorldPosition;
 
 		if ( IsProxy ) return;
 		if ( !UseInputControls ) return;
 
+		using var inputMove = CpuInputMove.Start();
 		InputMove();
 		if ( !string.IsNullOrWhiteSpace( DuckButton ) )
 			UpdateDuckInput( Input.Down( DuckButton ) );

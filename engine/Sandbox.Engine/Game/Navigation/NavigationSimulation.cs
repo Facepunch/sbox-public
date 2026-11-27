@@ -8,6 +8,9 @@ namespace Sandbox.Navigation;
 /// </summary>
 internal sealed class NavigationSimulation
 {
+	static readonly ProfileScope CpuUpdate = new( "Navigation.SimulateAgents" );
+	static readonly ProfileScope CpuStepAgents = new( "Navigation.MoveAgentsAndWait" );
+
 	internal readonly object Gate = new();
 	internal readonly NavCrowd Crowd;
 	internal readonly NavMesh Owner;
@@ -106,6 +109,7 @@ internal sealed class NavigationSimulation
 
 	internal void Update( float delta )
 	{
+		using var cpu = CpuUpdate.Start();
 		lock ( Gate )
 		{
 			// The Velocity setter holds until it is set again; the crowd takes a told velocity for one Step
@@ -113,7 +117,8 @@ internal sealed class NavigationSimulation
 			{
 				if ( agent is { Removed: false, Told: { } told } ) Crowd.SetVelocity( agent.Id, told );
 			}
-			Crowd.Step( delta, run );
+			using ( CpuStepAgents.Start() )
+				Crowd.Step( delta, run );
 
 			// At most one link transition per agent per step
 			var states = Crowd.States;

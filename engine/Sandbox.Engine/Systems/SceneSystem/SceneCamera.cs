@@ -673,6 +673,7 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 	/// </summary>
 	internal void OnPreRender( Vector2 size )
 	{
+		using var cpu = CpuPreRender.Start();
 		Size = size;
 
 		ConfigureView( default );
@@ -957,8 +958,13 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 		return VRSystem.IsActive && TargetEye > StereoTargetEye.None;
 	}
 
+	static readonly ProfileScope CpuPreRender = new( "Camera.PreRender" );
+	static readonly ProfileScope CpuRender = new( "Camera.Render" );
+	static readonly ProfileScope CpuRenderToTexture = new( "Camera.RenderToTexture" );
+
 	private void Render( SwapChainHandle_t swapChain, Vector2? size, in ViewSetup config = default )
 	{
+		using var cpu = CpuRender.Start();
 		if ( swapChain.self == default )
 			return;
 
@@ -976,6 +982,7 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 
 	internal void RenderToTexture( Texture texture, Vector2? size, in ViewSetup config )
 	{
+		using var cpu = CpuRenderToTexture.Start();
 		if ( texture is null || texture.native.IsNull )
 			return;
 

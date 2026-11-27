@@ -165,7 +165,7 @@ public partial class Panel
 
 			try
 			{
-				OnEvent( e );
+				DispatchEventImmediate( e );
 			}
 			catch ( System.Exception ex )
 			{
@@ -213,7 +213,11 @@ public partial class Panel
 	/// Run an event through the panel right now instead of queueing it. For events that need
 	/// an answer before returning - a hovering drag asking whether it'd be accepted.
 	/// </summary>
-	internal void DispatchEventImmediate( PanelEvent evnt ) => OnEvent( evnt );
+	internal void DispatchEventImmediate( PanelEvent evnt )
+	{
+		using var cpu = Profiler.IsRecording ? ProfileCallbackScopes.ForType( ProfileScopeType, "OnEvent" ).Start() : default;
+		OnEvent( evnt );
+	}
 
 	/// <summary>
 	/// Called when various <see cref="PanelEvent"/>s happen. Handles event listeners and many standard events by default.
@@ -293,7 +297,7 @@ public partial class Panel
 
 		if ( !e.Propagate ) return;
 
-		Parent?.OnEvent( e );
+		Parent?.DispatchEventImmediate( e );
 	}
 
 	/// <summary>

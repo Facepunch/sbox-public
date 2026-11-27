@@ -24,11 +24,14 @@ public partial class Package
 		return package;
 	}
 
+	static readonly ProfileScope CpuRememberForOffline = new( "Package.RememberForOffline" );
+
 	/// <summary>
 	/// Keep what the backend told us about this package, so it can be installed again offline
 	/// </summary>
 	internal void RememberForOffline()
 	{
+		using var cpu = CpuRememberForOffline.Start();
 		if ( this is not RemotePackage { Dto: { } dto } )
 			return;
 

@@ -9,6 +9,11 @@ namespace Sandbox.UI;
 /// </summary>
 public partial class RootPanel : Panel
 {
+	static readonly ProfileScope CpuLayout = new( "UI.RootLayout" );
+	static readonly ProfileScope CpuPreLayout = new( "UI.PreLayout" );
+	static readonly ProfileScope CpuStyleRules = new( "UI.BuildStyleRules" );
+	static readonly ProfileScope CpuPostLayout = new( "UI.FinalLayout" );
+
 	/// <summary>
 	/// Bounds of the panel, i.e. its size and position on the screen.
 	/// </summary>
@@ -137,6 +142,7 @@ public partial class RootPanel : Panel
 	/// </summary>
 	internal void Layout()
 	{
+		using var cpu = CpuLayout.Start();
 		TickInternal();
 		PreLayout();
 		CalculateLayout();
@@ -196,6 +202,7 @@ public partial class RootPanel : Panel
 
 	internal void PreLayout()
 	{
+		using var cpu = CpuPreLayout.Start();
 		var started = Stopwatch.GetTimestamp();
 		var cascade = new LayoutCascade
 		{
@@ -245,6 +252,7 @@ public partial class RootPanel : Panel
 
 	internal void PostLayout()
 	{
+		using var cpu = CpuPostLayout.Start();
 		var started = Stopwatch.GetTimestamp();
 		PushRootValues();
 		FinalLayout( Vector2.Zero );
@@ -353,6 +361,7 @@ public partial class RootPanel : Panel
 		if ( styleRuleUpdates.Count == 0 )
 			return;
 
+		using var cpu = CpuStyleRules.Start();
 		var timer = FastTimer.StartNew();
 		int count = styleRuleUpdates.Count;
 		_styleRuleChanges = 0;

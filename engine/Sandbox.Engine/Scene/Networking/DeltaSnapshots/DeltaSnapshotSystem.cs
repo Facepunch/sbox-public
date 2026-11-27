@@ -1047,6 +1047,8 @@ internal class DeltaSnapshotSystem
 	private readonly List<LocalSnapshotState.Entry> _needed = new();
 	private ushort _nextClusterId;
 
+	static readonly ProfileScope CpuSendClusters = new( "Snapshots.SendClusters" );
+
 	/// <summary>
 	/// Send a delta snapshot for a set of networked objects to the specified connections.
 	/// </summary>
@@ -1105,6 +1107,8 @@ internal class DeltaSnapshotSystem
 
 		if ( _pending.Count == 0 )
 			return;
+
+		using var sendClusters = CpuSendClusters.Start();
 
 		var firstClusterId = _nextClusterId;
 		var clustersUsed = 0;
