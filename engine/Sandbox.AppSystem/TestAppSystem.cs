@@ -9,8 +9,7 @@ public class TestAppSystem : AppSystem
 	public override void Init()
 	{
 		GCSettings.LatencyMode = GCLatencyMode.SustainedLowLatency;
-		var gameFolder = Environment.GetEnvironmentVariable( "FACEPUNCH_ENGINE", EnvironmentVariableTarget.Process );
-		if ( gameFolder is null ) throw new Exception( "FACEPUNCH_ENGINE not found" );
+		var gameFolder = GameFolder();
 
 		// bin/win64/engine2.dll, bin/linuxsteamrt64/libengine2.so, ...
 		var nativeDllPath = Path.GetFullPath( Path.Combine( gameFolder, NetCore.NativeDllPath ) );
@@ -57,4 +56,42 @@ public class TestAppSystem : AppSystem
 				break;
 		}
 	}
+
+	/// <summary>
+	/// The game folder whose native engine the tests load: the game folder of the checkout the tests were built in, when it has
+	/// a built native engine, else FACEPUNCH_ENGINE. FACEPUNCH_ENGINE is a user-wide variable the launcher of whichever
+	/// checkout ran last writes, and a shell keeps the value it started with; another build's native dlls don't match this
+	/// build's interop and crash the test host in NativeInterop.Initialize. The process's FACEPUNCH_ENGINE is set to the
+	/// result, so tests that read it agree.
+	/// </summary>
+	public static string GameFolder()
+	{
+		var set = Environment.GetEnvironmentVariable( "FACEPUNCH_ENGINE", EnvironmentVariableTarget.Process );
+		var gameFolder = CheckoutGameFolder( AppContext.BaseDirectory ) ?? set;
+		if ( gameFolder is null ) throw new Exception( "FACEPUNCH_ENGINE not found" );
+
+		if ( set is null || !SamePath( set, gameFolder ) )
+		{
+			if ( set is not null ) Console.WriteLine( $"FACEPUNCH_ENGINE is {set}, another build's folder: loading this checkout's {gameFolder}" );
+			Environment.SetEnvironmentVariable( "FACEPUNCH_ENGINE", gameFolder );
+		}
+
+		return gameFolder;
+	}
+
+	/// <summary>The game folder of the checkout <paramref name="directory"/> is in, when it has a built native engine; else null.</summary>
+	public static string CheckoutGameFolder( string directory )
+	{
+		for ( var dir = new DirectoryInfo( directory ); dir is not null; dir = dir.Parent )
+		{
+			var game = Path.Combine( dir.FullName, "game" );
+			if ( File.Exists( Path.Combine( game, NetCore.NativeDllPath, Interop.GetNativeLibraryName( "engine2" ) ) ) ) return game;
+		}
+
+		return null;
+	}
+
+	static bool SamePath( string a, string b )
+		=> string.Equals( Path.TrimEndingDirectorySeparator( Path.GetFullPath( a ) ), Path.TrimEndingDirectorySeparator( Path.GetFullPath( b ) ),
+			OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal );
 }

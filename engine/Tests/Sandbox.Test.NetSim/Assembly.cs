@@ -19,8 +19,7 @@ public class TestInit
 	[AssemblyInitialize]
 	public static void AssemblyInitialize( TestContext context )
 	{
-		var gameFolder = Environment.GetEnvironmentVariable( "FACEPUNCH_ENGINE", EnvironmentVariableTarget.Process );
-		if ( gameFolder is null ) throw new Exception( "FACEPUNCH_ENGINE not found" );
+		var gameFolder = TestAppSystem.GameFolder();
 
 		Environment.CurrentDirectory = gameFolder;
 

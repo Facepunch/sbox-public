@@ -19,8 +19,7 @@ public class TestInit
 		// the engine loop. Tests that need a booted engine belong in Sandbox.Test.Integration;
 		// tests that need no native code at all belong in Sandbox.Test.Unit.
 
-		var gameFolder = System.Environment.GetEnvironmentVariable( "FACEPUNCH_ENGINE", EnvironmentVariableTarget.Process );
-		if ( gameFolder is null ) throw new Exception( "FACEPUNCH_ENGINE not found" );
+		var gameFolder = TestAppSystem.GameFolder();
 
 		Environment.CurrentDirectory = gameFolder;
 
