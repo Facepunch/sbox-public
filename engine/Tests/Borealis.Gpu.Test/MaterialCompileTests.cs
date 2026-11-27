@@ -177,7 +177,7 @@ public class MaterialCompileTests
 		Assert.IsNull( MaterialCompile.ImageSize( [1, 2, 3] ) );
 	}
 
-	/// <summary>The new-shader templates are standalone modules whose stages compile.</summary>
+	/// <summary>The new-shader templates compile: the material template is a surface, the others standalone modules.</summary>
 	[TestMethod]
 	public void ShaderTemplatesCompile()
 	{
@@ -189,7 +189,9 @@ public class MaterialCompileTests
 
 		// Every stage started before any is waited for: the compiler runs them on its own threads, and one after another took 4 s
 		var compiles = new List<System.Threading.Tasks.Task>();
-		foreach ( var name in new[] { "material", "unlit", "compute" } )
+		var material = compiler.CompileSurfaceAsync( Path.Combine( templates, "material.slang" ) );
+		compiles.Add( material );
+		foreach ( var name in new[] { "unlit", "compute" } )
 		{
 			var module = PassModule.Read( Path.Combine( templates, name + ".slang" ), [shaders] );
 			Assert.IsTrue( module.Standalone, name );
@@ -206,6 +208,8 @@ public class MaterialCompileTests
 
 		// A compile error throws here, as each compile did
 		foreach ( var compile in compiles ) compile.GetAwaiter().GetResult();
+		Assert.AreEqual( ShaderTier.Surface, material.Result.Tier );
+		Assert.IsNotNull( material.Result.Pass( ShaderPasses.Forward )?.Pixel, "the material template's forward pixel stage" );
 	}
 
 	/// <summary>
