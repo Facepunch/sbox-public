@@ -11,6 +11,9 @@
 //   over a colour clamped to 0..1, as the 8-bit target clamped it between passes.
 // Before the tonemap (BeforePostProcess, HDR, nothing clamped): bloom's composite as the source, then the vignette.
 // The tonemap (its own stage): the frame's pixel, exposed and mapped.
+// Drawn by the output copy (UBER_OUTPUT, SceneBridge.CopyFrame): the tonemap and the first run after it in one draw, from the
+// HDR frame into the output, point-sampled and mirrored as copytexture reads it; a neighbour reader's taps are each tonemapped
+// and clamped, as the output it read held them. UBER_ENCODE writes as the copy into a linear-bound 8-bit target: encoded, opaque.
 // HEADER: Description = "Uber post";
 // HEADER: DevShader = true;
 
@@ -68,6 +71,8 @@ struct PixelInput
     #define UBER_BLOOM          64
     #define UBER_VIGNETTE       128
     #define UBER_TONEMAP        256
+    #define UBER_OUTPUT         512
+    #define UBER_ENCODE         1024
 
     // Not specialization constants: Borealis.Gpu keys a standalone module's pipelines by its dynamic combos only
     int UberEffects < Attribute( "UberEffects" ); Default( 0 ); >;
@@ -84,6 +89,19 @@ struct PixelInput
         return g_tColorBuffer.SampleLevel( g_sBilinearMirror, vUv, 0 );
     }
 
+    // A neighbour reader's tap. Drawn by the output copy, the frame is HDR: each tap is what the output held there, the tonemap's
+    // result (when it's drawn here) clamped as the 8-bit output stored it
+    float4 Tap( float2 vUv )
+    {
+        float4 c = g_tColorBuffer.Sample( g_sBilinearMirror, vUv );
+        if ( Has( UBER_OUTPUT ) )
+        {
+            if ( Has( UBER_TONEMAP ) ) c = Tonemap( c );
+            c = saturate( c );
+        }
+        return c;
+    }
+
     //
     // Sharpen: a 3x3 tent blur's difference, masked to edges
     //
@@ -94,15 +112,15 @@ struct PixelInput
     {
         float2 texel = SharpenSize / g_vRenderTargetSize;
 
-        float4 c   = g_tColorBuffer.Sample( g_sBilinearMirror, uv );
-        float4 n   = g_tColorBuffer.Sample( g_sBilinearMirror, uv + float2( 0, -texel.y ) );
-        float4 s   = g_tColorBuffer.Sample( g_sBilinearMirror, uv + float2( 0,  texel.y ) );
-        float4 e   = g_tColorBuffer.Sample( g_sBilinearMirror, uv + float2(  texel.x, 0 ) );
-        float4 w   = g_tColorBuffer.Sample( g_sBilinearMirror, uv + float2( -texel.x, 0 ) );
-        float4 ne  = g_tColorBuffer.Sample( g_sBilinearMirror, uv + texel );
-        float4 nw  = g_tColorBuffer.Sample( g_sBilinearMirror, uv + float2( -texel.x,  texel.y ) );
-        float4 se  = g_tColorBuffer.Sample( g_sBilinearMirror, uv + float2(  texel.x, -texel.y ) );
-        float4 sw  = g_tColorBuffer.Sample( g_sBilinearMirror, uv - texel );
+        float4 c   = Tap( uv );
+        float4 n   = Tap( uv + float2( 0, -texel.y ) );
+        float4 s   = Tap( uv + float2( 0,  texel.y ) );
+        float4 e   = Tap( uv + float2(  texel.x, 0 ) );
+        float4 w   = Tap( uv + float2( -texel.x, 0 ) );
+        float4 ne  = Tap( uv + texel );
+        float4 nw  = Tap( uv + float2( -texel.x,  texel.y ) );
+        float4 se  = Tap( uv + float2(  texel.x, -texel.y ) );
+        float4 sw  = Tap( uv - texel );
 
         // 3x3 tent weights: center*4, axial*2, diagonal*1 -> normalize by 16
         float4 blur = ( c * 4 + ( n + s + e + w ) * 2 + ( ne + nw + se + sw ) ) * ( 1.0 / 16.0 );
@@ -128,9 +146,9 @@ struct PixelInput
     {
         float2 offsetScale = ( vTexCoords - 0.5 ) * CaScale * 10.0f;
 
-        float4 r = g_tColorBuffer.Sample( g_sBilinearMirror, vTexCoords - ( offsetScale * CaAmount.r ) );
-        float4 g = g_tColorBuffer.Sample( g_sBilinearMirror, vTexCoords - ( offsetScale * CaAmount.g ) );
-        float4 b = g_tColorBuffer.Sample( g_sBilinearMirror, vTexCoords - ( offsetScale * CaAmount.b ) );
+        float4 r = Tap( vTexCoords - ( offsetScale * CaAmount.r ) );
+        float4 g = Tap( vTexCoords - ( offsetScale * CaAmount.g ) );
+        float4 b = Tap( vTexCoords - ( offsetScale * CaAmount.b ) );
 
         return float4( r.r, g.g, b.b, ( r.a + g.a + b.a ) / 3.0f );
     }
@@ -637,19 +655,32 @@ struct PixelInput
         return float4( rgb, color.a );
     }
 
+    // Drawn by the output copy: copytexture's mirroring
+    bool FlipX < Attribute( "FlipX" ); >;
+    bool FlipY < Attribute( "FlipY" ); >;
+
     [shader( "pixel" )] float4 MainPs( PixelInput i ) : SV_Target0
     {
         float2 uv = CalculateViewportUv( i.vPositionSs.xy );
 
         // The source: an effect that reads other pixels starts its run, so it reads the frame itself
         float4 color;
-        if ( Has( UBER_SHARPEN ) ) color = Sharpen( uv, SharpenStrength * 25 );
-        else if ( Has( UBER_CHROMATIC ) ) color = ChromaticAberration( uv );
+        bool tapsTonemapped = false;
+        if ( Has( UBER_SHARPEN ) ) { color = Sharpen( uv, SharpenStrength * 25 ); tapsTonemapped = Has( UBER_OUTPUT ); }
+        else if ( Has( UBER_CHROMATIC ) ) { color = ChromaticAberration( uv ); tapsTonemapped = Has( UBER_OUTPUT ); }
         else if ( Has( UBER_PIXELATE ) ) color = Pixelate( uv );
         else if ( Has( UBER_BLOOM ) ) color = BloomComposite( ( i.vPositionSs.xy + g_vViewportOffset ) / g_vViewportSize );
+        else if ( Has( UBER_OUTPUT ) )
+        {
+            // As copytexture reads the frame
+            float2 src = i.vTexCoord;
+            if ( FlipX ) src.x = 1 - src.x;
+            if ( FlipY ) src.y = 1 - src.y;
+            color = g_tColorBuffer.Sample( g_sPointWrap, src );
+        }
         else color = Fetch( uv );
 
-        if ( Has( UBER_TONEMAP ) ) color = Tonemap( color );
+        if ( Has( UBER_TONEMAP ) && !tapsTonemapped ) color = Tonemap( color );
 
         // Then each per-pixel effect over the last one's result, clamped as an 8-bit target between passes clamped it
         if ( Has( UBER_FILMGRAIN ) ) color = saturate( float4( ApplyFilmGrain( saturate( color.rgb ), uv ), color.a ) );
@@ -658,6 +689,9 @@ struct PixelInput
 
         // HDR, before the tonemap
         if ( Has( UBER_VIGNETTE ) ) color = Vignette( color, i.vPositionSs.xy / g_vRenderTargetSize );
+
+        // As the copy writes a linear-bound 8-bit target: sRGB-encoded, opaque
+        if ( Has( UBER_ENCODE ) ) color = float4( SrgbLinearToGamma( color.rgb ), 1.0 );
 
         return color;
     }

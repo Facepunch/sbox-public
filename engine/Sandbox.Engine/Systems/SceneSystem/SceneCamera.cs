@@ -79,6 +79,29 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 	internal bool HasEarlyPostProcess( Rendering.Stage stage, PostProcessQueue queue ) => HasEarlyPostProcessHook?.Invoke( stage, queue ) ?? false;
 
 	/// <summary>
+	/// The tonemap and the first run after post processing drawn by the output copy, from the camera component's post
+	/// processing (<see cref="PostProcessLayers.DeferTonemap"/>, <see cref="PostProcessLayers.OutputPostProcess"/>).
+	/// </summary>
+	internal Func<bool, bool> DeferTonemapHook;
+	internal Func<bool, RenderAttributes, UberPostEffect> OutputPostProcessHook;
+	internal Action EndOutputPostProcessHook;
+
+	/// <summary>
+	/// Whether the output copy draws the tonemap this frame, which the Tonemapping stage then skips: the frame keeps its HDR
+	/// colour. Each call decides again (<paramref name="allowed"/> false: it draws in its stage). Before the Tonemapping stage.
+	/// </summary>
+	internal bool DeferTonemap( bool allowed ) => DeferTonemapHook?.Invoke( allowed ) ?? false;
+
+	/// <summary>
+	/// The effects the output copy draws with the uber post shader, their parameters merged into <paramref name="into"/>
+	/// (none: a plain copy), the first run after post processing with them when <paramref name="withRun"/>.
+	/// </summary>
+	internal UberPostEffect OutputPostProcess( bool withRun, RenderAttributes into ) => OutputPostProcessHook?.Invoke( withRun, into ) ?? UberPostEffect.None;
+
+	/// <summary>The output is drawn: the layers it took draw in their stages again.</summary>
+	internal void EndOutputPostProcess() => EndOutputPostProcessHook?.Invoke();
+
+	/// <summary>
 	/// Whether the camera component has command lists at a stage.
 	/// </summary>
 	internal Func<Rendering.Stage, bool> HasCommandListsHook;

@@ -12,6 +12,8 @@ internal sealed partial class SceneBridge
 	static readonly StringToken SrgbTransfer = new( "D_SRGB_TRANSFER" );
 	static readonly StringToken FlipXName = new( "FlipX" );
 	static readonly StringToken FlipYName = new( "FlipY" );
+	static readonly StringToken UberEffectsName = new( "UberEffects" );
+	static readonly StringToken UberSource = new( "ColorBuffer" );
 
 	// Where a camera's frame in a Borealis.Gpu window goes, in the dev tools' timings
 	static readonly Sandbox.Diagnostics.PerformanceStats.Timings PrepareTiming = Sandbox.Diagnostics.PerformanceStats.Timings.Get( "Borealis.Gpu camera prepare" );
@@ -25,6 +27,7 @@ internal sealed partial class SceneBridge
 		public BorealisGpuView View;
 		public RenderView UIOnlyView;
 		public RenderAttributes CopyAttributes;
+		public RenderAttributes UberAttributes;
 		public Texture BitmapTarget;
 		public Texture LentTexture;
 		public (SceneCamera Camera, BorealisGpuFrame Frame, bool Ui, RenderView Overlay) WindowOutput;
@@ -46,7 +49,7 @@ internal sealed partial class SceneBridge
 	}
 
 	OutputScratch mainOutput, renderOutput;
-	Material copyMaterial;
+	Material copyMaterial, uberMaterial;
 	OutputScratch Output => ThreadSafe.IsRenderThread ? renderOutput ??= new() : mainOutput ??= new();
 	BorealisGpuView gpuView => Output.View;
 
@@ -107,6 +110,7 @@ internal sealed partial class SceneBridge
 
 		// Made outside any block: materials can't be made while drawing
 		copyMaterial ??= Material.FromShader( "shaders/copytexture.shader" );
+		uberMaterial ??= Material.FromShader( "shaders/postprocess/pp_uber.shader" );
 
 		var ui = setup.EnableUI ?? camera.RenderUI;
 		gpuView.Target = OutputTarget( window.Target );
@@ -156,6 +160,9 @@ internal sealed partial class SceneBridge
 
 		RenderScene( backend, camera, size, samples, setup, out _, upscale: !Application.IsEditor && !camera.ToolsView,
 			destination: Sandbox.Engine.GameWindow.Current?.Borealis )?.Release();
+
+		// Never drawn: its tonemap, which the output would have drawn, draws in its stage again next time
+		camera.EndOutputPostProcess();
 	}
 
 	/// <summary>
@@ -177,6 +184,7 @@ internal sealed partial class SceneBridge
 		try
 		{
 			copyMaterial ??= Material.FromShader( "shaders/copytexture.shader" );
+			uberMaterial ??= Material.FromShader( "shaders/postprocess/pp_uber.shader" );
 			gpuView.Target = OutputTarget( target );
 			gpuView.SrgbWrite = !Source2Formats.From( target.ImageFormat ).IsFloat();
 			using var _ = OutputTiming.Scope();
@@ -221,28 +229,39 @@ internal sealed partial class SceneBridge
 		finally
 		{
 			if ( backend is not null ) backend.OutputDepth = previousDepth;
+			camera.EndOutputPostProcess();
 		}
 	}
 
 	void DrawOutputStages( SceneCamera camera, BorealisGpuFrame frame, bool ui, bool encode, bool flipX, bool flipY, RenderView overlay )
 	{
+		// The view's lookup tables, as the scene's blocks have them: film grain reads the blue noise
+		BorealisGpuFrame.SetViewTextures( Graphics.Attributes );
+		var earlyUI = ui && camera.Attributes.GetBool( "enableEarlyUI" );
+
 		if ( frame is not null )
 		{
-			CopyFrame( frame, encode, flipX, flipY );
-
-			// What draws over the output reads the view's constants, sized for the output (pp_uber's g_vRenderTargetSize)
+			// What draws over the output reads the view's constants, sized for the output (pp_uber's g_vRenderTargetSize), the
+			// copy's uber post draw too
 			var output = gpuView.Target?.ColorTarget;
-			frame.SetOutputConstants( gpuView.Viewport, output is null ? gpuView.Viewport.Size : new Vector2( output.Width, output.Height ) );
+			var viewport = gpuView.Viewport;
+			var targetSize = output is null ? viewport.Size : new Vector2( output.Width, output.Height );
+			frame.SetOutputConstants( viewport, targetSize );
+
+			// The first run after post processing joins the copy when it would read the frame's pixels where the copy puts
+			// them: unmirrored, the frame the output's size and filling it, with nothing drawn between them (early UI)
+			var color = frame.Color;
+			var withRun = !flipX && !flipY && !earlyUI && viewport.Left == 0 && viewport.Top == 0
+				&& viewport.Width == targetSize.x && viewport.Height == targetSize.y
+				&& color.Width == (int)targetSize.x && color.Height == (int)targetSize.y;
+			CopyFrame( camera, frame, encode, flipX, flipY, withRun );
 		}
 		// A window shows opaque whatever its background's alpha: some drivers present a window's alpha
 		else if ( (camera.ClearFlags & ClearFlags.Color) != 0 ) Graphics.Clear( encode ? camera.BackgroundColor.WithAlpha( 1 ) : camera.BackgroundColor, true, false, false );
 
-		// The view's lookup tables, as the scene's blocks have them: film grain reads the blue noise
-		BorealisGpuFrame.SetViewTextures( Graphics.Attributes );
-
 		// Early UI draws here too, over the finished frame, not before post processing
 		Graphics.Attributes.Set( UIGammaOutput, encode );
-		if ( ui && camera.Attributes.GetBool( "enableEarlyUI" ) ) RunStage( camera, Stage.EarlyUI );
+		if ( earlyUI ) RunStage( camera, Stage.EarlyUI );
 
 		// Post processing over the output reads and writes it as on Source 2's sRGB targets: an 8-bit target bound linear for
 		// the UI is written through its sRGB view meanwhile, so the effects' linear results are encoded
@@ -401,6 +420,10 @@ internal sealed partial class SceneBridge
 				frame.CountExposure( exposure, exposureBucket );
 				backend.EndTimed( timed );
 			}
+
+			// The tonemap drawn by the output copy when nothing after it in the frame reads the frame (CopyFrame): the frame
+			// keeps its HDR colour. Not under the reactive mask's debug view, drawn over the tonemapped frame below
+			camera.DeferTonemap( allowed: uberMaterial is not null && !(upscaling && gpuView.ToolsVisMode == (int)SceneCameraDebugMode.ReactiveMask) );
 			RunStage( camera, Stage.Tonemapping );
 
 			// Native's debug view of the reactive mask, over the frame
@@ -587,11 +610,32 @@ internal sealed partial class SceneBridge
 
 	/// <summary>
 	/// The frame's colour into the bound target's viewport (<c>copytexture.shader</c>), encoded to sRGB when
-	/// <paramref name="encode"/>, mirrored as asked.
+	/// <paramref name="encode"/>, mirrored as asked. When the camera's tonemap was left to it (<see cref="SceneCamera.DeferTonemap"/>),
+	/// or <paramref name="withRun"/> and the first run after post processing can join it, the copy is the uber post shader's
+	/// draw of those effects from the frame (<c>pp_uber</c>'s output mode), and their own passes are skipped: the tonemap's
+	/// copy and draw of the HDR frame, the run's of the output.
 	/// </summary>
-	void CopyFrame( BorealisGpuFrame frame, bool encode, bool flipX, bool flipY )
+	void CopyFrame( SceneCamera camera, BorealisGpuFrame frame, bool encode, bool flipX, bool flipY, bool withRun )
 	{
 		var output = Output;
+		var uberAttributes = output.UberAttributes ??= RenderAttributes.CreateManaged();
+		uberAttributes.Clear();
+		var effects = uberMaterial is null ? UberPostEffect.None : camera.OutputPostProcess( withRun, uberAttributes );
+		if ( effects != UberPostEffect.None )
+		{
+			effects |= UberPostEffect.Output;
+			if ( encode ) effects |= UberPostEffect.Encode;
+			uberAttributes.Set( UberEffectsName, (int)effects );
+			uberAttributes.Set( UberSource, frame.Color );
+			uberAttributes.Set( FlipXName, flipX );
+			uberAttributes.Set( FlipYName, flipY );
+			BorealisGpuFrame.SetViewTextures( uberAttributes );
+			var uberTimed = Gpu?.BeginTimed( "Output uber post" ) ?? default;
+			Graphics.Blit( uberMaterial, uberAttributes );
+			Gpu?.EndTimed( uberTimed );
+			return;
+		}
+
 		var copyAttributes = output.CopyAttributes ??= RenderAttributes.CreateManaged();
 		copyAttributes.Set( CopySource, frame.Color );
 		copyAttributes.Set( FlipXName, flipX );

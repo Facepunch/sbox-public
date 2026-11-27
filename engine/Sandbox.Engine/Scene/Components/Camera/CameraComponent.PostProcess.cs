@@ -56,6 +56,23 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 	}
 
 	/// <summary>
+	/// Whether the tonemap is drawn by the output copy this frame (<see cref="PostProcessLayers.DeferTonemap"/>): when its
+	/// stage would draw it and nothing else draws in its stage after it (no command lists there). On the render thread, in the
+	/// frame's block, before the Tonemapping stage.
+	/// </summary>
+	bool DeferTonemap( bool allowed )
+		=> DrawnPostProcess.DeferTonemap( allowed && PostProcessSystem.UberOutput && PostProcessSystem.DrawsStage( Stage.Tonemapping ) && !HasCommandLists( Stage.Tonemapping ) );
+
+	/// <summary>
+	/// What the output copy draws with the uber post shader (<see cref="PostProcessLayers.OutputPostProcess"/>), the first run
+	/// after post processing with it when its stage would draw it. On the render thread, in the output's block.
+	/// </summary>
+	UberPostEffect OutputPostProcess( bool withRun, RenderAttributes into )
+		=> DrawnPostProcess.OutputPostProcess( withRun && PostProcessSystem.UberOutput && PostProcessSystem.DrawsStage( Stage.AfterPostProcess ), into );
+
+	void EndOutputPostProcess() => DrawnPostProcess.EndOutputPostProcess();
+
+	/// <summary>
 	/// Enable or disable post processing for this camera.
 	/// </summary>
 	[Header( "Post Processing" )]

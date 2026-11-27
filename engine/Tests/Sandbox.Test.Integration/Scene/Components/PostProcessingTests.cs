@@ -1350,6 +1350,92 @@ public class PostProcessingComponentTest
 	}
 
 	/// <summary>
+	/// The tonemap is left to the camera's output copy when its run is the last thing to draw in its stage, and the first
+	/// run after post processing joins it when nothing draws before it there and it doesn't read pixelate's mips. The
+	/// output's draw has both runs' parameters; ending the output gives the layers back to their stages.
+	/// </summary>
+	[TestMethod]
+	public void OutputCopyDrawsTheTonemapAndTheFirstRunAfterIt()
+	{
+		var oldEnable = PostProcessSystem.EnablePostProcess;
+		PostProcessSystem.EnablePostProcess = true;
+
+		try
+		{
+			var scene = new Scene();
+			using var sceneScope = scene.Push();
+
+			var camGo = scene.CreateObject();
+			var cam = camGo.Components.Create<CameraComponent>();
+			var tonemap = camGo.Components.Create<Tonemapping>();
+			tonemap.Mode = Tonemapping.TonemappingMode.ACES;
+			camGo.Components.Create<ChromaticAberration>();
+			var adjust = camGo.Components.Create<ColorAdjustments>();
+			adjust.Saturation = 1.5f;
+			scene.GameTick();
+
+			var layers = cam.PostProcess;
+			var into = RenderAttributes.CreateManaged();
+
+			// Only the tonemap
+			Assert.IsTrue( layers.DeferTonemap( true ) );
+			Assert.AreEqual( UberPostEffect.Tonemap, layers.OutputPostProcess( false, into ) );
+			Assert.AreEqual( (int)Tonemapping.TonemappingMode.ACES, into.GetInt( "UberTonemap" ) );
+			layers.EndOutputPostProcess();
+
+			// With the first run after it: chromatic aberration and the colour adjustments
+			into.Clear();
+			Assert.IsTrue( layers.DeferTonemap( true ) );
+			var effects = layers.OutputPostProcess( true, into );
+			Assert.AreEqual( UberPostEffect.Tonemap | UberPostEffect.ChromaticAberration | UberPostEffect.ColorAdjustments, effects );
+			Assert.AreEqual( 1.5f, into.GetFloat( "ColorSaturation" ), 0.0001f, "The run's parameters with the tonemap's" );
+			Assert.AreEqual( (int)Tonemapping.TonemappingMode.ACES, into.GetInt( "UberTonemap" ) );
+			layers.EndOutputPostProcess();
+
+			// Not allowed: the tonemap keeps its pass, and the run can still join a plain copy
+			into.Clear();
+			Assert.IsFalse( layers.DeferTonemap( false ) );
+			Assert.AreEqual( UberPostEffect.None, layers.OutputPostProcess( false, into ) );
+			Assert.AreEqual( UberPostEffect.ChromaticAberration | UberPostEffect.ColorAdjustments, layers.OutputPostProcess( true, into ), "The run joins a plain copy" );
+			layers.EndOutputPostProcess();
+
+			// A game's effect after the tonemap in its stage reads the tonemapped frame: the tonemap keeps its pass
+			var late = camGo.Components.Create<CustomAfterPostEffect>();
+			late.Stage = Stage.Tonemapping;
+			late.Order = 10;
+			scene.GameTick();
+			Assert.IsFalse( cam.PostProcess.DeferTonemap( true ) );
+			late.Destroy();
+
+			// A game's effect first after post processing draws over the copy before the run: the run keeps its pass
+			var first = camGo.Components.Create<CustomAfterPostEffect>();
+			first.Order = -10;
+			scene.GameTick();
+			layers = cam.PostProcess;
+			into.Clear();
+			Assert.IsTrue( layers.DeferTonemap( true ) );
+			Assert.AreEqual( UberPostEffect.Tonemap, layers.OutputPostProcess( true, into ) );
+			layers.EndOutputPostProcess();
+			first.Destroy();
+
+			// Pixelate reads the output's mips, so its run can't be drawn from the frame
+			camGo.Components.Create<Pixelate>();
+			adjust.Destroy();
+			cam.Components.Get<ChromaticAberration>().Destroy();
+			scene.GameTick();
+			layers = cam.PostProcess;
+			into.Clear();
+			Assert.IsTrue( layers.DeferTonemap( true ) );
+			Assert.AreEqual( UberPostEffect.Tonemap, layers.OutputPostProcess( true, into ) );
+			layers.EndOutputPostProcess();
+		}
+		finally
+		{
+			PostProcessSystem.EnablePostProcess = oldEnable;
+		}
+	}
+
+	/// <summary>
 	/// The obsolete PostProcess base class manages a raw camera command list instead of
 	/// going through the PostProcessSystem: enabling creates a CommandList and adds it to
 	/// the camera, OnUpdate resets and refills it once per tick, disabling removes and
@@ -1475,8 +1561,9 @@ class LegacyPostProcessProbe : PostProcess
 public sealed class CustomAfterPostEffect : BasePostProcess<CustomAfterPostEffect>
 {
 	public int Order { get; set; } = 2000;
+	public Stage Stage { get; set; } = Stage.AfterPostProcess;
 
 	readonly CommandList _commandList = new( "Custom" );
 
-	public override void Render() => InsertCommandList( _commandList, Stage.AfterPostProcess, Order, "Custom" );
+	public override void Render() => InsertCommandList( _commandList, Stage, Order, "Custom" );
 }

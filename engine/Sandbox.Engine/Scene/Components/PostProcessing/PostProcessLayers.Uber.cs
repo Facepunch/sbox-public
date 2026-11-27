@@ -19,6 +19,12 @@ internal enum UberPostEffect
 	Vignette = 128,
 	Tonemap = 256,
 
+	/// <summary>Drawn by the camera's output copy, from the HDR frame (<see cref="PostProcessLayers.OutputPostProcess"/>).</summary>
+	Output = 512,
+
+	/// <summary>Written as the output copy writes a linear-bound 8-bit target: sRGB-encoded, opaque.</summary>
+	Encode = 1024,
+
 	/// <summary>
 	/// Effects that read the frame as the layer before them left it: those reading pixels other than their own, and bloom's
 	/// composite, whose own command list copies the frame first. Each starts a run.
@@ -88,6 +94,7 @@ internal partial class PostProcessLayers
 		}
 
 		attributes.Set( UberEffectsName, (int)effects );
+		head.UberRun = effects;
 
 		// After the first effect's own commands (bloom's copy and chain), or a copy of the frame
 		var cl = head.UberPrefix;
@@ -103,6 +110,85 @@ internal partial class PostProcessLayers
 		cl.DebugName = end - start == 1 ? head.Name : RunName( effects );
 		cl.Blit( UberMaterial, attributes );
 		head.CommandList = cl;
+	}
+
+	// The layers the camera's output copy draws this frame, which their stages skip: the tonemap, and the first run after it
+	PostProcessLayer _outputTonemap, _outputRun;
+
+	/// <summary>
+	/// Whether the tonemap can be drawn by the camera's output copy (<see cref="OutputPostProcess"/>) instead of its own pass,
+	/// which reads the HDR frame and writes it back: when its run is the last thing to draw in its stage, so nothing after it
+	/// in the frame reads the frame tonemapped. Then the stage skips it, and the frame keeps its HDR colour. Each call
+	/// decides again; with <paramref name="allowed"/> false the tonemap draws in its stage. On the render thread, before the
+	/// Tonemapping stage.
+	/// </summary>
+	public bool DeferTonemap( bool allowed )
+	{
+		_outputTonemap = null;
+		_outputRun = null;
+		if ( !allowed || !Layers.TryGetValue( Stage.Tonemapping, out var list ) ) return false;
+
+		list.Sort();
+		PostProcessLayer last = null;
+		foreach ( var layer in list )
+		{
+			if ( layer.CommandList is not null ) last = layer;
+		}
+
+		if ( last is null || last.UberRun != UberPostEffect.Tonemap || last.EarlyQueue is not null || last.UberPrefix is not null ) return false;
+
+		_outputTonemap = last;
+		return true;
+	}
+
+	/// <summary>
+	/// What the camera's output copy draws with the uber post shader, its parameters merged into <paramref name="into"/>: the
+	/// tonemap when <see cref="DeferTonemap"/> took it, and with <paramref name="withRun"/> the first run of the AfterPostProcess
+	/// stage when it's the first thing to draw there and reads only the frame's pixels or a fixed few around them (not
+	/// pixelate's mips), which its stage then skips. None: a plain copy. On the render thread, in the output's block.
+	/// </summary>
+	public UberPostEffect OutputPostProcess( bool withRun, RenderAttributes into )
+	{
+		var effects = UberPostEffect.None;
+		if ( _outputTonemap is { } tonemap )
+		{
+			tonemap.UberAttributes.MergeTo( into );
+			effects |= UberPostEffect.Tonemap;
+		}
+
+		_outputRun = null;
+		if ( withRun && FirstRun( Stage.AfterPostProcess ) is { } run )
+		{
+			run.UberAttributes.MergeTo( into );
+			effects |= run.UberRun;
+			_outputRun = run;
+		}
+
+		return effects;
+	}
+
+	/// <summary>The output is drawn: the layers it took draw in their stages again.</summary>
+	public void EndOutputPostProcess()
+	{
+		_outputTonemap = null;
+		_outputRun = null;
+	}
+
+	// The stage's first layer to draw, when it's an uber run that can be drawn from the frame's pixels
+	PostProcessLayer FirstRun( Stage stage )
+	{
+		if ( !Layers.TryGetValue( stage, out var list ) ) return null;
+
+		list.Sort();
+		foreach ( var layer in list )
+		{
+			if ( layer.CommandList is null ) continue;
+			if ( layer.UberRun == UberPostEffect.None || (layer.UberRun & UberPostEffect.Pixelate) != 0 ) return null;
+			if ( layer.EarlyQueue is not null || layer.UberPrefix is not null ) return null;
+			return layer;
+		}
+
+		return null;
 	}
 
 	static string RunName( UberPostEffect effects )

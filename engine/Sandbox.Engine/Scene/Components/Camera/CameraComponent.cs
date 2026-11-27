@@ -403,6 +403,9 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 	Func<Stage, bool> hasCommandListsHook;
 	Func<bool> readsMotionVectorsHook;
 	Action<Stage, PostProcessQueue> renderEarlyPostProcessHook;
+	Func<bool, bool> deferTonemapHook;
+	Func<bool, RenderAttributes, UberPostEffect> outputPostProcessHook;
+	Action endOutputPostProcessHook;
 
 	public void UpdateSceneCamera( SceneCamera camera, bool includeTags = true )
 	{
@@ -526,6 +529,9 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 		camera.HasCommandListsHook = hasCommandListsHook ??= HasCommandLists;
 		camera.ReadsMotionVectorsHook = readsMotionVectorsHook ??= ReadsMotionVectors;
 		camera.RenderEarlyPostProcessHook = renderEarlyPostProcessHook ??= RenderEarlyPostProcess;
+		camera.DeferTonemapHook = deferTonemapHook ??= DeferTonemap;
+		camera.OutputPostProcessHook = outputPostProcessHook ??= OutputPostProcess;
+		camera.EndOutputPostProcessHook = endOutputPostProcessHook ??= EndOutputPostProcess;
 	}
 
 	/// <summary>

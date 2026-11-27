@@ -221,18 +221,35 @@ public sealed partial class PostProcessSystem : GameObjectSystem<PostProcessSyst
 	/// </summary>
 	void Component.IRenderThread.OnRenderStage( CameraComponent camera, Sandbox.Rendering.Stage stage )
 	{
-		if ( !EnablePostProcess )
+		if ( !DrawsStage( stage ) )
 			return;
 
+		camera.DrawnPostProcess.OnRenderStage( stage );
+	}
+
+	/// <summary>
+	/// Whether the camera's output copy may draw the tonemap and the first run after post processing
+	/// (<see cref="PostProcessLayers.OutputPostProcess"/>); off, each draws in its own stage. For comparisons.
+	/// </summary>
+	internal static bool UberOutput { get; set; } = true;
+
+	/// <summary>
+	/// Whether the post processing layers of <paramref name="stage"/> draw in the view being drawn. On the render thread.
+	/// </summary>
+	internal static bool DrawsStage( Sandbox.Rendering.Stage stage )
+	{
+		if ( !EnablePostProcess )
+			return false;
+
 		if ( Graphics.PostProcessEnabled == false )
-			return;
+			return false;
 
 		// Don't run explicit post process effects if we're in ToolsVis, other command lists like SSR/SSAO should still run
 		if ( Graphics.ToolsVisMode != (int)SceneCameraDebugMode.Normal &&
 				stage >= Rendering.Stage.BeforePostProcess &&
 				stage <= Rendering.Stage.AfterPostProcess )
-			return;
+			return false;
 
-		camera.DrawnPostProcess.OnRenderStage( stage );
+		return true;
 	}
 }

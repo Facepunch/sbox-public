@@ -76,6 +76,9 @@ internal partial class PostProcessLayers
 				continue;
 			}
 
+			// Drawn by the camera's output copy this frame (DeferTonemap, OutputPostProcess)
+			if ( entry == _outputTonemap || entry == _outputRun ) continue;
+
 			entry.Render();
 		}
 	}
@@ -156,6 +159,9 @@ internal class PostProcessLayer : IComparable<PostProcessLayer>
 	/// <summary>Owned by this layer for the uber pass of the run it starts: the run's parameters together.</summary>
 	public RenderAttributes UberAttributes;
 
+	/// <summary>The effects of the uber pass run this layer starts and draws; none for any other layer.</summary>
+	public UberPostEffect UberRun;
+
 	/// <summary>
 	/// Owned by this layer for <see cref="BasePostProcess"/> blits, reused while the layer is.
 	/// </summary>
@@ -172,6 +178,7 @@ internal class PostProcessLayer : IComparable<PostProcessLayer>
 		Uber = UberPostEffect.None;
 		UberSource = null;
 		UberPrefix = null;
+		UberRun = UberPostEffect.None;
 	}
 
 	public int CompareTo( PostProcessLayer other )
