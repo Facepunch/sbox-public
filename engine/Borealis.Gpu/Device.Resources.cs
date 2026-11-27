@@ -163,11 +163,32 @@ public sealed unsafe partial class Device
 		lock ( pipelineLayouts ) return pipelineLayoutHashes[pipelineLayout];
 	}
 
+	/// <summary>Whether every cached pipeline layout has its hash and none was made from a destroyed set layout, for tests.</summary>
+	internal bool PipelineLayoutsConsistent
+	{
+		get
+		{
+			lock ( pipelineLayouts )
+			{
+				var alive = new HashSet<ulong> { emptySetLayout };
+				foreach ( var record in Layouts.All() ) alive.Add( record.SetLayout );
+				foreach ( var (key, layout) in pipelineLayouts )
+				{
+					if ( !pipelineLayoutHashes.ContainsKey( layout ) ) return false;
+					var (a, b, c, d) = key.Sets;
+					if ( !alive.Contains( a ) || !alive.Contains( b ) || !alive.Contains( c ) || !alive.Contains( d ) ) return false;
+				}
+
+				return true;
+			}
+		}
+	}
+
 	/// <summary>The slots of sets 0 to 3, a missing set as an empty one.</summary>
 	internal BindingSlot[][] SlotsOf( BindingLayoutHandle[] sets )
 	{
 		var slots = new BindingSlot[ShaderAbi.BindlessSet][];
-		for ( int s = 0; s < slots.Length; s++ ) slots[s] = sets is not null && s < sets.Length && sets[s].IsValid ? Get( sets[s] ).Slots : [];
+		for ( int s = 0; s < slots.Length; s++ ) slots[s] = sets is not null && s < sets.Length && sets[s].IsValid ? LiveLayout( sets[s] ).Slots : [];
 		return slots;
 	}
 
@@ -209,6 +230,15 @@ public sealed unsafe partial class Device
 	internal ref SamplerRecord Get( SamplerHandle handle ) => ref Samplers.Get( handle.Index, handle.Generation );
 	internal ref PipelineRecord Get( PipelineHandle handle ) => ref Pipelines.Get( handle.Index, handle.Generation );
 	internal ref LayoutRecord Get( BindingLayoutHandle handle ) => ref Layouts.Get( handle.Index, handle.Generation );
+
+	// A binding layout's record for a pipeline layout made with it now: one being destroyed on another thread throws as a destroyed
+	// one does, also when its record is read after the pool cleared it and before its generation moved on
+	LayoutRecord LiveLayout( BindingLayoutHandle handle )
+	{
+		var record = Get( handle );
+		if ( record.SetLayout == 0 || record.Slots is null ) throw new ArgumentException( $"binding layout {handle.Index} was destroyed" );
+		return record;
+	}
 
 	/// <summary>Bytes of device memory allocated from the driver, and handed out to resources.</summary>
 	public (long Reserved, long Used) MemoryUsage => ((long)Allocator.Reserved, (long)Allocator.Used);
@@ -936,9 +966,12 @@ public sealed unsafe partial class Device
 		return new BindingLayoutHandle( index, generation );
 	}
 
+	/// <summary>Called between reading a pipeline layout's set handles and looking it up, for tests of a set destroyed meanwhile.</summary>
+	internal Action PipelineLayoutSetsRead;
+
 	PipelineSetLayout SetLayoutOf( BindingLayoutHandle[] sets, int set )
 	{
-		if ( sets is not null && set < sets.Length && sets[set] is { IsValid: true } handle ) return new( Get( handle ).SetLayout, handle );
+		if ( sets is not null && set < sets.Length && sets[set] is { IsValid: true } handle ) return new( LiveLayout( handle ).SetLayout, handle );
 		return new( emptySetLayout, default );
 	}
 
@@ -948,15 +981,21 @@ public sealed unsafe partial class Device
 	/// constants wrong otherwise. Vulkan forbids the flag for compute pipelines. Push constants are visible to
 	/// <see cref="ComputePushStages"/> in compute layouts and to <see cref="StageAll"/> in graphics ones.
 	/// </summary>
-	ulong PipelineLayout( BindingLayoutHandle[] sets, bool graphics )
+	internal ulong PipelineLayout( BindingLayoutHandle[] sets, bool graphics )
 	{
 		if ( sets is { Length: > ShaderAbi.BindlessSet } ) throw new ArgumentException( $"Sets 0 to {ShaderAbi.BindlessSet - 1} are the pipeline's; set {ShaderAbi.BindlessSet} is the bindless table" );
 
 		var metadata = new PipelineSetLayouts( SetLayoutOf( sets, 0 ), SetLayoutOf( sets, 1 ), SetLayoutOf( sets, 2 ), SetLayoutOf( sets, 3 ), graphics && pipelineLibraries );
 		var key = (Sets: (metadata.First.Handle, metadata.Second.Handle, metadata.Third.Handle, metadata.Fourth.Handle), metadata.Independent, PushStages: graphics ? StageAll : ComputePushStages);
+		PipelineLayoutSetsRead?.Invoke();
 		lock ( pipelineLayouts )
 		{
 			if ( pipelineLayouts.TryGetValue( key, out var existing ) ) return existing;
+
+			// Read before anything is cached: a set destroyed since its handle was read throws here and caches nothing (a layout
+			// cached for it would be found by the next set the driver gives its handle). Destroy takes a set from its pool before
+			// it clears this cache, so a set still alive here has its layouts cleared after they're added
+			var hash = SetsHash( sets );
 
 			var setLayouts = stackalloc ulong[ShaderAbi.SetCount] { key.Sets.Item1, key.Sets.Item2, key.Sets.Item3, key.Sets.Item4, Bindless.SetLayout, Get( ViewSetLayout ).SetLayout };
 			var push = new VkPushConstantRange { stageFlags = key.PushStages, size = ShaderAbi.PushConstantSize };
@@ -974,7 +1013,7 @@ public sealed unsafe partial class Device
 			Vk.vkCreatePipelineLayout( Vk.Device, &info, null, &layout ).Check( "vkCreatePipelineLayout" );
 			pipelineLayouts[key] = layout;
 			pipelineLayoutSets[layout] = metadata;
-			pipelineLayoutHashes[layout] = SetsHash( sets );
+			pipelineLayoutHashes[layout] = hash;
 			return layout;
 		}
 	}
