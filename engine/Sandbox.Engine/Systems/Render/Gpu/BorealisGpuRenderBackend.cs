@@ -150,18 +150,19 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 	/// <summary>
 	/// The device's own zones (pipeline and shader module creation) in the engine's profiler, while it records. On the render
 	/// thread they're timed too: it should never make a pipeline or a shader module (they're made on workers and at loads),
-	/// so each one it makes is counted (<see cref="RenderThreadCompiles"/>) and one over 20 ms is logged.
+	/// so each one it makes is counted (<see cref="RenderThreadCompiles"/>) and one over 20 ms is logged. One a job worker makes
+	/// (recording a frame's segments, which the render thread then waits for) is logged over 50 ms, with what drew it.
 	/// </summary>
 	sealed class TraceZones : IDeviceProfiler
 	{
-		// The render thread's open zones: when each began, or 0 for a zone that isn't a compile
+		// The render thread's (and job workers') open zones: when each began, or 0 for a zone that isn't a compile
 		[ThreadStatic] static long[] started;
 		[ThreadStatic] static int depth;
 
 		public void BeginZone( nint name, uint color )
 		{
 			Sandbox.Utility.ProfilerZones.Begin( name, color );
-			if ( !ThreadSafe.IsRenderThread ) return;
+			if ( !ThreadSafe.IsRenderThread && !IsJobWorker ) return;
 
 			started ??= new long[16];
 			var compile = name == Borealis.Gpu.Device.PipelineZoneName || name == Borealis.Gpu.Device.ShaderModuleZoneName;
@@ -172,11 +173,17 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		public void EndZone()
 		{
 			Sandbox.Utility.ProfilerZones.End();
-			if ( !ThreadSafe.IsRenderThread || depth == 0 ) return;
+			if ( (!ThreadSafe.IsRenderThread && !IsJobWorker) || depth == 0 ) return;
 
 			depth--;
 			if ( depth >= started.Length || started[depth] == 0 ) return;
 			var ms = System.Diagnostics.Stopwatch.GetElapsedTime( started[depth] ).TotalMilliseconds;
+			if ( !ThreadSafe.IsRenderThread )
+			{
+				if ( ms > SlowWorkerCompileMs ) Log.Warning( $"{System.Threading.Thread.CurrentThread.Name} took {ms:F1} ms making a pipeline or shader module while recording: at {new System.Diagnostics.StackTrace( 2, false )}" );
+				return;
+			}
+
 			System.Threading.Interlocked.Increment( ref renderThreadCompiles );
 			RenderThreadCompileTiming.AddMillisecondsFromAnyThread( ms );
 			if ( ms > SlowRenderThreadCompileMs ) Log.Warning( $"The render thread waited {ms:F1} ms making a pipeline or shader module, which it should never make: at {new System.Diagnostics.StackTrace( 2, false )}" );
@@ -189,6 +196,10 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 	internal static long RenderThreadCompiles => System.Threading.Interlocked.Read( ref renderThreadCompiles );
 
 	const double SlowRenderThreadCompileMs = 20;
+	const double SlowWorkerCompileMs = 50;
+
+	// The job dispatcher's threads, which record a frame's segments (not the pipeline builders, which compile on purpose)
+	static bool IsJobWorker => System.Threading.Thread.CurrentThread.Name?.StartsWith( "JobDispatcher", StringComparison.Ordinal ) == true;
 	static readonly Sandbox.Diagnostics.PerformanceStats.Timings RenderThreadCompileTiming = Sandbox.Diagnostics.PerformanceStats.Timings.Get( "Borealis render thread compiles" );
 
 	sealed class LoadingDraws

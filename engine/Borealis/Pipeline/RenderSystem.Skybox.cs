@@ -93,6 +93,7 @@ public sealed partial class RenderSystem
 		};
 		skybox.aggregates.Skybox = true;
 		skybox.ParallelRecording = ParallelRecording;
+		skybox.KeepsResidentLists = KeepsResidentLists;
 		skybox.DrawSky = DrawSky;
 		skybox.DepthPrepass = SkyboxDepthPrepass;
 

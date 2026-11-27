@@ -313,6 +313,9 @@ internal sealed partial class AggregateRenderFeature
 	/// <summary>Resident aggregates are the device's choice; this turns them off for the tests' comparisons.</summary>
 	internal static bool ResidentEnabled { get; set; } = true;
 
+	/// <summary>This system's views draw from resident lists (<see cref="RenderSystem.KeepsResidentLists"/>).</summary>
+	internal bool KeepsLists { get; set; } = true;
+
 	Member[] members = [];
 	int memberCount;
 	GpuBuffer.IndirectDrawIndexedArguments[] residentArgs = [];
@@ -459,7 +462,7 @@ internal sealed partial class AggregateRenderFeature
 		state.OneRun = Occlusion is null && device is { DrawsAggregatesGpuDriven: true };
 		state.Resident = null;
 		// A world with culling boxes is culled on the CPU, object by object
-		var resident = state.OneRun && ResidentEnabled && device.DrawsAggregatesResident && world.CullingBoxes.Count == 0;
+		var resident = state.OneRun && ResidentEnabled && KeepsLists && device.DrawsAggregatesResident && world.CullingBoxes.Count == 0;
 
 		// The frame's views all write into one args buffer: the resident aggregates' first, at the same place every frame
 		if ( argGeneration != transforms.Generation )

@@ -250,6 +250,10 @@ internal sealed partial class SceneBridge
 		using var zone = (made ? Borealis.Zones.CaptureFaceMade : Borealis.Zones.CaptureFace).Start();
 		var state = captureFaces[i] ??= new CameraState( camera );
 		state.System.ShadowMaps.Shared = captureShadows ??= new Borealis.Shadows.SharedShadowTargets();
+
+		// A face draws once a capture, and the world changes between: resident lists kept for it would be made again almost every
+		// time (from scratch in its first frames after a load, tens of milliseconds a face)
+		state.System.KeepsResidentLists = false;
 		state.System.ParallelRecording = parallel && RenderSystem.ParallelRecordingDefault;
 		lastCaptureFace = Application.FrameCount;
 		lastCaptureFaceTicks = System.Diagnostics.Stopwatch.GetTimestamp();

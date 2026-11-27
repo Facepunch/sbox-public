@@ -50,6 +50,21 @@ public sealed partial class RenderSystem : IDisposable
 	public bool ParallelRecording { get; set; } = ParallelRecordingDefault;
 
 	/// <summary>
+	/// Whether its views draw the world's still aggregates and meshes from resident lists kept between frames (on), rather than
+	/// collecting them each frame. Off for views drawn once in a while, as a cube capture's faces are: the world changes between
+	/// their frames, so their lists were made again almost every time, and from scratch in the first frames after a load.
+	/// </summary>
+	internal bool KeepsResidentLists
+	{
+		get => aggregates.KeepsLists;
+		set
+		{
+			aggregates.KeepsLists = value;
+			if ( skybox is not null ) skybox.KeepsResidentLists = value;
+		}
+	}
+
+	/// <summary>
 	/// Default parallel-recording setting for new render systems.
 	/// </summary>
 	public static bool ParallelRecordingDefault { get; set; } = true;

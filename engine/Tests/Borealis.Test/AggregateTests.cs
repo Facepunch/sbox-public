@@ -211,6 +211,44 @@ public class AggregateTests
 	}
 
 	/// <summary>
+	/// A system that keeps no resident lists (a cube capture's faces) prepares its views' aggregates itself every frame, its
+	/// shadow views too, and makes no list.
+	/// </summary>
+	[TestMethod]
+	public void SystemWithoutResidentListsPreparesItsOwn()
+	{
+		var device = HeadlessRenderHost.Headless;
+		device.ResidentAggregates = true;
+		try
+		{
+			var world = new RenderWorld();
+			var first = TestAggregate();
+			var second = TestAggregate();
+			first.IsStatic = second.IsStatic = true;
+			world.Add( first );
+			world.Add( second );
+
+			using var system = new RenderSystem { DepthPrepass = false, KeepsResidentLists = false };
+			Borealis.Shadows.ShadowMapper.ResetCache();
+			var feature = system.GetFeature<AggregateRenderFeature>();
+			var view = LookingDownX();
+			for ( int frame = 0; frame < 3; frame++ )
+			{
+				CollectAndPrepare( system, world, view );
+				Assert.IsNull( feature.ResidentFor( system.MainPass ), "no resident list" );
+				Assert.AreEqual( 2, feature.BatchesFor( system.MainPass ).Count, "the view prepares both itself" );
+				Assert.IsTrue( system.ShadowMaps.Passes.ToArray().All( p => feature.ResidentFor( p ) is null ), "nor do its shadow views draw from one" );
+			}
+
+			Assert.AreEqual( 0, feature.ResidentListsMade, "no list made" );
+		}
+		finally
+		{
+			device.ResidentAggregates = false;
+		}
+	}
+
+	/// <summary>
 	/// A GPU-driven call that hands the device a resident list's batches and then its own takes an array that already starts
 	/// with the list's: the list is copied once while it stays the same, not into every call's array, and each call's own
 	/// batches are cleared when it hands the array back. Calls at once get arrays of their own.
