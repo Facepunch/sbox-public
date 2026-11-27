@@ -119,7 +119,7 @@ internal static class ThumbLoader
 			}
 
 			var cache = new ThumbnailCache( filename );
-			using var cached = await cache.LoadAsync();
+			using var cached = await cache.LoadBitmapAsync();
 			if ( ct.IsCancellationRequested ) return;
 
 			if ( cached is not null )
