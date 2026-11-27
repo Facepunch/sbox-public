@@ -430,40 +430,68 @@ internal static class DedicatedServer
 	}
 
 	/// <summary>
+	/// How long to wait for the game server to log on. A server's first logon, with nothing cached yet,
+	/// can take well over 10 seconds - and workshop installs fail if they go ahead before it's done.
+	/// </summary>
+	const float LogOnTimeout = 60.0f;
+
+	/// <summary>
+	/// The game server's been initialized and asked to log on, and hasn't been shut down since
+	/// </summary>
+	static bool _gameServerInitialized;
+
+	/// <summary>
 	/// Bring up the Steam game server and log on. The server's packages install from the workshop
 	/// before the server is started, so they call this too. Returns false if we couldn't log on.
 	/// </summary>
-	internal static Task<bool> LogOnToSteamAsync()
+	internal static async Task<bool> LogOnToSteamAsync()
 	{
-		return _steamLogOn ??= LogOnToSteamInternalAsync();
+		_steamLogOn ??= LogOnToSteamInternalAsync();
+
+		if ( await _steamLogOn )
+			return true;
+
+		// Don't keep a failed logon - Steam often gets there a little later, and the next caller
+		// should wait for it again rather than fail straight away
+		_steamLogOn = null;
+		return false;
 	}
 
 	static async Task<bool> LogOnToSteamInternalAsync()
 	{
-		Steam.SteamGameServer_Init( Networking.Port, Networking.QueryPort, "1.0.0.0" );
-
-		EngineFileSystem.DownloadedFiles.CreateDirectory( "/workshop" );
-		if ( !CUgcSubscriptions.InitWorkshopForGameServer( EngineFileSystem.DownloadedFiles.GetFullPath( "/workshop" ) ) )
+		if ( !_gameServerInitialized )
 		{
-			Log.Warning( "Couldn't initialize the workshop for the game server" );
+			Steam.SteamGameServer_Init( Networking.Port, Networking.QueryPort, "1.0.0.0" );
+
+			EngineFileSystem.DownloadedFiles.CreateDirectory( "/workshop" );
+			if ( !CUgcSubscriptions.InitWorkshopForGameServer( EngineFileSystem.DownloadedFiles.GetFullPath( "/workshop" ) ) )
+			{
+				Log.Warning( "Couldn't initialize the workshop for the game server" );
+			}
+
+			var server = Steam.SteamGameServer();
+			if ( !server.IsValid )
+				return false;
+
+			// These can only be set before logging on
+			server.SetProduct( "sbox" );
+			server.SetModDir( "sbox" );
+			server.SetDedicatedServer( true );
+			server.SetGameDescription( Application.GamePackage?.Title ?? "s&box" );
+
+			if ( !string.IsNullOrEmpty( Networking.GameServerToken ) )
+				server.LogOn( Networking.GameServerToken );
+			else
+				server.LogOnAnonymous();
+
+			_gameServerInitialized = true;
 		}
 
 		var sgs = Steam.SteamGameServer();
 		if ( !sgs.IsValid )
 			return false;
 
-		// These can only be set before logging on
-		sgs.SetProduct( "sbox" );
-		sgs.SetModDir( "sbox" );
-		sgs.SetDedicatedServer( true );
-		sgs.SetGameDescription( Application.GamePackage?.Title ?? "s&box" );
-
-		if ( !string.IsNullOrEmpty( Networking.GameServerToken ) )
-			sgs.LogOn( Networking.GameServerToken );
-		else
-			sgs.LogOnAnonymous();
-
-		var timeout = RealTime.Now + 10.0f;
+		var timeout = RealTime.Now + LogOnTimeout;
 		while ( !sgs.BLoggedOn() )
 		{
 			if ( RealTime.Now > timeout )
@@ -535,6 +563,7 @@ internal static class DedicatedServer
 
 		Steam.SteamGameServer_Shutdown();
 		IsGameServerActive = false;
+		_gameServerInitialized = false;
 		_steamLogOn = null;
 	}
 }
