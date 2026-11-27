@@ -9,7 +9,7 @@ namespace Sandbox.Diagnostics;
 internal static partial class Profiler
 {
 	const ulong ContainerMagic = 0x3143454352544253;
-	const uint SnapshotSection = 1, MetadataSection = 2, IndexSection = 3, EventsSection = 4, DirectorySection = 0xffff;
+	const uint SnapshotSection = 1, MetadataSection = 2, IndexSection = 3, EventsSection = 4, MemorySection = 5, DirectorySection = 0xffff;
 	const int ContainerHeaderBytes = 48;
 	readonly record struct FileSection( uint Kind, uint Version, long Offset, long Length );
 	readonly record struct EventBlock( FileSection Section, ulong Thread, ulong First, ulong Last );

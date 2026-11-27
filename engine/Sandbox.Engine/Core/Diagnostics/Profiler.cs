@@ -117,6 +117,11 @@ internal static partial class Profiler
 		public string StorageError { get; init; }
 		public string LimitReason { get; init; }
 		public Dictionary<ulong, ArraySegment<Span>> ThreadSpans { get; init; } = new();
+		public AllocationSample[] Allocations { get; init; } = [];
+		// False when GC pauses weren't recorded, as in streamed files, so no pauses means no data rather than none happened
+		public bool HasGcData { get; init; }
+		// Where allocation samples stop because the capture hit its sample limit, or null
+		public double? AllocationCutoffMs { get; init; }
 	}
 
 	struct PendingSpan
@@ -186,6 +191,9 @@ internal static partial class Profiler
 		public double MaxDrainMs;
 		public readonly Dictionary<ulong, ThreadState> Threads = new();
 		public readonly HashSet<uint> ScopeIds = new();
+		public GcPauseListener GcPauses;
+		public readonly List<(ulong Ticks, long Bytes)> FrameAllocations = new( 4096 );
+		public bool FrameAllocationsDone;
 		public readonly TaskCompletionSource<Capture> Completion = new( TaskCreationOptions.RunContinuationsAsynchronously );
 
 		// A RAM capture ends at its limit; a streamed one keeps writing until the disk writer stops it
@@ -284,12 +292,15 @@ internal static partial class Profiler
 		try
 		{
 			if ( streamToDisk ) builder.Archive = new ArchiveWriter( Native.Frequency() );
+			// Set up before the capture starts, so its calibration allocation isn't recorded
+			builder.GcPauses = StartGcPauses();
 			builder.Start = Native.Now();
 			builder.Deadline = float.IsPositiveInfinity( seconds ) ? ulong.MaxValue : builder.Start + (ulong)(seconds * Native.Frequency());
 			builder.Archive?.SetStart( builder.Start );
 		}
 		catch
 		{
+			builder.GcPauses?.Dispose();
 			if ( builder.Archive is not null ) _ = Task.Run( builder.Archive.Abort );
 			throw;
 		}
@@ -308,6 +319,7 @@ internal static partial class Profiler
 				IsRecording = false;
 				Native.Stop();
 				_builder = null;
+				builder.GcPauses?.Dispose();
 				if ( builder.Archive is not null ) _ = Task.Run( builder.Archive.Abort );
 				throw;
 			}
@@ -346,6 +358,12 @@ internal static partial class Profiler
 		var builder = _builder;
 		if ( builder is null ) return;
 
+		// Frames past the limit aren't in the capture: one more sample closes the last one, then stop
+		if ( frameBoundary && !builder.FrameAllocationsDone )
+		{
+			builder.FrameAllocations.Add( (Native.Now(), GC.GetAllocatedBytesForCurrentThread()) );
+			builder.FrameAllocationsDone = builder.LimitReached;
+		}
 		if ( builder.CollectorError is not null || builder.Finished || (frameBoundary && Native.Now() >= builder.Deadline) )
 		{
 			StopCapture();
@@ -431,14 +449,20 @@ internal static partial class Profiler
 
 			var limited = builder.LimitEnd != 0;
 			var captureEnd = limited ? Math.Min( builder.LimitEnd, end ) : end;
+			var rawAllocations = AddGcPauses( builder, captureEnd, ref sites, ref threads, out var allocationCutoff );
 			capture = Finish( builder, captureEnd, limited ? builder.LimitDropped - builder.DroppedAtStart : dropped, clockToMs, sites, threads );
 
+			var frameAllocations = builder.FrameAllocations.Select( x => ((double)((long)x.Ticks - (long)builder.Start) * clockToMs, x.Bytes) ).ToList();
 			var drains = DescribeDurations( builder.DrainTimes );
 			capture = capture with
 			{
 				SourceFile = archiveFile,
 				RecordedDurationMs = (end - builder.Start) * clockToMs,
 				StorageError = storageError ?? builder.Archive?.StopReason,
+				Allocations = AttributeAllocations( capture, rawAllocations, builder.Start, captureEnd, clockToMs ),
+				HasGcData = builder.GcPauses is not null,
+				AllocationCutoffMs = allocationCutoff != 0 && allocationCutoff < captureEnd ? Math.Max( 0, (double)((long)allocationCutoff - (long)builder.Start) ) * clockToMs : null,
+				Frames = AttachFrameAllocations( capture.Frames, frameAllocations ),
 				Overhead = new( builder.DrainCount, drains.P50Ms, drains.P95Ms, builder.MaxDrainMs, snapshotMs, Stopwatch.GetElapsedTime( start ).TotalMilliseconds )
 			};
 			Publish( capture );
@@ -457,6 +481,7 @@ internal static partial class Profiler
 	static void Release( Builder builder )
 	{
 		foreach ( var state in builder.Threads.Values ) state.Spans.Dispose();
+		builder.GcPauses?.Dispose();
 	}
 
 	// Reserve recording, finalization and view storage before accepting each new instance

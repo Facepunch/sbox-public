@@ -7,6 +7,9 @@ internal static partial class Profiler
 	internal readonly record struct Frame( int Index, int SpanIndex, double StartMs, double DurationMs, bool Incomplete )
 	{
 		public double EndMs => StartMs + DurationMs;
+
+		/// <summary>Managed bytes the main thread allocated during the frame, null when the capture didn't measure it.</summary>
+		public long? AllocatedBytes { get; init; }
 	}
 
 	internal sealed record Distribution( int Count, double MinMs, double P50Ms, double P95Ms, double P99Ms,

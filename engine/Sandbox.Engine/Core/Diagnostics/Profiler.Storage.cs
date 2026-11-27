@@ -86,7 +86,80 @@ internal static partial class Profiler
 		using var writer = new BinaryWriter( stream, Encoding.UTF8, true );
 		WriteContainerHeader( writer );
 		var snapshot = WriteSection( writer, SnapshotSection, () => WriteCapturePayload( capture, stream ) );
-		WriteDirectory( writer, snapshot );
+		// Written whenever GC data was recorded, so a capture with no samples still loads as having it
+		if ( !capture.HasGcData && capture.Allocations.Length == 0 && !capture.Frames.Any( x => x.AllocatedBytes is not null ) )
+		{
+			WriteDirectory( writer, snapshot );
+			return;
+		}
+
+		var memory = WriteSection( writer, MemorySection, () => WriteMemoryPayload( capture, writer ), version: 2 );
+		WriteDirectory( writer, snapshot, memory );
+	}
+
+	/// <summary>
+	/// Version 2: type names once, allocation samples with their times, then each frame's main thread allocations in
+	/// frame order (-1 when not measured). Version 1 had a name per sample and no times.
+	/// </summary>
+	static void WriteMemoryPayload( Capture capture, BinaryWriter writer )
+	{
+		var types = capture.Allocations.Select( x => x.Type ).Distinct().ToArray();
+		var typeIndex = types.Select( ( x, i ) => (x, i) ).ToDictionary( x => x.x, x => x.i );
+		writer.Write( types.Length );
+		foreach ( var type in types ) WriteText( writer, type );
+		writer.Write( capture.Allocations.Length );
+		foreach ( var sample in capture.Allocations )
+		{
+			writer.Write( typeIndex[sample.Type] ); writer.Write( sample.ThreadKey ); writer.Write( sample.ScopeId ); writer.Write( sample.Samples ); writer.Write( sample.Bytes ); writer.Write( sample.TimeMs );
+		}
+
+		writer.Write( capture.Frames.Length );
+		foreach ( var frame in capture.Frames )
+			writer.Write( frame.AllocatedBytes ?? -1 );
+		writer.Write( capture.AllocationCutoffMs ?? double.NaN );
+	}
+
+	static Capture ReadMemoryPayload( Stream stream, Capture capture, uint version )
+	{
+		using var reader = new BinaryReader( stream, Encoding.UTF8, leaveOpen: true );
+		string[] types = null;
+		if ( version >= 2 )
+		{
+			var typeCount = reader.ReadInt32();
+			if ( typeCount is < 0 or > 1_000_000 ) throw new InvalidDataException( "Invalid profiler capture allocation type count." );
+			types = new string[typeCount];
+			for ( int i = 0; i < typeCount; i++ ) types[i] = ReadText( reader );
+		}
+		var count = reader.ReadInt32();
+		if ( count is < 0 or > 1_000_000 ) throw new InvalidDataException( "Invalid profiler capture allocation count." );
+		var allocations = new AllocationSample[count];
+		for ( int i = 0; i < count; i++ )
+		{
+			if ( types is null )
+			{
+				allocations[i] = new AllocationSample( ReadText( reader ), reader.ReadUInt64(), reader.ReadUInt32(), reader.ReadInt32(), reader.ReadInt64() );
+				continue;
+			}
+			var type = reader.ReadInt32();
+			if ( (uint)type >= (uint)types.Length ) throw new InvalidDataException( "Invalid profiler capture allocation type." );
+			allocations[i] = new AllocationSample( types[type], reader.ReadUInt64(), reader.ReadUInt32(), reader.ReadInt32(), reader.ReadInt64(), reader.ReadDouble() );
+		}
+
+		var frames = capture.Frames;
+		var frameCount = reader.ReadInt32();
+		if ( frameCount == frames.Length )
+		{
+			frames = (Frame[])frames.Clone();
+			for ( int i = 0; i < frameCount; i++ )
+			{
+				var bytes = reader.ReadInt64();
+				if ( bytes >= 0 ) frames[i] = frames[i] with { AllocatedBytes = bytes };
+			}
+		}
+
+		// Files saved before the cutoff was stored end here
+		var cutoff = frameCount == capture.Frames.Length && stream.Length - stream.Position >= 8 ? reader.ReadDouble() : double.NaN;
+		return capture with { Allocations = allocations, Frames = frames, HasGcData = true, AllocationCutoffMs = double.IsFinite( cutoff ) && cutoff >= 0 ? cutoff : null };
 	}
 
 	static void WriteCapturePayload( Capture capture, Stream stream )
@@ -141,7 +214,10 @@ internal static partial class Profiler
 			{
 				if ( snapshot.Version != 1 ) throw new InvalidDataException( "Unsupported profiler snapshot version." );
 				if ( startMs != 0 || durationMs != 0 ) throw new ArgumentException( "Time-range loading is supported for streamed recordings." );
-				return ReadCaptureData( new SectionStream( stream, snapshot ), maximumSpans );
+				var capture = ReadCaptureData( new SectionStream( stream, snapshot ), maximumSpans );
+				if ( sections.TryGetValue( MemorySection, out var memory ) && memory.Version is 1 or 2 )
+					capture = ReadMemoryPayload( new SectionStream( stream, memory ), capture, memory.Version );
+				return capture;
 			}
 			return ReadStreamCapture( stream, start, frequency, sections, maximumSpans, startMs, durationMs );
 		}

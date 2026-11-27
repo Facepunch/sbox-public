@@ -474,6 +474,89 @@ public class ProfilerTests
 	}
 
 	[TestMethod]
+	public void BinaryCaptureRoundTripKeepsAllocations()
+	{
+		// Loaded once, so it has its analyzed frames
+		var analyzed = Profiler.ReadCapture( new System.IO.MemoryStream( FileBytes() ) );
+		var original = analyzed with { Allocations = [new( "System.String", 1, 7, 3, 300_000 ), new( "Sandbox.Vertex[]", 2, 0, 1, 100_000, 12.5 )] };
+		original = original with { Frames = original.Frames.Select( ( x, i ) => x with { AllocatedBytes = i == 0 ? 2048 : null } ).ToArray() };
+
+		using var stream = new System.IO.MemoryStream();
+		Profiler.WriteCapture( original, stream );
+		stream.Position = 0;
+		var loaded = Profiler.ReadCapture( stream );
+
+		CollectionAssert.AreEqual( original.Allocations, loaded.Allocations );
+		CollectionAssert.AreEqual( original.Frames.Select( x => x.AllocatedBytes ).ToArray(), loaded.Frames.Select( x => x.AllocatedBytes ).ToArray() );
+		CollectionAssert.AreEqual( original.Spans, loaded.Spans );
+	}
+
+	[TestMethod]
+	public void GarbageCollectionsShowAsPausesWithFrameAllocations()
+	{
+		var task = StartCapture( 2 );
+		Profiler.Update( frameBoundary: true );
+		using ( ProfileScope_Frame.Start() )
+		{
+			var garbage = new List<byte[]>();
+			for ( int i = 0; i < 64; i++ ) garbage.Add( new byte[64 * 1024] );
+			GC.KeepAlive( garbage );
+			GC.Collect( 0, GCCollectionMode.Forced, true );
+		}
+		Profiler.Update( frameBoundary: true );
+		Profiler.StopCapture();
+		var capture = task.GetAwaiter().GetResult();
+
+		var pause = capture.Sites.FirstOrDefault( x => x.Name.StartsWith( "GC.Pause." ) );
+		Assert.IsNotNull( pause, "no GC pause site" );
+		var lane = capture.Threads.Single( x => x.Key == Profiler.GcThreadKey );
+		Assert.IsTrue( capture.ThreadSpans[lane.Key].Any( x => x.ScopeId == pause.Id && x.DurationMs > 0 ) );
+
+		var frame = capture.Frames.Single();
+		Assert.IsTrue( frame.AllocatedBytes >= 64 * 64 * 1024, $"frame allocations {frame.AllocatedBytes}" );
+		Assert.IsTrue( capture.Allocations.Sum( x => x.Bytes ) > 0 );
+	}
+
+	static readonly ProfileScope ProfileScope_Frame = new( Profiler.FrameScopeName );
+	static readonly ProfileScope ProfileScope_Quiet = new( "Test.Quiet" );
+	static readonly ProfileScope ProfileScope_Allocating = new( "Test.Allocating" );
+
+	[TestMethod]
+	public void AllocationSamplesAreChargedToTheOpenScope()
+	{
+		static void Run( ProfileScope scope, bool allocate )
+		{
+			using var _ = scope.Start();
+			var keep = new List<byte[]>();
+			var timer = System.Diagnostics.Stopwatch.StartNew();
+			while ( timer.ElapsedMilliseconds < 5 )
+			{
+				if ( allocate ) keep.Add( new byte[16 * 1024] );
+			}
+			GC.KeepAlive( keep );
+		}
+
+		var task = StartCapture( 2 );
+		Profiler.Update( frameBoundary: true );
+		using ( ProfileScope_Frame.Start() )
+		{
+			Run( ProfileScope_Quiet, false );
+			Run( ProfileScope_Allocating, true );
+			Run( ProfileScope_Quiet, false );
+		}
+		Profiler.Update( frameBoundary: true );
+		Profiler.StopCapture();
+		var capture = task.GetAwaiter().GetResult();
+
+		var site = capture.Sites.Single( x => x.Name == "Test.Allocating" );
+		var thread = capture.Spans.First( x => x.ScopeId == site.Id ).ThreadKey;
+		var arrays = capture.Allocations.Where( x => x.Type == "System.Byte[]" && x.ThreadKey == thread ).ToArray();
+		var charged = arrays.Where( x => x.ScopeId == site.Id ).Sum( x => x.Bytes );
+		var total = arrays.Sum( x => x.Bytes );
+		Assert.IsTrue( total > 0 && charged >= total * 0.9, $"{charged} of {total} bytes charged to the allocating scope" );
+	}
+
+	[TestMethod]
 	public void BinaryCaptureRejectsTruncationBadHeadersAndInvalidParents()
 	{
 		void Invalid( byte[] bytes ) => Assert.ThrowsException<System.IO.InvalidDataException>( () => Profiler.ReadCapture( new System.IO.MemoryStream( bytes ) ) );
@@ -527,7 +610,7 @@ public class ProfilerTests
 			Profiler.StopCapture();
 			var preview = task.GetAwaiter().GetResult();
 			Assert.IsTrue( preview.EventLimitReached );
-			Assert.IsTrue( preview.Spans.Length <= 32 );
+			Assert.IsTrue( preview.Spans.Count( x => x.ThreadKey != Profiler.GcThreadKey ) <= 32 );
 			Assert.IsNull( preview.StorageError, preview.StorageError );
 			Assert.IsNotNull( preview.SourceFile );
 			path = Profiler.CapturePath( preview.SourceFile );
