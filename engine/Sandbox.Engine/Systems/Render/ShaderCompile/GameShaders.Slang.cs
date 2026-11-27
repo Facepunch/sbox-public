@@ -1,5 +1,4 @@
 using System.IO;
-using System.Text.RegularExpressions;
 using System.Threading;
 using Borealis.Backend;
 using Sandbox.ShaderCompiler;
@@ -16,17 +15,11 @@ namespace Sandbox.Engine.Shaders;
 internal static partial class GameShaders
 {
 	/// <summary>
-	/// Whether <paramref name="source"/> is Slang rather than vfx's <c>.shader</c>: no vfx block (<c>MODES {</c>, <c>PS {</c>)
-	/// starts a line, and it imports or includes the engine's Slang library, declares a material or a Slang entry point.
+	/// Whether <paramref name="source"/> is Slang rather than vfx's <c>.shader</c>, told by content as everywhere else
+	/// (<see cref="ShaderFormat.IsVfxSource"/>): anything that isn't a VFX source. Blank text is neither, and goes to vfx.
 	/// </summary>
 	internal static bool IsSlang( string source ) =>
-		source is not null && !VfxBlock().IsMatch( source ) && SlangMarker().IsMatch( source );
-
-	[GeneratedRegex( @"^[ \t]*(HEADER|FEATURES|MODES|COMMON|VS|PS|GS|HS|DS|CS|MS|TS|RTX)[ \t]*(\{|\r?$)", RegexOptions.Multiline )]
-	private static partial Regex VfxBlock();
-
-	[GeneratedRegex( @"^[ \t]*import[ \t]+sbox\.|sbox/pass\.slangh|\[\s*Material\b|\[\s*shader\s*\(", RegexOptions.Multiline )]
-	private static partial Regex SlangMarker();
+		!string.IsNullOrWhiteSpace( source ) && !ShaderFormat.IsVfxSource( source );
 
 	static readonly HashSet<string> slangLinks = new( StringComparer.OrdinalIgnoreCase );
 
