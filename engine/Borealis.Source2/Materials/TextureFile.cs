@@ -56,6 +56,17 @@ public sealed class TextureFile
 	/// <summary>Whether its mips are in <see cref="ContentBuffers"/> arrays, until <see cref="Release"/>.</summary>
 	public bool Pooled { get; private set; }
 
+	/// <summary>Bytes of the arrays its mips are held in, until <see cref="Release"/> for a pooled read.</summary>
+	public long HeldBytes
+	{
+		get
+		{
+			long bytes = 0;
+			foreach ( var mip in MipData ) bytes += mip?.Length ?? 0;
+			return bytes;
+		}
+	}
+
 	/// <summary>A read mip's bytes, every slice.</summary>
 	public ReadOnlySpan<byte> Mip( int mip ) => MipData[mip].AsSpan( 0, MipBytes( mip ) );
 

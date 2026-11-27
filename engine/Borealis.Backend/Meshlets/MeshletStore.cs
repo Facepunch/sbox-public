@@ -389,7 +389,7 @@ internal sealed class MeshletStore : IDisposable
 			{
 				// The range's indices and its vertices' positions, from the lowest index it uses, in pooled scratch: with the
 				// config, the cache's key
-				var indexArray = System.Buffers.ArrayPool<uint>.Shared.Rent( count );
+				var indexArray = ScratchPool<uint>.Rent( count );
 				V3[] positionArray = null;
 				try
 				{
@@ -404,7 +404,7 @@ internal sealed class MeshletStore : IDisposable
 					}
 
 					var vertexCount = count == 0 ? 0 : (int)(max - min + 1);
-					positionArray = System.Buffers.ArrayPool<V3>.Shared.Rent( vertexCount );
+					positionArray = ScratchPool<V3>.Rent( vertexCount );
 					for ( int v = 0; v < vertexCount; v++ ) positionArray[v] = Position( s, s.VertexBase + (int)min + v );
 					var key = CacheFolder is null ? null : Key( indices, positionArray.AsSpan( 0, vertexCount ) );
 					set = key is null ? null : ReadCached( key );
@@ -418,8 +418,8 @@ internal sealed class MeshletStore : IDisposable
 				}
 				finally
 				{
-					System.Buffers.ArrayPool<uint>.Shared.Return( indexArray );
-					if ( positionArray is not null ) System.Buffers.ArrayPool<V3>.Shared.Return( positionArray );
+					ScratchPool<uint>.Return( indexArray );
+					if ( positionArray is not null ) ScratchPool<V3>.Return( positionArray );
 				}
 			}
 

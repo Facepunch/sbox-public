@@ -46,7 +46,7 @@ internal static unsafe class LodBuilder
 	static void Canonical( ReadOnlySpan<uint> indices, Span<uint> sorted )
 	{
 		var count = indices.Length / 3;
-		var scratch = System.Buffers.ArrayPool<(uint A, uint B, uint C)>.Shared.Rent( count );
+		var scratch = ScratchPool<(uint A, uint B, uint C)>.Rent( count );
 		try
 		{
 			var triangles = scratch.AsSpan( 0, count );
@@ -64,7 +64,7 @@ internal static unsafe class LodBuilder
 		}
 		finally
 		{
-			System.Buffers.ArrayPool<(uint A, uint B, uint C)>.Shared.Return( scratch );
+			ScratchPool<(uint A, uint B, uint C)>.Return( scratch );
 		}
 	}
 
@@ -79,7 +79,7 @@ internal static unsafe class LodBuilder
 		if ( config.MaxLevels is < 1 or > LodStore.MaxLevels ) throw new ArgumentOutOfRangeException( nameof( config ), config, $"1 to {LodStore.MaxLevels} levels" );
 		var count = indices.Length;
 		if ( count / 3 < Math.Max( config.MinRangeTriangles, 1 ) || !MeshOptimizer.Available ) return null;
-		var canonical = System.Buffers.ArrayPool<uint>.Shared.Rent( count );
+		var canonical = ScratchPool<uint>.Rent( count );
 		try
 		{
 			Canonical( indices, canonical.AsSpan( 0, count ) );
@@ -87,7 +87,7 @@ internal static unsafe class LodBuilder
 		}
 		finally
 		{
-			System.Buffers.ArrayPool<uint>.Shared.Return( canonical );
+			ScratchPool<uint>.Return( canonical );
 		}
 	}
 
@@ -110,20 +110,20 @@ internal static unsafe class LodBuilder
 		var normals = normal is not null && config.NormalWeight > 0 ? 3 : 0;
 		var colorSets = config.ColorWeight > 0 ? colors?.Length ?? 0 : 0;
 		var stride = sets * 2 + normals + colorSets * 4;
-		var positions = System.Buffers.ArrayPool<V3>.Shared.Rent( vertexCount );
-		var current = System.Buffers.ArrayPool<uint>.Shared.Rent( count );
-		var destination = System.Buffers.ArrayPool<uint>.Shared.Rent( count );
-		var attributes = System.Buffers.ArrayPool<float>.Shared.Rent( Math.Max( vertexCount * stride, 1 ) );
+		var positions = ScratchPool<V3>.Rent( vertexCount );
+		var current = ScratchPool<uint>.Rent( count );
+		var destination = ScratchPool<uint>.Rent( count );
+		var attributes = ScratchPool<float>.Rent( Math.Max( vertexCount * stride, 1 ) );
 		try
 		{
 			return Build( indices, position, baseVertex, config, coordinates, normal, colors, min, vertexCount, sets, normals, colorSets, stride, positions, current, destination, attributes );
 		}
 		finally
 		{
-			System.Buffers.ArrayPool<V3>.Shared.Return( positions );
-			System.Buffers.ArrayPool<uint>.Shared.Return( current );
-			System.Buffers.ArrayPool<uint>.Shared.Return( destination );
-			System.Buffers.ArrayPool<float>.Shared.Return( attributes );
+			ScratchPool<V3>.Return( positions );
+			ScratchPool<uint>.Return( current );
+			ScratchPool<uint>.Return( destination );
+			ScratchPool<float>.Return( attributes );
 		}
 	}
 

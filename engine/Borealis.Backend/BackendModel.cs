@@ -486,7 +486,7 @@ public sealed class BackendModel : GpuMesh, IBackendGeometry, ISkinnedGeometry
 
 		// Written into pooled scratch, copied to the GPU from there
 		var length = source.Count * PositionStride;
-		var scratch = System.Buffers.ArrayPool<byte>.Shared.Rent( length );
+		var scratch = ScratchPool<byte>.Rent( length );
 		try
 		{
 			var data = scratch.AsSpan( 0, length );
@@ -523,7 +523,7 @@ public sealed class BackendModel : GpuMesh, IBackendGeometry, ISkinnedGeometry
 		}
 		finally
 		{
-			System.Buffers.ArrayPool<byte>.Shared.Return( scratch );
+			ScratchPool<byte>.Return( scratch );
 		}
 	}
 

@@ -22,6 +22,43 @@ public sealed partial class BackendDevice
 	// A texture read ahead and any image and upload buffer made for it on the worker, under loadedTextures' lock.
 	readonly Dictionary<string, (TextureFile File, Borealis.Gpu.TextureHandle Image, Borealis.Gpu.BufferHandle Staged, long ReadAt)> readTextures = new( StringComparer.OrdinalIgnoreCase );
 
+	long readAheadBytes;
+
+	/// <summary>Bytes of the mips of textures read ahead that nothing has made yet, for stats.</summary>
+	internal long ReadAheadBytes => Volatile.Read( ref readAheadBytes );
+
+	/// <summary>The most <see cref="ReadAheadBytes"/> at once so far, for stats.</summary>
+	internal long PeakReadAheadBytes { get; private set; }
+
+	/// <summary>
+	/// Bytes of mips textures read ahead may hold before the next read waits for them to be made (<see cref="ReadAheadWaitMs"/>):
+	/// their arrays come from <see cref="Borealis.Source2.ContentBuffers"/>, and more than it keeps were made and let go again,
+	/// a gigabyte of large-object garbage over Construct's load. 0 for no bound.
+	/// </summary>
+	public static long ReadAheadMaxBytes { get; set; } = 128L << 20;
+
+	/// <summary>How long a texture's read waits for <see cref="ReadAheadMaxBytes"/> to have room at most, then reads anyway.</summary>
+	public static int ReadAheadWaitMs { get; set; } = 250;
+
+	// On a worker: what's read ahead is made by the frame's thread, so its reads may outrun it; wait a while for room, not
+	// for ever, as what fills it may be waiting for a model this read is part of
+	void WaitForReadAheadRoom()
+	{
+		var max = ReadAheadMaxBytes;
+		if ( max <= 0 || ReadAheadBytes < max ) return;
+		var start = Stopwatch.GetTimestamp();
+		while ( ReadAheadBytes >= max && !disposing && Stopwatch.GetElapsedTime( start ).TotalMilliseconds < ReadAheadWaitMs ) Thread.Sleep( 1 );
+	}
+
+	// A texture read ahead joins readTextures (sign 1) or leaves it (-1), under loadedTextures' lock
+	void CountAhead( TextureFile file, int sign )
+	{
+		if ( file is null ) return;
+		var bytes = readAheadBytes + sign * file.HeldBytes;
+		Volatile.Write( ref readAheadBytes, bytes );
+		if ( bytes > PeakReadAheadBytes ) PeakReadAheadBytes = bytes;
+	}
+
 	/// <summary>
 	/// Read-ahead data is kept through the build backlog, but not indefinitely if nothing loads its exact path: this many
 	/// seconds. For tests.
@@ -42,6 +79,7 @@ public sealed partial class BackendDevice
 			{
 				if ( ahead.ReadAt > due ) continue;
 				readTextures.Remove( path );
+				CountAhead( ahead.File, -1 );
 				ReleaseAhead( ahead );
 			}
 		}
@@ -491,6 +529,7 @@ public sealed partial class BackendDevice
 
 		gpuDrivenTables?.FreeEmptyPages();
 		Borealis.Source2.ContentBuffers.TrimIdle();
+		ScratchPools.TrimIdle();
 	}
 
 	/// <summary>
@@ -699,6 +738,7 @@ public sealed partial class BackendDevice
 			if ( loadedTextures.ContainsKey( path ) || readTextures.ContainsKey( path ) ) return;
 		}
 
+		WaitForReadAheadRoom();
 		using var zone = Zones.TextureRead.Start();
 		(TextureFile File, Borealis.Gpu.TextureHandle Image, Borealis.Gpu.BufferHandle Staged, long ReadAt) ahead = default;
 		try
@@ -718,12 +758,20 @@ public sealed partial class BackendDevice
 			{
 				ahead.Image = CreateAhead( texture, path );
 				if ( ahead.Image.IsValid && StageAheadBytes > 0 && bytes >= StageAheadBytes && texture.Dimension != Borealis.Gpu.TextureDimension.Texture3D ) ahead.Staged = Stage( texture );
+
+				// Staged, its mips are copied from there: their arrays go back now rather than wait for it to be made, which
+				// held half a gigabyte of a map's lightmaps and big textures at once through Construct's load
+				if ( ahead.Staged.IsValid ) texture.Release();
 			}
 
 			lock ( loadedTextures )
 			{
 				ahead.ReadAt = Stopwatch.GetTimestamp();
-				if ( !loadedTextures.ContainsKey( path ) && readTextures.TryAdd( path, ahead ) ) ahead = default;
+				if ( !loadedTextures.ContainsKey( path ) && readTextures.TryAdd( path, ahead ) )
+				{
+					CountAhead( ahead.File, 1 );
+					ahead = default;
+				}
 			}
 		}
 		catch ( InvalidDataException )

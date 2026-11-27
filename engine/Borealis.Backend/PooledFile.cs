@@ -11,7 +11,7 @@ internal static class PooledFile
 	{
 		using var file = new System.IO.FileStream( path, System.IO.FileMode.Open, System.IO.FileAccess.Read, System.IO.FileShare.Read, 1, System.IO.FileOptions.SequentialScan );
 		length = checked((int)file.Length);
-		var buffer = System.Buffers.ArrayPool<byte>.Shared.Rent( length );
+		var buffer = ScratchPool<byte>.Rent( length );
 		try
 		{
 			file.ReadExactly( buffer, 0, length );
@@ -19,11 +19,11 @@ internal static class PooledFile
 		}
 		catch
 		{
-			System.Buffers.ArrayPool<byte>.Shared.Return( buffer );
+			ScratchPool<byte>.Return( buffer );
 			throw;
 		}
 	}
 
 	/// <summary>Give back an array <see cref="Read"/> returned.</summary>
-	public static void Return( byte[] buffer ) => System.Buffers.ArrayPool<byte>.Shared.Return( buffer );
+	public static void Return( byte[] buffer ) => ScratchPool<byte>.Return( buffer );
 }

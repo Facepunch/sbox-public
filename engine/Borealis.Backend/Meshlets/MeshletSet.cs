@@ -76,9 +76,9 @@ internal sealed class MeshletSet
 
 		// Per index value, the last meshlet that numbered it (plus one) and its number there; scratch from the shared pools
 		var range = Indices.Length == 0 ? 0 : (int)(max - min + 1);
-		var seen = System.Buffers.ArrayPool<int>.Shared.Rent( range );
-		var number = System.Buffers.ArrayPool<byte>.Shared.Rent( range );
-		var vertices = System.Buffers.ArrayPool<uint>.Shared.Rent( Indices.Length );
+		var seen = ScratchPool<int>.Rent( range );
+		var number = ScratchPool<byte>.Rent( range );
+		var vertices = ScratchPool<uint>.Rent( Indices.Length );
 		try
 		{
 			seen.AsSpan( 0, range ).Clear();
@@ -118,9 +118,9 @@ internal sealed class MeshletSet
 		}
 		finally
 		{
-			System.Buffers.ArrayPool<int>.Shared.Return( seen );
-			System.Buffers.ArrayPool<byte>.Shared.Return( number );
-			System.Buffers.ArrayPool<uint>.Shared.Return( vertices );
+			ScratchPool<int>.Return( seen );
+			ScratchPool<byte>.Return( number );
+			ScratchPool<uint>.Return( vertices );
 		}
 	}
 

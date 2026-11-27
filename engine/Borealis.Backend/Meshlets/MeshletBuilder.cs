@@ -34,11 +34,11 @@ internal static unsafe class MeshletBuilder
 		var vertexCount = (int)(max - min + 1);
 		var bound = (int)MeshOptimizer.BuildMeshletsBound( (nuint)count, (nuint)config.MaxVertices, (nuint)config.MaxTriangles );
 		var triangleBytes = checked(count + 3 * Math.Min( bound, count / 3 ));
-		var positions = System.Buffers.ArrayPool<V3>.Shared.Rent( vertexCount );
-		var local = System.Buffers.ArrayPool<uint>.Shared.Rent( count );
-		var meshlets = System.Buffers.ArrayPool<MeshOptimizer.Meshlet>.Shared.Rent( bound );
-		var meshletVertices = System.Buffers.ArrayPool<uint>.Shared.Rent( count );
-		var meshletTriangles = System.Buffers.ArrayPool<byte>.Shared.Rent( triangleBytes );
+		var positions = ScratchPool<V3>.Rent( vertexCount );
+		var local = ScratchPool<uint>.Rent( count );
+		var meshlets = ScratchPool<MeshOptimizer.Meshlet>.Rent( bound );
+		var meshletVertices = ScratchPool<uint>.Rent( count );
+		var meshletTriangles = ScratchPool<byte>.Rent( triangleBytes );
 		try
 		{
 			for ( int v = 0; v < vertexCount; v++ ) positions[v] = position( baseVertex + (int)min + v );
@@ -78,11 +78,11 @@ internal static unsafe class MeshletBuilder
 		}
 		finally
 		{
-			System.Buffers.ArrayPool<V3>.Shared.Return( positions );
-			System.Buffers.ArrayPool<uint>.Shared.Return( local );
-			System.Buffers.ArrayPool<MeshOptimizer.Meshlet>.Shared.Return( meshlets );
-			System.Buffers.ArrayPool<uint>.Shared.Return( meshletVertices );
-			System.Buffers.ArrayPool<byte>.Shared.Return( meshletTriangles );
+			ScratchPool<V3>.Return( positions );
+			ScratchPool<uint>.Return( local );
+			ScratchPool<MeshOptimizer.Meshlet>.Return( meshlets );
+			ScratchPool<uint>.Return( meshletVertices );
+			ScratchPool<byte>.Return( meshletTriangles );
 		}
 	}
 

@@ -269,6 +269,9 @@ internal sealed class TextureStreamer
 	/// <summary>Builds in flight.</summary>
 	public int BuildsInFlight => builds.Count;
 
+	/// <summary>The most bytes of mips builds have had read or waiting to be written at once so far, for stats.</summary>
+	public long PeakAheadBytes { get; private set; }
+
 	/// <summary>Textures that want mips they don't hold and there's room for: what deterministic runs wait on.</summary>
 	public int Waiting { get; private set; }
 
@@ -891,6 +894,8 @@ internal sealed class TextureStreamer
 				ahead += bytes;
 				StartBuild( texture, top, bytes );
 			}
+
+			PeakAheadBytes = Math.Max( PeakAheadBytes, ahead );
 		}
 
 		Waiting = waiting + builds.Count;

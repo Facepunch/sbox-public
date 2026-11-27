@@ -414,7 +414,7 @@ internal sealed class LodStore : IDisposable
 			Sets = new( 4 );
 			Colors = new( 4 );
 			Normals = null;
-			Positions = System.Buffers.ArrayPool<V3>.Shared.Rent( vertexCount );
+			Positions = ScratchPool<V3>.Rent( vertexCount );
 			for ( int v = 0; v < vertexCount; v++ )
 			{
 				var p = vertices.Read( position, Offset + v );
@@ -425,7 +425,7 @@ internal sealed class LodStore : IDisposable
 			{
 				if ( Sets.Count == 4 || !string.Equals( field.Semantic, "TEXCOORD", StringComparison.OrdinalIgnoreCase ) || field.PerInstance ) continue;
 				if ( field.Format is not (ColorFormat.R32G32_FLOAT or ColorFormat.R16G16_FLOAT or ColorFormat.R32G32B32_FLOAT or ColorFormat.R32G32B32A32_FLOAT or ColorFormat.R16G16B16A16_FLOAT or ColorFormat.R16G16_UNORM) ) continue;
-				var set = System.Buffers.ArrayPool<System.Numerics.Vector2>.Shared.Rent( vertexCount );
+				var set = ScratchPool<System.Numerics.Vector2>.Rent( vertexCount );
 				Sets.Add( set );
 				for ( int v = 0; v < vertexCount; v++ ) set[v] = Coordinate( vertices, field, Offset + v );
 			}
@@ -434,7 +434,7 @@ internal sealed class LodStore : IDisposable
 			{
 				if ( Colors.Count == 4 || field.PerInstance || field.Format != ColorFormat.R8G8B8A8_UNORM ) continue;
 				if ( !string.Equals( field.Semantic, "TEXCOORD", StringComparison.OrdinalIgnoreCase ) && !string.Equals( field.Semantic, "COLOR", StringComparison.OrdinalIgnoreCase ) ) continue;
-				var set = System.Buffers.ArrayPool<System.Numerics.Vector4>.Shared.Rent( vertexCount );
+				var set = ScratchPool<System.Numerics.Vector4>.Rent( vertexCount );
 				Colors.Add( set );
 				for ( int v = 0; v < vertexCount; v++ )
 				{
@@ -445,7 +445,7 @@ internal sealed class LodStore : IDisposable
 
 			if ( vertices.Find( "NORMAL" ) is { } normalField && normalField.Format is ColorFormat.R10G10B10A2_UNORM or ColorFormat.R32G32B32_FLOAT or ColorFormat.R32G32B32A32_FLOAT )
 			{
-				Normals = System.Buffers.ArrayPool<V3>.Shared.Rent( vertexCount );
+				Normals = ScratchPool<V3>.Rent( vertexCount );
 				for ( int v = 0; v < vertexCount; v++ ) Normals[v] = Normal( vertices, normalField, Offset + v );
 			}
 		}
@@ -461,10 +461,10 @@ internal sealed class LodStore : IDisposable
 
 		public void Dispose()
 		{
-			if ( Positions is not null ) System.Buffers.ArrayPool<V3>.Shared.Return( Positions );
-			if ( Normals is not null ) System.Buffers.ArrayPool<V3>.Shared.Return( Normals );
-			foreach ( var set in Sets ?? [] ) System.Buffers.ArrayPool<System.Numerics.Vector2>.Shared.Return( set );
-			foreach ( var set in Colors ?? [] ) System.Buffers.ArrayPool<System.Numerics.Vector4>.Shared.Return( set );
+			if ( Positions is not null ) ScratchPool<V3>.Return( Positions );
+			if ( Normals is not null ) ScratchPool<V3>.Return( Normals );
+			foreach ( var set in Sets ?? [] ) ScratchPool<System.Numerics.Vector2>.Return( set );
+			foreach ( var set in Colors ?? [] ) ScratchPool<System.Numerics.Vector4>.Return( set );
 		}
 	}
 
@@ -524,7 +524,7 @@ internal sealed class LodStore : IDisposable
 			else
 			{
 				// The range's indices and its vertices' attributes (Attributes), in pooled scratch: with the config, the cache's key
-				var indexArray = System.Buffers.ArrayPool<uint>.Shared.Rent( count );
+				var indexArray = ScratchPool<uint>.Rent( count );
 				try
 				{
 					var indices = indexArray.AsSpan( 0, count );
@@ -555,7 +555,7 @@ internal sealed class LodStore : IDisposable
 				}
 				finally
 				{
-					System.Buffers.ArrayPool<uint>.Shared.Return( indexArray );
+					ScratchPool<uint>.Return( indexArray );
 				}
 			}
 

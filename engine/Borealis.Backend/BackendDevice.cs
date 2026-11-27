@@ -1204,7 +1204,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	{
 		// Read ahead on a worker for a model loading asynchronously (LoadModelAsync), else from the content's folders or
 		// packages (a map's VPK); a streamed texture's tail, unless it doesn't stream. Its mips are pooled until written.
-		readTextures.Remove( path, out var ahead );
+		if ( readTextures.Remove( path, out var ahead ) ) CountAhead( ahead.File, -1 );
 		try
 		{
 			if ( !streamed && ahead.File?.TopMip > 0 )
@@ -1257,14 +1257,22 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	}
 
 	// A texture file's image with every mip written: the one its read made ahead (ImageAheadBytes) when it's for this file,
-	// copied from the mips its read staged (StageAheadBytes) when uploads are deferred into a list
+	// copied from the mips its read staged (StageAheadBytes)
 	TextureHandle CreateTexture( TextureFile texture, string path, TextureHandle image, BufferHandle staged )
 	{
 		if ( !image.IsValid ) return texture.Create( Gpu, path );
 
-		if ( staged.IsValid && Gpu.DeferredList is { } list )
+		if ( staged.IsValid )
 		{
+			// Its read let go of its mips once they were staged: copied from there, in a list of its own outside a deferred scope
+			var list = Gpu.DeferredList ?? Gpu.BeginCommandList( QueueType.Graphics, "Staged texture" );
 			texture.CopyStaged( list, staged, image );
+			if ( Gpu.DeferredList is null )
+			{
+				if ( BatchSubmits ) Gpu.SubmitLater( list );
+				else Gpu.Submit( list );
+			}
+
 			StagedTextures++;
 		}
 		else
@@ -4217,6 +4225,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 		Gpu.WaitIdle();
 		foreach ( var (_, ahead) in readTextures ) ReleaseAhead( ahead );
 		readTextures.Clear();
+		readAheadBytes = 0;
 		readMaterials.Clear();
 		Poll();
 		// Surface compilation uses the material cache's shared descriptor layouts.
