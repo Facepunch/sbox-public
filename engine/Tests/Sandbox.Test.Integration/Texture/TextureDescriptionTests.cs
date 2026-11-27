@@ -66,7 +66,8 @@ public class TextureDescriptionTests
 
 	/// <summary>
 	/// A core path to a compiled texture. A generated texture's name carries a hash of how it was made, which changes with the
-	/// compiler, so a <c>*</c> stands for it and finds the one the content build made.
+	/// compiler, so a <c>*</c> stands for it and finds the one the content build made. A workspace that isn't cleaned between
+	/// builds (the CI runners) keeps the files of older hashes, so the newest is the one.
 	/// </summary>
 	static string Compiled( string path )
 	{
@@ -75,8 +76,9 @@ public class TextureDescriptionTests
 
 		var folder = path[..path.LastIndexOf( '/' )];
 		var files = Directory.GetFiles( Path.Combine( GameFolder, "core", folder ), path[(folder.Length + 1)..] + "_c" );
-		Assert.AreEqual( 1, files.Length, $"{path}: compiled files" );
-		return $"{folder}/{Path.GetFileName( files[0] )[..^2]}";
+		Assert.AreNotEqual( 0, files.Length, $"{path}: compiled files" );
+		var newest = files.MaxBy( File.GetLastWriteTimeUtc );
+		return $"{folder}/{Path.GetFileName( newest )[..^2]}";
 	}
 
 	/// <summary>A texture made at run time is described by what it was made with.</summary>
