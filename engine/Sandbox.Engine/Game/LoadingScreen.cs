@@ -205,7 +205,7 @@ public static class LoadingScreen
 	/// down. Ones that aren't packages, or are local, are skipped. With <paramref name="withReferences"/>,
 	/// everything they reference too, and everything that references - what installing them pulls in
 	/// (a game's libraries and the cloud assets it uses), less anything already installed. Package info
-	/// and manifests only; nothing's downloaded.
+	/// and manifests only; nothing's downloaded. Waits at most <see cref="ReserveWait"/>.
 	/// </summary>
 	internal static async Task ReserveDownloads( IEnumerable<string> idents, System.Threading.CancellationToken token = default, bool withReferences = false )
 	{
@@ -220,7 +220,7 @@ public static class LoadingScreen
 		{
 			try
 			{
-				var package = await Package.Fetch( ident, false );
+				var package = await FetchForSizing( ident );
 				if ( package is null ) return;
 
 				// What it pulls in, sized alongside it rather than after
@@ -252,9 +252,28 @@ public static class LoadingScreen
 			}
 		}
 
-		await Task.WhenAll( idents.Where( x => IsPackage( x ) && Unseen( x ) ).Select( Reserve ) );
+		var sizing = Task.WhenAll( idents.Where( x => IsPackage( x ) && Unseen( x ) ).Select( Reserve ) );
+		try
+		{
+			await sizing.WaitAsync( ReserveWait, token );
+		}
+		catch ( TimeoutException )
+		{
+			Log.Info( $"Sizing up the downloads took over {ReserveWait.TotalSeconds:0} s; going on without it" );
+		}
+
 		token.ThrowIfCancellationRequested();
 	}
+
+	/// <summary>
+	/// The longest <see cref="ReserveDownloads"/> holds what waits on it (a join installing the server's packages): the sizes
+	/// only fill the loading bar, and a package lookup the backend never answers would hold the join for the request's whole
+	/// timeout. Lookups that answer later still size the bar, for downloads that haven't started.
+	/// </summary>
+	internal static TimeSpan ReserveWait = TimeSpan.FromSeconds( 5 );
+
+	/// <summary>The package lookup <see cref="ReserveDownloads"/> sizes with; the tests stand in for the backend.</summary>
+	internal static Func<string, Task<Package>> FetchForSizing = static ident => Package.Fetch( ident, false );
 
 	/// <summary>
 	/// A URL or filepath to show as the background image.
