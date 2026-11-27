@@ -25,7 +25,8 @@ public static partial class SurfaceDeclarations
 	/// </summary>
 	public static string SlangDirectory { get; set; }
 
-	static readonly ConcurrentDictionary<string, string> generated = new();
+	// A Lazy each, so a thread asking for a block another is generating waits for that one rather than reflecting again
+	static readonly ConcurrentDictionary<string, Lazy<string>> generated = new();
 	static readonly ConcurrentDictionary<string, SlangCompiler> compilers = new( StringComparer.OrdinalIgnoreCase );
 
 	/// <summary>
@@ -37,7 +38,7 @@ public static partial class SurfaceDeclarations
 		if ( !MaterialInputs.SurfaceText( text ) || text.Contains( BlockDefine, StringComparison.Ordinal ) ) return text;
 
 		var key = path + "\n" + string.Join( "\n", searchPaths ?? [] ) + "\n" + Hash( text );
-		var block = generated.GetOrAdd( key, _ => Block( path, text, searchPaths ) );
+		var block = generated.GetOrAdd( key, _ => new Lazy<string>( () => Block( path, text, searchPaths ) ) ).Value;
 		return block is null ? text : text + "\n#if " + BlockDefine + "\n" + block + "#endif\n";
 	}
 

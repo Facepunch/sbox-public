@@ -339,9 +339,11 @@ public sealed partial class BackendDevice
 		}
 
 		// Its buffers and textures written with the frame's next submission, not each waited for
+		var started = Stopwatch.GetTimestamp();
 		using ( Zones.ModelMake.Start() )
 		using ( Gpu.DeferUploads() )
 			made = read.IsCompletedSuccessfully && read.Result is { } file ? BackendModel.Create( this, file, meshGroups ) : null;
+		SlowModelMake( path, started );
 		streamedModels[(path, meshGroups)] = made;
 		if ( made is not null )
 		{
@@ -573,9 +575,31 @@ public sealed partial class BackendDevice
 		}
 
 		if ( !read.IsCompletedSuccessfully || read.Result is not { } file ) return null;
-		using ( Zones.ModelMake.Start() )
-		using ( Gpu.DeferUploads() )
-			return BackendModel.Create( this, file, meshGroups, drawFastPath: drawFastPath, generateLevels: generateLevels );
+		var started = Stopwatch.GetTimestamp();
+		try
+		{
+			using ( Zones.ModelMake.Start() )
+			using ( Gpu.DeferUploads() )
+				return BackendModel.Create( this, file, meshGroups, drawFastPath: drawFastPath, generateLevels: generateLevels );
+		}
+		finally
+		{
+			SlowModelMake( file.Name, started );
+		}
+	}
+
+	/// <summary>A model taking longer than this to make (on the thread that asked) is logged.</summary>
+	internal const double SlowModelMakeMs = 50;
+
+	/// <summary>
+	/// Logs (<see cref="GpuDevice.Warn"/>) a model made since <paramref name="started"/> that took over <see cref="SlowModelMakeMs"/>,
+	/// with where it was asked for: what a long frame's <c>Borealis Model Make</c> zone waited on (a shader's module, its
+	/// materials) is in the stack.
+	/// </summary>
+	void SlowModelMake( string name, long started )
+	{
+		var ms = Stopwatch.GetElapsedTime( started ).TotalMilliseconds;
+		if ( ms > SlowModelMakeMs ) Warn?.Invoke( $"Borealis.Gpu: making model {name} took {ms:F1} ms on {System.Threading.Thread.CurrentThread.Name ?? "a thread"}: at {new StackTrace( 2, false )}" );
 	}
 
 	/// <summary>

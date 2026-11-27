@@ -168,6 +168,29 @@ public static partial class TextRendering
 		}
 
 		List<GPUBoxInstance> _instances;
+		readonly object _instancesLock = new();
+
+		/// <summary>
+		/// Build the block's glyph instances and tiles (<see cref="GpuFontText.Build"/>: its glyphs' outlines encoded the first
+		/// time each is used) if they aren't yet. <see cref="Upload"/> does on its first draw; a text renderer does as its text is
+		/// set, so a view first drawing it (an envmap capture face, on the render thread) doesn't. Any thread.
+		/// </summary>
+		/// <summary>Whether its glyph instances are built (<see cref="PrepareInstances"/>), for tests.</summary>
+		internal bool HasInstances => System.Threading.Volatile.Read( ref _instances ) is not null;
+
+		internal void PrepareInstances()
+		{
+			if ( System.Threading.Volatile.Read( ref _instances ) is not null ) return;
+			lock ( _instancesLock )
+			{
+				if ( _instances is not null ) return;
+				EnsureLayout();
+				var instances = new List<GPUBoxInstance>();
+				GpuFontText.Build( Layout, BlockOrigin, GpuFontText.Options.For( _scope ), instances );
+				_tiles = GpuFontText.Bin( instances, (int)Size.x, (int)Size.y );
+				System.Threading.Volatile.Write( ref _instances, instances );
+			}
+		}
 		List<uint> _tiles;
 		GpuFontText.Placement _placement;
 
@@ -181,14 +204,7 @@ public static partial class TextRendering
 				return _placement;
 
 			EnsureLayout();
-
-			if ( _instances is null )
-			{
-				var instances = new List<GPUBoxInstance>();
-				GpuFontText.Build( Layout, BlockOrigin, GpuFontText.Options.For( _scope ), instances );
-				_tiles = GpuFontText.Bin( instances, (int)Size.x, (int)Size.y );
-				_instances = instances;
-			}
+			PrepareInstances();
 
 			_placement = GpuFontText.Upload( _instances, _tiles, (int)Size.x, (int)Size.y );
 

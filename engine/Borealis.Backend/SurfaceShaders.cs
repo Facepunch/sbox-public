@@ -554,16 +554,28 @@ public sealed partial class SurfaceShaders : IDisposable
 	public void Warm()
 	{
 		if ( !ConvertShaders || !CompileInBackground ) return;
+		var paths = new List<string>();
 		foreach ( var (key, surface) in DefaultSurfaces )
 		{
 			if ( NotConvertedByDefault.Contains( key ) || DefaultSurface( key, surface ) is not { } found ) continue;
 			var path = Key( found );
+			paths.Add( path );
 			lock ( programs )
 			{
 				if ( !programs.ContainsKey( path ) && !compiling.ContainsKey( path ) ) compiling[path] = Start( path, background: true );
 			}
 		}
+
+		// Their modules too (ConvertedMaterial.RulesFor): reading one reflects its [Material] struct with Slang, 0.1-0.4 s that
+		// the thread converting its first material waited for, the main thread when that's a model first drawn after a load
+		WarmingModules = Task.Run( () =>
+		{
+			foreach ( var path in paths ) ConvertedMaterial.WarmModule( path );
+		} );
 	}
+
+	/// <summary>The default surfaces' modules being read by <see cref="Warm"/>, for tests.</summary>
+	internal Task WarmingModules { get; private set; }
 
 	/// <summary>
 	/// Whether a classic draw's pixel stage reads its material's record at the offset the vertex stage passes on (on) or at

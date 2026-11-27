@@ -48,6 +48,31 @@ internal sealed class BridgeCustomObject : CustomObject
 	/// </summary>
 	internal override void RenderRun( GpuContext context, ViewPass view, MeshLayer layer, ReadOnlySpan<CustomDraw> run )
 	{
+		var started = System.Diagnostics.Stopwatch.GetTimestamp();
+		var collections = GC.CollectionCount( 0 );
+		try
+		{
+			RenderRunTimed( context, view, layer, run );
+		}
+		finally
+		{
+			var ms = System.Diagnostics.Stopwatch.GetElapsedTime( started ).TotalMilliseconds;
+			if ( ms > SlowDrawMs ) Log.Warning( SlowDraw( Source, run.Length, view.IsShadow, layer.LayerType, ms, GC.CollectionCount( 0 ) - collections ) );
+		}
+	}
+
+	/// <summary>A custom object's draw (its run's) longer than this is logged with its type (<see cref="SlowDraw"/>).</summary>
+	internal const double SlowDrawMs = 50;
+
+	/// <summary>
+	/// What's logged for a custom object's draw over <see cref="SlowDrawMs"/>: the engine's type of the object (a world
+	/// panel, a line renderer, a game's own), so a long frame's <c>Borealis Custom Object</c> zone has a name.
+	/// </summary>
+	internal static string SlowDraw( SceneCustomObject source, int count, bool shadow, MeshLayerType layer, double ms, int collections )
+		=> $"Borealis custom object {source?.GetType().FullName ?? "(gone)"}{(count > 1 ? $" (and {count - 1} more in its run)" : "")} took {ms:F1} ms to draw in {(shadow ? "a shadow view's" : "a view's")} {layer} layer, {collections} gen0 collections during it";
+
+	void RenderRunTimed( GpuContext context, ViewPass view, MeshLayer layer, ReadOnlySpan<CustomDraw> run )
+	{
 		var overlay = !view.IsShadow && (layer.Runs & (MeshRuns.OverlayWithDepth | MeshRuns.OverlayWithoutDepth)) != 0;
 		if ( run.Length == 1 || overlay )
 		{

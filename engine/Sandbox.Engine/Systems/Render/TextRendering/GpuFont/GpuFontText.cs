@@ -59,6 +59,7 @@ internal static class GpuFontText
 	/// </summary>
 	public static void Build( Topten.RichTextKit.TextBlock block, Vector2 origin, in Options options, List<GPUBoxInstance> instances )
 	{
+		using var perfScope = Performance.Scope( "GpuFontText.Build" );
 		var b = new Builder
 		{
 			Instances = instances,

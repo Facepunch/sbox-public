@@ -452,7 +452,12 @@ public sealed class TextRenderer : Renderer, Component.ExecuteInEditor, ISpriteR
 			_commandList.Attributes.SetCombo( "D_WORLDPANEL", 1 );
 			_commandList.Attributes.SetCombo( "D_BLENDMODE", BlendMode );
 			_commandList.Attributes.Set( "g_FogStrength", FogStrength );
-			_commandList.DrawText( TextScope, new Rect( 0 ), TextFlags );
+			// The block resolved here and its glyph instances built now, on the main thread as the text is set (in a load, behind
+			// its screen), not on the render thread in the first view that draws it
+			var block = TextRendering.GetOrCreateTextBlock( TextScope, TextFlags );
+			if ( block is null ) return;
+			block.PrepareInstances();
+			_commandList.DrawText( block, new Rect( 0 ), TextFlags );
 		}
 
 		public override void RenderSceneObject()

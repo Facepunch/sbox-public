@@ -321,6 +321,15 @@ internal sealed class ConvertedMaterial : SurfaceMaterial
 
 	static readonly Dictionary<string, (DateTime Written, PassModule Module)> modules = new( StringComparer.OrdinalIgnoreCase );
 
+	/// <summary>Read the module of the surface at <paramref name="path"/> ahead of its first material (<see cref="SurfaceShaders.Warm"/>).</summary>
+	internal static void WarmModule( string path ) => ModuleOf( path );
+
+	/// <summary>Whether the module of the surface at <paramref name="path"/> is read and current, for tests.</summary>
+	internal static bool HasModule( string path )
+	{
+		lock ( modules ) return modules.TryGetValue( path, out var known ) && System.IO.File.Exists( path ) && known.Written == System.IO.File.GetLastWriteTimeUtc( path );
+	}
+
 	/// <summary>
 	/// A surface's module (its material inputs generated from its struct, <see cref="SurfaceDeclarations"/>), read again when
 	/// its file changes; null when it isn't a surface (or there's no file).
