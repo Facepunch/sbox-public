@@ -394,6 +394,7 @@ static class StartupLoadProject
 		options.ConsoleOutput = false;
 
 		FastTimer timer = FastTimer.StartNew();
+		using var includeCache = Sandbox.Engine.Shaders.ShaderCompile.BeginIncludeCache();
 		for ( int i = 0; i < gr.Length; i++ )
 		{
 			var (asset, sourcePath) = gr[i];

@@ -328,4 +328,47 @@ public partial class FileSystemTest
 		Assert.AreEqual( "Blue", fs.ReadAllText( "blue.txt" ) );
 		Assert.AreEqual( "Green", fs.ReadAllText( "common.txt" ) );
 	}
+
+	[TestMethod]
+	public void PrefixedSearchPathFiltersLookups()
+	{
+		var tempDir = System.IO.Path.Combine( System.IO.Path.GetTempPath(), $"sbox_prefix_{Guid.NewGuid():N}" );
+		System.IO.Directory.CreateDirectory( System.IO.Path.Combine( tempDir, "alpha", "thumbs" ) );
+		System.IO.Directory.CreateDirectory( System.IO.Path.Combine( tempDir, "beta", "thumbs" ) );
+		System.IO.Directory.CreateDirectory( System.IO.Path.Combine( tempDir, "other" ) );
+		System.IO.Directory.CreateDirectory( System.IO.Path.Combine( tempDir, "alpha", "thumbs_extra" ) );
+
+		System.IO.File.WriteAllText( System.IO.Path.Combine( tempDir, "alpha", "thumbs", "a.hlsl" ), "// alpha" );
+		System.IO.File.WriteAllText( System.IO.Path.Combine( tempDir, "beta", "thumbs", "b.hlsl" ), "// beta" );
+		System.IO.File.WriteAllText( System.IO.Path.Combine( tempDir, "other", "c.hlsl" ), "// other" );
+		System.IO.File.WriteAllText( System.IO.Path.Combine( tempDir, "alpha", "thumbs_extra", "d.hlsl" ), "// extra" );
+
+		NativeEngine.EngineGlue.AddPrefixedSearchPath( tempDir, "GAME", true, "alpha/thumbs/" );
+		NativeEngine.EngineGlue.AddPrefixedSearchPath( tempDir, "GAME", true, "beta\\thumbs" );
+		try
+		{
+			// Both prefixes on the same search-path root must match (case-insensitively)
+			Assert.AreEqual( "// alpha", ShaderTools.GetShaderSource( "alpha/thumbs/a.hlsl" ) );
+			Assert.AreEqual( "// alpha", ShaderTools.GetShaderSource( "ALPHA/THUMBS/a.hlsl" ) );
+			Assert.AreEqual( "// beta", ShaderTools.GetShaderSource( "beta/thumbs/b.hlsl" ) );
+
+			// Sibling folders and prefix-name collisions without a slash boundary must be skipped
+			Assert.AreEqual( "", ShaderTools.GetShaderSource( "other/c.hlsl" ) );
+			Assert.AreEqual( "", ShaderTools.GetShaderSource( "alpha/thumbs_extra/d.hlsl" ) );
+
+			// Files added later under an existing prefix (e.g. runtime-generated mount thumbs) resolve immediately
+			System.IO.File.WriteAllText( System.IO.Path.Combine( tempDir, "alpha", "thumbs", "late.hlsl" ), "// late" );
+			Assert.AreEqual( "// late", ShaderTools.GetShaderSource( "alpha/thumbs/late.hlsl" ) );
+
+			// An unrestricted AddSearchPath for the same root promotes it to unrestricted
+			NativeEngine.EngineGlue.AddSearchPath( tempDir, "GAME", true );
+			Assert.AreEqual( "// other", ShaderTools.GetShaderSource( "other/c.hlsl" ) );
+			Assert.AreEqual( "// extra", ShaderTools.GetShaderSource( "alpha/thumbs_extra/d.hlsl" ) );
+		}
+		finally
+		{
+			NativeEngine.EngineGlue.RemoveSearchPath( tempDir, "GAME" );
+			System.IO.Directory.Delete( tempDir, true );
+		}
+	}
 }

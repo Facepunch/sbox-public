@@ -150,6 +150,16 @@ native static class ShaderTools
 
 		return shaderFileBuf.Base();
 	}
+
+	inline static void BeginIncludeCache()
+	{
+		VfxBeginIncludeCache();
+	}
+
+	inline static void EndIncludeCache()
+	{
+		VfxEndIncludeCache();
+	}
 }
 
 
@@ -184,6 +194,8 @@ native class IVfx
 
 	void ClearShaderCache();
 	IShaderCompileContext CreateSharedContext();
+	void BeginIncludeCache();
+	void EndIncludeCache();
 }
 
 native class VfxCompiledShaderInfo_t

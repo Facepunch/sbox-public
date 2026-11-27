@@ -23,9 +23,8 @@ class ProgramSource
 	/// <summary>
 	/// Compile a single program on this shader
 	/// </summary>
-	internal async Task<bool> Compile( ShaderCompileOptions options, Shader vfx, string source, ShaderCompile.Results result, CancellationToken token, string absolutePath, string relativePath )
+	internal async Task<bool> Compile( ShaderCompileOptions options, Shader vfx, string source, ShaderCompileContext context, ShaderCompile.Results result, CancellationToken token, string absolutePath, string relativePath )
 	{
-		using var context = ShaderCompile.GetSharedContext( ProgramType );
 		context.MaskedSource = ShaderTools.MaskShaderSource( source, ProgramType, false );
 
 		ShaderPreprocessor preprocessor = new( new ShaderPreprocessorOptions() { ExpandIncludes = true, IgnoreCoreIncludes = true } );
@@ -39,9 +38,8 @@ class ProgramSource
 	/// in a compiled <c>.shader_c</c>. Skips the mask + preprocess steps <see cref="Compile"/> runs on raw
 	/// <c>.shader</c> source, because that source isn't available when recompiling from a published package.
 	/// </summary>
-	internal async Task<bool> RecompileFromMaskedSource( ShaderCompileOptions options, Shader vfx, string maskedSource, ShaderCompile.Results result, CancellationToken token )
+	internal async Task<bool> RecompileFromMaskedSource( ShaderCompileOptions options, Shader vfx, string maskedSource, ShaderCompileContext context, ShaderCompile.Results result, CancellationToken token )
 	{
-		using var context = ShaderCompile.GetSharedContext( ProgramType );
 		context.MaskedSource = maskedSource;
 
 		return await CompileCore( options, vfx, result, context, token );

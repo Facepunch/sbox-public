@@ -102,6 +102,8 @@ public static partial class Program
 
 			int iCount = 0;
 
+			using var includeCache = ShaderCompile.BeginIncludeCache();
+
 			foreach ( var c in compileList )
 			{
 				iCount++;
@@ -202,6 +204,8 @@ public static partial class Program
 
 		using ( new ToolAppSystem() )
 		{
+			using var includeCache = ShaderCompile.BeginIncludeCache();
+
 			foreach ( var file in files )
 			{
 				var absolute = System.IO.Path.GetFullPath( file );

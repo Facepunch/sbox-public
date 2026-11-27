@@ -144,9 +144,29 @@ internal static class EngineFileSystem
 		CoreContent.Mount( new LocalFileSystem( v ) );
 	}
 
-	internal static void AddAssetPath( string ident, string path )
+	internal static void AddAssetPath( string ident, string path, bool tail = false, IReadOnlyList<string> nativePrefixes = null )
 	{
 		(Mounted ?? Assets).Mount( new LocalFileSystem( path ) );
-		NativeEngine.FullFileSystem.AddProjectPath( "xxx", path );
+
+		if ( nativePrefixes is not null )
+		{
+			var modName = $"mod_{ident}";
+			NativeEngine.EngineGlue.AddSearchPath( path, modName, !tail );
+			NativeEngine.EngineGlue.MarkPathIDByRequestOnly( modName, true );
+
+			foreach ( var prefix in nativePrefixes )
+			{
+				NativeEngine.EngineGlue.AddPrefixedSearchPath( path, "GAME", !tail, prefix );
+				NativeEngine.EngineGlue.AddPrefixedSearchPath( path, "CONTENT", !tail, prefix );
+			}
+		}
+		else if ( tail )
+		{
+			NativeEngine.FullFileSystem.AddCloudPath( $"mod_{ident}", path );
+		}
+		else
+		{
+			NativeEngine.FullFileSystem.AddProjectPath( ident, path );
+		}
 	}
 }

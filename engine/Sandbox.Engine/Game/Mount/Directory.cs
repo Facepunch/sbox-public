@@ -70,7 +70,7 @@ public static partial class Directory
 				if ( project.HasAssetsPath() )
 				{
 					using var scope = GlobalContext.MenuScope();
-					EngineFileSystem.AddAssetPath( $"mnt_{project.Config.FullIdent}", project.GetAssetsPath() );
+					EngineFileSystem.AddAssetPath( $"mnt_{project.Config.FullIdent}", project.GetAssetsPath(), tail: true );
 				}
 
 				projects.Add( project );
@@ -142,16 +142,8 @@ public static partial class Directory
 			if ( System.IO.Directory.Exists( assetsPath ) )
 			{
 				using var scope = GlobalContext.MenuScope();
-				EngineFileSystem.AddAssetPath( $"mnt_{folderName}", assetsPath );
-			}
-
-			// Compiled thumbnails, loaded as {ident}/thumbs/{path}.vtex. Only native resource loads see them, not the managed filesystems.
-			var mountsPath = System.IO.Path.Combine( fullPath, "Mounts" );
-			if ( System.IO.Directory.Exists( mountsPath ) )
-			{
-				// The resource compiler resolves each GAME path to its owning mod during compilation.
-				NativeEngine.EngineGlue.AddSearchPath( mountsPath, $"mod_mnt_{folderName}_thumbs", false );
-				NativeEngine.EngineGlue.AddSearchPath( mountsPath, "GAME", false );
+				var prefixes = TryGetScopedPrefixes( assetsPath, out var scoped ) ? scoped : null;
+				EngineFileSystem.AddAssetPath( $"mnt_{folderName}", assetsPath, tail: true, nativePrefixes: prefixes );
 			}
 
 			foreach ( var dll in assemblies )
@@ -186,6 +178,99 @@ public static partial class Directory
 				}
 			}
 
+			// Compiled thumbnails, loaded as {ident}/thumbs/{path}.vtex. Only native resource loads see them, not the managed filesystems.
+			// Registered after LoadAssembly so any Mounts/{ident}/thumbs/ directories created by BaseGameMount.Register are included.
+			var mountsPath = System.IO.Path.Combine( fullPath, "Mounts" );
+			if ( System.IO.Directory.Exists( mountsPath ) )
+			{
+				// The resource compiler resolves each GAME path to its owning mod during compilation.
+				var thumbsMod = $"mod_mnt_{folderName}_thumbs";
+				NativeEngine.EngineGlue.AddSearchPath( mountsPath, thumbsMod, false );
+				NativeEngine.EngineGlue.MarkPathIDByRequestOnly( thumbsMod, true );
+
+				var thumbPrefixes = GetMountThumbPrefixes( mountsPath );
+				if ( thumbPrefixes is { Count: > 0 } )
+				{
+					foreach ( var prefix in thumbPrefixes )
+					{
+						NativeEngine.EngineGlue.AddPrefixedSearchPath( mountsPath, "GAME", false, prefix );
+					}
+				}
+				else
+				{
+					NativeEngine.EngineGlue.AddSearchPath( mountsPath, "GAME", false );
+				}
+			}
+
+		}
+	}
+
+	/// <summary>
+	/// For shipped Mounts/ folders, return the explicit <c>{ident}/thumbs/</c> prefix for each mount directory
+	/// (without descending past <c>thumbs/</c>, so subdirectories like <c>thumbs/maps/</c> never hide <c>thumbs/{hash}.vtex_c</c>).
+	/// Returns null if enumeration fails or root files exist (caller falls back to unrestricted).
+	/// </summary>
+	static List<string> GetMountThumbPrefixes( string mountsPath )
+	{
+		try
+		{
+			if ( System.IO.Directory.EnumerateFiles( mountsPath ).Any() )
+				return null;
+
+			var prefixes = new List<string>();
+			foreach ( var identDir in System.IO.Directory.EnumerateDirectories( mountsPath ) )
+			{
+				var ident = System.IO.Path.GetFileName( identDir );
+				if ( !string.IsNullOrEmpty( ident ) )
+				{
+					prefixes.Add( $"{ident}/thumbs/" );
+				}
+			}
+
+			return prefixes;
+		}
+		catch
+		{
+			return null;
+		}
+	}
+
+	/// <summary>
+	/// For shipped mount Assets/ folders, derive the narrowest relative directory prefixes covering
+	/// all subdirectories on disk so unrelated GAME lookups skip these search paths in memory without disk I/O.
+	/// Returns false if enumeration fails or any files exist directly at <paramref name="rootPath"/> (requiring an unrestricted mount).
+	/// </summary>
+	static bool TryGetScopedPrefixes( string rootPath, out List<string> prefixes )
+	{
+		prefixes = new List<string>();
+
+		try
+		{
+			if ( System.IO.Directory.EnumerateFiles( rootPath ).Any() )
+				return false;
+
+			foreach ( var dir in System.IO.Directory.EnumerateDirectories( rootPath ) )
+			{
+				var current = dir;
+				while ( !System.IO.Directory.EnumerateFiles( current ).Any() )
+				{
+					var subDirs = System.IO.Directory.GetDirectories( current );
+					if ( subDirs.Length != 1 )
+						break;
+
+					current = subDirs[0];
+				}
+
+				var rel = System.IO.Path.GetRelativePath( rootPath, current ).Replace( '\\', '/' );
+				prefixes.Add( $"{rel}/" );
+			}
+
+			return prefixes.Count > 0;
+		}
+		catch
+		{
+			prefixes.Clear();
+			return false;
 		}
 	}
 
