@@ -75,7 +75,8 @@ public class ShaderUpgradeTests
 		try
 		{
 			var shader = Path.Combine( folder, "outline.shader" );
-			File.WriteAllText( shader, Vfx.Replace( "PS\n{", "GS\n{\n\t[maxvertexcount( 3 )] void MainGs( triangle in PixelInput v[3], inout TriangleStream<PixelInput> s ) { }\n}\n\nPS\n{" ) );
+			// The raw literal takes the checkout's line endings (CRLF on Windows): match on LF
+			File.WriteAllText( shader, Vfx.ReplaceLineEndings( "\n" ).Replace( "PS\n{", "GS\n{\n\t[maxvertexcount( 3 )] void MainGs( triangle in PixelInput v[3], inout TriangleStream<PixelInput> s ) { }\n}\n\nPS\n{" ) );
 
 			var result = await ShaderUpgrade.UpgradeAsync( shader );
 
