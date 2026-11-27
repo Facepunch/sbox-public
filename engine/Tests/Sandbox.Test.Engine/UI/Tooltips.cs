@@ -121,6 +121,54 @@ public class TooltipTests
 		Assert.AreEqual( 0, host.ShowCount );
 	}
 
+	[TestMethod]
+	public void InstantInspectionTooltipDoesNotChangeOtherPanelsDelay()
+	{
+		tooltips.Delay = 60;
+		var instant = Add( "Scope" );
+		instant.TooltipDelay = 0;
+		tooltips.SetHovered( instant );
+		tooltips.Frame( default, true );
+		Assert.AreEqual( "Scope", TextOf( host.Shown ) );
+		tooltips.SetHovered( Add( "Other panel" ) );
+		tooltips.Frame( default, true );
+		Assert.IsNull( host.Shown );
+	}
+
+	[TestMethod]
+	public void InstantInspectionResumesAfterMovingWithinThePanel()
+	{
+		var panel = Add( "Scope" );
+		panel.TooltipDelay = 0;
+		var cursor = new Vector2( 1, 0 );
+		tooltips.SetHovered( panel, cursor );
+		tooltips.Frame( cursor, true );
+		Assert.AreEqual( "Scope", TextOf( host.Shown ) );
+		tooltips.Dismiss();
+		tooltips.SetHovered( panel, cursor );
+		tooltips.Frame( cursor, true );
+		Assert.IsNull( host.Shown );
+		tooltips.SetHovered( panel, Vector2.Zero );
+		tooltips.Frame( Vector2.Zero, true );
+		Assert.AreEqual( "Scope", TextOf( host.Shown ) );
+	}
+
+	[TestMethod]
+	public void InstantTooltipsRemoveThePreviousPanelBeforeShowingTheNext()
+	{
+		using var view = new UISurface();
+		var first = new Panel { Parent = view.Root, Tooltip = "First", TooltipDelay = 0 };
+		var second = new Panel { Parent = view.Root, Tooltip = "Second", TooltipDelay = 0 };
+		view.Tooltips.SetHovered( first );
+		view.Tooltips.Frame( default, true );
+		var previous = view.Tooltips.Current;
+		view.Tooltips.SetHovered( second );
+		view.Tooltips.Frame( default, true );
+		Assert.IsFalse( previous.IsValid() );
+		Assert.AreEqual( "Second", TextOf( view.Tooltips.Current ) );
+		Assert.AreEqual( 1, view.Root.Children.Count( x => x.HasClass( "tooltip" ) ) );
+	}
+
 	/// <summary>
 	/// A tooltip on a container covers the panels inside it - hovering a child with none of its own
 	/// shows the parent's.

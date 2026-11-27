@@ -26,9 +26,19 @@ internal static class DevToolsStyles
 	/// The frame chart's series. CPU work is the bar, the GPU a line over it.
 	/// </summary>
 	internal static readonly Color Cpu = Color.Parse( "#B3B3B3" ).Value;
+	internal static readonly Color GcPause = Color.Parse( "#B0609A" ).Value;
 	internal static readonly Color Gpu = Color.Parse( "#E0823D" ).Value;
 	internal static readonly Color CapWait = Color.Parse( "#333333" ).Value;
 	internal static readonly Color SelfCost = Color.Parse( "#686868" ).Value;
+
+	/// <summary>
+	/// GC pause kinds in <see cref="Profiler.GcPauseKind"/> order: Gen 0, Gen 1, Gen 2 (also the frame chart's GC pause), background,
+	/// runtime suspend. Muted, off the status and series colours.
+	/// </summary>
+	internal static readonly Color[] GcKinds =
+	[
+		Color.Parse( "#7088A8" ).Value, Color.Parse( "#8073B0" ).Value, GcPause, Color.Parse( "#6E8C93" ).Value, Dim,
+	];
 
 	/// <summary>
 	/// For series that need telling apart - GPU pass families, timeline scopes. Muted, and kept off the status colours.
@@ -76,7 +86,7 @@ internal static class DevToolsStyles
 		"UI" => Color.Parse( "#C2A46E" ).Value,
 		"Network" => Color.Parse( "#B88F8F" ).Value,
 		"Particles" => Color.Parse( "#C9B45A" ).Value,
-		"GcPause" => Color.Parse( "#D07A6E" ).Value,
+		"GcPause" => GcPause,
 		"Audio" => Color.Parse( "#9C9C9C" ).Value,
 		_ => Color.Parse( "#7A7A7A" ).Value,
 	};
@@ -256,7 +266,7 @@ internal static class DevToolsStyles
 			bottom: 0px;
 			flex-direction: column;
 			pointer-events: all;
-			opacity: 0.92;
+			opacity: 0.96;
 		}
 
 		.game-dock > .devtools
@@ -1004,6 +1014,8 @@ internal static class DevToolsStyles
 			font-family: Roboto Mono;
 			color: $bright;
 		}
+
+		.devtools .data-header .cell.number { color: inherit; }
 
 		.devtools .cell.note
 		{
@@ -1808,6 +1820,10 @@ internal static class DevToolsStyles
 			font-size: 12px;
 		}
 
+		.tooltip.profiler-scope-tooltip { max-width: 480px; transition: none; }
+		.tooltip.profiler-scope-tooltip:intro { opacity: 1; }
+		.tooltip.profiler-scope-tooltip > label { white-space: pre-wrap; font-weight: normal; }
+
 		.popup-panel.autocomplete
 		{
 			flex-direction: column;
@@ -1817,6 +1833,106 @@ internal static class DevToolsStyles
 			font-family: Roboto Mono;
 			font-size: 12px;
 			color: $text;
+		}
+
+		.devtools .page.cpu-page { display: flex; flex-direction: column; }
+		.devtools .page.profiler-page { display: flex; flex-direction: column; }
+		.devtools .page.cpu-page.hidden, .devtools .page.profiler-page.hidden { display: none; }
+		.devtools .cpu-facts { grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); grid-auto-rows: 30px; flex-shrink: 0; }
+		.devtools .profiler-toolbar
+		{
+			flex-wrap: wrap;
+			align-items: center;
+			gap: 4px;
+			padding: 5px 8px;
+			flex-shrink: 0;
+			background-color: $band;
+		}
+		.devtools .profiler-search
+		{
+			width: 240px;
+			min-width: 120px;
+			background-color: $plot;
+			padding: 5px 8px;
+			font-size: 12px;
+			color: $text;
+			border: 1px solid $line;
+		}
+		.devtools .profiler-details
+		{
+			padding: 5px 10px;
+			font-size: 11px;
+			color: $dim;
+			white-space: pre-wrap;
+			flex-shrink: 0;
+		}
+		.devtools .profiler-lanes
+		{
+			flex-direction: column;
+			max-height: 360px;
+			overflow-y: scroll;
+			flex-shrink: 0;
+			background-color: $plot;
+		}
+		.devtools .profiler-inspector
+		{
+			flex-direction: column;
+		}
+		.devtools .profiler-detail-columns { display: grid; grid-template-columns: minmax(0, 2fr) minmax(300px, 1fr); gap: 0px; align-items: start; }
+		.devtools.narrow .profiler-detail-columns { grid-template-columns: minmax(0, 1fr); }
+		.devtools .profiler-statistics { flex-direction: column; min-width: 0px; border-left: 1px solid $line; }
+		.devtools.narrow .profiler-statistics { border-left: 0px; border-top: 1px solid $line; }
+		.devtools .profiler-inspector .cell-marker { width: 14px; flex-shrink: 0; text-align: center; }
+		.devtools .profiler-timeline-divider { height: 6px; flex-shrink: 0; cursor: ns-resize; background-color: $line; }
+		.devtools .profiler-timeline-divider:hover, .devtools .profiler-timeline-divider.dragging { background-color: $faint; }
+		.devtools .profiler-time-ruler { flex-shrink: 0; overflow: hidden; background-color: $plot; }
+		.devtools .profiler-timeline { margin: 0px; }
+		.devtools .profiler-frame-overview { margin: 6px 0px; }
+		.devtools .profiler-analysis-title { font-size: 12px; color: $text; padding-right: 8px; }
+		.devtools .profiler-scope-heading { align-items: center; flex-wrap: wrap; background-color: $band; }
+		.devtools .profiler-scope-heading .profiler-details { flex-grow: 1; flex-shrink: 1; min-width: 0px; color: $text; }
+		.devtools .profiler-distribution-controls { margin-left: auto; }
+		.devtools .profiler-capture-button.active { background-color: #38414c; color: $bright; }
+		.devtools .profiler-distribution { display: flex; flex-direction: column; padding: 0px 8px; }
+		.devtools .profiler-distribution-facts { height: 36px; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-template-rows: minmax(0, 1fr); border-bottom: 0px; }
+		.devtools .profiler-distribution-facts .fact { flex-direction: column; align-items: stretch; justify-content: center; gap: 2px; padding: 2px 8px; }
+		.devtools .profiler-distribution-facts .fact-key { font-size: 10px; }
+		.devtools .profiler-distribution-facts .fact-value { width: 100%; flex-grow: 0; flex-shrink: 0; justify-content: flex-start; text-align: left; }
+		.devtools .profiler-inspector .hidden, .devtools .profiler-memory .hidden { display: none; }
+		.devtools .profiler-inspector .cell-text { flex-grow: 1; }
+		.devtools .profiler-inspector-column { flex-direction: column; min-width: 0px; }
+		.devtools .profiler-instance-scroll { flex-direction: column; max-height: 140px; overflow-y: scroll; }
+		.devtools .profiler-tree-scroll { flex-direction: column; max-height: 420px; overflow-y: scroll; }
+		.devtools .profiler-memory { flex-direction: column; flex-shrink: 0; }
+		.devtools .profiler-memory > .hint { padding: 6px 10px; }
+		.devtools .profiler-memory-tables { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); flex-shrink: 0; }
+		.devtools .profiler-memory-types { border-left: 1px solid $line; }
+		.devtools.narrow .profiler-memory-tables { grid-template-columns: minmax(0, 1fr); }
+		.devtools.narrow .profiler-memory-types { display: none; }
+		.devtools .profiler-memory .data-row.selected { background-color: #38414c; }
+		.devtools .profiler-memory .data-row.group { color: $dim; cursor: pointer; }
+		.devtools .profiler-memory .data-row.group:hover { color: $bright; }
+		.devtools .profiler-histogram { width: 100%; min-width: 0px; flex-shrink: 1; background-color: $plot; }
+		.devtools .profiler-inspector .data-row.selected { background-color: #38414c; }
+
+		.profiler-stream-option { flex-direction: row; align-items: center; gap: 5px; padding: 2px 6px; cursor: pointer; }
+		.profiler-stream-option .checkmark { font-family: Material Icons; font-size: 13px; width: 16px; height: 16px; border: 1px solid #666; color: transparent; }
+		.profiler-stream-option.checked .checkmark { color: #ddd; background-color: #38414c; }
+		.profiler-stream-option.disabled { pointer-events: none; opacity: 0.4; }
+
+		.profiler-capture-button
+		{
+			padding: 3px 8px;
+			margin-left: 6px;
+			background-color: #303030;
+			border-radius: 3px;
+			color: $text;
+			font-size: 11px;
+			cursor: pointer;
+			flex-shrink: 0;
+			&:hover { background-color: #414141; }
+			&.disabled { opacity: 0.35; cursor: default; }
+			&.disabled:hover { background-color: #303030; }
 		}
 
 		.popup-panel.autocomplete .button

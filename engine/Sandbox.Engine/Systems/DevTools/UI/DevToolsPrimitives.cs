@@ -135,7 +135,7 @@ internal sealed class DevToolsTable : Panel
 	/// <see cref="Bar"/> draws a bar filled to that fraction instead of text; <see cref="Indent"/> pushes the text in,
 	/// for a tree.
 	/// </summary>
-	internal readonly record struct Cell( string Text, string Class = null, Color? Swatch = null, float? Bar = null, float Indent = 0 )
+	internal readonly record struct Cell( string Text, string Class = null, Color? Swatch = null, float? Bar = null, float Indent = 0, string Marker = null )
 	{
 		public static implicit operator Cell( string text ) => new( text );
 	}
@@ -160,6 +160,7 @@ internal sealed class DevToolsTable : Panel
 		public readonly Label Text;
 		public readonly Panel Bar;
 		public readonly Panel Fill;
+		public Label Marker;
 		public string ClassKey;
 		public float Indent;
 
@@ -265,6 +266,16 @@ internal sealed class DevToolsTable : Panel
 			}
 
 			panel.Text.Text = cell.Text ?? "";
+			if ( cell.Marker is not null && panel.Marker is null )
+			{
+				panel.Marker = panel.AddChild( new Label( "", "cell-marker" ) );
+				panel.SetChildIndex( panel.Marker, 0 );
+			}
+			if ( panel.Marker is not null )
+			{
+				panel.Marker.Text = cell.Marker ?? "";
+				panel.Marker.SetClass( "hidden", cell.Marker is null );
+			}
 			if ( panel.Indent != cell.Indent )
 			{
 				panel.Indent = cell.Indent;
@@ -282,6 +293,9 @@ internal sealed class DevToolsTable : Panel
 		row.Click = onClick;
 		row.SetClass( "link", onClick is not null );
 		row.Tooltip = tooltip;
+		row.TooltipDelay = TooltipDelay;
+		row.TooltipOffset = TooltipOffset;
+		row.TooltipClass = TooltipClass;
 
 		if ( row.ClassKey != rowClass )
 		{

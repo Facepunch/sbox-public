@@ -99,7 +99,7 @@ public partial class TextEntry
 		AutoCompletePanel = null;
 	}
 
-	void AutoCompleteSelected( object obj )
+	private protected virtual void AutoCompleteSelected( object obj )
 	{
 		if ( !CanEdit )
 		{

@@ -94,7 +94,7 @@ internal static class SdlEvents
 				if ( !WindowInput.GetRelativeMouseMode() && InputRouter.MouseCursorPosition != clickPosition )
 					InputRouter.OnMousePositionChange( clickPosition.x, clickPosition.y, 0, 0 );
 				var button = MouseButton( e.Button.Button );
-				if ( button != ButtonCode.BUTTON_CODE_INVALID ) InputRouter.OnMouseButton( button, e.Type == Sdl.EventType.MouseButtonDown );
+				if ( button != ButtonCode.BUTTON_CODE_INVALID ) InputRouter.OnMouseButton( button, e.Type == Sdl.EventType.MouseButtonDown, e.Button.Clicks );
 				break;
 			case Sdl.EventType.MouseWheel:
 				var wheel = WheelDelta( e.Wheel );

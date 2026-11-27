@@ -26,6 +26,11 @@ public partial class RootPanel : Panel
 	internal bool ChildrenWantMouseInput { get; set; }
 
 	/// <summary>
+	/// The mouse wheel moves this root's scrollable panels a fixed step at once, without the eased glide. For tools UI.
+	/// </summary>
+	internal bool ImmediateWheelScroll { get; set; }
+
+	/// <summary>
 	/// The scale of this panel and its children.
 	/// </summary>
 	public float Scale { get; protected set; } = 1.0f;

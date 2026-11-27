@@ -105,7 +105,7 @@ internal static partial class DevTools
 	/// <summary>
 	/// A mouse button went down or up in the game window. Returns true if the dock took it.
 	/// </summary>
-	internal static bool GameDockMouseButton( ButtonCode button, bool down, Vector2 position, KeyboardModifiers modifiers )
+	internal static bool GameDockMouseButton( ButtonCode button, bool down, int clicks, Vector2 position, KeyboardModifiers modifiers )
 	{
 		if ( _dockSurface is not { } surface ) return false;
 
@@ -128,7 +128,8 @@ internal static partial class DevTools
 		_dockButton = button;
 		surface.MouseMoved( position );
 		BasePopup.CloseAll( ((IPanel)surface.Root).GetPanelAt( position, true, true ) as Panel );
-		surface.SetMouseButton( button, true, modifiers );
+		// With the OS click count, like a popped out window, so the dock gets double clicks too
+		PanelWindowInput.DispatchMouseButton( surface, button, true, clicks, modifiers );
 		return true;
 	}
 

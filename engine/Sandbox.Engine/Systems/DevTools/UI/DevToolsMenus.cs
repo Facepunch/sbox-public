@@ -120,6 +120,17 @@ internal static class DevToolsMenus
 		}
 	}
 
+	/// <summary>
+	/// Saved profiler captures, newest first, to load one.
+	/// </summary>
+	internal static void OpenCaptures( Panel source, Popup.PositionMode position, string[] files, Action<string> onPick )
+	{
+		var menu = Menu( source, position );
+		menu.AddChild( new Label( files.Length == 0 ? "No saved captures" : "Saved captures", "menu-section" ) );
+		foreach ( var file in files.Take( 20 ) )
+			Row( menu, null, file, false, () => onPick( file ) );
+	}
+
 	static readonly string[] OnOff = ["off", "on"];
 	static readonly string[] AggregateModes = ["off", "draw empty", "compact"];
 	static readonly string[] DebugModes = ["off", "hidden", "all", "on depth"];

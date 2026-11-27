@@ -329,6 +329,12 @@ public partial class Panel
 			if ( HasScrollY ) velocityAdd.y = value.y * 20;
 		}
 
+		if ( velocityAdd != Vector2.Zero && FindRootPanel() is { ImmediateWheelScroll: true } )
+		{
+			ScrollTo( ScrollOffset + velocityAdd / 20 * ImmediateWheelStep * ScaleToScreen );
+			return remaining != value;
+		}
+
 		velocityAdd *= (1 + ScrollVelocity.Length / 100.0f);
 		ScrollVelocity += velocityAdd;
 		// Keep pathological event bursts finite without changing ordinary wheel acceleration.
@@ -338,6 +344,8 @@ public partial class Panel
 
 		return remaining != value;
 	}
+
+	const float ImmediateWheelStep = 54;
 
 	bool ConsumeWheelAxis( float direction, bool horizontal )
 	{

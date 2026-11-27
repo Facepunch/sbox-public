@@ -101,7 +101,10 @@ internal sealed class TooltipSystem
 		}
 
 		if ( moved )
+		{
 			waitForMove = false;
+			if ( current?.TooltipDelay == 0 ) suppressed = null;
+		}
 
 		if ( current == hovered )
 			return;
@@ -165,7 +168,7 @@ internal sealed class TooltipSystem
 			return;
 		}
 
-		var delay = RealTime.Now - lastHidden < GraceTime ? 0.0f : Delay;
+		var delay = RealTime.Now - lastHidden < GraceTime ? 0.0f : hovered.TooltipDelay ?? Delay;
 		if ( RealTime.Now - hoverStart < delay )
 			return;
 
@@ -200,7 +203,7 @@ internal sealed class TooltipSystem
 		lastHidden = RealTime.Now;
 
 		if ( current.IsValid() )
-			Host.HideTooltip( current, immediate );
+			Host.HideTooltip( current, immediate || hovered?.TooltipDelay == 0 );
 	}
 
 	/// <summary>
@@ -230,8 +233,11 @@ internal sealed class TooltipSystem
 	/// </summary>
 	sealed class RootHost : ITooltipHost
 	{
+		float offset;
+
 		public void ShowTooltip( Panel tooltip, Panel owner, Vector2 cursor )
 		{
+			offset = owner.TooltipOffset;
 			// Panels that build their own tooltip may have put it somewhere already
 			if ( tooltip.Parent is null )
 				tooltip.Parent = owner.FindRootPanel();
@@ -267,7 +273,7 @@ internal sealed class TooltipSystem
 				align |= TextFlag.Bottom;
 			}
 
-			tooltip.SetAbsolutePosition( align, cursor, 20 );
+			tooltip.SetAbsolutePosition( align, cursor, offset );
 
 			return true;
 		}
