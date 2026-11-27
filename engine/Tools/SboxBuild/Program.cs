@@ -48,7 +48,6 @@ internal class Program
 		AddPullRequestNativeCommand( rootCommand );
 		AddPublishBuildCommand( rootCommand );
 		AddSummaryCommand( rootCommand );
-		AddShaderSpecializationExperimentCommand( rootCommand );
 		AddNotifySlackCommand( rootCommand );
 		AddReportBuildCommand( rootCommand );
 
@@ -129,13 +128,6 @@ internal class Program
 	}
 
 	// ── Individual step commands ──────────────────────────────────────────────
-
-	private static void AddShaderSpecializationExperimentCommand( RootCommand rootCommand )
-	{
-		var cmd = new Command( "test-shader-specialization", "Build and run the isolated Slang/Vulkan specialization experiment (Windows)" );
-		cmd.SetHandler( () => Environment.ExitCode = (int)new TestShaderSpecialization().Run() );
-		rootCommand.Add( cmd );
-	}
 
 	private static void AddBuildContentCommand( RootCommand rootCommand )
 	{
