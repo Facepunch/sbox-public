@@ -7,7 +7,7 @@
 Mode( Default );
 Mode( VrForward );
 
-    #include "postprocess/shared.hlsl"
+    #include "sbox/post/shared.slangh"
 
 struct VertexInput
 {
@@ -41,7 +41,7 @@ struct PixelInput
 #endif // VS
 
 #if ( PROGRAM == VFX_PROGRAM_PS )
-    #include "postprocess/common.hlsl"
+    #include "sbox/post/common.slangh"
 
     RenderState( BlendEnable, true );
     RenderState( SrcBlend, SRC_ALPHA );

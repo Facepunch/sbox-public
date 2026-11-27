@@ -6,25 +6,25 @@
 
 Mode( Forward );
 
-#include "common/features.hlsl"
+#include "sbox/common_features.slangh"
 
-#include "common/shared.hlsl"
+#include "sbox/shared.slangh"
 
 struct VertexInput
 {
-	#include "common/vertexinput.hlsl"
+	#include "sbox/common_vertex_input.slangh"
 };
 
 struct PixelInput
 {
-	#include "common/pixelinput.hlsl"
+	#include "sbox/common_pixel_input.slangh"
 
 	float3 vGridPosition : TEXCOORD8;
 	float3 vGridNormal : TEXCOORD9;
 };
 
 #if ( PROGRAM == VFX_PROGRAM_VS )
-#include "common/vertex.hlsl"
+#include "sbox/vertex.slangh"
 
 [shader( "vertex" )] PixelInput MainVs( VertexInput i )
 {

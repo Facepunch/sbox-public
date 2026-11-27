@@ -10,11 +10,11 @@
 Mode( Forward );
 Mode( Depth );
 
-#include "common/features.hlsl"
+#include "sbox/common_features.slangh"
 Feature( F_USE_PATTERN, 0..1, "Rendering" );
 
 #define USE_CUSTOM_SHADING
-#include "common/shared.hlsl"
+#include "sbox/shared.slangh"
 
 DynamicCombo( D_OUTLINE_PASS, 0..1, Sys( ALL ) );
 
@@ -23,12 +23,12 @@ DynamicCombo( D_OUTLINE_PASS, 0..1, Sys( ALL ) );
 
 struct VertexInput
 {
-	#include "common/vertexinput.hlsl"
+	#include "sbox/common_vertex_input.slangh"
 };
 
 struct PixelInput
 {
-	#include "common/pixelinput.hlsl"
+	#include "sbox/common_pixel_input.slangh"
 
 	#if ( D_OUTLINE_PASS == OUTLINE_OUTSIDE )
 		// In pixels: where this is, the edge's ends and the outline's width
@@ -39,7 +39,7 @@ struct PixelInput
 };
 
 #if ( PROGRAM == VFX_PROGRAM_VS )
-#include "common/vertex.hlsl"
+#include "sbox/vertex.slangh"
 
 #if ( D_OUTLINE_PASS == OUTLINE_OUTSIDE )
 
@@ -175,7 +175,7 @@ PixelInput OutlineCorner( PixelInput a, PixelInput b, uint nCorner, float flRadi
 
 #if ( PROGRAM == VFX_PROGRAM_PS )
 #include "sbox/view.slangh"
-#include "common/classes/Depth.hlsl"
+#include "sbox/classes/depth.slangh"
 StaticCombo( S_USE_PATTERN, F_USE_PATTERN, Sys( ALL ) );
 
 RenderState( DepthWriteEnable, true );

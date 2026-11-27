@@ -8,7 +8,7 @@
 Mode( Forward );
 
 #define CUSTOM_MATERIAL_INPUTS
-#include "common/shared.hlsl"
+#include "sbox/shared.slangh"
 
 struct VertexInput
 {

@@ -6,17 +6,17 @@
 Mode( Default );
 Mode( Forward );
 
-#include "ui/features.hlsl"
+#include "sbox/ui/features.slangh"
 
-#include "ui/common.hlsl"
+#include "sbox/ui/common.slangh"
 
 #if ( PROGRAM == VFX_PROGRAM_VS )
-#include "ui/vertex.hlsl"
+#include "sbox/ui/vertex.slangh"
 
 #endif // VS
 
 #if ( PROGRAM == VFX_PROGRAM_PS )
-#include "ui/pixel.hlsl"
+#include "sbox/ui/pixel.slangh"
 
 // HUD
 Texture2D 	g_tHud 			< Attribute( "HudTexture" ); SrgbRead( false ); >;

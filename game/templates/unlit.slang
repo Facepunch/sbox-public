@@ -4,21 +4,21 @@
 Mode( Forward );
 Mode( Depth );
 
-#include "common/features.hlsl"
-#include "common/shared.hlsl"
+#include "sbox/common_features.slangh"
+#include "sbox/shared.slangh"
 
 struct VertexInput
 {
-	#include "common/vertexinput.hlsl"
+	#include "sbox/common_vertex_input.slangh"
 };
 
 struct PixelInput
 {
-	#include "common/pixelinput.hlsl"
+	#include "sbox/common_pixel_input.slangh"
 };
 
 #if ( PROGRAM == VFX_PROGRAM_VS )
-	#include "common/vertex.hlsl"
+	#include "sbox/vertex.slangh"
 
 	[shader( "vertex" )] PixelInput MainVs( VertexInput i )
 	{
@@ -29,7 +29,7 @@ struct PixelInput
 #endif
 
 #if ( PROGRAM == VFX_PROGRAM_PS )
-	#include "common/pixel.hlsl"
+	#include "sbox/pixel.slangh"
 
 	[shader( "pixel" )] float4 MainPs( PixelInput i ) : SV_Target0
 	{
