@@ -47,6 +47,16 @@ public sealed class SceneDirectionalLight : SceneLight
 	}
 
 	/// <summary>
+	/// Maximum distance from the camera that cascaded shadows are rendered. Cascades use the smaller
+	/// of this and <c>r.shadows.csm.distance</c>; 0 (or anything at or below the 1 unit near plane) uses the convar.
+	/// </summary>
+	public float ShadowCascadeMaxDistance
+	{
+		get;
+		set { field = value; NotifyChanged( Rendering.SceneObjectChange.Settings ); }
+	}
+
+	/// <summary>
 	/// Include static shadow casters independently of the light's baked-light index.
 	/// </summary>
 	public bool IncludeStaticShadowCasters
