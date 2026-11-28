@@ -87,6 +87,11 @@ internal struct ShadowViewInfo
 	/// </summary>
 	public System.Numerics.Matrix4x4 ViewToWorldRotation;
 
+	/// <summary>
+	/// Turns world space positions into the view's clip space, row vector convention.
+	/// </summary>
+	public System.Numerics.Matrix4x4 WorldToProjection;
+
 	public Vector3 CameraPosition;
 
 	/// <summary>
