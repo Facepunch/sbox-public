@@ -39,10 +39,11 @@ namespace Sandbox.UI
 				if ( _textBlock is null )
 					return;
 
-				if ( _textBlock.ShouldDrawSelection == Selectable && value )
+				var draw = Selectable && value;
+				if ( _textBlock.ShouldDrawSelection == draw )
 					return;
 
-				_textBlock.ShouldDrawSelection = Selectable && value;
+				_textBlock.ShouldDrawSelection = draw;
 				SetNeedsPreLayout();
 			}
 		}
@@ -298,6 +299,7 @@ namespace Sandbox.UI
 
 			var s = Math.Min( SelectionStart, SelectionEnd );
 			var e = Math.Max( SelectionStart, SelectionEnd );
+			if ( s == e ) return "";
 
 			// Clamping can collapse a drag selection at the end, past the last text element.
 			if ( s == e ) return "";

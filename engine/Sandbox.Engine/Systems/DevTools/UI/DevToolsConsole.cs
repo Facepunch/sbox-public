@@ -93,19 +93,15 @@ internal sealed class DevToolsConsole : Panel
 		base.OnDeleted();
 	}
 
-	/// <summary>
-	/// The selected text in the log, a line per row. The rows are laid out by position rather than in order, so they're
-	/// put back in order here.
-	/// </summary>
+	protected override void OnEvent( PanelEvent e )
+	{
+		if ( e.Target == this && e is CopyEvent or CutEvent ) _output.RequestCopy();
+		base.OnEvent( e );
+	}
+
 	public override string GetClipboardValue( bool cut )
 	{
-		var selected = _output.Descendants.OfType<Label>()
-			.Where( x => x.HasSelection() )
-			.OrderBy( x => x.Box.Rect.Top )
-			.Select( x => x.GetSelectedText() )
-			.ToList();
-
-		return selected.Count > 0 ? string.Join( "\n", selected ) : null;
+		return _output.GetClipboardValue( cut );
 	}
 
 	void CopyAll()
