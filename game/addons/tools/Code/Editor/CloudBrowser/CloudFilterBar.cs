@@ -13,6 +13,9 @@ class CloudFilterBar : Widget
 	/// <summary>Exposed so ViewModeType setter can update the icon.</summary>
 	public ToolButton ViewMode { get; }
 
+	/// <summary>Toggle that limits results to packages uploaded by Facepunch.</summary>
+	public ToolButton FacepunchOnly { get; }
+
 	readonly CloudFilterPills _pills;
 
 	public CloudFilterBar( ActiveFilterSet filters, Action onChanged, Widget parent ) : base( parent )
@@ -26,6 +29,11 @@ class CloudFilterBar : Widget
 		Layout.Add( _pills, 1 );
 
 		Layout.AddSpacingCell( 6 );
+
+		FacepunchOnly = new ToolButton( "Only show Facepunch assets", "verified", this );
+		FacepunchOnly.FixedSize = Theme.RowHeight;
+		FacepunchOnly.IsToggle = true;
+		Layout.Add( FacepunchOnly );
 
 		OrderMode = new ToolButton( "Order Mode", "emoji_events", this );
 		OrderMode.FixedSize = Theme.RowHeight;
