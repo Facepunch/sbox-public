@@ -850,4 +850,52 @@ public class TerrainComponentTest
 
 		Assert.IsTrue( visible > 1000 && hidden > 1000, $"visible {visible}, hidden {hidden}" );
 	}
+
+	/// <summary>
+	/// The editor writes a terrain only when its maps changed, so every way they change has to move MapsRevision:
+	/// an edit in place, a map replaced (import), a resolution change. Reading must not.
+	/// </summary>
+	[TestMethod]
+	public void MapChangesMoveMapsRevision()
+	{
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+
+		var storage = CreateSmallStorage();
+		var go = scene.CreateObject();
+		var terrain = go.Components.Create<Terrain>( false );
+		terrain.Storage = storage;
+		terrain.Enabled = true;
+
+		var region = new RectInt( 0, 0, 64, 64 );
+
+		var unchanged = storage.MapsRevision;
+		terrain.UpdateCollision( Terrain.SyncFlags.Height, region );
+		Assert.AreEqual( unchanged, storage.MapsRevision, "Updating collision doesn't change the maps" );
+
+		storage.HeightMap[^1] = ushort.MaxValue;
+		terrain.ApplyStorageChanges( Terrain.SyncFlags.Height, region );
+		Assert.AreNotEqual( unchanged, storage.MapsRevision, "An edit applied in place has to move the revision" );
+
+		var edited = storage.MapsRevision;
+		storage.HeightMap = new ushort[storage.Resolution * storage.Resolution];
+		Assert.AreNotEqual( edited, storage.MapsRevision, "Replacing the heightmap (import) has to move the revision" );
+
+		var imported = storage.MapsRevision;
+		storage.ControlMap = new uint[storage.Resolution * storage.Resolution];
+		Assert.AreNotEqual( imported, storage.MapsRevision, "Replacing the control map has to move the revision" );
+
+		var painted = storage.MapsRevision;
+		storage.SetResolution( 128 );
+		Assert.AreNotEqual( painted, storage.MapsRevision, "A resolution change reallocates the maps" );
+
+		// Reading the maps is not a change
+		var read = storage.MapsRevision;
+		_ = storage.HeightMap[0];
+		_ = storage.ControlMap[0];
+		Assert.AreEqual( read, storage.MapsRevision, "Reading the maps doesn't count as changing them" );
+
+		go.Destroy();
+		scene.ProcessDeletes();
+	}
 }
