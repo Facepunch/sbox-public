@@ -45,10 +45,9 @@ internal static class EditorContentBuild
 	const float RetryDelay = 2.0f;
 
 	/// <summary>
-	/// Compiles at once while the editor is open: half the logical cores (at least 4), leaving the rest for the editor.
-	/// Startup, which waits for its build, runs up to as many as SboxBuild does.
+	/// Compiles at once while the editor is open. Startup, which waits for its build, runs up to as many as SboxBuild does.
 	/// </summary>
-	static int Jobs => Math.Max( 4, Environment.ProcessorCount / 2 );
+	const int Jobs = 4;
 
 	/// <summary>
 	/// Memory left free beside the compiles: one that runs in the editor's process and fails to allocate ends the editor.
@@ -244,12 +243,12 @@ internal static class EditorContentBuild
 	}
 
 	/// <summary>
-	/// Compiles at once, up to a limit: one per 1 GB beyond the reserve of what is free now, after the editor's own use.
+	/// Compiles at once, up to a limit: one per 2 GB beyond the reserve of what is free now, after the editor's own use.
 	/// </summary>
 	static int JobLimit( int limit )
 	{
 		var (physical, commit) = AvailableMemory();
-		return (int)Math.Clamp( (Math.Min( physical, commit ) - MemoryReserve) / (1L << 30), 1, limit );
+		return (int)Math.Clamp( (Math.Min( physical, commit ) - MemoryReserve) / (2L << 30), 1, limit );
 	}
 
 	/// <summary>

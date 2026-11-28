@@ -90,29 +90,32 @@ public static class ShaderCompile
 
 	sealed class IncludeCacheScope : IDisposable
 	{
+		readonly bool _batch;
 		bool _disposed;
 
-		public IncludeCacheScope()
+		public IncludeCacheScope( bool batch )
 		{
-			ShaderTools.BeginIncludeCache();
-			native.BeginIncludeCache();
+			_batch = batch;
+			ShaderTools.BeginIncludeCache( batch );
+			native.BeginIncludeCache( batch );
 		}
 
 		public void Dispose()
 		{
 			if ( _disposed ) return;
 			_disposed = true;
-			native.EndIncludeCache();
-			ShaderTools.EndIncludeCache();
+			native.EndIncludeCache( _batch );
+			ShaderTools.EndIncludeCache( _batch );
 		}
 	}
 
 	/// <summary>
 	/// Shares a thread-safe shader include cache (both found and missing paths) across native shader parsing
-	/// and DXC compilation for the lifetime of the returned scope. Safe to nest; clears completely when the
-	/// outermost scope ends.
+	/// and DXC compilation for the lifetime of the returned scope. Non-batch scopes refresh the cache on entry
+	/// so overlapping editor compiles after a save never read stale includes; batch scopes keep entries alive
+	/// across all shaders in the batch and clear when the outermost scope ends.
 	/// </summary>
-	internal static IDisposable BeginIncludeCache() => new IncludeCacheScope();
+	internal static IDisposable BeginIncludeCache( bool batch = false ) => new IncludeCacheScope( batch );
 
 	/// <summary>
 	/// Compile a shader from a filename ("/folder/file.shader")

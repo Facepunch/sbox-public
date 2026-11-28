@@ -151,14 +151,14 @@ native static class ShaderTools
 		return shaderFileBuf.Base();
 	}
 
-	inline static void BeginIncludeCache()
+	inline static void BeginIncludeCache( bool batch )
 	{
-		VfxBeginIncludeCache();
+		VfxBeginIncludeCache( batch );
 	}
 
-	inline static void EndIncludeCache()
+	inline static void EndIncludeCache( bool batch )
 	{
-		VfxEndIncludeCache();
+		VfxEndIncludeCache( batch );
 	}
 }
 
@@ -194,8 +194,8 @@ native class IVfx
 
 	void ClearShaderCache();
 	IShaderCompileContext CreateSharedContext();
-	void BeginIncludeCache();
-	void EndIncludeCache();
+	void BeginIncludeCache( bool batch );
+	void EndIncludeCache( bool batch );
 }
 
 native class VfxCompiledShaderInfo_t
