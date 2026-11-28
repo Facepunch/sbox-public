@@ -373,7 +373,15 @@ class LauncherWindow : Panel
 		search.AddClass( "searchbox" );
 		search.Placeholder = "Search";
 		search.Icon = "search";
+		search.IconPanel.AddClass( "searchicon" );
 		search.OnTextEdited = value => { filter = value ?? ""; RefreshProjects(); };
+
+		var clear = search.Add.Icon( "close", "clearbutton" );
+		clear.AddEventListener( "onclick", () =>
+		{
+			search.Text = string.Empty;
+			search.OnValueChanged();
+		} );
 
 		// The keyboard path is the fastest path - typing filters, Enter opens the top hit
 		search.AddEventListener( "onsubmit", () => { if ( topHit is not null ) OpenProject( topHit ); } );
