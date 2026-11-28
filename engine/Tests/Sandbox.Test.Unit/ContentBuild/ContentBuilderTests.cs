@@ -2611,6 +2611,45 @@ public class ContentBuilderTests
 	}
 
 	[TestMethod]
+	public void TouchedInputRestampsRecordSoNextBuildSkipsHashing()
+	{
+		using var fx = new Fixture();
+		fx.Write( "a.vtex", "red" );
+		fx.Write( "b.vmat", "reads a.vtex" );
+		Assert.IsTrue( fx.Build().Success );
+
+		var texSource = Path.Combine( fx.Root, "a.vtex" );
+		var matSource = Path.Combine( fx.Root, "b.vmat" );
+		var newTime = DateTime.UtcNow.AddSeconds( 10 );
+		File.SetLastWriteTimeUtc( texSource, newTime );
+		File.SetLastWriteTimeUtc( matSource, newTime );
+
+		// Same bytes, new mtime: hashes once (for both Compiled and Described nodes via Plan -> OwnDirty -> Dirty),
+		// does not recompile, and updates both records' input stamps
+		AssertJobs( fx.Build() );
+
+		var records = Directory.GetFiles( Path.Combine( fx.State, "records" ), "*.json" );
+		foreach ( var (name, source) in new[] { ("\"a.vtex\"", texSource), ("\"b.vmat\"", matSource) } )
+		{
+			var rec = records.Single( r => File.ReadAllText( r ).Contains( name ) );
+			using var doc = JsonDocument.Parse( File.ReadAllText( rec ) );
+			var recordedTime = doc.RootElement.GetProperty( "Inputs" )[0].GetProperty( "Time" ).GetInt64();
+			Assert.AreEqual( new FileInfo( source ).LastWriteTimeUtc.Ticks, recordedTime );
+		}
+
+		// Next build skips hashing both inputs entirely (exclusive locks prove neither file is opened)
+		using ( File.Open( texSource, FileMode.Open, FileAccess.ReadWrite, FileShare.None ) )
+		using ( File.Open( matSource, FileMode.Open, FileAccess.ReadWrite, FileShare.None ) )
+		{
+			AssertJobs( fx.Build() );
+		}
+
+		// Real content edit still invalidates and recompiles
+		fx.Write( "a.vtex", "blue" );
+		AssertJobs( fx.Build(), "a.vtex", "b.vmat" );
+	}
+
+	[TestMethod]
 	public void CorruptRecordIndexFallsBackToJsonRecordsAndRewrites()
 	{
 		using var fx = new Fixture();

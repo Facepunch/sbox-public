@@ -206,7 +206,7 @@ public static class ContentBuilder
 		public long Started, Committed;
 		public DateTime Launched;
 		public int Misses;
-		public (AssetRecord Record, int Settled, string Reason)? Own;
+		public (AssetRecord Record, int Settled, string Reason, List<(int Index, long Size, long Time)> InputRestamp)? Own;
 		public bool Final => State is State.Clean or State.Committed or State.Failed or State.Blocked;
 	}
 
@@ -442,10 +442,11 @@ public static class ContentBuilder
 				}
 				Phase( $"inventory (records {recordsTime.TotalSeconds:F1}s, types {typesTime.TotalSeconds:F1}s, scan {scanTime.TotalSeconds:F1}s, deleted {deletedTime.TotalSeconds:F1}s)" );
 
-				await Plan();
-				Phase( "describe and adopt" );
+				var planTimings = await Plan();
+				Phase( $"describe and adopt (fp {planTimings.Fp.TotalSeconds:F1}s, own {planTimings.Own.TotalSeconds:F1}s, desc {planTimings.Desc.TotalSeconds:F1}s, adopt {planTimings.Adopt.TotalSeconds:F1}s)" );
 				if ( token.IsCancellationRequested ) { report.Cancelled = true; return report; }
 
+				var schedSw = Stopwatch.StartNew();
 				while ( true )
 				{
 					await Schedule();
@@ -468,13 +469,15 @@ public static class ContentBuilder
 				if ( report.Error is not null ) return report;
 				if ( request.Select is null ) RemoveUnread();
 				Settle();
+				var schedTime = schedSw.Elapsed;
+				var saveSw = Stopwatch.StartNew();
 				void SaveIndices()
 				{
 					foreach ( var root in roots ) root.Store.SaveIndex();
 				}
 				if ( asynchronous ) await Task.Run( SaveIndices );
 				else SaveIndices();
-				Phase( "compile and publish" );
+				Phase( $"compile and publish (sched {schedTime.TotalSeconds:F1}s, save {saveSw.Elapsed.TotalSeconds:F1}s)" );
 				return report;
 			}
 			finally
@@ -689,17 +692,25 @@ public static class ContentBuilder
 		/// Finds what every node reads: from a fresh description if its own inputs changed, otherwise from
 		/// its record. Producers found are added and planned too, so a selection pulls in what it needs.
 		/// </summary>
-		async Task Plan()
+		async Task<(TimeSpan Fp, TimeSpan Own, TimeSpan Desc, TimeSpan Adopt)> Plan()
 		{
+			TimeSpan fpTime = default, ownTime = default, descTime = default, adoptTime = default;
+			var sw = new Stopwatch();
 			while ( true )
 			{
 				var pending = nodes.Values.Where( x => !x.Planned ).ToList();
-				if ( pending.Count == 0 ) return;
+				if ( pending.Count == 0 ) return (fpTime, ownTime, descTime, adoptTime);
 
+				sw.Restart();
 				LoadFingerprints( pending );
+				fpTime += sw.Elapsed;
 
+				sw.Restart();
 				var describable = pending.Where( x => x.Kind == AssetKind.Described ).ToList();
 				var self = await CheckAll( describable, OwnDirty );
+				ownTime += sw.Elapsed;
+
+				sw.Restart();
 				var describe = describable.Where( x => self[x] is not null ).ToList();
 				var results = await RunJobs( describe, node => Compile( Job( node, JobMode.Describe ) ) );
 				var described = new Dictionary<Node, IReadOnlyList<PrerequisiteRead>>();
@@ -711,8 +722,11 @@ public static class ContentBuilder
 					if ( !results[i].Success ) Fail( describe[i], "describe failed", results[i].Log );
 					else if ( Declare( describe[i], results[i] ) ) described[describe[i]] = results[i].Prerequisites;
 				}
+				descTime += sw.Elapsed;
 
+				sw.Restart();
 				await Adopt( pending, described );
+				adoptTime += sw.Elapsed;
 
 				foreach ( var node in pending )
 				{
@@ -838,13 +852,16 @@ public static class ContentBuilder
 		/// <summary>
 		/// Why its own inputs or reads' roots no longer match its record, checked again once a job has settled.
 		/// </summary>
-		string OwnDirty( Node node )
+		(string Reason, List<(int Index, long Size, long Time)> InputRestamp) OwnDirtyCheck( Node node )
 		{
-			if ( node.Own is { } own && own.Record == node.Record && own.Settled == settled ) return own.Reason;
-			var reason = SelfDirty( node ) ?? Shadowed( node );
-			node.Own = (node.Record, settled, reason);
-			return reason;
+			if ( node.Own is { } own && own.Record == node.Record && own.Settled == settled ) return (own.Reason, own.InputRestamp);
+			var reason = SelfDirty( node, out var inputRestamp ) ?? Shadowed( node );
+			if ( reason is not null ) inputRestamp = null;
+			node.Own = (node.Record, settled, reason, inputRestamp);
+			return (reason, inputRestamp);
 		}
+
+		string OwnDirty( Node node ) => OwnDirtyCheck( node ).Reason;
 
 		/// <summary>
 		/// An output it owns has other bytes than its record says (see <see cref="RebuiltOutside"/>).
@@ -1026,11 +1043,11 @@ public static class ContentBuilder
 							continue;
 						}
 
-						var (reason, restamp) = dirty[node];
+						var (reason, outputRestamp, inputRestamp) = dirty[node];
 						if ( reason is null )
 						{
 							node.State = State.Clean;
-							if ( restamp is not null ) Restamp( node, restamp );
+							if ( outputRestamp is not null || inputRestamp is not null ) Restamp( node, outputRestamp, inputRestamp );
 							continue;
 						}
 
@@ -1319,10 +1336,12 @@ public static class ContentBuilder
 		}
 
 		/// <summary>
-		/// Why a node's own inputs, compiler or settings no longer match its record, or null.
+		/// Why a node's own inputs, compiler or settings no longer match its record, or null, with verified new stamps
+		/// for inputs whose time moved without changing bytes.
 		/// </summary>
-		string SelfDirty( Node node )
+		string SelfDirty( Node node, out List<(int Index, long Size, long Time)> inputRestamp )
 		{
+			inputRestamp = null;
 			var record = node.Record;
 			if ( record is null ) return "never built";
 			if ( record.ChangedWhileCompiling ) return "an input changed while it compiled";
@@ -1332,11 +1351,21 @@ public static class ContentBuilder
 			if ( (record.Input is not null) != (declared is not null) ) return declared is null ? "is a file now" : "is a declared child now";
 			if ( declared is not null && declared.Fingerprint != record.Fingerprint ) return "declared differently";
 
-			foreach ( var input in record.Inputs )
+			for ( var i = 0; i < record.Inputs.Count; i++ )
 			{
+				var input = record.Inputs[i];
 				var file = new FileInfo( input.Path );
 				if ( file.Exists != input.Exists ) return $"{input.Path} {(file.Exists ? "appeared" : "is gone")}";
-				if ( file.Exists && (file.Length != input.Size || file.LastWriteTimeUtc.Ticks != input.Time) && Hashing.Checksum( file.FullName ) != input.Checksum ) return $"{input.Path} changed";
+				if ( file.Exists && (file.Length != input.Size || file.LastWriteTimeUtc.Ticks != input.Time) )
+				{
+					var sizeBefore = file.Length;
+					var timeBefore = file.LastWriteTimeUtc.Ticks;
+					if ( Hashing.Checksum( file.FullName ) != input.Checksum ) return $"{input.Path} changed";
+
+					var after = new FileInfo( file.FullName );
+					if ( after.Exists && after.Length == sizeBefore && after.LastWriteTimeUtc.Ticks == timeBefore )
+						(inputRestamp ??= []).Add( (i, sizeBefore, timeBefore) );
+				}
 			}
 
 			foreach ( var dependency in record.Special )
@@ -1377,21 +1406,24 @@ public static class ContentBuilder
 		}
 
 		/// <summary>
-		/// Why each node must compile, or null where its record still holds, with the new stamps of outputs whose bytes
-		/// are still what it records (a copy or a checkout moved their time). The producers of what they read are found
-		/// between the checks, as finding one adds it.
+		/// Why each node must compile, or null where its record still holds, with the new stamps of outputs and inputs
+		/// whose bytes are still what it records (a copy or a checkout moved their time). The producers of what they read
+		/// are found between the checks, as finding one adds it.
 		/// </summary>
-		async Task<Dictionary<Node, (string Reason, List<(string Key, FileStamp Stamp)> Restamp)>> Dirty( List<Node> nodes )
+		async Task<Dictionary<Node, (string Reason, List<(string Key, FileStamp Stamp)> Outputs, List<(int Index, long Size, long Time)> Inputs)>> Dirty( List<Node> nodes )
 		{
 			var own = await CheckAll( nodes, node =>
 			{
-				if ( request.Force && node.Committed == 0 ) return ("forced", null);
-				return OwnDirty( node ) is { } reason ? (reason, null) : ChangedOutput( node );
+				if ( request.Force && node.Committed == 0 ) return ("forced", (List<(string, FileStamp)>)null, (List<(int, long, long)>)null);
+				var (reason, inputRestamp) = OwnDirtyCheck( node );
+				if ( reason is not null ) return (reason, null, null);
+				var (outReason, outRestamp) = ChangedOutput( node );
+				return (outReason, outRestamp, outReason is null ? inputRestamp : null);
 			} );
-			var current = nodes.Where( x => own[x].Reason is null ).ToList();
+			var current = nodes.Where( x => own[x].Item1 is null ).ToList();
 			var producers = current.ToDictionary( x => x, Producers );
 			var reads = await CheckAll( current, x => ReadChanged( x, producers[x] ) );
-			return nodes.ToDictionary( x => x, x => own[x].Reason is null && reads[x] is { } reason ? (reason, null) : own[x] );
+			return nodes.ToDictionary( x => x, x => own[x].Item1 is null && reads[x] is { } reason ? (reason, null, null) : own[x] );
 		}
 
 		/// <summary>
@@ -1414,20 +1446,32 @@ public static class ContentBuilder
 
 				var file = new FileInfo( path );
 				if ( file.Length == stamp.Size && file.LastWriteTimeUtc.Ticks == stamp.Time ) continue;
+				var sizeBefore = file.Length;
+				var timeBefore = file.LastWriteTimeUtc.Ticks;
 				if ( Hashing.File( file.FullName ) != stamp.Hash ) return ($"{key} was modified", null);
-				(restamp ??= []).Add( (key, stamp with { Size = file.Length, Time = file.LastWriteTimeUtc.Ticks }) );
+				var after = new FileInfo( file.FullName );
+				if ( after.Exists && after.Length == sizeBefore && after.LastWriteTimeUtc.Ticks == timeBefore )
+					(restamp ??= []).Add( (key, stamp with { Size = sizeBefore, Time = timeBefore }) );
 			}
 
 			return (null, restamp);
 		}
 
 		/// <summary>
-		/// A current node's record with its outputs' new stamps, so they aren't hashed again next build. Nothing moves; a
-		/// record that can't be written is only hashed again.
+		/// A current node's record with its outputs' and inputs' new stamps, so they aren't hashed again next build.
+		/// Nothing moves; a record that can't be written is only hashed again.
 		/// </summary>
-		static void Restamp( Node node, List<(string Key, FileStamp Stamp)> restamp )
+		static void Restamp( Node node, List<(string Key, FileStamp Stamp)> outputRestamp, List<(int Index, long Size, long Time)> inputRestamp )
 		{
-			foreach ( var (key, stamp) in restamp ) node.Record.Outputs[key] = stamp;
+			if ( outputRestamp is not null )
+			{
+				foreach ( var (key, stamp) in outputRestamp ) node.Record.Outputs[key] = stamp;
+			}
+			if ( inputRestamp is not null )
+			{
+				foreach ( var (index, size, time) in inputRestamp )
+					node.Record.Inputs[index] = node.Record.Inputs[index] with { Size = size, Time = time };
+			}
 			try { node.Root.Store.Rewrite( node.Source, node.Record ); }
 			catch ( Exception e ) when ( e is IOException or UnauthorizedAccessException ) { }
 		}

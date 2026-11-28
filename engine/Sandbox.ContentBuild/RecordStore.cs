@@ -95,8 +95,8 @@ sealed class RecordStore
 	Dictionary<string, string> deferred;
 	readonly HashSet<string> quarantined;
 	readonly HashSet<string> unknownOwners = new( StringComparer.OrdinalIgnoreCase );
-	readonly Dictionary<string, (string Name, long Size, long Time)> recordStamps = new( StringComparer.OrdinalIgnoreCase );
-	readonly long snapshotTimeUtcTicks;
+	readonly Dictionary<string, (string Name, long Size, long Time, bool Written)> recordStamps = new( StringComparer.OrdinalIgnoreCase );
+	readonly long loadTimeUtcTicks;
 	bool indexDirty;
 
 	const uint IndexMagic = 0x52454353; // "SCER"
@@ -130,8 +130,8 @@ sealed class RecordStore
 		foreach ( var partial in Directory.GetFiles( journals, "*.tmp" ) ) File.Delete( partial );
 		foreach ( var journal in Directory.GetFiles( journals, "*.json" ) ) Recover( journal );
 
-		// Captured before reading any record so the racy-mtime cutoff reflects when record contents were verified.
-		snapshotTimeUtcTicks = DateTime.UtcNow.Ticks;
+		// Captured before reading any record so we never promote a file that was already racy at load time.
+		loadTimeUtcTicks = DateTime.UtcNow.Ticks;
 
 		var files = new DirectoryInfo( records ).GetFiles( "*.json" );
 		var index = TryReadIndex();
@@ -147,7 +147,7 @@ sealed class RecordStore
 				&& file.LastWriteTimeUtc.Ticks < racyCutoff )
 			{
 				All[entry.Record.Source] = entry.Record;
-				recordStamps[entry.Record.Source] = (file.Name, entry.Size, entry.Time);
+				recordStamps[entry.Record.Source] = (file.Name, entry.Size, entry.Time, false);
 			}
 			else
 			{
@@ -157,7 +157,7 @@ sealed class RecordStore
 
 		if ( misses.Count > 0 )
 		{
-			var loaded = new (AssetRecord Record, (string Name, long Size, long Time)? Stamp)[misses.Count];
+			var loaded = new (AssetRecord Record, (string Name, long Size, long Time, bool Written)? Stamp)[misses.Count];
 			Func<string, AssetRecord> read = ReadRecord;
 			Parallel.For( 0, misses.Count, i =>
 			{
@@ -170,8 +170,8 @@ sealed class RecordStore
 				// Only cache metadata if the file did not change while we read it
 				var after = new FileInfo( file.FullName );
 				var stamp = after.Exists && after.Length == sizeBefore && after.LastWriteTimeUtc.Ticks == timeBefore
-					? (file.Name, sizeBefore, timeBefore)
-					: ((string, long, long)?)null;
+					? (file.Name, sizeBefore, timeBefore, false)
+					: ((string, long, long, bool)?)null;
 				loaded[i] = (record, stamp);
 			} );
 			foreach ( var (record, stamp) in loaded )
@@ -369,7 +369,7 @@ sealed class RecordStore
 		var path = RecordPath( source );
 		WriteJson( path, record );
 		var info = new FileInfo( path );
-		if ( info.Exists ) recordStamps[source] = (info.Name, info.Length, info.LastWriteTimeUtc.Ticks);
+		if ( info.Exists ) recordStamps[source] = (info.Name, info.Length, info.LastWriteTimeUtc.Ticks, true);
 		else recordStamps.Remove( source );
 		indexDirty = true;
 	}
@@ -385,11 +385,22 @@ sealed class RecordStore
 
 		try
 		{
+			var saveTime = DateTime.UtcNow.Ticks;
+			var loadRacyCutoff = loadTimeUtcTicks - RacyWindowTicks;
+
+			// Verify current directory metadata without opening files: omit any entry whose JSON changed
+			// externally mid-build, and never promote a file that was already racy when loaded.
+			var onDisk = new Dictionary<string, (long Size, long Time)>( StringComparer.OrdinalIgnoreCase );
+			foreach ( var file in new DirectoryInfo( records ).EnumerateFiles( "*.json" ) )
+				onDisk[file.Name] = (file.Length, file.LastWriteTimeUtc.Ticks);
+
 			var entries = new List<(string Name, long Size, long Time, AssetRecord Record)>( All.Count );
 			foreach ( var record in All.Values )
 			{
-				if ( recordStamps.TryGetValue( record.Source, out var stamp ) )
-					entries.Add( (stamp.Name, stamp.Size, stamp.Time, record) );
+				if ( !recordStamps.TryGetValue( record.Source, out var stamp ) ) continue;
+				if ( !stamp.Written && stamp.Time >= loadRacyCutoff ) continue;
+				if ( !onDisk.TryGetValue( stamp.Name, out var disk ) || disk.Size != stamp.Size || disk.Time != stamp.Time ) continue;
+				entries.Add( (stamp.Name, stamp.Size, stamp.Time, record) );
 			}
 
 			using var stream = new MemoryStream( Math.Max( 256, entries.Count * 512 ) );
@@ -397,7 +408,7 @@ sealed class RecordStore
 			{
 				writer.Write( IndexMagic );
 				writer.Write( IndexVersion );
-				writer.Write( snapshotTimeUtcTicks );
+				writer.Write( saveTime );
 				writer.Write( entries.Count );
 				foreach ( var (name, size, time, record) in entries )
 				{

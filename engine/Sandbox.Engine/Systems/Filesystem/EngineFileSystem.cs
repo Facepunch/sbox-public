@@ -153,6 +153,8 @@ internal static class EngineFileSystem
 			var modName = $"mod_{ident}";
 			NativeEngine.EngineGlue.AddSearchPath( path, modName, !tail );
 			NativeEngine.EngineGlue.MarkPathIDByRequestOnly( modName, true );
+			// Hammer's external map compile builds -searchpaths from PROJECT and mod_cloud.
+			NativeEngine.EngineGlue.AddSearchPath( path, "PROJECT", !tail );
 
 			foreach ( var prefix in nativePrefixes )
 			{
@@ -163,6 +165,7 @@ internal static class EngineFileSystem
 		else if ( tail )
 		{
 			NativeEngine.FullFileSystem.AddCloudPath( $"mod_{ident}", path );
+			NativeEngine.EngineGlue.AddSearchPath( path, "PROJECT", false );
 		}
 		else
 		{
