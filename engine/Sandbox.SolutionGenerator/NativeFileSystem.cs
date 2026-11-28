@@ -40,28 +40,25 @@ internal static partial class NativeFileSystem
 
 		try
 		{
-			var handle = CreateFileW( path, 0, FILE_SHARE_READ | FILE_SHARE_WRITE, IntPtr.Zero, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, IntPtr.Zero );
+			var handle = CreateFileW( LongPath.EnsureExtendedPrefix( path ), 0, FILE_SHARE_READ | FILE_SHARE_WRITE, IntPtr.Zero, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, IntPtr.Zero );
 			if ( handle == IntPtr.Zero || handle == new IntPtr( -1 ) )
 				return path;
 
 			try
 			{
-				var buffer = new char[512];
-				var len = GetFinalPathNameByHandleW( handle, buffer, (uint)buffer.Length, 0 );
-				if ( len > 0 && len < buffer.Length )
-				{
-					var finalPath = new string( buffer, 0, (int)len );
-					// Remove the \\?\ prefix added by Windows API
-					if ( finalPath.StartsWith( @"\\?\" ) )
-					{
-						finalPath = finalPath.Substring( 4 );
-					}
-					return finalPath;
-				}
-				else
-				{
+				// Ask Windows for the required size first: a fixed buffer silently
+				// drops paths longer than the buffer, and paths can exceed MAX_PATH.
+				var requiredLength = GetFinalPathNameByHandleW( handle, Array.Empty<char>(), 0, 0 );
+				if ( requiredLength == 0 )
 					return path;
-				}
+
+				var buffer = new char[(int)requiredLength];
+				var len = GetFinalPathNameByHandleW( handle, buffer, (uint)buffer.Length, 0 );
+				if ( len == 0 || len >= buffer.Length )
+					return path;
+
+				var finalPath = new string( buffer, 0, (int)len );
+				return LongPath.RemoveExtendedPrefix( finalPath );
 			}
 			finally
 			{

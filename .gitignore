@@ -11,6 +11,7 @@
 !*.sln
 !*.csproj
 !*.cs
+!*.manifest
 !*.razor
 
 

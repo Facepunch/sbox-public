@@ -33,6 +33,10 @@
 		<CETCompat>false</CETCompat>
 	</PropertyGroup>
 
+	<PropertyGroup Condition="'$(OS)' == 'Windows_NT'">
+		<ApplicationManifest>..\..\LongPathAware.manifest</ApplicationManifest>
+	</PropertyGroup>
+
 	<ItemGroup>
 		<ProjectReference Include="..\..\Sandbox.AppSystem\Sandbox.AppSystem.csproj" Private="false"/>
 		<ProjectReference Include="..\..\Sandbox.Engine\Sandbox.Engine.csproj"  Private="false"/>

@@ -21,4 +21,8 @@
 		<IlcTrimMetadata>true</IlcTrimMetadata>
 	</PropertyGroup>
 
+	<PropertyGroup Condition="'$(OS)' == 'Windows_NT'">
+		<ApplicationManifest>..\..\LongPathAware.manifest</ApplicationManifest>
+	</PropertyGroup>
+
 </Project>
