@@ -261,7 +261,10 @@ public static partial class Game
 	[ConCmd( "screenshot_highres", Help = "Take a high resolution screenshot you specify the width and height" )]
 	public static void TakeHighResScreenshot( int width, int height )
 	{
-		ScreenshotService.TakeHighResScreenshot( Application.GetActiveScene(), width, height );
+		// The editor has no game scene outside play mode - capture the scene being edited instead.
+		// (Used to be a second screenshot_highres in EditorScene, which never registered: this one comes first.)
+		var scene = Application.GetActiveScene() ?? (Application.IsEditor ? Application.Editor?.Scene : null);
+		ScreenshotService.TakeHighResScreenshot( scene, width, height );
 	}
 
 	/// <summary>
