@@ -4,6 +4,7 @@ using System.Reflection;
 
 namespace Sandbox.Mounting;
 
+[Expose]
 public static partial class Directory
 {
 	static MountHost _system;
@@ -617,9 +618,7 @@ class SteamIntegration : ISteamIntegration
 {
 	public BaseFileSystem GetFileSystem( long appid )
 	{
-		if ( !NativeEngine.Steam.SteamApps().IsValid ) return null;
-
-		var dir = NativeEngine.Steam.SteamApps().GetAppInstallDir( (int)appid );
+		var dir = SteamNative.Apps.GetAppInstallDir( (int)appid );
 		if ( string.IsNullOrWhiteSpace( dir ) ) return null;
 
 		// Read-only and rooted at the install dir - the mount can't write or escape above it.
@@ -628,19 +627,16 @@ class SteamIntegration : ISteamIntegration
 
 	public bool IsAppInstalled( long appid )
 	{
-		if ( !NativeEngine.Steam.SteamApps().IsValid ) return false;
-		return NativeEngine.Steam.SteamApps().BIsAppInstalled( (int)appid );
+		return SteamNative.Apps.IsInstalled( (int)appid );
 	}
 
 	public bool IsAppOwned( long appid )
 	{
-		if ( !NativeEngine.Steam.SteamApps().IsValid ) return false;
-		return NativeEngine.Steam.SteamApps().BIsSubscribedApp( (int)appid );
+		return SteamNative.Apps.IsOwned( (int)appid );
 	}
 
 	public bool IsDlcInstalled( long appid )
 	{
-		if ( !NativeEngine.Steam.SteamApps().IsValid ) return false;
-		return NativeEngine.Steam.SteamApps().BIsDlcInstalled( (int)appid );
+		return SteamNative.Apps.IsDlcInstalled( (int)appid );
 	}
 }

@@ -34,7 +34,7 @@ namespace Sandbox.UI
 			get => base.Text;
 			set
 			{
-				if ( value?.StartsWith( "https://" ) ?? false )
+				if ( Uri.TryCreate( value, UriKind.Absolute, out _ ) )
 				{
 					Style.SetBackgroundImage( value );
 					base.Text = "";

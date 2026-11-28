@@ -224,6 +224,9 @@ public class AppSystem
 		SoundHandle.Shutdown();
 		DedicatedServer.Shutdown();
 
+		if ( SteamApi.SteamClient.IsValid )
+			SteamApi.SteamClient.Cleanup();
+
 		// Game and menu code can keep scenes alive in statics, along with the models and textures they draw
 		Scene.DestroyAll();
 

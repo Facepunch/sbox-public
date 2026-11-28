@@ -1,5 +1,6 @@
 ﻿using Sandbox.Internal;
 using System;
+using System.Runtime.CompilerServices;
 
 namespace EventTests;
 
@@ -153,7 +154,7 @@ public class EventSystemTest
 		system.RegisterAssembly( typeof( AttributedHandler ).Assembly );
 		system.Register( new AttributedHandler() );
 
-		var thrown = Assert.ThrowsException<System.Reflection.TargetInvocationException>( () => system.GetGroup( "eventsystemtest.throws", false ).Run( "eventsystemtest.throws" ) );
+		var thrown = Assert.ThrowsException<System.Reflection.TargetInvocationException>( () => system.RunHandlers( "eventsystemtest.throws" ) );
 
 		Assert.IsInstanceOfType<InvalidOperationException>( thrown.InnerException );
 		Assert.AreEqual( "handler", thrown.InnerException.Message );
@@ -256,6 +257,108 @@ public class EventSystemTest
 
 		[Event( "eventsystemtest.throws" )]
 		public void OnThrows() => throw new InvalidOperationException( "handler", new FormatException( "inner" ) );
+	}
+
+	/// <summary>
+	/// Registration changes during a callback take effect on the next dispatch.
+	/// </summary>
+	[TestMethod]
+	public void InterfaceDispatchUsesSnapshot()
+	{
+		using var system = new EventSystem();
+		var first = new EventHandler();
+		var second = new EventHandler();
+		var added = new EventHandler();
+		system.Register( first );
+		system.Register( second );
+
+		system.RunInterface<IEventInterface>( listener =>
+		{
+			system.Unregister( first );
+			system.Unregister( second );
+			system.Register( added );
+			listener.EventMethod();
+		} );
+
+		Assert.IsTrue( first.Handled && second.Handled );
+		Assert.IsFalse( added.Handled );
+		system.RunInterface<IEventInterface>( listener => listener.EventMethod() );
+		Assert.IsTrue( added.Handled );
+	}
+
+	/// <summary>
+	/// Each handler receives the original arguments in priority order, including after its assembly is restored.
+	/// </summary>
+	[TestMethod]
+	public void NamedHandlersSurviveReregistration()
+	{
+		using var system = new EventSystem();
+		var handler = new NamedHandler();
+		var assembly = typeof( NamedHandler ).Assembly;
+		object[] args = [7];
+
+		system.RegisterAssembly( assembly );
+		system.Register( handler );
+		system.Run( "event-test.ref", args );
+		Assert.AreEqual( "first:7 second:7 ", handler.Calls );
+		Assert.AreEqual( 7, args[0] );
+
+		handler.Calls = "";
+		system.UnregisterAssembly( assembly );
+		system.Run( "event-test.ref", args );
+		Assert.AreEqual( "", handler.Calls );
+
+		system.RegisterAssembly( assembly );
+		system.Run( "event-test.ref", args );
+		Assert.AreEqual( "first:7 second:7 ", handler.Calls );
+	}
+
+	/// <summary>
+	/// A registered handler must release its argument once dispatch finishes.
+	/// </summary>
+	[TestMethod]
+	public void NamedHandlerReleasesArgument()
+	{
+		using var system = new EventSystem();
+		system.RegisterAssembly( typeof( NamedHandler ).Assembly );
+		var argument = DispatchTemporaryArgument( system );
+
+		GC.Collect();
+		Assert.IsFalse( argument.IsAlive );
+		GC.KeepAlive( system );
+	}
+
+	[MethodImpl( MethodImplOptions.NoInlining )]
+	private static WeakReference DispatchTemporaryArgument( EventSystem system )
+	{
+		bool invoked = false;
+		Action argument = () => invoked = true;
+
+		system.Run( "event-test.consume", argument );
+		Assert.IsTrue( invoked );
+
+		return new WeakReference( argument );
+	}
+
+	private class NamedHandlerBase
+	{
+		internal string Calls = "";
+
+		[EventAttribute( "event-test.ref", Priority = -1 )]
+		private void First( ref int value )
+		{
+			Calls += $"first:{value} ";
+			value++;
+		}
+	}
+
+	private sealed class NamedHandler : NamedHandlerBase
+	{
+		[EventAttribute( "event-test.ref" )]
+		private void Second( int value ) => Calls += $"second:{value} ";
+
+		[EventAttribute( "event-test.consume" )]
+		private static void Consume( Action action ) => action();
 	}
 
 	private interface IEventInterface

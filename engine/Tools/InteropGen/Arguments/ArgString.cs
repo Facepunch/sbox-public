@@ -63,3 +63,16 @@ public class ArgString : Arg
 		return base.WrapFunctionCall( functionCall, side );
 	}
 }
+
+/// <summary>
+/// A UTF-8 string returned by value from a native function. Copy it while the temporary is alive.
+/// </summary>
+[TypeName( "std::string" )]
+public class ArgStdString : ArgString
+{
+	/// <inheritdoc/>
+	public override string ReturnWrapCall( string call, Side side )
+	{
+		return side == Side.Native ? $"return SafeReturnString( ({call}).c_str() );" : base.ReturnWrapCall( call, side );
+	}
+}

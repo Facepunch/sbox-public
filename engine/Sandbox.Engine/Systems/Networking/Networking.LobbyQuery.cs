@@ -168,8 +168,7 @@ public static partial class Networking
 			serverListTask = QueryServers( filters.GetValueOrDefault( "game" ), filters.GetValueOrDefault( "map" ), filters.Without( "game" ).Without( "map" ), ct );
 		}
 
-		var q = Steamworks.SteamMatchmaking.LobbyList;
-		q = q.FilterDistanceWorldwide();
+		var q = Sandbox.SteamApi.SteamMatchmaking.LobbyList;
 		q = q.WithKeyValue( "lobby_type", "scene" );
 
 		if ( !includeOutdated )

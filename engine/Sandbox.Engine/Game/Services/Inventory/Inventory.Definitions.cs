@@ -8,6 +8,8 @@ namespace Sandbox.Services;
 public static partial class Inventory
 {
 	static Dictionary<int, ItemDefinition> _all = new();
+	static PriceCatalog _prices = new( null, new() );
+	static readonly TaskCompletionSource definitionsLoaded = new( TaskCreationOptions.RunContinuationsAsynchronously );
 
 	/// <summary>
 	/// All item definitions
@@ -23,49 +25,47 @@ public static partial class Inventory
 	}
 
 	/// <summary>
-	/// Wait until the items have been delievered
+	/// Wait until Steam supplies the first set of item definitions or startup times out.
 	/// </summary>
 	internal static async Task WaitForSteamInventoryItems( CancellationToken token )
 	{
-		while ( !gotDefinitions )
+		try
 		{
-			await Task.Delay( 100 );
-
-			if ( token.IsCancellationRequested )
-				return;
+			await definitionsLoaded.Task.WaitAsync( token );
+		}
+		catch ( OperationCanceledException ) when ( token.IsCancellationRequested )
+		{
+			// Startup can continue without inventory definitions.
 		}
 	}
 
-	static bool gotDefinitions = false;
-
-	internal static async Task LoadDefinitions()
+	internal static void LoadDefinitions( ReadOnlySpan<int> ids )
 	{
-		var c = NativeEngine.SteamInventory.DefinitionCount();
-
-		var all = new Dictionary<int, ItemDefinition>();
-		for ( int i = 0; i < c; i++ )
+		var all = new Dictionary<int, ItemDefinition>( ids.Length );
+		foreach ( var id in ids )
 		{
-			var id = NativeEngine.SteamInventory.GetDefinitionId( i );
 			all[id] = new ItemDefinition( id );
 		}
 
 		_all = all;
-		gotDefinitions = true;
+		definitionsLoaded.TrySetResult();
+		_ = Refresh();
+	}
 
-		// update our actual inventory
-		await Refresh( default );
+	readonly record struct ItemPrice( ulong Price, ulong BasePrice );
 
-		// wait for the prices to come 
-		while ( !NativeEngine.SteamInventory.HasPrices() )
+	sealed record PriceCatalog( string Currency, Dictionary<int, ItemPrice> Items )
+	{
+		internal CurrencyValue GetPrice( int id, bool basePrice )
 		{
-			await Task.Delay( 10 );
-		}
+			if ( !Items.TryGetValue( id, out var price ) ) return default;
 
-		// apply prices to all the definitions
-		var currency = NativeEngine.SteamInventory.GetCurrency();
-		foreach ( var e in _all.Values )
-		{
-			e.FetchPriceInformation( currency );
+			return new CurrencyValue( (long)(basePrice ? price.BasePrice : price.Price), Currency );
 		}
+	}
+
+	internal static void LoadPrices( string catalog )
+	{
+		_prices = System.Text.Json.JsonSerializer.Deserialize<PriceCatalog>( catalog );
 	}
 }

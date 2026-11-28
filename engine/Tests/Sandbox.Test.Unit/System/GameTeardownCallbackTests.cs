@@ -1,6 +1,4 @@
 using Sandbox.Engine;
-using System;
-using System.Reflection;
 
 namespace SystemTests;
 
@@ -20,18 +18,15 @@ public class GameTeardownCallbackTests
 		using ( new GlobalContext.GlobalContextScope( game ) ) surface = new WebSurface( true );
 		surface.OnTexture = ( _, _ ) => { calls++; observed = GlobalContext.Current; };
 
-		var repaint = typeof( WebSurface ).GetMethod( "OnNeedsRepaint", BindingFlags.Instance | BindingFlags.NonPublic );
-		var args = new[] { Activator.CreateInstance( repaint.GetParameters()[0].ParameterType ) };
-
 		try
 		{
 			using ( new GlobalContext.GlobalContextScope( menu ) )
 			{
-				repaint.Invoke( surface, args );
+				surface.OnNeedsRepaint( 0, 0, 0 );
 				Assert.AreSame( game, observed, "Game texture callback ran outside its own context" );
 
 				game.CancellationTokenSource.Cancel();
-				repaint.Invoke( surface, args );
+				surface.OnNeedsRepaint( 0, 0, 0 );
 			}
 
 			Assert.AreEqual( 1, calls, "Game texture callback ran after its session ended" );

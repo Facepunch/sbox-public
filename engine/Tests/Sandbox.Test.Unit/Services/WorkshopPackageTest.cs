@@ -7,6 +7,18 @@ namespace ServicesTests;
 public class WorkshopPackageTest
 {
 	/// <summary>
+	/// A main preview returned by handle alone counts as existing Workshop artwork during publishing.
+	/// </summary>
+	[TestMethod]
+	public void PreviewHandleWithoutUrlCountsAsExistingArtwork()
+	{
+		var item = new Workshop.Item { Id = 123, PreviewHandle = 456 };
+
+		Assert.AreEqual( "workshop://123/thumb", item.Thumbnail );
+		Assert.IsTrue( item.HasImages );
+	}
+
+	/// <summary>
 	/// Steam supplies addon identity; publisher-supplied package names and item IDs cannot redirect a download.
 	/// </summary>
 	[TestMethod]

@@ -8,6 +8,7 @@ namespace Sandbox.Mounting;
 /// <summary>
 /// A class responsible for loading a single resource. It will cache the result inside.
 /// </summary>
+[Expose]
 public abstract class ResourceLoader
 {
 	protected static readonly Logger Log = new Logger( "ResourceLoader" );
@@ -227,6 +228,7 @@ public abstract class ResourceLoader
 }
 
 
+[Expose]
 public abstract class ResourceLoader<T> : ResourceLoader where T : BaseGameMount
 {
 	public T Host => Mount as T;

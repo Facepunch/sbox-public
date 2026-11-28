@@ -1,5 +1,6 @@
 ﻿namespace Sandbox.Mounting;
 
+[Expose]
 public static class MountUtility
 {
 	static readonly Dictionary<string, Texture> _cache = new();

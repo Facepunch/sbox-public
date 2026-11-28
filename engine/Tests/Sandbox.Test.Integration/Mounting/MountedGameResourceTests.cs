@@ -44,6 +44,41 @@ public class MountedGameResourceTest
 		Assert.AreEqual( "resources/test.custom", loader.RelativePath );
 	}
 
+	/// <summary>
+	/// Game scripts can mount an installed game, list it and inspect its registered resources.
+	/// </summary>
+	[TestMethod]
+	public async Task ScriptReadsMountedResource()
+	{
+		using var packages = new PackageLoader( "MountScriptTest", GetType().Assembly );
+		using var context = new MountedResourceTestContext();
+		GlobalContext.Current.ReplaceScriptAssembly = packages.ReplaceScriptAssembly;
+
+		await Sandbox.Mounting.Directory.SetMountState( "testgame", false );
+		var script = GlobalContext.Current.Scripting;
+		var result = script.LoadFile( "mount.csx", $$"""
+			using Sandbox.Mounting;
+
+			async Task<string> ReadMountedPath()
+			{
+				var mount = await Sandbox.Mounting.Directory.Mount( "testgame" );
+				var loader = mount.GetByPath( "{{Path}}" );
+				foreach ( var info in Directory.GetAll() )
+				{
+					if ( info.Ident == mount.Ident && info.Mounted && loader.Type == ResourceType.GameResource )
+					{
+						return loader.Path;
+					}
+				}
+
+				return null;
+			}
+			""" );
+
+		Assert.IsTrue( result.Success, string.Join( "\n", result.Diagnostics ) );
+		Assert.AreEqual( Path, await script.Run<Task<string>>( "return ReadMountedPath();" ) );
+	}
+
 	[TestMethod]
 	public void UnmountReleasesRegisteredResource()
 	{

@@ -79,7 +79,7 @@ internal static class LocalizedText
 			"material" or "vmat" => "#ui.resource.type.material",
 			"bdef" => "#tool.name.balloon",
 			"btndef" => "#tool.name.button",
-			"decal" => "#tool.name.decal",
+			"decal" => "#tool.decal.name",
 			"hdef" => "#tool.name.hoverball",
 			"ldef" => "#tool.setting.line",
 			"sndef" => "#tool.setting.group.sound",

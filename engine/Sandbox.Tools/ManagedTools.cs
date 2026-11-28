@@ -25,7 +25,7 @@ internal static class ManagedTools
 		// Init steam and log into the api
 		//
 		{
-			Steamworks.SteamClient.Init( (int)Sandbox.Application.AppId );
+			Sandbox.SteamApi.SteamClient.Init();
 			AccountLoginTask = AccountInformation.Update();
 		}
 
@@ -85,6 +85,8 @@ internal static class ManagedTools
 
 		while ( AccountLoginTask is not null && !AccountLoginTask.IsCompleted )
 		{
+			// The normal engine frame hasn't started pumping the login ticket callback yet.
+			SteamNative.Runtime.RunCallbacks();
 			Sandbox.Engine.IToolsDll.Current?.Spin();
 			System.Threading.Thread.Sleep( 16 );
 		}

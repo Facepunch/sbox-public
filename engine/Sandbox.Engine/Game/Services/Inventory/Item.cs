@@ -1,5 +1,10 @@
 ﻿namespace Sandbox.Services;
 
+/// <summary>
+/// One row returned by Steam's GetResultItems, with the field layout of SteamItemDetails_t.
+/// </summary>
+internal readonly record struct InventoryItem( ulong ItemId, int DefinitionId, ushort Quantity, ushort Flags );
+
 public static partial class Inventory
 {
 	/// <summary>
@@ -12,13 +17,19 @@ public static partial class Inventory
 
 		public ItemDefinition Definition => FindDefinition( DefinitionId );
 
-		internal Item( CSteamItemInstance instance )
+		internal Item( ulong itemId, int definitionId )
 		{
-			// Note that instance is destroyed after calling this
-			// so don't fucking store it for fuck sake
-
-			ItemId = instance.ItemId();
-			DefinitionId = (int)instance.DefinitionId();
+			ItemId = itemId;
+			DefinitionId = definitionId;
 		}
+	}
+
+	/// <summary>
+	/// Copies the result's items so they can be used after the native result is disposed.
+	/// </summary>
+	internal static unsafe InventoryItem[] ReadItems( SteamNative.InventoryResult result )
+	{
+		var data = result.GetItemData( out var count );
+		return new ReadOnlySpan<InventoryItem>( data, count ).ToArray();
 	}
 }

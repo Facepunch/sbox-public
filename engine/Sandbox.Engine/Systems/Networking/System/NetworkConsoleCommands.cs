@@ -25,8 +25,7 @@ internal static class NetworkConsoleCommands
 	{
 		Api.Activity.GameRequested( new( "console" ), replace: false );
 
-		var q = Steamworks.SteamMatchmaking.LobbyList
-			.FilterDistanceWorldwide()
+		var q = Sandbox.SteamApi.SteamMatchmaking.LobbyList
 			.WithKeyValue( "lobby_type", "scene" )
 			.WithMaxResults( 2000 );
 

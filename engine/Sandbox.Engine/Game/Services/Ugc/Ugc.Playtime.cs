@@ -32,14 +32,14 @@ internal static partial class Ugc
 			foreach ( var id in stopped )
 			{
 				playing.Remove( id );
-				NativeEngine.CUgcSubscriptions.StopPlaytimeTracking( id );
+				SteamNative.Workshop.StopPlaytimeTracking( id );
 			}
 		}
 
 		foreach ( var id in ids )
 		{
 			if ( id != 0 && playing.Add( id ) )
-				NativeEngine.CUgcSubscriptions.StartPlaytimeTracking( id );
+				SteamNative.Workshop.StartPlaytimeTracking( id );
 		}
 	}
 }

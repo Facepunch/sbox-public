@@ -68,7 +68,7 @@
     IEnumerable<object> GetData()
     {
 		var q = (Folder?.GetAllFilesRecursive().Where( x => x.Type == ResourceType.Model ) ?? mount.GetAll( ResourceType.Model ))
-						.Where( x => !x.Flags.Contains( Sandbox.Mounting.ResourceFlags.DeveloperOnly ) ); // Hide dev-only junk models
+					.Where( x => !x.Flags.Contains( Sandbox.Mounting.ResourceFlags.DeveloperOnly ) && !SpawnMenuModels.IsViewModelPath( x.Path ) );
 
 		if ( !string.IsNullOrWhiteSpace( Filter ) )
 		{

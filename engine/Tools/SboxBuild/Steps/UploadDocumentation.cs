@@ -79,7 +79,6 @@ internal class UploadDocumentation
 		{
 			"game/bin/managed/Sandbox.System.dll",
 			"game/bin/managed/Sandbox.Engine.dll",
-			"game/bin/managed/Sandbox.Event.dll",
 			"game/bin/managed/Sandbox.Bind.dll",
 			"game/bin/managed/Sandbox.Reflection.dll",
 			"game/bin/managed/Sandbox.Tools.dll",

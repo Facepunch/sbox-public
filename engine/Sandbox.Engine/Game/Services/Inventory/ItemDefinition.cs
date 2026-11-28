@@ -26,16 +26,15 @@ public static partial class Inventory
 		/// <summary>
 		/// If we're for sale, this is our price
 		/// </summary>
-		public CurrencyValue Price { get; private set; }
+		public CurrencyValue Price => _prices.GetPrice( DefinitionId, basePrice: false );
 
 		/// <summary>
 		/// If we're for sale but on sale, this is our regular price
 		/// </summary>
-		public CurrencyValue BasePrice { get; private set; }
+		public CurrencyValue BasePrice => _prices.GetPrice( DefinitionId, basePrice: true );
 
 		volatile bool propertiesLoaded;
-		// The native property getter shares one string buffer between all definitions
-		static readonly object propertiesLock = new();
+		readonly object propertiesLock = new();
 
 		public ItemDefinition( int id )
 		{
@@ -56,17 +55,8 @@ public static partial class Inventory
 
 		void ReadProperties()
 		{
-			var props = new Dictionary<string, string>();
-			var properties = NativeEngine.SteamInventory.GetDefinitionProperty( DefinitionId, "" );
-			if ( properties is not null )
-			{
-				var parray = properties.Split( ",", StringSplitOptions.RemoveEmptyEntries );
-
-				foreach ( var entry in parray )
-				{
-					props[entry] = NativeEngine.SteamInventory.GetDefinitionProperty( DefinitionId, entry );
-				}
-			}
+			var json = SteamNative.Inventory.GetDefinitionProperties( DefinitionId );
+			var props = Json.Deserialize<Dictionary<string, string>>( json );
 
 			Name = props.GetValueOrDefault( "name" );
 			Description = props.GetValueOrDefault( "summary" );
@@ -90,18 +80,6 @@ public static partial class Inventory
 			}
 
 			propertiesLoaded = true;
-		}
-
-		internal void FetchPriceInformation( string currency )
-		{
-			Price = default;
-			BasePrice = default;
-
-			if ( NativeEngine.SteamInventory.GetDefinitionPrice( DefinitionId, out var price, out var baseprice ) )
-			{
-				Price = new CurrencyValue( (long)price, currency );
-				BasePrice = new CurrencyValue( (long)price, currency );
-			}
 		}
 	}
 }

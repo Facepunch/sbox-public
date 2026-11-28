@@ -67,33 +67,3 @@ internal enum RpcMode
 	/// </summary>
 	Host
 }
-
-internal static class NetFlagExtensions
-{
-	/// <summary>
-	/// Convert these flags to an integer usable with the Steam Networking API.
-	/// </summary>
-	/// <param name="flags"></param>
-	/// <returns></returns>
-	public static int ToSteamFlags( this NetFlags flags )
-	{
-		var steamFlags = 0;
-
-		if ( flags.HasFlag( NetFlags.Reliable ) )
-		{
-			steamFlags = 8; // k_nSteamNetworkingSend_Reliable
-		}
-		else if ( flags.HasFlag( NetFlags.DiscardOnDelay ) )
-		{
-			steamFlags |= 4;
-		}
-
-		if ( flags.HasFlag( NetFlags.SendImmediate ) )
-			steamFlags |= 1;
-
-		// Process on the current thread instead of a service thread.
-		// steamFlags |= 16;
-
-		return steamFlags;
-	}
-}

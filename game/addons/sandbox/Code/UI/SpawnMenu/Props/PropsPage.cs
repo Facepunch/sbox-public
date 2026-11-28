@@ -50,13 +50,27 @@ public class PropsPage : SpawnlistsPage
 
 		AddHeader( "#spawnmenu.section.workshop" );
 		AddOption( "apps", "#spawnmenu.props.all", () => new SpawnPageCloud() );
-		AddOption( "person", "#spawnmenu.props.humans", () => new SpawnPageCloud() { Category = "human" } );
-		AddOption( "park", "#spawnmenu.props.nature", () => new SpawnPageCloud() { Category = "nature" } );
-		AddOption( "chair", "#spawnmenu.props.furniture", () => new SpawnPageCloud() { Category = "furniture" } );
-		AddOption( "pets", "#spawnmenu.props.animal", () => new SpawnPageCloud() { Category = "animal" } );
-		AddOption( "category", "#spawnmenu.props.props", () => new SpawnPageCloud { Category = "prop" } );
-		AddOption( "toys", "#spawnmenu.props.toy", () => new SpawnPageCloud() { Category = "toy" } );
-		AddOption( "restaurant", "#spawnmenu.props.food", () => new SpawnPageCloud() { Category = "food" } );
-		AddOption( "target", "#spawnmenu.props.guns", () => new SpawnPageCloud() { Category = "weapon" } );
+
+		foreach ( var category in WorkshopCategories.OrderBy( x => LocalizedText.Resolve( x.Label ), StringComparer.CurrentCultureIgnoreCase ) )
+		{
+			AddOption( category.Icon, category.Label, () => new SpawnPageCloud { Category = category.Slug } );
+		}
 	}
+
+	static readonly (string Icon, string Label, string Slug)[] WorkshopCategories =
+	[
+		("pets", "#spawnmenu.props.animal", "animal"),
+		("house", "#spawnmenu.props.architecture", "building"),
+		("broken_image", "#spawnmenu.props.debris", "debris"),
+		("fence", "#spawnmenu.props.fence_wall", "fence"),
+		("restaurant", "#spawnmenu.props.food", "food"),
+		("chair", "#spawnmenu.props.furniture", "furniture"),
+		("person", "#spawnmenu.props.humans", "human"),
+		("lightbulb", "#spawnmenu.props.lighting", "light"),
+		("park", "#spawnmenu.props.nature", "nature"),
+		("category", "#spawnmenu.props.props", "prop"),
+		("toys", "#spawnmenu.props.toy", "toy"),
+		("local_shipping", "#spawnmenu.props.vehicle", "vehicle"),
+		("target", "#spawnmenu.props.weapon_props", "worldmodel"),
+	];
 }

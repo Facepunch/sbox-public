@@ -1,6 +1,5 @@
 ﻿using Sandbox.Utility;
-using Steamworks;
-using Steamworks.Data;
+using Sandbox.SteamApi;
 
 namespace Sandbox;
 
@@ -10,49 +9,42 @@ namespace Sandbox;
 /// </summary>
 public sealed class WebSurface : IDisposable
 {
-	static ISteamHTMLSurface steamHTMLSurface;
-	static Dictionary<uint, WeakReference<WebSurface>> All;
+	static readonly Dictionary<uint, WeakReference<WebSurface>> All = new();
+	static bool htmlInitialized;
 
-	Task<HTML_BrowserReady_t> initTask;
 	Action _initQueue;
+	bool _creating = true;
 	bool _disposed;
 
 	readonly Sandbox.Engine.GlobalContext _context;
 	readonly System.Threading.CancellationToken _session;
+	readonly int _steamSession = SteamClient.Session;
 
-	uint BrowserId;
+	bool IsCurrentSteamSession => SteamClient.IsValid && _steamSession == SteamClient.Session;
+	uint _browserId;
+	uint BrowserId => IsCurrentSteamSession && !_session.IsCancellationRequested ? _browserId : 0;
 
 	public bool IsLimited { get; private set; }
 
-	static WebSurface()
-	{
-		if ( Application.IsUnitTest || Application.IsHeadless )
-			return;
-
-		All = new Dictionary<uint, WeakReference<WebSurface>>();
-		steamHTMLSurface = NativeEngine.Steam.SteamHTMLSurface();
-
-		if ( !steamHTMLSurface.IsValid )
-		{
-			Log.Warning( "WebSurface unavailable - SteamHTMLSurface is null" );
-			return;
-		}
-
-		steamHTMLSurface.Init();
-
-		Dispatch.Install<HTML_NeedsPaint_t>( x => GetBrowser( x.UnBrowserHandle )?.OnNeedsRepaint( x ) );
-		Dispatch.Install<HTML_StartRequest_t>( x => GetBrowser( x.UnBrowserHandle )?.OnStartRequest( x ) );
-		Dispatch.Install<HTML_URLChanged_t>( x => GetBrowser( x.UnBrowserHandle )?.OnURLChanged( x ) );
-		Dispatch.Install<HTML_ChangedTitle_t>( x => GetBrowser( x.UnBrowserHandle )?.OnChangedTitle( x ) );
-		Dispatch.Install<HTML_FinishedRequest_t>( x => GetBrowser( x.UnBrowserHandle )?.OnFinishedRequest( x ) );
-		Dispatch.Install<HTML_SetCursor_t>( x => GetBrowser( x.UnBrowserHandle )?.OnSetCursor( x ) );
-	}
-
-	static WebSurface GetBrowser( uint handle )
+	internal static void Shutdown()
 	{
 		lock ( All )
 		{
-			if ( All.TryGetValue( handle, out var v ) && v.TryGetTarget( out var target ) )
+			if ( !htmlInitialized ) return;
+
+			All.Clear();
+			SteamNative.HtmlSurface.Shutdown();
+			htmlInitialized = false;
+		}
+	}
+
+	internal static WebSurface GetBrowser( uint handle )
+	{
+		if ( !SteamClient.IsValid ) return null;
+
+		lock ( All )
+		{
+			if ( All.TryGetValue( handle, out var v ) && v.TryGetTarget( out var target ) && target.BrowserId == handle )
 			{
 				return target;
 			}
@@ -81,44 +73,62 @@ public sealed class WebSurface : IDisposable
 		_ = CreateAsync();
 	}
 
-	async Task<HTML_BrowserReady_t> CreateBrowser()
+	ulong StartCreatingBrowser()
 	{
-		if ( !steamHTMLSurface.IsValid )
-			return default;
+		lock ( All )
+		{
+			if ( !IsCurrentSteamSession || Application.IsUnitTest || Application.IsHeadless ) return 0;
 
-		var callback = steamHTMLSurface.CreateBrowser( "Mozilla/5.0 (Linux; U; X11; en-US; Facepunch Sandbox; ) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/85.0.4183.121 Safari/537.36", null );
-		var t = await new CallResult<HTML_BrowserReady_t>( callback, false );
-		return t ?? default;
+			if ( !htmlInitialized && !SteamNative.HtmlSurface.Initialize() )
+			{
+				Log.Warning( "WebSurface unavailable - Steam HTML initialization failed" );
+				return 0;
+			}
+
+			htmlInitialized = true;
+			return SteamNative.HtmlSurface.CreateBrowser( "Mozilla/5.0 (Linux; U; X11; en-US; Facepunch Sandbox; ) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/85.0.4183.121 Safari/537.36" );
+		}
 	}
 
 	async Task CreateAsync()
 	{
-		initTask = CreateBrowser();
-		var s = await initTask;
-
-		if ( initTask == null )
-			return;
-
-		initTask = null;
-
-		// Disposed while waiting for the browser, remove it before it loads anything
-		if ( _disposed )
-		{
-			if ( s.UnBrowserHandle != 0 )
-				steamHTMLSurface.RemoveBrowser( s.UnBrowserHandle );
-
-			return;
-		}
-
-		BrowserId = s.UnBrowserHandle;
-
+		var browser = await SteamCalls.GetResultAsync( StartCreatingBrowser(), SteamNative.HtmlSurface.GetBrowserReadyResult );
+		Action onCreated;
 		lock ( All )
 		{
-			All[BrowserId] = new WeakReference<WebSurface>( this );
+			_creating = false;
+			onCreated = _initQueue;
+			_initQueue = null;
+			if ( browser == 0 || !IsCurrentSteamSession ) return;
+
+			if ( _disposed || _session.IsCancellationRequested )
+			{
+				SteamNative.HtmlSurface.RemoveBrowser( browser );
+				return;
+			}
+
+			_browserId = browser;
+			All[browser] = new WeakReference<WebSurface>( this );
 		}
 
-		_initQueue?.Invoke();
-		_initQueue = null;
+		onCreated?.Invoke();
+	}
+
+	void WhenCreated( Action action )
+	{
+		lock ( All )
+		{
+			if ( _disposed || !IsCurrentSteamSession || _session.IsCancellationRequested ) return;
+			if ( _creating )
+			{
+				_initQueue += action;
+				return;
+			}
+
+			if ( _browserId == 0 ) return;
+		}
+
+		action();
 	}
 
 	~WebSurface()
@@ -126,26 +136,26 @@ public sealed class WebSurface : IDisposable
 		Dispose();
 	}
 
+	/// <summary>
+	/// Closes the browser and stops delivering its page and texture events.
+	/// </summary>
 	public void Dispose()
 	{
-		_disposed = true;
-		_initQueue = null;
-		OnTexture = null;
 		GC.SuppressFinalize( this );
-
-		if ( BrowserId == 0 )
-			return;
 
 		lock ( All )
 		{
-			All.Remove( BrowserId );
-			steamHTMLSurface.RemoveBrowser( BrowserId );
-			BrowserId = 0;
+			_disposed = true;
+			_initQueue = null;
+			OnTexture = null;
+			OnPageLoaded = null;
 
-			foreach ( var expired in All.Where( x => x.Value.TryGetTarget( out var target ) == false ).Select( x => x.Key ).ToArray() )
+			if ( _browserId != 0 && IsCurrentSteamSession )
 			{
-				All.Remove( expired );
+				All.Remove( _browserId );
+				SteamNative.HtmlSurface.RemoveBrowser( _browserId );
 			}
+			_browserId = 0;
 		}
 	}
 
@@ -164,31 +174,13 @@ public sealed class WebSurface : IDisposable
 		{
 			if ( BrowserId == 0 )
 			{
-				_initQueue += () => Url = value;
+				WhenCreated( () => Url = value );
 				return;
 			}
 
-			steamHTMLSurface.LoadURL( BrowserId, value ?? "", null );
+			SteamNative.HtmlSurface.LoadURL( BrowserId, value ?? "" );
 		}
 	}
-
-	/*
-	 *	None of this works, in my experience
-	 *	
-	internal void SetCookie( string hostname, string key, string value, string path = "/", bool insecure = false )
-	{
-		var expires = (uint)DateTime.UtcNow.AddDays( 7 ).GetEpoch();
-
-		if ( insecure )
-		{
-			steamHTMLSurface.SetCookie( hostname, key, value, path, expires, false, true );
-		}
-		else
-		{
-			steamHTMLSurface.SetCookie( hostname, key, value, path, expires, true, true );
-		}
-	}
-	*/
 
 	static string[] blacklistHostname = new[]
 	{
@@ -257,23 +249,23 @@ public sealed class WebSurface : IDisposable
 		{
 			if ( BrowserId == 0 )
 			{
-				_initQueue += () => Size = value;
+				WhenCreated( () => Size = value );
 				return;
 			}
 
 			_size = value;
-			steamHTMLSurface.SetSize( BrowserId, (uint)value.x, (uint)value.y );
+			SteamNative.HtmlSurface.SetSize( BrowserId, (uint)value.x, (uint)value.y );
 		}
 	}
 
 	/// <summary>
 	/// Invoked when the browser needs to be repainted
 	/// </summary>
-	private unsafe void OnNeedsRepaint( HTML_NeedsPaint_t x )
+	internal unsafe void OnNeedsRepaint( IntPtr pixels, uint width, uint height )
 	{
-		ReadOnlySpan<byte> s = new ReadOnlySpan<byte>( (void*)x.PBGRA, (int)(x.UnWide * x.UnTall * 4) );
+		ReadOnlySpan<byte> s = new ReadOnlySpan<byte>( (void*)pixels, (int)(width * height * 4) );
 
-		var size = new Vector2( x.UnWide, x.UnTall );
+		var size = new Vector2( width, height );
 		_size = size;
 
 		if ( _context is null )
@@ -288,51 +280,49 @@ public sealed class WebSurface : IDisposable
 		OnTexture?.Invoke( s, size );
 	}
 
-	private void OnChangedTitle( HTML_ChangedTitle_t x )
+	internal void OnChangedTitle( string title )
 	{
-		PageTitle = x.PchTitle;
+		PageTitle = title;
 	}
 
 	/// <summary>
 	/// A navigation has happened, allow or deny it
 	/// </summary>
-	/// <param name="r"></param>
-	private unsafe void OnStartRequest( HTML_StartRequest_t r )
+	internal bool AllowNavigation( string url )
 	{
-		var url = r.PchURL;
-
 		try
 		{
 			if ( IsLimited )
-				CheckUrlIsAllowed( new Uri( url ) );
+			{
+				if ( !Uri.TryCreate( url, UriKind.Absolute, out var uri ) ) return false;
+				CheckUrlIsAllowed( uri );
+			}
 		}
 		catch ( InvalidOperationException e )
 		{
 			Log.Warning( $"{e.Message}" );
-			steamHTMLSurface.AllowStartRequest( BrowserId, false );
-			return;
+			return false;
 		}
 
-		steamHTMLSurface.AllowStartRequest( BrowserId, true );
 		currentUrl = url;
+		return true;
 	}
 
 	/// <summary>
 	/// Invoked when the browser is navigating to a new url
 	/// </summary>
-	/// <param name="x"></param>
-	private unsafe void OnURLChanged( HTML_URLChanged_t x )
+	internal void OnURLChanged( string url )
 	{
-		currentUrl = x.PchURL;
+		currentUrl = url;
 	}
 
 
-	private void OnFinishedRequest( HTML_FinishedRequest_t x )
+	internal void OnFinishedRequest( string url, string title )
 	{
-		currentUrl = x.PchURL;
-		PageTitle = x.PchPageTitle;
+		currentUrl = url;
+		PageTitle = title;
 
-		OnPageLoaded?.Invoke( x.PchURL );
+		OnPageLoaded?.Invoke( url );
 	}
 
 	/// <summary>
@@ -349,80 +339,24 @@ public sealed class WebSurface : IDisposable
 	{
 		if ( BrowserId == 0 )
 		{
-			_initQueue += () => ExecuteJavascript( script );
+			WhenCreated( () => ExecuteJavascript( script ) );
 			return;
 		}
 
-		steamHTMLSurface.ExecuteJavascript( BrowserId, script );
+		SteamNative.HtmlSurface.ExecuteJavascript( BrowserId, script );
 	}
 
-	public string Cursor { get; private set; }
-
-	enum EMouseCursor
-	{
-		dc_user = 0,
-		dc_none,
-		dc_arrow,
-		dc_ibeam,
-		dc_hourglass,
-		dc_waitarrow,
-		dc_crosshair,
-		dc_up,
-		dc_sizenw,
-		dc_sizese,
-		dc_sizene,
-		dc_sizesw,
-		dc_sizew,
-		dc_sizee,
-		dc_sizen,
-		dc_sizes,
-		dc_sizewe,
-		dc_sizens,
-		dc_sizeall,
-		dc_no,
-		dc_hand,
-		dc_blank, // don't show any custom cursor, just use your default
-		dc_middle_pan,
-		dc_north_pan,
-		dc_north_east_pan,
-		dc_east_pan,
-		dc_south_east_pan,
-		dc_south_pan,
-		dc_south_west_pan,
-		dc_west_pan,
-		dc_north_west_pan,
-		dc_alias,
-		dc_cell,
-		dc_colresize,
-		dc_copycur,
-		dc_verticaltext,
-		dc_rowresize,
-		dc_zoomin,
-		dc_zoomout,
-		dc_help,
-		dc_custom,
-
-		dc_last, // custom cursors start from this value and up
-	}
-
-	private void OnSetCursor( HTML_SetCursor_t x )
-	{
-		Cursor = "default";
-
-		if ( x.EMouseCursor == (int)EMouseCursor.dc_hand )
-			Cursor = "pointer";
-
-		if ( x.EMouseCursor == (int)EMouseCursor.dc_ibeam )
-			Cursor = "text";
-
-	}
+	/// <summary>
+	/// CSS cursor requested by the browser for the current pointer position.
+	/// </summary>
+	public string Cursor { get; internal set; }
 
 	/// <summary>
 	/// Tell the browser the mouse has moved
 	/// </summary>
 	public void TellMouseMove( Vector2 position )
 	{
-		steamHTMLSurface.MouseMove( BrowserId, (int)position.x, (int)position.y );
+		SteamNative.HtmlSurface.MouseMove( BrowserId, (int)position.x, (int)position.y );
 	}
 
 	/// <summary>
@@ -431,7 +365,7 @@ public sealed class WebSurface : IDisposable
 	/// <param name="delta"></param>
 	public void TellMouseWheel( int delta )
 	{
-		steamHTMLSurface.MouseWheel( BrowserId, delta );
+		SteamNative.HtmlSurface.MouseWheel( BrowserId, delta );
 	}
 
 	/// <summary>
@@ -439,23 +373,7 @@ public sealed class WebSurface : IDisposable
 	/// </summary>
 	public void TellMouseButton( MouseButtons button, bool state )
 	{
-		if ( (button & MouseButtons.Left) != 0 )
-		{
-			if ( state ) steamHTMLSurface.MouseDown( BrowserId, 0 );
-			else steamHTMLSurface.MouseUp( BrowserId, 0 );
-		}
-
-		if ( (button & MouseButtons.Right) != 0 )
-		{
-			if ( state ) steamHTMLSurface.MouseDown( BrowserId, 1 );
-			else steamHTMLSurface.MouseUp( BrowserId, 1 );
-		}
-
-		if ( (button & MouseButtons.Middle) != 0 )
-		{
-			if ( state ) steamHTMLSurface.MouseDown( BrowserId, 2 );
-			else steamHTMLSurface.MouseUp( BrowserId, 2 );
-		}
+		SteamNative.HtmlSurface.SetMouseButtonState( BrowserId, button, state );
 	}
 
 	/// <summary>
@@ -471,7 +389,7 @@ public sealed class WebSurface : IDisposable
 			if ( unicodeKey == 'v' ) return;
 		}
 
-		steamHTMLSurface.KeyChar( BrowserId, unicodeKey, (int)modifiers );
+		SteamNative.HtmlSurface.KeyChar( BrowserId, unicodeKey, modifiers );
 	}
 
 	/// <summary>
@@ -494,8 +412,7 @@ public sealed class WebSurface : IDisposable
 		if ( IsLimited && IsClipboardShortcut( virtualKeyCode, modifiers ) )
 			return;
 
-		if ( state ) steamHTMLSurface.KeyDown( BrowserId, virtualKeyCode, (int)modifiers, false );
-		else steamHTMLSurface.KeyUp( BrowserId, virtualKeyCode, (int)modifiers );
+		SteamNative.HtmlSurface.SetKeyState( BrowserId, virtualKeyCode, modifiers, state );
 	}
 
 	/// <summary>
@@ -533,12 +450,12 @@ public sealed class WebSurface : IDisposable
 		{
 			if ( BrowserId == 0 )
 			{
-				_initQueue += () => HasKeyFocus = value;
+				WhenCreated( () => HasKeyFocus = value );
 				return;
 			}
 
 			_keyFocus = value;
-			steamHTMLSurface.SetKeyFocus( BrowserId, value );
+			SteamNative.HtmlSurface.SetKeyFocus( BrowserId, value );
 		}
 	}
 
@@ -555,12 +472,12 @@ public sealed class WebSurface : IDisposable
 		{
 			if ( BrowserId == 0 )
 			{
-				_initQueue += () => ScaleFactor = value;
+				WhenCreated( () => ScaleFactor = value );
 				return;
 			}
 
 			_scaleFactor = value;
-			steamHTMLSurface.SetDPIScalingFactor( BrowserId, value );
+			SteamNative.HtmlSurface.SetDPIScalingFactor( BrowserId, value );
 		}
 	}
 
@@ -579,12 +496,12 @@ public sealed class WebSurface : IDisposable
 		{
 			if ( BrowserId == 0 )
 			{
-				_initQueue += () => InBackgroundMode = value;
+				WhenCreated( () => InBackgroundMode = value );
 				return;
 			}
 
 			_backgroudMode = value;
-			steamHTMLSurface.SetBackgroundMode( BrowserId, value );
+			SteamNative.HtmlSurface.SetBackgroundMode( BrowserId, value );
 		}
 	}
 }

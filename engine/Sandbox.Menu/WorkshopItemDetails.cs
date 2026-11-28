@@ -82,7 +82,7 @@ public sealed class WorkshopItemDetails
 		Id = item.Id,
 		Title = item.Title,
 		Description = item.Description,
-		Thumb = string.IsNullOrEmpty( item.Thumb ) ? null : item.Thumb,
+		Thumb = item.Thumbnail,
 		Images = item.Previews.Where( x => x.Type == Workshop.PreviewType.Image && !string.IsNullOrEmpty( x.Url ) ).Select( x => x.Url ).ToArray(),
 		YouTubeVideos = item.Previews.Where( x => x.Type == Workshop.PreviewType.YouTubeVideo && !string.IsNullOrEmpty( x.Url ) ).Select( x => x.Url ).ToArray(),
 		OwnerId = item.Owner is { } owner ? owner.Id.Value : 0,
@@ -94,8 +94,8 @@ public sealed class WorkshopItemDetails
 		Subscriptions = item.Subscriptions,
 		Size = item.Size,
 		Url = item.Url,
-		Tags = item.Tags,
-		KeyValues = item.KeyValues,
+		Tags = item.Tags.ToArray(),
+		KeyValues = new Dictionary<string, string>( item.KeyValues ),
 		Meta = ReadMeta( item.Metadata )
 	};
 
@@ -147,8 +147,8 @@ public sealed class WorkshopItemDetails
 	/// </summary>
 	static string SteamName( ulong id )
 	{
-		if ( Steamworks.SteamFriends.RequestUserInformation( id ) ) return null;
+		if ( Sandbox.SteamApi.SteamFriends.RequestUserInformation( id ) ) return null;
 
-		return new Steamworks.Friend( id ).Name;
+		return new Sandbox.Friend( id ).Name;
 	}
 }

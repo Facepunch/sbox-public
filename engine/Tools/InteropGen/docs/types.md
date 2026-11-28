@@ -23,6 +23,7 @@ case-insensitive).
 | `double` | `double` | `double` | |
 | `intptr`, `void*` | `IntPtr` | `void*` | Raw pointer. |
 | `string` | `string` | `const char*` | UTF-8. Pinned for the call going in; copied to a thread-local on the way out (`SafeReturnString`). |
+| `std::string` | `string` | `std::string` | Owned UTF-8 return value from a native function. |
 | `CUtlString` | `string` | `CUtlString` | Like `string` but the native side holds a `CUtlString`. |
 | `stringtoken` | `Sandbox.StringToken` | `uint32` | Built native-side with `StringTokenFromHashCode`. |
 

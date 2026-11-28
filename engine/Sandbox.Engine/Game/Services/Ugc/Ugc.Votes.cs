@@ -1,3 +1,4 @@
+using Sandbox.SteamApi;
 using System.Threading;
 
 namespace Sandbox.Services;
@@ -13,16 +14,14 @@ internal static partial class Ugc
 	/// </summary>
 	internal static async Task<bool?> GetVoteAsync( ulong id, CancellationToken token = default )
 	{
-		using var vote = NativeEngine.CUgcVote.GetVote( id );
-		if ( vote.IsNull ) return null;
-
-		while ( !vote.m_complete )
+		var call = SteamNative.Workshop.GetVote( id );
+		var vote = await SteamCalls.GetResultAsync( call, SteamNative.Workshop.GetVoteResult, token );
+		return vote switch
 		{
-			await Task.Delay( 50, token );
-		}
-
-		if ( !vote.m_success ) return null;
-		return vote.m_votedUp ? true : vote.m_votedDown ? false : null;
+			WorkshopVote.Up => true,
+			WorkshopVote.Down => false,
+			_ => null
+		};
 	}
 
 	/// <summary>
@@ -30,17 +29,15 @@ internal static partial class Ugc
 	/// </summary>
 	internal static async Task<bool> SetVoteAsync( ulong id, bool up, CancellationToken token = default )
 	{
-		using var vote = NativeEngine.CUgcVote.SetVote( id, up );
-		if ( vote.IsNull ) return false;
+		if ( !SteamClient.IsValid ) return false;
 
-		while ( !vote.m_complete )
-		{
-			await Task.Delay( 50, token );
-		}
+		var call = SteamNative.Workshop.SetVote( id, up );
+		if ( call == 0 ) return false;
 
-		if ( !vote.m_success )
-			Log.Warning( $"Steam didn't take the vote on workshop item {id} (result {vote.m_resultCode})" );
+		var result = await SteamCalls.GetResultAsync( call, SteamNative.Workshop.GetVoteUpdateResult, token, Result.IOFailure );
+		if ( result != Result.OK )
+			Log.Warning( $"Steam didn't take the vote on workshop item {id} (result {result})" );
 
-		return vote.m_success;
+		return result == Result.OK;
 	}
 }

@@ -63,6 +63,7 @@ internal class ToolsDll : IToolsDll
 		EditorTypeLibrary.AddAssembly( typeof( ToolsDll ).Assembly, true ); // editor can access everything anyway
 		EditorTypeLibrary.AddAssembly( typeof( EngineLoop ).Assembly, false );
 		EditorTypeLibrary.AddAssembly( typeof( Facepunch.ActionGraphs.ActionGraph ).Assembly, false );
+		EditorTypeLibrary.AddAssembly( typeof( Mounting.BaseGameMount ).Assembly, false );
 
 		Sandbox.Internal.TypeLibrary.Editor = EditorTypeLibrary;
 	}

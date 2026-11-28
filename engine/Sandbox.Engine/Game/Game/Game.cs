@@ -89,7 +89,8 @@ public static partial class Game
 	/// <summary>
 	/// Return true if we're running on a handheld device (the deck). Will always be false serverside.
 	/// </summary>
-	public static bool IsRunningOnHandheld => Steamworks.SteamClient.IsValid && Steamworks.SteamUtils.IsRunningOnSteamDeck;
+	public static bool IsRunningOnHandheld => Sandbox.SteamApi.SteamClient.IsValid
+		&& SteamNative.Utils.IsSteamRunningOnSteamDeck();
 
 	/// <summary>
 	/// A shared random that is automatically seeded on tick

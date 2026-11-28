@@ -87,7 +87,7 @@ internal static partial class SyncContext
 
 		while ( !task.IsCompleted )
 		{
-			EngineLoop.RunSteamCallbacks();
+			SteamNative.Runtime.RunCallbacks();
 			EngineLoop.RunAsyncTasks();
 			Thread.Yield();
 			IToolsDll.Current?.Spin();
@@ -106,7 +106,7 @@ internal static partial class SyncContext
 
 		while ( !task.IsCompleted )
 		{
-			EngineLoop.RunSteamCallbacks();
+			SteamNative.Runtime.RunCallbacks();
 			EngineLoop.RunAsyncTasks();
 			Thread.Yield();
 		}

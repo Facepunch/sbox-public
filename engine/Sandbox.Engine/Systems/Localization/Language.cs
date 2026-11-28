@@ -39,7 +39,7 @@ public class LanguageContainer
 
 	internal void Tick()
 	{
-		var language = (SelectedCode ?? "en").ToLower();
+		var language = (SelectedCode ?? "en").ToLowerInvariant();
 		var fallback = GameFallback;
 
 		if ( _previousLanguage != language )
@@ -47,8 +47,13 @@ public class LanguageContainer
 			_previousLanguage = language;
 
 			lang = new Localization.PhraseCollection();
-			AddFromPath( "en" );
-			AddFromPath( language );
+			var resources = ResourceLibrary.GetAll<LanguageResource>().OrderBy( x => x.ResourcePath, StringComparer.Ordinal ).ToArray();
+			AddLanguage( "en", resources );
+
+			if ( language != "en" )
+			{
+				AddLanguage( language, resources );
+			}
 		}
 		else if ( _previousFallback == fallback )
 		{
@@ -60,7 +65,7 @@ public class LanguageContainer
 		GlobalContext.Current.UISystem.OnLanguageChanged();
 	}
 
-	void AddFromPath( string shortName )
+	void AddLanguage( string shortName, LanguageResource[] resources )
 	{
 		if ( string.IsNullOrWhiteSpace( shortName ) ) return;
 		if ( shortName.Contains( "." ) ) return;
@@ -70,12 +75,15 @@ public class LanguageContainer
 		var language = Sandbox.Localization.Languages.Find( shortName );
 		if ( language != null ) Current = language;
 
-
 		foreach ( var file in FileSystem.FindFile( shortName, "*.json" ) )
 		{
 			AddFile( $"{shortName}/{file}" );
 		}
 
+		foreach ( var resource in resources )
+		{
+			resource.AddPhrases( shortName, lang );
+		}
 	}
 
 	void AddFile( string path )

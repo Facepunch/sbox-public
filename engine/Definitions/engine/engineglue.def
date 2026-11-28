@@ -33,8 +33,4 @@ native static class EngineGlue as NativeEngine.EngineGlue
 	string ReadCompiledResourceFileJsonFromFilesystem( string filename );
 
 	void SetEngineLoggingVerbose( bool verbose );
-
-	void RequestWebAuthTicket();
-	void CancelWebAuthTicket();
-	string GetWebAuthTicket();
 }

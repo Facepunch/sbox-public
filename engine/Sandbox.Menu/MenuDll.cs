@@ -4,14 +4,14 @@ using Sandbox.Services;
 using Sandbox.Tasks;
 using Sandbox.UI;
 using Sandbox.Utility;
-using Steamworks;
+using Sandbox.SteamApi;
 using System;
 using IMenuSystem = Sandbox.Internal.IMenuSystem;
 using IModalSystem = Sandbox.Modals.IModalSystem;
 
 namespace Sandbox;
 
-internal sealed class MenuDll : IMenuDll
+internal sealed partial class MenuDll : IMenuDll
 {
 	/// <summary>
 	/// Called by AppSystem to create the MenuDll instance.
@@ -46,7 +46,7 @@ internal sealed class MenuDll : IMenuDll
 		//
 		if ( !Application.IsEditor )
 		{
-			SteamClient.Init( (int)Application.AppId );
+			SteamClient.Init();
 			AccountUpdateTask = AccountInformation.Update();
 		}
 
@@ -133,7 +133,7 @@ internal sealed class MenuDll : IMenuDll
 		}
 
 		Game.Cookies = new CookieContainer( "menu" );
-		SteamCallbacks.InitSteamCallbacks();
+		steamCallbacksReady = true;
 
 		// start listening to backend messages
 		Sandbox.Services.Messaging.OnMessage += OnMessageFromBackend;
@@ -188,6 +188,8 @@ internal sealed class MenuDll : IMenuDll
 
 	public void Exiting()
 	{
+		steamCallbacksReady = false;
+
 		using ( EnterScope() )
 		{
 			// Shutdown menu system
@@ -208,12 +210,6 @@ internal sealed class MenuDll : IMenuDll
 
 			Loader?.Dispose();
 			Loader = null;
-
-			// Shutdown Steamworks interfaces
-			if ( !Application.IsEditor )
-			{
-				Steamworks.SteamClient.Cleanup();
-			}
 
 			// Expire async context to prevent lingering tasks
 			AsyncContext.Expire( null );
@@ -397,7 +393,7 @@ internal sealed class MenuDll : IMenuDll
 	public static async void ListLobbies()
 	{
 		Log.Info( "Querying.." );
-		var list = await SteamMatchmaking.LobbyList.FilterDistanceWorldwide().WithMaxResults( 1000 ).RequestAsync( default );
+		var list = await SteamMatchmaking.LobbyList.WithMaxResults( 1000 ).RequestAsync( default );
 
 		foreach ( var item in list )
 		{

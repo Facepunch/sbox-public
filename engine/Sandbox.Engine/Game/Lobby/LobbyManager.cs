@@ -1,7 +1,6 @@
 using Sandbox.Engine;
 using Sandbox.Internal;
-using Steamworks;
-using Steamworks.Data;
+using Sandbox.SteamApi;
 using System.Threading;
 
 namespace Sandbox;
@@ -13,7 +12,7 @@ interface ILobby
 	void OnMemberLeave( Friend friend );
 	void OnMemberUpdated( Friend friend );
 	void OnLobbyUpdated();
-	void OnMemberMessage( Friend friend, ByteStream stream );
+	void OnMemberMessage( Friend friend, ByteStream stream ) { }
 }
 
 
@@ -44,7 +43,7 @@ internal static class LobbyManager
 	static Dictionary<ulong, TaskCompletionSource<bool>> _refreshAwaiters = new();
 	internal static async Task<bool> Refresh( Lobby lobby )
 	{
-		if ( !SteamMatchmaking.Internal.RequestLobbyData( lobby.Id ) )
+		if ( !SteamNative.Matchmaking.RequestLobbyData( lobby.Id ) )
 			return false;
 
 		var awaiter = _refreshAwaiters.GetOrCreate( lobby.Id );
@@ -86,9 +85,9 @@ internal static class LobbyManager
 		}
 	}
 
-	internal static unsafe void OnChatMessage( ulong lobbyid, ulong memberid, IntPtr v, int length )
+	internal static void OnChatMessage( ulong lobbyid, ulong memberid, ReadOnlySpan<byte> message )
 	{
-		using var data = ByteStream.CreateReader( (void*)v, length );
+		using var data = ByteStream.CreateReader( message );
 
 		foreach ( var lobby in EnumerateLobbies( lobbyid ) )
 		{
@@ -110,16 +109,10 @@ internal static class LobbyManager
 		ActiveLobbies.Remove( lobbyid );
 
 		// The menu may have released matchmaking before the game disposes its lobby socket.
-		if ( SteamMatchmaking.Internal is { IsValid: true } matchmaking )
+		if ( SteamMatchmaking.IsAvailable )
 		{
-			matchmaking.LeaveLobby( lobbyid );
+			SteamNative.Matchmaking.LeaveLobby( lobbyid );
 		}
-	}
-
-	internal static void OnCreated( ulong lobbyid )
-	{
-		// The lobby creation is done in the game contexts
-		ActiveLobbies.Add( lobbyid );
 	}
 
 	internal static void OnMemberLeave( ulong lobbyid, ulong memberid )
@@ -151,7 +144,7 @@ internal static class LobbyManager
 			return;
 
 		var friend = new Friend( memberid );
-		var lobby = new Steamworks.Data.Lobby( lobbyid );
+		var lobby = new Sandbox.SteamApi.Lobby( lobbyid );
 
 		// Up to the menu how it's shown - see IMenuSystem.OnPartyInvite
 		using ( IMenuDll.Current?.PushScope() )

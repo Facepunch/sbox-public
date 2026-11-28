@@ -7,6 +7,7 @@ namespace Sandbox.Mounting;
 /// Represents a directory in the resource tree structure.
 /// Contains child directories and resource files.
 /// </summary>
+[Expose]
 public class ResourceFolder
 {
 	/// <summary>

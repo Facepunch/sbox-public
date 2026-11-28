@@ -28,7 +28,7 @@
 								}
 							</div>
 							<div class="meta">
-								<span><IconPanel Text="widgets" /> @SpawnlistData.ItemCountText(data.Items.Count(item => item.IsContent))</span>
+								<span><IconPanel Text="widgets" /> @SpawnlistData.ItemCountText(items.Count(item => item.IsContent))</span>
 							</div>
 						</div>
 					}
@@ -120,9 +120,10 @@
 
     IReadOnlyList<SpawnlistItem> VisibleItems( SpawnlistData data )
     {
-        if ( string.IsNullOrWhiteSpace( Filter ) ) return data.Items;
+        var visible = data.Items.Where( SpawnMenuModels.IsVisible );
+        if ( string.IsNullOrWhiteSpace( Filter ) ) return visible.ToList();
 
-        return data.Items.Where( item => item.IsContent && ((item.Title?.Contains( Filter, StringComparison.CurrentCultureIgnoreCase ) ?? false)
+        return visible.Where( item => item.IsContent && ((item.Title?.Contains( Filter, StringComparison.CurrentCultureIgnoreCase ) ?? false)
             || item.Ident.Contains( Filter, StringComparison.OrdinalIgnoreCase )) ).ToList();
     }
 
@@ -167,6 +168,7 @@
         // Periodically check for changes from other tabs
         if ( _lastRefresh > 1f )
         {
+            SpawnMenuModels.RefreshIfLoaded();
             var fresh = LoadData();
             if ( fresh.Name != _cachedData?.Name || !ItemsMatch( fresh.Items, _cachedData?.Items, Entry?.Files.IsReadOnly == false ) )
             {
@@ -177,7 +179,7 @@
         }
     }
 
-    protected override int BuildHash() => HashCode.Combine( _cachedData?.Items?.Count, _cachedData?.Name, _editMode, CanEdit, Filter, IconSize );
+    protected override int BuildHash() => HashCode.Combine( _cachedData?.Items?.Count, _cachedData?.Name, _editMode, CanEdit, Filter, IconSize, SpawnMenuModels.ViewModels );
 
     /// <summary>
     /// Starts editing the list name in its header.
@@ -260,7 +262,10 @@
 
         drag.Handled = true;
         if ( drag.Source is not null ) drag.Source.UserData = null;
-        SpawnlistData.MoveItem( Entry, drag.SpawnlistItemId, index );
+        var data = GetData();
+        var visible = VisibleItems( data );
+        var destination = index < visible.Count ? data.Items.IndexOf( visible[index] ) : data.Items.Count;
+        SpawnlistData.MoveItem( Entry, drag.SpawnlistItemId, destination );
         RefreshCache();
     }
 

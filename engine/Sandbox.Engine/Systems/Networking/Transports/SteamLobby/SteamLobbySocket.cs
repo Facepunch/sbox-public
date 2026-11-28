@@ -2,11 +2,8 @@
 using NativeEngine;
 using Sandbox.Engine;
 using Sandbox.Internal;
-using Steamworks;
-using Steamworks.Data;
+using Sandbox.SteamApi;
 using System.Diagnostics;
-using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 using System.Threading.Channels;
 using System.Threading;
 
@@ -49,7 +46,7 @@ internal class SteamLobbySocket : NetworkSocket, ILobby
 	/// <summary>
 	/// Current owner of this lobby.
 	/// </summary>
-	internal Steamworks.Friend Owner;
+	internal Sandbox.Friend Owner;
 
 	/// <summary>
 	/// The underlying Steam lobby.
@@ -88,7 +85,6 @@ internal class SteamLobbySocket : NetworkSocket, ILobby
 		SteamLobby = lobby;
 
 		UpdateConnections();
-		UpdateOwnerFromLobby();
 
 		LobbyManager.Register( this );
 		((ILobby)this).OnLobbyUpdated();
@@ -209,7 +205,6 @@ internal class SteamLobbySocket : NetworkSocket, ILobby
 		while ( timeout.Elapsed.TotalSeconds < 5f )
 		{
 			if ( token.IsCancellationRequested ) break;
-			SteamNetwork.RunCallbacks();
 
 			if ( socket.ownerConnection is not null )
 				return (result.Response, socket, null);
@@ -293,31 +288,27 @@ internal class SteamLobbySocket : NetworkSocket, ILobby
 			SteamLobby.Leave();
 			OutgoingMessages.Writer.TryComplete();
 			while ( OutgoingMessages.Reader.TryRead( out var dropped ) ) dropped.Packet.Release();
-			IncomingMessages.Writer.TryComplete();
-			while ( IncomingMessages.Reader.TryRead( out _ ) ) { }
+			IncomingSteamMessage.Close( IncomingMessages );
 		}
-	}
-
-	private struct IncomingMessage
-	{
-		public ulong SteamId { get; set; }
-		public byte[] Data { get; set; }
 	}
 
 	private struct OutgoingMessage
 	{
 		public SteamLobbyConnection Target { get; set; }
 		public NetPacket Packet { get; set; }
-		public int Flags { get; set; }
+		/// <summary>
+		/// Delivery options for this packet.
+		/// </summary>
+		public NetFlags Flags { get; set; }
 	}
 
 	private Channel<OutgoingMessage> OutgoingMessages { get; } = Channel.CreateUnbounded<OutgoingMessage>();
-	private Channel<IncomingMessage> IncomingMessages { get; } = Channel.CreateUnbounded<IncomingMessage>();
+	private Channel<IncomingSteamMessage> IncomingMessages { get; } = Channel.CreateUnbounded<IncomingSteamMessage>();
 
 	/// <summary>
 	/// Enqueue a message to be sent on the networking thread.
 	/// </summary>
-	internal void SendMessage( SteamLobbyConnection target, NetPacket packet, int flags )
+	internal void SendMessage( SteamLobbyConnection target, NetPacket packet, NetFlags flags )
 	{
 		// Ours until the networking thread has handed it to Steam
 		packet.AddReference();
@@ -327,50 +318,9 @@ internal class SteamLobbySocket : NetworkSocket, ILobby
 	}
 
 	/// <summary>
-	/// Process any incoming messages from Steam networking and enqueue them to be
-	/// handled by the main thread.
-	/// </summary>
-	/// <param name="net"></param>
-	/// <param name="channel"></param>
-	private unsafe void ProcessIncomingMessages( in ISteamNetworkingMessages net, int channel )
-	{
-		var ptr = stackalloc IntPtr[Networking.ReceiveBatchSize];
-		var maxIncoming = Networking.ReceiveBatchSizePerTick;
-		var totalReceived = 0;
-
-		while ( true )
-		{
-			var count = net.ReceiveMessagesOnChannel( channel, (IntPtr)ptr, Networking.ReceiveBatchSize );
-			if ( count == 0 ) return;
-
-			for ( var i = 0; i < count; i++ )
-			{
-				var msg = Unsafe.Read<SteamNetworkMessage>( (void*)ptr[i] );
-
-				var data = GC.AllocateUninitializedArray<byte>( msg.Size );
-				Marshal.Copy( (IntPtr)msg.Data, data, 0, data.Length );
-
-				var m = new IncomingMessage
-				{
-					SteamId = msg.IdentitySteamId,
-					Data = data
-				};
-
-				IncomingMessages.Writer.TryWrite( m );
-				net.ReleaseMessage( ptr[i] );
-			}
-
-			totalReceived += count;
-
-			if ( maxIncoming > 0 && totalReceived >= maxIncoming )
-				return;
-		}
-	}
-
-	/// <summary>
 	/// Send any queued outgoing messages via Steam Networking API.
 	/// </summary>
-	private unsafe void ProcessOutgoingMessage( ISteamNetworkingMessages net, in OutgoingMessage msg )
+	private unsafe void ProcessOutgoingMessage( in OutgoingMessage msg )
 	{
 		// A queued packet belongs to this connection, even if the same Steam user rejoins.
 		var target = msg.Target;
@@ -382,18 +332,17 @@ internal class SteamLobbySocket : NetworkSocket, ILobby
 
 			fixed ( byte* d = msg.Packet.Buffer )
 			{
-				var result = net.SendMessageToUser( target.Friend.Id, (IntPtr)d, msg.Packet.Length, msg.Flags, NetworkChannel );
-				if ( result == 1 )
+				var result = SteamNative.NetworkingMessages.SendMessageToUser( target.Friend.Id, (IntPtr)d, msg.Packet.Length, msg.Flags, NetworkChannel );
+				if ( result == Result.OK )
 				{
 					target.LastSendError = null;
 					target.MessagesSent++;
 					return;
 				}
 
-				var error = (Result)result;
-				if ( target.LastSendError != error )
-					Log.Warning( $"Steam send to {target.Friend.Id} in lobby {Id} failed: {error} ({result})." );
-				target.LastSendError = error;
+				if ( target.LastSendError != result )
+					Log.Warning( $"Steam send to {target.Friend.Id} in lobby {Id} failed: {result} ({(int)result})." );
+				target.LastSendError = result;
 			}
 		}
 		finally
@@ -409,31 +358,29 @@ internal class SteamLobbySocket : NetworkSocket, ILobby
 	internal override void ProcessMessagesInThread()
 	{
 		if ( _disposed ) return;
-		var net = Steam.SteamNetworkingMessages();
-		if ( !net.IsValid ) return;
+
+		if ( !SteamNative.NetworkingMessages.IsAvailable() ) return;
 
 		var maxOutgoing = Networking.MaxOutgoingMessagesPerTick;
 		var outgoingCount = 0;
 
 		while ( OutgoingMessages.Reader.TryRead( out var msg ) )
 		{
-			ProcessOutgoingMessage( net, msg );
+			ProcessOutgoingMessage( msg );
 
 			if ( maxOutgoing > 0 && ++outgoingCount >= maxOutgoing )
 				break;
 		}
 
-		ProcessIncomingMessages( net, NetworkChannel );
+		IncomingSteamMessage.Receive( IncomingMessages.Writer, NetworkChannel, SteamNative.NetworkingMessages.ReceiveMessagesOnChannel );
 	}
 
 	internal override void GetIncomingMessages( NetworkSystem.MessageHandler handler )
 	{
 		while ( IncomingMessages.Reader.TryRead( out var msg ) )
 		{
-			if ( !Connections.TryGetValue( msg.SteamId, out var connection ) )
-				continue;
-
-			connection.OnRawPacketReceived( msg.Data, handler );
+			Connections.TryGetValue( msg.SteamId, out var connection );
+			msg.Dispatch( connection, handler );
 		}
 	}
 
@@ -444,18 +391,14 @@ internal class SteamLobbySocket : NetworkSocket, ILobby
 
 		UpdateOwnerFromLobby();
 
-		var sw = Steam.SteamMatchmaking();
-		var cc = sw.GetNumLobbyMembers( Id );
-		var list = new List<ulong>();
-
-		for ( var i = 0; i < cc; i++ )
+		var members = SteamLobby.GetMemberIds();
+		foreach ( var member in members )
 		{
-			var member = sw.GetLobbyMemberByIndex( Id, i );
-			list.Add( member );
-			AddConnection( member );
+			if ( member != 0 )
+				AddConnection( member );
 		}
 
-		var toRemove = Connections.Values.Where( x => !list.Contains( x.Friend.Id ) ).ToArray();
+		var toRemove = Connections.Values.Where( x => !members.Contains( x.Friend.Id ) ).ToArray();
 
 		foreach ( var c in toRemove )
 		{
@@ -494,8 +437,8 @@ internal class SteamLobbySocket : NetworkSocket, ILobby
 			return;
 
 		pingLocationOwner = Owner.Id;
-		var utils = Steam.SteamNetworkingUtils();
-		var location = utils.IsValid ? utils.GetLocalPingLocationString() : null;
+
+		var location = SteamNative.NetworkingUtils.GetLocalPingLocationString();
 		var metadata = LobbyPing.CreateMetadata( Owner.Id, location );
 
 		if ( metadata is null )
@@ -555,16 +498,13 @@ internal class SteamLobbySocket : NetworkSocket, ILobby
 		}
 	}
 
-	internal override void OnSessionFailed( SteamId steamId, int reasonCode, string reason )
+	internal void OnSessionFailed( SteamId steamId, SteamSessionStatus failure )
 	{
 		if ( Connections.TryGetValue( steamId, out var connection ) )
 		{
-			connection.OnSessionFailed( new( ConnectionState.ProblemDetectedLocally, reasonCode, reason ) );
-			Log.Warning( $"Steam session failed in lobby {Id}, peer {steamId}: {connection.SessionFailure}" );
-			return;
+			connection.OnSessionFailed( failure );
+			Log.Warning( $"Steam session failed in lobby {Id}, peer {steamId}: {failure}" );
 		}
-
-		Log.Warning( $"SteamLobbySocket - Invalid Network Session (Recipient: {steamId})" );
 	}
 
 	internal string DescribeConnectionFailure( double elapsed )
@@ -659,10 +599,5 @@ internal class SteamLobbySocket : NetworkSocket, ILobby
 
 		Log.Info( "Lobby owner changed while connecting - restarting handshake" );
 		System.RestartHandshake();
-	}
-
-	void ILobby.OnMemberMessage( Friend friend, ByteStream stream )
-	{
-		throw new NotImplementedException();
 	}
 }

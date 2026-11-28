@@ -1,9 +1,7 @@
 ﻿using NativeEngine;
 using Sandbox.Engine;
 using Sandbox.Platform;
-using Steamworks;
-using Steamworks.Data;
-using System.Runtime.CompilerServices;
+using Sandbox.SteamApi;
 
 namespace Sandbox;
 
@@ -110,8 +108,6 @@ partial class PartyRoom
 		bs.Write( MessageIdentity.VoiceMessage );
 		bs.WriteArray( packet );
 
-		var flags = Defines.k_nSteamNetworkingSend_Reliable | Defines.k_nSteamNetworkingSend_AutoRestartBrokenSession;
-
 		foreach ( var friend in Members )
 		{
 			if ( friend.IsMe ) continue;
@@ -120,55 +116,48 @@ partial class PartyRoom
 			{
 				fixed ( byte* pData = bs.ToSpan() )
 				{
-					Steam.SteamNetworkingMessages().SendMessageToUser( friend.Id, (IntPtr)pData, bs.Length, flags, NetworkChannel );
+					SteamNative.NetworkingMessages.SendMessageToUser( friend.Id, (IntPtr)pData, bs.Length, NetFlags.Reliable, NetworkChannel );
 				}
 			}
 		}
 
-		ReceivePacket( new Friend( SteamClient.SteamId ), packet );
+		ReceivePacket( new Friend( SteamClient.SteamId.ValueUnsigned ), packet );
 	}
 
 	private unsafe void ReadVoiceChannel()
 	{
-		var net = Steam.SteamNetworkingMessages();
-
-		int batchSize = 8;
-		IntPtr* ptr = stackalloc IntPtr[batchSize];
+		const int batchSize = 8;
+		nint* messages = stackalloc nint[batchSize];
 
 		while ( true )
 		{
-			int count = net.ReceiveMessagesOnChannel( NetworkChannel, (IntPtr)ptr, batchSize );
-			if ( count == 0 )
+			var count = SteamNative.NetworkingMessages.ReceiveMessagesOnChannel( NetworkChannel, (nint)messages, batchSize );
+			if ( count <= 0 )
 				break;
 
-			for ( int i = 0; i < count; i++ )
+			try
 			{
-				var msg = Unsafe.Read<Network.SteamNetworkMessage>( (void*)ptr[i] );
-				var friend = new Friend( msg.IdentitySteamId );
-
-				try
+				for ( int i = 0; i < count; i++ )
 				{
+					var buffer = SteamNative.NetworkingMessages.GetMessageData( messages[i], out var size, out _, out var steamId );
+					var friend = new Friend( steamId );
 					if ( !Members.Any( x => x.Id == friend.Id ) )
 					{
 						Log.Trace( $"Dropping message from {friend} not in party" );
 						continue;
 					}
 
-					using var data = new ByteStream( msg.Data, msg.Size );
-
-					var iMessageType = data.Read<MessageIdentity>();
-
-					if ( iMessageType == MessageIdentity.VoiceMessage )
+					using var data = new ByteStream( (byte*)buffer, size );
+					if ( data.Read<MessageIdentity>() == MessageIdentity.VoiceMessage )
 					{
 						var voicePacket = data.ReadArraySpan<byte>( VoiceManager.MaxPacketLength );
-
 						ReceivePacket( friend, voicePacket );
 					}
 				}
-				finally
-				{
-					net.ReleaseMessage( ptr[i] );
-				}
+			}
+			finally
+			{
+				SteamNative.NetworkingMessages.ReleaseMessages( (nint)messages, count );
 			}
 		}
 	}

@@ -1,4 +1,4 @@
-﻿using Steamworks;
+﻿using Sandbox.SteamApi;
 
 namespace Sandbox.Network;
 
@@ -23,30 +23,29 @@ internal static partial class SteamNetwork
 		return Networking.System is not null;
 	}
 
-	internal static void OnSessionEstablished( ulong steamId )
+	internal static void OnSessionAccepted( ulong steamId )
 	{
-		var ourSteamId = SteamClient.SteamId;
 		var e = new Api.Events.EventRecord( "SteamNetwork.SessionEstablished" );
-		e.SetValue( "LocalSteamId", ourSteamId );
+		e.SetValue( "LocalSteamId", new { IsValid = SteamClient.SteamId.ValueUnsigned != 0 } );
 		e.SetValue( "RemoteSteamId", steamId );
 		e.Submit();
 	}
 
-	internal static void OnSessionFailed( HSteamListenSocket socketHandle, ulong steamId, int reasonCode, string reason )
+	internal static void OnSessionFailed( ulong steamId, SteamSessionStatus failure )
 	{
 		var system = Networking.System;
 		if ( system is null ) return;
 
-		var ourSteamId = SteamClient.SteamId;
 		var e = new Api.Events.EventRecord( "SteamNetwork.SessionFailed" );
-		e.SetValue( "ReasonCode", reasonCode );
-		e.SetValue( "LocalSteamId", ourSteamId );
+		e.SetValue( "ReasonCode", failure.Reason );
+		e.SetValue( "LocalSteamId", new { IsValid = SteamClient.SteamId.ValueUnsigned != 0 } );
 		e.SetValue( "RemoteSteamId", steamId );
 		e.Submit();
 
 		foreach ( var socket in system.Sockets )
 		{
-			socket.OnSessionFailed( steamId, reasonCode, reason );
+			if ( socket is SteamLobbySocket lobby )
+				lobby.OnSessionFailed( steamId, failure );
 		}
 	}
 

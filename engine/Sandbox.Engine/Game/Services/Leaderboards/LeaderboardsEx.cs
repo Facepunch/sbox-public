@@ -133,7 +133,7 @@ public static partial class Leaderboards
 
 			try
 			{
-				var targetId = TargetSteamId != 0 ? TargetSteamId : (long)Steamworks.SteamClient.SteamId.Value;
+				var targetId = TargetSteamId != 0 ? TargetSteamId : (long)Sandbox.SteamApi.SteamClient.SteamId.Value;
 				var result = await Backend.Leaderboards.Query( query.PackageIdent, query.Stat, query );
 
 				if ( result is null )

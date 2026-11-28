@@ -37,7 +37,7 @@ public static partial class Stats
 	/// <summary>
 	/// Get the global stats for this package
 	/// </summary>
-	public static PlayerStats GetLocalPlayerStats( string packageIdent ) => GetPlayerStats( packageIdent, (long)Steamworks.SteamClient.SteamId.Value );
+	public static PlayerStats GetLocalPlayerStats( string packageIdent ) => GetPlayerStats( packageIdent, (long)Sandbox.SteamApi.SteamClient.SteamId.Value );
 
 	/// <summary>
 	/// Get the stats for this package

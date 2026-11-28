@@ -137,7 +137,7 @@ internal static class EngineLoop
 	{
 		ThreadSafe.AssertIsMainThread();
 
-		RunSteamCallbacks();
+		SteamNative.Runtime.RunCallbacks();
 
 		//
 		// Update performance stats (should be called every frame)
@@ -243,15 +243,6 @@ internal static class EngineLoop
 		PartyRoom.Current?.Tick();
 
 		Audio.AudioEngine.Tick();
-	}
-
-	/// <summary>
-	/// Let the Steam API and Steam Game Server API think
-	/// </summary>
-	internal static void RunSteamCallbacks()
-	{
-		NativeEngine.Steam.SteamGameServer_RunCallbacks();
-		NativeEngine.Steam.SteamAPI_RunCallbacks();
 	}
 
 	public static void RunAsyncTasks()

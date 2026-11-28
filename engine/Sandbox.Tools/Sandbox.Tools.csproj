@@ -26,7 +26,6 @@
     <ProjectReference Include="../Sandbox.Compiling/Sandbox.Compiling.csproj" />
     <ProjectReference Include="../Sandbox.ContentBuild/Sandbox.ContentBuild.csproj" />
     <ProjectReference Include="../Sandbox.Engine/Sandbox.Engine.csproj" />
-    <ProjectReference Include="../Sandbox.Event/Sandbox.Event.csproj" />
     <ProjectReference Include="../Sandbox.GameInstance/Sandbox.GameInstance.csproj" />
     <ProjectReference Include="../Sandbox.Reflection/Sandbox.Reflection.csproj" />
   </ItemGroup>

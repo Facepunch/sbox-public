@@ -14,7 +14,7 @@ public static class Screenshots
 		{
 			fixed ( byte* p = rgbData )
 			{
-				return NativeEngine.SteamScreenshots.WriteScreenshot( (IntPtr)p, (uint)rgbData.Length, width, height );
+				return SteamNative.Screenshots.WriteScreenshot( (IntPtr)p, (uint)rgbData.Length, width, height );
 			}
 		}
 	}

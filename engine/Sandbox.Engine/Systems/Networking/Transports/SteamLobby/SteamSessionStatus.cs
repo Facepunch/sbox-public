@@ -1,23 +1,13 @@
-using NativeEngine;
-using Steamworks;
-using System.Text;
+using Sandbox.SteamApi;
 
 namespace Sandbox.Network;
 
 internal readonly record struct SteamSessionStatus( ConnectionState State, int Reason, string Detail )
 {
-	internal static unsafe SteamSessionStatus Read( ulong peer )
+	internal static SteamSessionStatus Read( ulong peer )
 	{
-		var net = Steam.SteamNetworkingMessages();
-		if ( !net.IsValid ) return new( ConnectionState.None, 0, "Steam networking is unavailable." );
-		var buffer = new byte[256];
-		int reason = 0;
-		fixed ( byte* ptr = buffer )
-		{
-			var state = net.GetSessionState( peer, (IntPtr)(&reason), (IntPtr)ptr );
-			var length = Array.IndexOf( buffer, (byte)0 );
-			return new( (ConnectionState)state, reason, Encoding.UTF8.GetString( buffer, 0, length < 0 ? buffer.Length : length ) );
-		}
+		var state = SteamNative.NetworkingMessages.GetSessionStatus( peer, out var reason, out var detail );
+		return new( state, reason, detail );
 	}
 
 	internal string DescribeTimeout( double elapsed, string sendFailure = null )

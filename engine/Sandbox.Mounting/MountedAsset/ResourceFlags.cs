@@ -4,6 +4,7 @@
 /// Allows hinting about resources, how they can be used
 /// </summary>
 [Flags]
+[Expose]
 public enum ResourceFlags
 {
 	/// <summary>

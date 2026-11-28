@@ -48,7 +48,7 @@ public static class Standalone
 		//
 		// Init Steam
 		//
-		Steamworks.SteamClient.Init( (int)Application.AppId );
+		Sandbox.SteamApi.SteamClient.Init();
 	}
 
 	/// <summary>

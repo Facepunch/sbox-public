@@ -386,7 +386,6 @@ internal static class HotloadExtensions
 		{
 			hotload.WatchAssembly( "Sandbox.Engine" );
 			hotload.WatchAssembly( "Sandbox.System" );
-			hotload.WatchAssembly( typeof( Sandbox.Internal.EventSystem ).Assembly );
 		}
 
 		/// <summary>

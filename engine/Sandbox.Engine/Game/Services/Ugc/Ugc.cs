@@ -1,3 +1,5 @@
+using Sandbox.SteamApi;
+
 namespace Sandbox.Services;
 
 /// <summary>
@@ -7,36 +9,23 @@ internal static partial class Ugc
 {
 	internal static Task<UgcPublisher> CreateCommunityItem()
 	{
-		var item = NativeEngine.CUgcUpdate.CreateCommunityItem();
-		return FinishCreatingItem( item );
+		return FinishCreatingItem( SteamClient.IsValid ? SteamNative.WorkshopUpdate.CreateCommunityItem() : 0 );
 	}
 
 	internal static Task<UgcPublisher> CreateMtxItem()
 	{
-		var item = NativeEngine.CUgcUpdate.CreateMtxItem();
-		return FinishCreatingItem( item );
+		return FinishCreatingItem( SteamClient.IsValid ? SteamNative.WorkshopUpdate.CreateMtxItem() : 0 );
 	}
 
-	static async Task<UgcPublisher> FinishCreatingItem( NativeEngine.CUgcUpdate item )
+	static async Task<UgcPublisher> FinishCreatingItem( ulong call )
 	{
-		while ( item.m_creating )
-		{
-			await Task.Delay( 10 );
-		}
-
-		if ( !item.m_created )
-		{
-			Log.Warning( $"Couldn't create item {item.m_resultCode}\n" );
-			((IDisposable)item).Dispose();
-			return null;
-		}
-
-		return new UgcPublisher( item );
+		var item = await SteamCalls.GetResultAsync( call, SteamNative.WorkshopUpdate.GetCreatedItem );
+		return item.IsNull ? null : new UgcPublisher( item );
 	}
 
 	internal static UgcPublisher OpenItem( ulong itemId )
 	{
-		var item = NativeEngine.CUgcUpdate.OpenCommunityItem( itemId );
+		var item = SteamNative.WorkshopUpdate.OpenCommunityItem( itemId );
 		return new UgcPublisher( item );
 	}
 

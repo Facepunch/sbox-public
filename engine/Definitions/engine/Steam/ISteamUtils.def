@@ -1,9 +1,0 @@
-include "steam/isteamutils.h"
-
-native enum ETextFilteringContext as Steamworks.TextFilteringContext;
-
-native class ISteamUtils
-{
-	bool InitFilterText( uint unFilterOptions );
-	int FilterText( Steamworks.TextFilteringContext eContext, ulong sourceSteamID, string pchInputMessage, CastTo[char*] void* pchOutFilteredText, uint nByteSizeOutFilteredText );
-}

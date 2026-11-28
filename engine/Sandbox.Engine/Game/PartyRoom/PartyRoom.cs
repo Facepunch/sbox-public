@@ -1,8 +1,7 @@
 using Sandbox.Engine;
 using Sandbox.Modals;
 using Sandbox.Network;
-using Steamworks;
-using Steamworks.Data;
+using Sandbox.SteamApi;
 using System.Globalization;
 
 namespace Sandbox;
@@ -17,12 +16,12 @@ public partial class PartyRoom : ILobby
 	/// </summary>
 	public static PartyRoom Current { get; private set; }
 
-	Steamworks.Data.Lobby steamLobby;
+	Sandbox.SteamApi.Lobby steamLobby;
 
 	/// <summary>
 	/// The unique identifier of this party.
 	/// </summary>
-	public SteamId Id => steamLobby.Id.Value;
+	public SteamId Id => steamLobby.Id;
 
 	/// <summary>
 	/// The server this party is playing on, if any. This is set by the owner of the party, and read by clients to know where to connect to.
@@ -69,7 +68,7 @@ public partial class PartyRoom : ILobby
 
 	static string GetDisplayName( Lobby lobby )
 	{
-		var name = Utility.Steam.FilterChat( lobby.GetData( "name" ), new SteamId( lobby.Owner.Id.Value ) );
+		var name = Utility.Steam.FilterChat( lobby.GetData( "name" ), lobby.Owner.Id );
 		return string.IsNullOrWhiteSpace( name ) ? "Party" : name;
 	}
 
@@ -261,7 +260,7 @@ public partial class PartyRoom : ILobby
 	/// </summary>
 	public static async Task<PartyRoom> Create( int maxMembers, string name, bool ispublic )
 	{
-		var lobby = await Steamworks.SteamMatchmaking.CreateLobbyAsync( ispublic ? LobbyType.Public : LobbyType.Private, maxMembers );
+		var lobby = await Sandbox.SteamApi.SteamMatchmaking.CreateLobbyAsync( ispublic ? LobbyType.Public : LobbyType.Private, maxMembers );
 
 		if ( !lobby.HasValue )
 		{
@@ -360,7 +359,7 @@ public partial class PartyRoom : ILobby
 	/// <summary>
 	/// A list of members in this party.
 	/// </summary>
-	public IEnumerable<Friend> Members => steamLobby.Members.Select( x => new Friend( x ) );
+	public IEnumerable<Friend> Members => steamLobby.Members;
 
 	/// <summary>
 	/// The current party leader.
@@ -372,8 +371,7 @@ public partial class PartyRoom : ILobby
 	/// </summary>
 	public static async Task<Entry[]> Find()
 	{
-		var found = await Steamworks.SteamMatchmaking.LobbyList
-			.FilterDistanceWorldwide()
+		var found = await Sandbox.SteamApi.SteamMatchmaking.LobbyList
 			.WithMaxResults( 1000 )
 			.WithKeyValue( "lobby_type", "party" )
 			.WithSlotsAvailable( 1 )
@@ -469,7 +467,7 @@ public partial class PartyRoom : ILobby
 
 	void UpdateLobbyData()
 	{
-		Owner = new Friend( steamLobby.Owner );
+		Owner = steamLobby.Owner;
 	}
 
 

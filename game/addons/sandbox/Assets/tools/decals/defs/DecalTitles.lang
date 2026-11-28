@@ -1,0 +1,123 @@
+{
+  "@prefix": "asset.decal",
+  "alien01.title": {
+    "en": "Alien 01"
+  },
+  "alien02.title": {
+    "en": "Alien 02"
+  },
+  "brb.title": {
+    "en": "BRB"
+  },
+  "collection01.title": {
+    "en": "Collection 01"
+  },
+  "collection02.title": {
+    "en": "Collection 02"
+  },
+  "collection03.title": {
+    "en": "Collection 03"
+  },
+  "die01.title": {
+    "en": "Die 01"
+  },
+  "doug.title": {
+    "en": "Doug"
+  },
+  "from.title": {
+    "en": "From"
+  },
+  "hearts01.title": {
+    "en": "Hearts 01"
+  },
+  "io.title": {
+    "en": "IO"
+  },
+  "king.title": {
+    "en": "King"
+  },
+  "mind.title": {
+    "en": "Mind"
+  },
+  "ouioui.title": {
+    "en": "Oui Oui"
+  },
+  "peace.title": {
+    "en": "Peace"
+  },
+  "quack.title": {
+    "en": "Quack"
+  },
+  "scribble01.title": {
+    "en": "Scribble 01"
+  },
+  "scribble02.title": {
+    "en": "Scribble 02"
+  },
+  "scribble03.title": {
+    "en": "Scribble 03"
+  },
+  "scribble04.title": {
+    "en": "Scribble 04"
+  },
+  "scribble05.title": {
+    "en": "Scribble 05"
+  },
+  "scribble06.title": {
+    "en": "Scribble 06"
+  },
+  "scribble07.title": {
+    "en": "Scribble 07"
+  },
+  "scribble08.title": {
+    "en": "Scribble 08"
+  },
+  "scribble09.title": {
+    "en": "Scribble 09"
+  },
+  "scribble10.title": {
+    "en": "Scribble 10"
+  },
+  "scribble11.title": {
+    "en": "Scribble 11"
+  },
+  "scribble12.title": {
+    "en": "Scribble 12"
+  },
+  "scribble13.title": {
+    "en": "Scribble 13"
+  },
+  "scribble14.title": {
+    "en": "Scribble 14"
+  },
+  "scribble15.title": {
+    "en": "Scribble 15"
+  },
+  "scribble16.title": {
+    "en": "Scribble 16"
+  },
+  "scribble17.title": {
+    "en": "Scribble 17"
+  },
+  "scribble18.title": {
+    "en": "Scribble 18"
+  },
+  "scribble19.title": {
+    "en": "Scribble 19"
+  },
+  "scribble20.title": {
+    "en": "Scribble 20"
+  },
+  "smilie.title": {
+    "en": "Smilie"
+  },
+  "stuff.title": {
+    "en": "Stuff"
+  },
+  "time.title": {
+    "en": "Time"
+  },
+  "zap.title": {
+    "en": "Zap"
+  }
+}
