@@ -80,7 +80,7 @@ public abstract class SpawnlistsPage : BaseSpawnMenu
 				Icon = resource.Icon ?? "collections_bookmark",
 				IconTexture = resource.IconImage,
 				Name = resource.DisplayName,
-				Key = resource.ResourcePath,
+				Key = resource.ResourcePath ?? $"mounted:{resource.RequiredMount}/{resource.DisplayName}",
 				Tokenize = false,
 				PanelCreator = () => new SpawnlistView { Resource = resource }
 			} );
