@@ -7,7 +7,7 @@ namespace Sandbox;
 [Category( "Audio" )]
 [Title( "Sound Point" )]
 [Icon( "volume_up" )]
-[EditorHandle( "materials/gizmo/sound.png" )]
+[EditorHandle( Icon = "volume_up" )]
 [Tint( EditorTint.Green )]
 public sealed class SoundPointComponent : BaseSoundComponent, Component.ITemporaryEffect
 {
