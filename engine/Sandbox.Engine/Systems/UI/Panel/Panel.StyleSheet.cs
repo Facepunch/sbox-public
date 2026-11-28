@@ -59,6 +59,18 @@ public partial class Panel
 	static readonly System.Collections.Concurrent.ConcurrentDictionary<Type, InlineStyleSheet[]> inlineStyleSheets = new();
 
 	/// <summary>
+	/// Forget package types' inline sheets (games, the menu): a cached type kept its assembly, and with it a closed game's
+	/// code and everything its statics reach, from unloading.
+	/// </summary>
+	internal static void ForgetPackageInlineStyleSheets()
+	{
+		foreach ( var type in inlineStyleSheets.Keys )
+		{
+			if ( Sandbox.Internal.IsolatedAssemblyContext.IsPackageType( type ) ) inlineStyleSheets.TryRemove( type, out _ );
+		}
+	}
+
+	/// <summary>
 	/// Every [StyleSheet.Inline] declared on <paramref name="type"/> and on the types it derives
 	/// from, base first.
 	/// </summary>

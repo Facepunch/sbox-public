@@ -263,7 +263,14 @@ static class StartupLoadProject
 			if ( Sandbox.Application.IsUnitTest )
 				return true;
 
-			await GameInstanceDll.Current.LoadGamePackageAsync( project.Package.FullIdent, GameLoadingFlags.Host | GameLoadingFlags.Reload, ct );
+			var gameIdent = project.Package.FullIdent;
+			if ( project.Config.Type == "map" && !string.IsNullOrWhiteSpace( parentPackage ) )
+			{
+				LaunchArguments.Map = project.Package.FullIdent;
+				gameIdent = parentPackage;
+			}
+
+			await GameInstanceDll.Current.LoadGamePackageAsync( gameIdent, GameLoadingFlags.Host | GameLoadingFlags.Reload, ct );
 		}
 
 
@@ -387,6 +394,7 @@ static class StartupLoadProject
 		options.ConsoleOutput = false;
 
 		FastTimer timer = FastTimer.StartNew();
+		using var includeCache = Sandbox.Engine.Shaders.ShaderCompile.BeginIncludeCache( batch: true );
 		for ( int i = 0; i < gr.Length; i++ )
 		{
 			var (asset, sourcePath) = gr[i];

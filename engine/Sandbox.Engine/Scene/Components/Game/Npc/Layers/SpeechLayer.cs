@@ -54,13 +54,9 @@ public class SpeechLayer : BaseNpcLayer
 		if ( !soundFile.IsValid() ) return false;
 		var speechDuration = GetSoundDuration( soundFile, o.Duration ?? 0f );
 
-		var system = Npc.Scene.GetSystem<NpcSystem>();
-		if ( !system.TryBeginSpeech( Npc, speechDuration, o.Tags, o.Priority, o.Radius ) )
+		if ( !BeginLine( o, speechDuration ) )
 			return false;
 
-		StopPlayback( releaseReservation: false );
-		_hasSpeechReservation = true;
-		_speechTarget = o.LookAt;
 		MarkSoundPlayed( sound, soundFile );
 
 		PlaySound( soundFile, sound.Volume.GetValue(), sound.Pitch.GetValue() );
@@ -70,7 +66,19 @@ public class SpeechLayer : BaseNpcLayer
 			CurrentSpeech = o.Subtitle;
 		}
 
-		_speechEnd = speechDuration;
+		return true;
+	}
+
+	// The speech around the NPC lets the line through: it takes over from whatever it was saying
+	private bool BeginLine( in SpeechOptions o, float duration )
+	{
+		if ( !Npc.Scene.GetSystem<NpcSystem>().TryBeginSpeech( Npc, duration, o.Tags, o.Priority, o.Radius ) )
+			return false;
+
+		StopPlayback( releaseReservation: false );
+		_hasSpeechReservation = true;
+		_speechTarget = o.LookAt;
+		_speechEnd = duration;
 		_lastSpoke = 0;
 		return true;
 	}
@@ -115,16 +123,10 @@ public class SpeechLayer : BaseNpcLayer
 			return TrySay( FallbackSound, o with { Subtitle = message, Duration = duration } );
 		}
 
-		var system = Npc.Scene.GetSystem<NpcSystem>();
-		if ( !system.TryBeginSpeech( Npc, duration, o.Tags, o.Priority, o.Radius ) )
+		if ( !BeginLine( o, duration ) )
 			return false;
 
-		StopPlayback( releaseReservation: false );
-		_hasSpeechReservation = true;
-		_speechTarget = o.LookAt;
 		CurrentSpeech = message;
-		_speechEnd = duration;
-		_lastSpoke = 0;
 		return true;
 	}
 

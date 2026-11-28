@@ -106,7 +106,7 @@ public static partial class MenuUtility
 		var id = await GetWorkshopIdAsync( package );
 		if ( id == 0 ) return false;
 
-		if ( !Steamworks.SteamFriends.OpenWebOverlay( Workshop.GetUrl( id ) ) )
+		if ( !Sandbox.SteamApi.SteamFriends.OpenWebOverlay( Workshop.GetUrl( id ) ) )
 			OpenUrl( $"steam://url/CommunityFilePage/{id}" );
 
 		return true;
@@ -136,7 +136,7 @@ public static partial class MenuUtility
 		var owners = items.Where( x => x?.Owner is not null ).Select( x => (ulong)x.Owner.Id.Value ).Distinct().ToArray();
 
 		RealTimeSince waiting = 0;
-		while ( owners.Count( x => Steamworks.SteamFriends.RequestUserInformation( x ) ) > 0 && waiting < 2 )
+		while ( owners.Count( x => Sandbox.SteamApi.SteamFriends.RequestUserInformation( x ) ) > 0 && waiting < 2 )
 			await Task.Delay( 50 );
 	}
 

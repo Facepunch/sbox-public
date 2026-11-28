@@ -234,6 +234,8 @@ file class CustomBuildPanel : Panel
 		this.buildHash = buildHash;
 	}
 
+	internal override Type ProfileScopeType => component?.GetType() ?? GetType();
+
 	protected override void BuildRenderTree( RenderTreeBuilder v ) => treeBuilder?.Invoke( v );
 	protected override void OnAfterTreeRender( bool firstTime ) => treeRendered?.Invoke( firstTime );
 	protected override string GetRenderTreeChecksum() => treeChecksum?.Invoke() ?? "";

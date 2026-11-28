@@ -9,6 +9,11 @@ namespace Sandbox.UI;
 /// </summary>
 public partial class RootPanel : Panel
 {
+	static readonly ProfileScope CpuLayout = new( "UI.RootLayout" );
+	static readonly ProfileScope CpuPreLayout = new( "UI.PreLayout" );
+	static readonly ProfileScope CpuStyleRules = new( "UI.BuildStyleRules" );
+	static readonly ProfileScope CpuPostLayout = new( "UI.FinalLayout" );
+
 	/// <summary>
 	/// Bounds of the panel, i.e. its size and position on the screen.
 	/// </summary>
@@ -19,6 +24,11 @@ public partial class RootPanel : Panel
 	/// this will be set to true.
 	/// </summary>
 	internal bool ChildrenWantMouseInput { get; set; }
+
+	/// <summary>
+	/// The mouse wheel moves this root's scrollable panels a fixed step at once, without the eased glide. For tools UI.
+	/// </summary>
+	internal bool ImmediateWheelScroll { get; set; }
 
 	/// <summary>
 	/// The scale of this panel and its children.
@@ -121,14 +131,15 @@ public partial class RootPanel : Panel
 	{
 		base.AddToLists();
 
-		Sandbox.Internal.IPanel.InspectablePanels.Add( this );
+		// Root panels are made on more than one thread (tests run in parallel), so the shared set is changed under a lock
+		lock ( Sandbox.Internal.IPanel.InspectablePanels ) Sandbox.Internal.IPanel.InspectablePanels.Add( this );
 	}
 
 	internal override void RemoveFromLists()
 	{
 		base.RemoveFromLists();
 
-		Sandbox.Internal.IPanel.InspectablePanels.Remove( this );
+		lock ( Sandbox.Internal.IPanel.InspectablePanels ) Sandbox.Internal.IPanel.InspectablePanels.Remove( this );
 	}
 
 	/// <summary>
@@ -136,6 +147,7 @@ public partial class RootPanel : Panel
 	/// </summary>
 	internal void Layout()
 	{
+		using var cpu = CpuLayout.Start();
 		TickInternal();
 		PreLayout();
 		CalculateLayout();
@@ -195,6 +207,7 @@ public partial class RootPanel : Panel
 
 	internal void PreLayout()
 	{
+		using var cpu = CpuPreLayout.Start();
 		var started = Stopwatch.GetTimestamp();
 		var cascade = new LayoutCascade
 		{
@@ -244,6 +257,7 @@ public partial class RootPanel : Panel
 
 	internal void PostLayout()
 	{
+		using var cpu = CpuPostLayout.Start();
 		var started = Stopwatch.GetTimestamp();
 		PushRootValues();
 		FinalLayout( Vector2.Zero );
@@ -352,6 +366,7 @@ public partial class RootPanel : Panel
 		if ( styleRuleUpdates.Count == 0 )
 			return;
 
+		using var cpu = CpuStyleRules.Start();
 		var timer = FastTimer.StartNew();
 		int count = styleRuleUpdates.Count;
 		_styleRuleChanges = 0;

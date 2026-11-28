@@ -148,6 +148,8 @@ public static class ToastManager
 	[EditorEvent.Frame]
 	public static void Tick()
 	{
+		// Nothing to place (the usual frame): don't ask the window for its geometry
+		if ( Entries.Count == 0 ) return;
 		if ( !EditorWindow.IsValid() ) return;
 
 		var rect = EditorWindow.ScreenGeometry.Shrink( 16 );

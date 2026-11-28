@@ -33,8 +33,11 @@ public class ProcessorListWidget : Widget
 	[EditorEvent.Frame]
 	public void Frame()
 	{
-		SetContentHash( ContentHash, 0.3f );
+		SetContentHash( contentHash ??= ContentHash, 0.3f );
 	}
+
+	// Made once: passing the method itself would make a delegate each call
+	Func<int> contentHash;
 
 	int ContentHash()
 	{
@@ -86,8 +89,11 @@ public class ProcessorWidget : Widget
 	[EditorEvent.Frame]
 	public void Frame()
 	{
-		SetContentHash( ContentHash, 0.1f );
+		SetContentHash( contentHash ??= ContentHash, 0.1f );
 	}
+
+	// Made once: passing the method itself would make a delegate each call
+	Func<int> contentHash;
 
 	int ContentHash()
 	{

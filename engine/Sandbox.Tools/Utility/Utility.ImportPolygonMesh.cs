@@ -57,7 +57,9 @@ public static partial class EditorUtility
 		{
 			var name = source.GetFaceGroupMaterial( i );
 			if ( string.IsNullOrWhiteSpace( name ) ) continue;
-			var materialPath = Path.ChangeExtension( name, ".vmat" );
+			var materialPath = name.EndsWith( ".vmat_c", StringComparison.OrdinalIgnoreCase )
+				? name[..^2]
+				: name.EndsWith( ".vmat", StringComparison.OrdinalIgnoreCase ) ? name : $"{name}.vmat";
 			var asset = AssetSystem.FindByPath( materialPath ) ?? AssetSystem.FindByPath( Path.Combine( Path.GetDirectoryName( path ) ?? "", materialPath ) );
 			materials[i] = asset?.LoadResource<Material>();
 		}

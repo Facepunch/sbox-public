@@ -52,6 +52,8 @@ public class NpcDropTests
 		var walked = false;
 		var fell = false;
 		var previous = npc.WorldPosition;
+		var wasGrounded = true;
+		NavMeshLinkType wasTraversal = null;
 		for ( var i = 0; i < 1000; i++ )
 		{
 			scene.GameTick( 0.02f );
@@ -61,13 +63,16 @@ public class NpcDropTests
 			previous = p;
 			approachFrames = navigation.IsTraversingLink && MathF.Abs( delta.z ) < 0.001f && delta.WithZ( 0 ).Length > 0.1f ? approachFrames + 1 : 0;
 			fallingFrames = navigation.IsTraversingLink && delta.z < -0.1f ? fallingFrames + 1 : 0;
-			// Allow two frames for the pose to settle at each phase boundary.
-			if ( approachFrames > 2 )
+			// Allow two frames for the pose to settle at each phase boundary. The fall leaves the edge at no vertical
+			// speed, so its first frame can look as flat as the approach: judge the frame before it.
+			if ( approachFrames > 3 )
 			{
 				walked = true;
-				Assert.IsTrue( npc.Animation.IsGrounded, "Walking approach" );
-				Assert.IsNull( npc.Animation.Traversal );
+				Assert.IsTrue( wasGrounded, "Walking approach" );
+				Assert.IsNull( wasTraversal );
 			}
+			wasGrounded = npc.Animation.IsGrounded;
+			wasTraversal = npc.Animation.Traversal;
 			if ( fallingFrames > 2 )
 			{
 				fell = true;

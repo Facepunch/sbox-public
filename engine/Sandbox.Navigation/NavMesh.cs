@@ -1,19 +1,15 @@
 using System.Numerics;
-using System.Runtime.InteropServices;
-using Nav.Build;
 
 namespace Nav;
 
 /// <summary>
 /// The tiles and links of one navigation world for one or more agent types, the volumes that mark
-/// areas on it, and the rebuild cache: the eroded field of every tile a volume overlaps, kept so that a
-/// volume change rebuilds the tile without its triangles. One owner thread changes it, any number of
-/// threads query it without locks: every Commit swaps in new immutable states. Everything that marks,
-/// takes, commits, adds, sets or removes belongs on the owner thread.
-/// Each agent type has settings, tiles, jobs and generated links of its own; the types share the
-/// geometry, the volumes, the links placed by the caller, the commit and the bake. A call that is about
-/// one type's tiles or links has a form that names the type; its form without one is for a mesh of one
-/// agent type and throws on a mesh of several.
+/// areas on it, and the rebuild cache (the eroded field of every tile a volume overlaps). One owner thread
+/// marks, takes, commits, adds, sets and removes; any number of threads query without locks, since every
+/// Commit swaps in new immutable states.
+/// Each agent type has its own settings, tiles, jobs and generated links; the types share the geometry,
+/// volumes, caller links, commit and bake. A call without an agent type is for a mesh of one type and
+/// throws on a mesh of several.
 /// Setting a link or volume id that is not in use throws; removing one does nothing.
 /// </summary>
 public sealed partial class NavMesh
@@ -37,9 +33,8 @@ public sealed partial class NavMesh
 	}
 
 	/// <summary>
-	/// A mesh of 1 to MaxAgentTypes agent types, numbered in the order given. Throws for none, more, or a
-	/// type whose settings or link settings are not valid. The types' settings are independent of each
-	/// other: cell sizes, tile sizes and polygon limits may all differ.
+	/// A mesh of 1 to MaxAgentTypes agent types, numbered in the order given, with independent settings.
+	/// Throws for none, more, or a type whose settings or link settings are not valid.
 	/// </summary>
 	public NavMesh( ReadOnlySpan<NavAgentTypeDesc> agentTypes )
 	{
@@ -100,9 +95,8 @@ public sealed partial class NavMesh
 	public (int X, int Y) GetTileAt( int agentType, Vector3 point ) => TypeAt( agentType ).GetTileAt( point );
 
 	/// <summary>
-	/// RuntimeBytes is what queries need, including the island data of one area mask. The triangle
-	/// counters are running totals over every build since the mesh was made, rebuilds included, not the
-	/// triangles of the tiles there are now. The sums over every agent type. Safe on any thread.
+	/// Sums over every agent type. RuntimeBytes is what queries need, including the island data of one area
+	/// mask. The triangle counters are running totals over every build, rebuilds included. Safe on any thread.
 	/// </summary>
 	public (int Tiles, int Polygons, int Vertices, long RuntimeBytes, long CacheBytes, long TrianglesUsed, long TrianglesRejected) GetStats()
 	{
@@ -128,13 +122,12 @@ public sealed partial class NavMesh
 	public int GetTiles( int agentType, Span<(int X, int Y)> coordinates ) => TypeAt( agentType ).GetTiles( coordinates );
 
 	/// <summary>
-	/// Appends the polygons of one tile, counter-clockwise seen from above: for consecutive vertices
-	/// a, b, c the cross product of b - a and c - b points up.
+	/// Appends the polygons of one tile, counter-clockwise seen from above.
 	/// </summary>
 	public void GetPolygons( int tileX, int tileY, List<Vector3> vertices, List<int> vertexCounts, List<byte> areas ) => Single.GetPolygons( tileX, tileY, vertices, vertexCounts, areas );
 	public void GetPolygons( int agentType, int tileX, int tileY, List<Vector3> vertices, List<int> vertexCounts, List<byte> areas ) => TypeAt( agentType ).GetPolygons( tileX, tileY, vertices, vertexCounts, areas );
 
-	// For the tests and the lab, which reach internals of a mesh of one type.
+	// For the tests and the lab.
 	internal MeshState State => Single.State;
 	internal long HeldBytes => Single.HeldBytes;
 	internal long HeldPeak => Single.HeldPeak;
@@ -143,7 +136,12 @@ public sealed partial class NavMesh
 	internal void SkipSlots( int slot ) => Single.slotCount = slot;
 	internal int MaxTiles => Single.MaxTiles;
 	internal ulong VolumeHashOf( int tileX, int tileY ) => Single.VolumeHashOf( tileX, tileY );
-	internal void SetVolumeHashes( ReadOnlySpan<Tile> tiles, ReadOnlySpan<ulong> hashes ) => Single.SetVolumeHashes( tiles, hashes );
+	internal void SetVolumeHashes( ReadOnlySpan<Tile> tiles, ReadOnlySpan<ulong> hashes )
+	{
+		var at = new (int X, int Y, ulong Hash)[tiles.Length];
+		for ( int i = 0; i < tiles.Length; i++ ) at[i] = (tiles[i].X, tiles[i].Y, hashes[i]);
+		Single.SetVolumeHashes( at );
+	}
 	internal int CommitTiles( ReadOnlySpan<Tile> tiles )
 	{
 		counted = false;

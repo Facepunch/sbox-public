@@ -444,6 +444,8 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 		ResetEnvironment();
 
 		Mounting.MountUtility.TickPreviewRenders();
+
+		ClosedGameMemory.GameClosed();
 	}
 
 	/// <summary>

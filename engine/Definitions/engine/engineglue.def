@@ -11,6 +11,8 @@ native static class EngineGlue as NativeEngine.EngineGlue
 	stable string GetStringTokenValue( uint token );
 
 	void AddSearchPath( string path, string groupid, bool head );
+	void AddPrefixedSearchPath( string path, string groupid, bool head, string prefix );
+	void MarkPathIDByRequestOnly( string groupid, bool requestOnly );
 	bool RemoveSearchPath( string path, string groupid );
 
 	ulong ApproximateProcessMemoryUsage();
@@ -33,8 +35,4 @@ native static class EngineGlue as NativeEngine.EngineGlue
 	string ReadCompiledResourceFileJsonFromFilesystem( string filename );
 
 	void SetEngineLoggingVerbose( bool verbose );
-
-	void RequestWebAuthTicket();
-	void CancelWebAuthTicket();
-	string GetWebAuthTicket();
 }

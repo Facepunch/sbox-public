@@ -43,10 +43,8 @@ internal sealed partial class MeshAgentType
 	// A link end snaps to any polygon.
 	static readonly NavFilter anyPoly = NavFilter.Create();
 
-	/// <summary>
-	/// Publishes finished tiles in one state swap. Returns how many did not fit the tile table.
-	/// A tile object that was committed before is published as a new build.
-	/// </summary>
+	// Publishes finished tiles in one state swap. Returns how many did not fit the tile table.
+	// A tile object that was committed before is published as a new build.
 	internal int CommitTiles( ReadOnlySpan<Tile> tiles )
 	{
 		foreach ( var tile in tiles ) changes.Add( new( tile.X, tile.Y, tile, null ) );

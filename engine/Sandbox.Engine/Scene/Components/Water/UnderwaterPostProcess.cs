@@ -23,7 +23,7 @@ internal sealed class UnderwaterPostProcess : BasePostProcess<UnderwaterPostProc
 	/// </summary>
 	internal double TimeOffset { get; set; }
 
-	static readonly Material ScreenMaterial = Material.FromShader( "shaders/water/underwater.shader" );
+	static Material ScreenMaterial = Material.FromShader( "shaders/water/underwater.shader" );
 
 	/// <summary>
 	/// Distort the rendered world before blur, vignette and tonemapping, preserving later UI.

@@ -22,6 +22,11 @@
 		border-radius: 7px;
 		cursor: pointer;
 
+		&.hidden-package
+		{
+			opacity: 0.65;
+		}
+
 		.thumb
 		{
 			@include ui-tile-thumb;

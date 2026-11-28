@@ -29,15 +29,15 @@ public partial class FastPathTest
 	{
 		using var local = new FastPathTestCompiler( "HelloWorld.cs" );
 		await local.BuildAsync( version: 1 );
-		var resident = local.Compiler.MetadataReference;
+		var resident = local.InMemoryCompiler.Compiler.MetadataReference;
 		var hotload = await local.BuildAsync( version: 2 );
 		Assert.IsTrue( hotload.ILHotloadSupported );
-		var build = local.Compiler.Output;
-		local.Compiler.NotifyFastHotload( build.Version );
+		var build = local.InMemoryCompiler.Compiler.Output;
+		local.InMemoryCompiler.Compiler.NotifyFastHotload( build.Version );
 
 		using var group = new CompileGroup( "server" );
-		var library = group.GetOrCreateCompiler( local.Compiler.Name );
-		library.UseCompiledArchive( build.Archive, build.AssemblyData, local.Compiler );
+		var library = group.GetOrCreateCompiler( local.InMemoryCompiler.Compiler.Name );
+		library.UseCompiledArchive( build.Archive, build.AssemblyData, local.InMemoryCompiler.Compiler );
 		Assert.IsFalse( group.NeedsBuild );
 		Assert.AreSame( resident, await group.FindReferenceAsync( library.AssemblyName, group.GetOrCreateCompiler( "game" ) ) );
 	}
@@ -122,6 +122,33 @@ public partial class FastPathTest
 		Assert.AreEqual( 1, result.ChangedMethods.Length );
 
 		Assert.AreEqual( 0, TestProgram( program ) );
+	}
+
+	/// <summary>
+	/// Adding a field generates a method to evaluate its initializer, which is gone in the next compile.
+	/// That mustn't count as a change, so a method body change straight after can still use the fast path.
+	/// </summary>
+	[TestMethod]
+	public async Task MethodBodyChangeAfterAddedField()
+	{
+		using var compiler = new FastPathTestCompiler( "AddedField.cs" );
+
+		await compiler.BuildAsync( version: 1 );
+
+		var result = await compiler.BuildAsync( version: 2 );
+
+		Assert.IsFalse( result.ILHotloadSupported );
+
+		var program = result.CreateProgram();
+
+		Assert.AreEqual( 0, TestProgram( program, "5" ) );
+
+		result = await compiler.BuildAsync( version: 3 );
+
+		Assert.IsTrue( result.ILHotloadSupported );
+		Assert.AreEqual( 1, result.ChangedMethods.Length );
+
+		Assert.AreEqual( 0, TestProgram( program, "10" ) );
 	}
 
 	private async Task MultipleChangesCore( bool sequential, params IEnumerable<string> sourceNames )

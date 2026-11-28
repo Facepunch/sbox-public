@@ -141,12 +141,25 @@ internal static class MaterialGenerator
 		if ( sets is null || string.IsNullOrWhiteSpace( slotName ) )
 			return null;
 
-		var name = Path.GetFileNameWithoutExtension( slotName.NormalizeFilename( false ) );
+		var name = Path.GetFileName( slotName.NormalizeFilename( false ) );
+		if ( name.EndsWith( ".vmat_c", StringComparison.OrdinalIgnoreCase ) )
+			name = name[..^7];
+		else if ( name.EndsWith( ".vmat", StringComparison.OrdinalIgnoreCase ) )
+			name = name[..^5];
 		if ( string.IsNullOrWhiteSpace( name ) )
 			return null;
 
 		// pick whatever shows up first, user must make sure that they don't have any texture duplicates in model's folder or subfolders
-		return sets.FirstOrDefault( x => string.Equals( x.BaseName, name, StringComparison.OrdinalIgnoreCase ) );
+		var match = sets.FirstOrDefault( x => string.Equals( x.BaseName, name, StringComparison.OrdinalIgnoreCase ) );
+		if ( match is not null )
+			return match;
+
+		// Fall back to stripping a trailing dot suffix (e.g. Blender's Wood.001 matching a Wood texture set)
+		var stem = Path.GetFileNameWithoutExtension( name );
+		if ( !string.IsNullOrEmpty( stem ) && !string.Equals( stem, name, StringComparison.OrdinalIgnoreCase ) )
+			return sets.FirstOrDefault( x => string.Equals( x.BaseName, stem, StringComparison.OrdinalIgnoreCase ) );
+
+		return null;
 	}
 
 	/// <summary>

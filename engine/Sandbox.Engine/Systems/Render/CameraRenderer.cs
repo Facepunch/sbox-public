@@ -7,6 +7,8 @@ namespace Sandbox;
 /// </summary>
 internal ref struct CameraRenderer
 {
+	static readonly ProfileScope CpuConfigure = new( "Camera.Configure" );
+
 	public CCameraRenderer Native;
 	int cameraId;
 	RenderAttributes attributes;
@@ -53,6 +55,7 @@ internal ref struct CameraRenderer
 
 	internal void Configure( SceneCamera camera, ViewSetup config )
 	{
+		using var cpu = CpuConfigure.Start();
 		var _world = camera.World;
 		var Attributes = attributes ??= RenderAttributes.Pool.Get();
 

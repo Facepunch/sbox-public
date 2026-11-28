@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Speech.Recognition;
+using System.Threading;
 
 namespace Sandbox.Speech;
 
@@ -36,6 +37,14 @@ public static class Recognition
 	/// Whether or not we are currently listening for speech.
 	/// </summary>
 	public static bool IsListening { get; private set; }
+
+	/// <summary>
+	/// Whether we're listening and hearing any sound right now, speech or not.
+	/// </summary>
+	internal static bool IsHearingSound => IsListening && Environment.TickCount64 - Volatile.Read( ref _lastHeardTime ) < 200;
+
+	// Environment.TickCount64 when the recognizer last heard anything, set from its thread
+	private static long _lastHeardTime = long.MinValue / 2;
 
 	/// <summary>
 	/// Whether or not speech recognition is supported and a language is available.
@@ -78,7 +87,8 @@ public static class Recognition
 			grammar = new DictationGrammar();
 		}
 
-		Engine = new SpeechRecognitionEngine( ri );
+		var engine = new SpeechRecognitionEngine( ri );
+		Engine = engine;
 		Engine.LoadGrammarAsync( grammar );
 		Engine.EndSilenceTimeout = TimeSpan.FromSeconds( 1f );
 		Engine.InitialSilenceTimeout = TimeSpan.FromSeconds( 3f );
@@ -87,6 +97,13 @@ public static class Recognition
 		Engine.LoadGrammarCompleted += ( sender, e ) =>
 		{
 			Engine.RecognizeAsync( RecognizeMode.Multiple );
+		};
+
+		Engine.AudioLevelUpdated += ( sender, e ) =>
+		{
+			// A late event from a stopped recognizer mustn't turn this back on
+			if ( e.AudioLevel > 0 && ReferenceEquals( Engine, engine ) )
+				Volatile.Write( ref _lastHeardTime, Environment.TickCount64 );
 		};
 
 		Engine.RecognizeCompleted += ( sender, e ) =>
@@ -134,9 +151,12 @@ public static class Recognition
 
 		IsListening = false;
 
-		Engine.RecognizeAsyncCancel();
-		Engine.Dispose();
+		var engine = Engine;
 		Engine = null;
+		Volatile.Write( ref _lastHeardTime, long.MinValue / 2 );
+
+		engine.RecognizeAsyncCancel();
+		engine.Dispose();
 	}
 
 	private static RecognizerInfo GetRecognizerInfo()

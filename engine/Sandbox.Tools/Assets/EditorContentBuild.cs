@@ -332,7 +332,7 @@ internal static class EditorContentBuild
 		compilerKey = key;
 		compiler = new ResourceCompiler( null, new AssetTypeTable( EngineFileSystem.Root.GetFullPath( "bin/assettypes.txt" ) ), mounts, null )
 		{
-			InProcess = ( mode, source, staging, report, args ) => ContentCompilerHost.RunJob( mode, source, staging, report, args ),
+			InProcess = ( mode, source, input, staging, report, args ) => ContentCompilerHost.RunJob( mode, source, input, staging, report, args ),
 		};
 		return compiler;
 	}

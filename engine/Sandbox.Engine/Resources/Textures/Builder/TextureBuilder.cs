@@ -271,6 +271,9 @@ namespace Sandbox
 		/// <exception cref="ArgumentException">Thrown when the texture size is invalid, i.e. less then or equal to 0 on either axis.</exception>
 		public readonly Texture Create( string name = null, bool anonymous = true, ReadOnlySpan<byte> data = default, int dataLength = 0 )
 		{
+			if ( Application.IsShuttingDown )
+				return null;
+
 			// matt: wtf does this accept a Span which has a length and an int length parameter for... ???
 
 			if ( _config.m_nWidth <= 0 || _config.m_nHeight <= 0 )

@@ -5,6 +5,7 @@ namespace Sandbox.Mounting;
 /// Override <see cref="BuildScene"/> and create GameObjects - they become part of the
 /// mounted scene. Registration and teardown are handled for you.
 /// </summary>
+[Expose]
 public abstract class SceneLoader<T> : ResourceLoader<T>, IThumbnailProvider, ITitleProvider where T : BaseGameMount
 {
 	/// <summary>

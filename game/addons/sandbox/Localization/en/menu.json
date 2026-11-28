@@ -101,7 +101,12 @@
     "spawnmenu.props.animal": "Animal",
     "spawnmenu.props.toy": "Toy",
     "spawnmenu.props.food": "Food",
-    "spawnmenu.props.guns": "Guns",
+    "spawnmenu.props.vehicle": "Vehicle Props",
+    "spawnmenu.props.architecture": "Architecture",
+    "spawnmenu.props.fence_wall": "Fence/Wall",
+    "spawnmenu.props.lighting": "Lighting",
+    "spawnmenu.props.debris": "Debris",
+    "spawnmenu.props.weapon_props": "Weapon Props",
     "spawnmenu.props.characters": "Characters",
     "spawnmenu.props.props": "Props",
 

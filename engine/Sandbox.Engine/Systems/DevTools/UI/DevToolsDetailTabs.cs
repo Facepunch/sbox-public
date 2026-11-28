@@ -24,7 +24,9 @@ internal sealed class DevToolsCpuTab : DevToolsTab
 
 	public DevToolsCpuTab()
 	{
+		AddClass( "cpu-page" );
 		_facts = AddChild( new DevToolsFacts() );
+		_facts.AddClass( "span-all cpu-facts" );
 
 		var pacing = AddChild( new DevToolsSection( "Frame time distribution" ) );
 		pacing.Body.AddChild( new DevToolsHistogram() );

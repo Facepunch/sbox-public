@@ -240,6 +240,7 @@ partial class Compiler
 		}
 
 		bool ilHotloadSupported;
+		IReadOnlyDictionary<SyntaxTree, SyntaxTree> hotloadOriginalTrees;
 
 		{
 			var processor = RunGenerators( compiler, modifiedSyntaxTrees, output );
@@ -247,6 +248,7 @@ partial class Compiler
 			compiler = processor.Compilation;
 
 			ilHotloadSupported = processor.ILHotloadSupported;
+			hotloadOriginalTrees = processor.HotloadOriginalTrees;
 
 			// If you have any errors in codegen don't bother compiling, developer should sort it out
 			if ( processor.Diagnostics.Any( x => x.Severity == DiagnosticSeverity.Error ) )
@@ -298,7 +300,7 @@ partial class Compiler
 		if ( sourceUpgraded )
 			incrementalState.Reset();
 		else
-			incrementalState.Update( archive, inputSyntaxTrees, compiler );
+			incrementalState.Update( archive, inputSyntaxTrees, WithHotloadOriginalTrees( compiler, hotloadOriginalTrees ) );
 
 		using ( var a_stream = new System.IO.MemoryStream( output.AssemblyData ) )
 		{
@@ -314,5 +316,19 @@ partial class Compiler
 		}
 
 		_recentMetadataReferences.Add( output.Version, MetadataReference );
+	}
+
+	/// <summary>
+	/// Code generated for hotloading purposes (field initializer methods, fast hotload markers) are only relevant for
+	/// the current compilation, so the next compile should start from the trees as they were before it was generated.
+	/// </summary>
+	private static CSharpCompilation WithHotloadOriginalTrees( CSharpCompilation compilation, IReadOnlyDictionary<SyntaxTree, SyntaxTree> originalTrees )
+	{
+		foreach ( var (generated, original) in originalTrees )
+		{
+			compilation = compilation.ReplaceSyntaxTree( generated, original );
+		}
+
+		return compilation;
 	}
 }

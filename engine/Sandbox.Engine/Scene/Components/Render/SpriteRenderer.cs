@@ -97,7 +97,7 @@ public sealed partial class SpriteRenderer : Renderer, Component.ExecuteInEditor
 	/// Alpha threshold for discarding pixels. Pixels with alpha below this value will be discarded. 
 	/// Only used when Opaque is true. Range: 0.0 (transparent) to 1.0 (opaque). Default is 0.5.
 	/// </summary>
-	[Property, Category( "Visuals" ), Order( -200 ), Range( 0f, 1f )]
+	[Property, Category( "Visuals" ), Order( -200 ), Range( 0f, 1f ), ShowIf( nameof( Opaque ), true )]
 	public float AlphaCutoff { get; set; } = 0.5f;
 
 	/// <summary>

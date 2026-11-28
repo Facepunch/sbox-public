@@ -287,6 +287,10 @@ public readonly unsafe struct PhysicsContact
 	public readonly Vector3 Speed;
 	public readonly Vector3 Normal;
 	public readonly float NormalSpeed;
+
+	/// <summary>
+	/// The normal impulse the contact applied over the last physics step, summed over its points and sub-steps.
+	/// </summary>
 	public readonly float Impulse;
 
 	[Expose]

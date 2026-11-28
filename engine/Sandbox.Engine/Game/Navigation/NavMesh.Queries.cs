@@ -8,6 +8,8 @@ namespace Sandbox.Navigation;
 /// </summary>
 public sealed partial class NavMesh
 {
+	static readonly ProfileScope CpuCalculatePath = new( "Navigation.CalculatePath" );
+
 	// One per thread that is asking at the moment. Queries take no lock.
 	private sealed record QueryScratch( Nav.NavMesh Mesh, NavQuery Query, NavPath Path );
 	private readonly ConcurrentQueue<QueryScratch> queryPool = new();
@@ -89,6 +91,7 @@ public sealed partial class NavMesh
 
 	private NavMeshPath CalculatePathCore( QueryScratch scratch, Vector3 start, Vector3 target, Vector3 extents, in NavFilter filter )
 	{
+		using var cpu = CpuCalculatePath.Start();
 		if ( scratch is null ) return new() { Status = NavMeshPathStatus.StartNotFound };
 
 		scratch.Query.FindPath( start, target, extents, filter, scratch.Path );
@@ -159,12 +162,17 @@ public sealed partial class NavMesh
 		return found ? (Vector3)point : null;
 	}
 
-	public Vector3? GetClosestPoint( BBox box )
+	public Vector3? GetClosestPoint( BBox box ) => ClosestPoint( box, anyArea );
+
+	// Only where this agent may go
+	internal Vector3? GetClosestPoint( BBox box, NavMeshAgent agent ) => ClosestPoint( box, CreateFilter( agent ) );
+
+	private Vector3? ClosestPoint( BBox box, in NavFilter filter )
 	{
 		var scratch = RentQuery();
 		if ( scratch is null ) return null;
 
-		bool found = scratch.Query.FindNearest( box.Center, box.Extents, anyArea, out _, out var nearest );
+		bool found = scratch.Query.FindNearest( box.Center, box.Extents, filter, out _, out var nearest );
 		ReturnQuery( scratch );
 		return found ? (Vector3)nearest : null;
 	}

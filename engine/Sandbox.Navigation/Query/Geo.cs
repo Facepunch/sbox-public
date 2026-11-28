@@ -3,9 +3,7 @@ using System.Runtime.CompilerServices;
 
 namespace Nav;
 
-/// <summary>
-/// Ground-plane geometry. Everything here ignores Z unless it says otherwise.
-/// </summary>
+// Ground-plane geometry. Everything here ignores Z unless it says otherwise.
 internal static class Geo
 {
 	// Positive when c is to the right of the line from a to b, seen from above.
@@ -55,18 +53,6 @@ internal static class Geo
 		}
 		if ( u < 0 || v < 0 || u + v > denom ) return false;
 		height = a.Z + (v0.Z * u + v1.Z * v) / denom;
-		return true;
-	}
-
-	// s and t are the positions of the crossing along a and b. False when the lines are parallel.
-	public static bool IntersectSegments( Vector3 ap, Vector3 aq, Vector3 bp, Vector3 bq, float epsilon, out float s, out float t )
-	{
-		Vector3 u = aq - ap, v = bq - bp, w = ap - bp;
-		float d = u.X * v.Y - u.Y * v.X;
-		s = t = 0;
-		if ( MathF.Abs( d ) < epsilon ) return false;
-		s = (v.X * w.Y - v.Y * w.X) / d;
-		t = (u.X * w.Y - u.Y * w.X) / d;
 		return true;
 	}
 

@@ -3,6 +3,7 @@ using Mono.Cecil;
 using Sandbox.Upgraders;
 using Sandbox.Utility;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Threading;
 
@@ -125,6 +126,50 @@ public class NonSwappedTest : HotloadFixtureTestBase
 		finally
 		{
 			StaticEventRoots.Clear();
+		}
+	}
+
+	// Like the runtime's socket engine: an object holding a queue that another thread keeps its own reference to
+	private sealed class QueueOwner
+	{
+		public ConcurrentQueue<object> Queue = new();
+	}
+
+	private static class ConcurrentQueueRoots
+	{
+		public static QueueOwner Owner;
+	}
+
+	/// <summary>
+	/// A queue whose type wasn't swapped stays the same queue, with its items upgraded in place: a thread holding its
+	/// own reference to it (the runtime's socket engine's event loop) goes on enqueuing where its owner dequeues.
+	/// </summary>
+	[TestMethod]
+	public async Task NonSwappedConcurrentQueueStaysTheSameQueue()
+	{
+		using var fixture = await CreateFixtureAsync(
+			"""
+			public class NonSwappedConcurrentQueueStaysTheSameQueue : IHotloadTestFixture;
+			""" );
+
+		try
+		{
+			var owner = ConcurrentQueueRoots.Owner = new QueueOwner();
+			var queue = owner.Queue;
+			queue.Enqueue( "kept" );
+			queue.Enqueue( fixture.OldInstance );
+
+			await fixture.HotloadAsync( configure: x => WatchStatics( x, typeof( ConcurrentQueueRoots ) ) );
+
+			Assert.AreSame( queue, owner.Queue );
+			var items = queue.ToArray();
+			Assert.AreEqual( 2, items.Length );
+			Assert.AreEqual( "kept", items[0] );
+			Assert.AreSame( fixture.Instance, items[1] );
+		}
+		finally
+		{
+			ConcurrentQueueRoots.Owner = null;
 		}
 	}
 
@@ -356,8 +401,9 @@ public class NonSwappedTest : HotloadFixtureTestBase
 }
 
 /// <summary>
-/// Races a thread against a hotload, which needs the hotload to be slow enough to interfere with, and the thread
-/// to get a core while it runs. Other tests running in parallel can break both, so this runs on its own.
+/// Another thread modifies a hash set while a hotload refills it. The interference is made to land inside the refill every
+/// time (an item's hash code, taken as the hotload adds it back, has the thread add to the set and waits for it), rather
+/// than depending on the thread getting a core in the moments the refill takes.
 /// </summary>
 [TestClass]
 [DoNotParallelize]
@@ -366,6 +412,32 @@ public class HashSetInterferenceTest : HotloadFixtureTestBase
 	private static class InterferenceRoots
 	{
 		public static readonly HashSet<object> InitOnlyHashSet = new();
+	}
+
+	/// <summary>
+	/// The set's first item. Its hash code, taken once the hotload has emptied the set and is adding it back (the set holds
+	/// fewer than all its items), lets the other thread add to the set and waits until it has: the hotload must then see
+	/// another thread's item when it adds the next one.
+	/// </summary>
+	private sealed class Interference
+	{
+		public static int Total;
+		public static int Armed;
+		public static ManualResetEventSlim Go;
+		public static ManualResetEventSlim Done;
+
+		public override int GetHashCode()
+		{
+			if ( Volatile.Read( ref Armed ) == 1 && InterferenceRoots.InitOnlyHashSet.Count < Total && Interlocked.Exchange( ref Armed, 0 ) == 1 )
+			{
+				Go.Set();
+				Done.Wait( TimeSpan.FromSeconds( 30 ) );
+			}
+
+			return base.GetHashCode();
+		}
+
+		public override bool Equals( object obj ) => ReferenceEquals( this, obj );
 	}
 
 	/// <summary>
@@ -381,58 +453,62 @@ public class HashSetInterferenceTest : HotloadFixtureTestBase
 
 		var set = InterferenceRoots.InitOnlyHashSet;
 
+		using var go = new ManualResetEventSlim();
+		using var done = new ManualResetEventSlim();
+		Interference.Go = go;
+		Interference.Done = done;
+
 		try
 		{
-			// Lots of items so hotload gives us enough time to interfere
-
-			const int itemCount = 1_000_000;
-
+			// The interfering item first, so the hotload adds others after it and sees the extra one
+			const int itemCount = 1000;
+			set.Add( new Interference() );
 			for ( var i = 0; i < itemCount; i++ )
 			{
 				set.Add( i );
 			}
 
+			Interference.Total = set.Count;
+
 			await fixture.BuildNewAsync();
 
 			using var cts = new CancellationTokenSource();
-			using var spinning = new ManualResetEventSlim();
+			var interfered = false;
 
-			// A dedicated thread that is already spinning: a pool task can start after the hotload has finished
 			var interferer = new Thread( () =>
 			{
-				spinning.Set();
-
-				while ( !cts.IsCancellationRequested )
+				try
 				{
-					// Wait for hotload to clear the set and start repopulating
-
-					if ( set.Count == itemCount )
-					{
-						continue;
-					}
-
-					// Interfere!
-
-					set.Add( itemCount + 1 );
-					break;
+					go.Wait( cts.Token );
 				}
+				catch ( OperationCanceledException )
+				{
+					return;
+				}
+
+				// Interfere!
+				set.Add( itemCount + 1 );
+				interfered = true;
+				done.Set();
 			} );
 
 			interferer.Start();
-			spinning.Wait();
 
 			HotloadResult result;
 
 			try
 			{
+				Volatile.Write( ref Interference.Armed, 1 );
 				result = await fixture.HotloadAsync( allowErrors: true, configure: x => WatchStatics( x, typeof( InterferenceRoots ) ) );
 			}
 			finally
 			{
+				Volatile.Write( ref Interference.Armed, 0 );
 				cts.Cancel();
 				interferer.Join();
 			}
 
+			Assert.IsTrue( interfered, "the other thread added to the set during the hotload's refill" );
 			Assert.IsTrue( result.HasErrors );
 
 			// Look for an error involving the interfered hash set
@@ -441,6 +517,8 @@ public class HashSetInterferenceTest : HotloadFixtureTestBase
 		}
 		finally
 		{
+			Interference.Go = null;
+			Interference.Done = null;
 			set.Clear();
 			set.TrimExcess();
 		}

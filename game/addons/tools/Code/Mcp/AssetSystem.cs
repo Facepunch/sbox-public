@@ -340,7 +340,9 @@ public static partial class AssetTools
 			?? throw new Exception( "No project is currently open" );
 
 		var absolute = System.IO.Path.Combine( assetsPath, path.Replace( '\\', '/' ).TrimStart( '/' ) );
-		absolute = System.IO.Path.ChangeExtension( absolute, type.Trim().TrimStart( '.' ) );
+		var ext = $".{type.Trim().TrimStart( '.' )}";
+		if ( !absolute.EndsWith( ext, StringComparison.OrdinalIgnoreCase ) )
+			absolute += ext;
 
 		if ( System.IO.File.Exists( absolute ) )
 			throw new Exception( $"'{path}' already exists - asset_write edits existing assets" );

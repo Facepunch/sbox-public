@@ -1,102 +1,95 @@
 ﻿using Sandbox.Engine;
-using System.Net;
-using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
+using System.Text.Json;
 
 namespace Sandbox.Services;
 
+/// <summary>
+/// Discovers Steam game servers that match the selected filters.
+/// </summary>
 public class ServerList : List<ServerList.Entry>, IDisposable, IWeakInteropHandle
 {
-	CServerList serverlist;
+	SteamNative.ServerList serverlist;
 
+	/// <summary>
+	/// Creates a server list filtered to the current network protocol.
+	/// </summary>
 	public ServerList()
 	{
 		Sandbox.InteropSystem.AllocWeak( this );
 
-		serverlist = CServerList.Create( this );
+		serverlist = SteamNative.ServerList.Create( this );
 		serverlist.AddFilter( "gametagsand", $"protocol:{Protocol.Network}" );
 	}
 
 	~ServerList()
 	{
-		Dispose();
+		MainThread.QueueDispose( this );
 	}
 
+	/// <summary>
+	/// Whether Steam is still collecting results for this query.
+	/// </summary>
 	public bool IsQuerying { get; private set; }
 	uint IWeakInteropHandle.InteropHandle { get; set; }
 
-	public void Query()
-	{
-		serverlist.StartQuery();
-	}
+	/// <summary>
+	/// Replaces the list with matching internet servers.
+	/// </summary>
+	public void Query() => StartQuery( lan: false );
 
 	/// <summary>
 	/// Servers on the local network instead of the internet's, matched to the same filters
 	/// </summary>
-	internal void QueryLan()
+	internal void QueryLan() => StartQuery( lan: true );
+
+	void StartQuery( bool lan )
 	{
-		serverlist.StartLanQuery();
+		ObjectDisposedException.ThrowIf( serverlist.IsNull, this );
+		Clear();
+		IsQuerying = true;
+		serverlist.StartQuery( lan );
 	}
 
+	/// <summary>
+	/// Adds a Steam matchmaking filter to this list.
+	/// </summary>
 	public void AddFilter( string key, string value )
 	{
 		serverlist.AddFilter( key, value );
 	}
 
-	internal unsafe void OnServerResponded( IntPtr ptr, ulong steamid )
+	internal void OnServerResponded( string json )
 	{
-		var item = Unsafe.Read<gameserveritem_t>( (void*)ptr );
-		var tags = Marshal.PtrToStringUTF8( (IntPtr)item.m_szGameTags );
-		var ipAddress = new IPAddress( BitConverter.GetBytes( IPAddress.HostToNetworkOrder( (int)item.m_unIP ) ) ).ToString();
-
-		var entry = new Entry
+		var entry = JsonSerializer.Deserialize<Entry>( json );
+		var tags = entry.Tags;
+		int count = 0;
+		foreach ( var tag in tags )
 		{
-			IPAddressAndPort = $"{ipAddress}:{item.m_usConnectionPort}",
-			SteamId = steamid,
-			Map = Marshal.PtrToStringUTF8( (IntPtr)item.m_szMap ),
-			Name = Marshal.PtrToStringUTF8( (IntPtr)item.m_szServerName ),
-			Players = item.m_nPlayers,
-			MaxPlayers = item.m_nMaxPlayers - item.m_nBotPlayers,
-			Ping = item.m_nPing,
-			Game = Marshal.PtrToStringUTF8( (IntPtr)item.m_szGameDescription ),
-			HasPassword = item.m_bPassword != 0,
-			Tick = 0
-		};
-
-		var tagParts = tags.Split( "," ).ToList();
-
-		foreach ( var tag in tagParts.ToArray() )
-		{
-			if ( !tag.Contains( ':' ) ) continue;
-			var parts = tag.Split( ':' );
-			if ( parts.Length != 2 ) continue;
-
-			switch ( parts[0] )
+			var separator = tag.IndexOf( ':' );
+			if ( separator >= 0 && !tag.AsSpan( separator + 1 ).Contains( ':' ) )
 			{
-				case "game":
-					entry.Game = parts[1].ToLower();
-					break;
-
-				case "gameversion":
-					if ( int.TryParse( parts[1], out var x ) )
-						entry.GameVersion = x;
-					break;
-
-				case "tick":
-					if ( int.TryParse( parts[1], out var i ) )
-						entry.Tick = i;
-					break;
-
-				default:
-					continue;
-
+				var value = tag.AsSpan( separator + 1 );
+				switch ( tag.AsSpan( 0, separator ) )
+				{
+					case "game":
+						entry.Game = value.ToString().ToLower();
+						continue;
+					case "gameversion":
+						if ( int.TryParse( value, out var version ) )
+							entry.GameVersion = version;
+						continue;
+					case "tick":
+						if ( int.TryParse( value, out var tick ) )
+							entry.Tick = tick;
+						continue;
+				}
 			}
 
-			tagParts.Remove( tag );
+			tags[count++] = tag;
 		}
 
-		entry.Tags = tagParts.ToArray();
-
+		Array.Resize( ref tags, count );
+		entry.Tags = tags;
 		Add( entry );
 	}
 
@@ -105,23 +98,25 @@ public class ServerList : List<ServerList.Entry>, IDisposable, IWeakInteropHandl
 		IsQuerying = false;
 	}
 
-	internal void OnStarted()
-	{
-		Clear();
-		IsQuerying = true;
-	}
-
+	/// <summary>
+	/// Stops receiving results and releases the Steam query.
+	/// </summary>
 	public void Dispose()
 	{
-		serverlist.Destroy();
-		serverlist = default;
+		if ( !serverlist.IsNull )
+		{
+			serverlist.Destroy();
+			serverlist = default;
+		}
 
-		InteropSystem.Free( this );
+		IsQuerying = false;
+
+		InteropSystem.FreeWeak( this );
 		GC.SuppressFinalize( this );
 	}
 
 	/// <summary>
-	/// This is a cleaned up version of gameserveritem_t.
+	/// A server returned by an internet or LAN query.
 	/// </summary>
 	public struct Entry
 	{
@@ -139,35 +134,3 @@ public class ServerList : List<ServerList.Entry>, IDisposable, IWeakInteropHandl
 		public bool HasPassword { get; set; }
 	}
 }
-
-
-/// <summary>
-/// Data from c++
-/// We skip the steamid because there's some class padding fuckery going on.
-/// We pass that in manually to make life easier.
-/// </summary>
-internal unsafe struct gameserveritem_t
-{
-#pragma warning disable 0649
-	public ushort m_usConnectionPort;
-	public ushort m_usQueryPort;
-	public uint m_unIP;
-	public int m_nPing;
-
-	public byte m_bHadSuccessfulResponse;
-	public byte m_bDoNotRefresh;
-	public fixed byte m_szGameDir[32];
-	public fixed byte m_szMap[32];
-	public fixed byte m_szGameDescription[64];
-	public uint m_nAppID;
-	public int m_nPlayers;
-	public int m_nMaxPlayers;
-	public int m_nBotPlayers;
-	public byte m_bPassword;
-	public byte m_bSecure;
-	public uint m_ulTimeLastPlayed;
-	public int m_nServerVersion;
-	public fixed byte m_szServerName[64];
-	public fixed byte m_szGameTags[128];
-#pragma warning restore 0649
-};

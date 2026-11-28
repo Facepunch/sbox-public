@@ -136,7 +136,6 @@ public readonly struct NavFilter : IEquatable<NavFilter>
 		return value;
 	}
 
-	// What every query and the crowd call first: one bool.
 	internal void Check()
 	{
 		if ( !valid ) throw new ArgumentException( "A default NavFilter is not a filter: make one with NavFilter.Create()", "filter" );

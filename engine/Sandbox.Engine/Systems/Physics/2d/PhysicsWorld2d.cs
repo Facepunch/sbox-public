@@ -10,6 +10,9 @@ namespace Sandbox;
 /// </summary>
 internal sealed partial class PhysicsWorld2d : PhysicsWorldInternal
 {
+	static readonly ProfileScope CpuCreateBody = new( "Physics2D.CreateBody" );
+	static readonly ProfileScope CpuStep = new( "Physics2D.Step" );
+
 	internal b2WorldId WorldId;
 	GCHandle _handle;
 
@@ -146,6 +149,7 @@ internal sealed partial class PhysicsWorld2d : PhysicsWorldInternal
 
 	internal override PhysicsBodyInternal CreateBodyInternal( in PhysicsBodySettings settings )
 	{
+		using var cpu = CpuCreateBody.Start();
 		var def = Box2d.b2DefaultBodyDef();
 		def.type = settings.BodyType switch
 		{
@@ -196,6 +200,7 @@ internal sealed partial class PhysicsWorld2d : PhysicsWorldInternal
 
 	public override unsafe void Step( double worldTime, float delta, int subSteps )
 	{
+		using var cpu = CpuStep.Start();
 		if ( !Box2d.b2World_IsValid( WorldId ) ) return;
 
 		base.Step( worldTime, delta, subSteps );

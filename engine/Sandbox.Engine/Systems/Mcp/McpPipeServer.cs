@@ -40,7 +40,7 @@ internal static class McpPipeServer
 		using var process = Process.GetCurrentProcess();
 		using var stopping = CancellationTokenSource.CreateLinkedTokenSource( cancellation );
 		cancellation = stopping.Token;
-		var name = McpWire.PipeName( process.Id, process.StartTime.ToUniversalTime().Ticks );
+		var name = McpWire.PipeName( process );
 		var connections = new List<Task>();
 
 		try

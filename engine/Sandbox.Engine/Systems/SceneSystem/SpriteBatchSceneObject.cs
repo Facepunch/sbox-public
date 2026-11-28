@@ -359,7 +359,7 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 		int lightingFlag = c.Lighting ? 1 : 0;
 		uint packedExponent = (uint)(((byte)lightingFlag) | rgbe.a << 16);
 
-		uint packedFogAndAlpha = SpriteData.PackFogAndAlphaCutout( c.FogStrength, c.AlphaCutoff );
+		uint packedFogAndAlpha = SpriteData.PackFogAndAlphaCutout( c.FogStrength, c.Opaque ? c.AlphaCutoff : 0.001f );
 
 		var spritePos = transform.Position;
 		var spriteScale = new Vector2( transform.Scale.x, transform.Scale.z );

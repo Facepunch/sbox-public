@@ -1,6 +1,0 @@
-﻿#include "sbox/steam/steamscreenshots.h"
-
-native static class Steam.Screenshots as NativeEngine.SteamScreenshots
-{
-	bool WriteScreenshot( void* pubRGB, uint cubRGB, int nWidth, int nHeight );
-}

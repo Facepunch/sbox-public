@@ -1,55 +1,33 @@
-﻿namespace Steamworks
+﻿namespace Sandbox.SteamApi
 {
 	internal static class SteamClient
 	{
 		static bool initialized;
+		internal static int Session { get; private set; }
 
 		/// <summary>
 		/// Initialize the steam client.
 		/// </summary>
-		internal static void Init( int appid )
+		internal static void Init()
 		{
 			if ( initialized )
 				throw new Exception( "Calling SteamClient.Init but is already initialized" );
 
-			AppId = appid;
+			// Without Steam (-nosteam, or Steam not running) the interfaces would call native with null pointers.
+
+			if ( !SteamNative.User.IsAvailable() )
+				return;
 
 			initialized = true;
 
-			AddInterface<SteamFriends>();
-			AddInterface<SteamMatchmaking>();
-			AddInterface<SteamUtils>();
+			Session++;
 
-			var user = NativeEngine.Steam.SteamUser();
-			if ( user.IsValid )
+			SteamId = SteamNative.User.GetSteamId();
+
+			if ( SteamNative.Friends.IsAvailable() )
 			{
-				SteamId = user.GetSteamID();
+				Name = SteamNative.Friends.GetPersonaName();
 			}
-
-			var friends = NativeEngine.Steam.SteamFriends();
-			if ( friends.IsValid )
-			{
-				Name = friends.GetPersonaName();
-			}
-		}
-
-		internal static void AddInterface<T>() where T : SteamClass, new()
-		{
-			var t = new T();
-			t.InitializeInterface( false );
-			openInterfaces.Add( t );
-		}
-
-		static readonly List<SteamClass> openInterfaces = new List<SteamClass>();
-
-		internal static void ShutdownInterfaces()
-		{
-			foreach ( var e in openInterfaces )
-			{
-				e.DestroyInterface( false );
-			}
-
-			openInterfaces.Clear();
 		}
 
 		/// <summary>
@@ -59,10 +37,12 @@
 
 		internal static void Cleanup()
 		{
-			Dispatch.ShutdownClient();
-
 			initialized = false;
-			ShutdownInterfaces();
+			SteamCalls.Shutdown();
+			WebSurface.Shutdown();
+			Friend.ClearCache();
+			Services.Auth.CancelWebTicket();
+			Services.Ugc.ClientShutdown();
 		}
 
 
@@ -79,11 +59,5 @@
 		/// this is the same name as on the users community profile page
 		/// </summary>
 		internal static string Name;
-
-		/// <summary>
-		/// returns the appID of the current process
-		/// </summary>
-		internal static AppId AppId;
-
 	}
 }

@@ -18,9 +18,9 @@ public sealed class ResourceCompiler( string executable, AssetTypeTable types, I
 	public TimeSpan Timeout { get; init; } = TimeSpan.FromMinutes( 15 );
 
 	/// <summary>
-	/// Jobs a build runs at once by default: one per core and 2 GB of memory.
+	/// Jobs a build runs at once by default: one per core and 1 GB of memory beyond a 2 GB baseline for the shared worker process.
 	/// </summary>
-	public static int DefaultMaxJobs => (int)Math.Clamp( GC.GetGCMemoryInfo().TotalAvailableMemoryBytes / (2L << 30), 1, Environment.ProcessorCount );
+	public static int DefaultMaxJobs => (int)Math.Clamp( (GC.GetGCMemoryInfo().TotalAvailableMemoryBytes - (2L << 30)) / (1L << 30), 1, Environment.ProcessorCount );
 
 	/// <summary>
 	/// Workers get a render device. Without one, as on a build machine with no GPU, they have the empty render system:
@@ -32,9 +32,9 @@ public sealed class ResourceCompiler( string executable, AssetTypeTable types, I
 
 	/// <summary>
 	/// Runs each job in this process, which has the same compilers loaded (the editor), rather than in a worker: mode,
-	/// source, staging, report and compiler arguments to whether it succeeded, as a worker answers. Null starts workers.
+	/// source, input, staging, report and compiler arguments to whether it succeeded, as a worker answers. Null starts workers.
 	/// </summary>
-	public Func<string, string, string, string, IReadOnlyList<string>, bool> InProcess { get; init; }
+	public Func<string, string, JobInput, string, string, IReadOnlyList<string>, bool> InProcess { get; init; }
 
 	/// <summary>
 	/// Worker processes started.
@@ -136,7 +136,7 @@ public sealed class ResourceCompiler( string executable, AssetTypeTable types, I
 			var answer = Path.Combine( dir, "out.txt" );
 			File.WriteAllLines( source, input ?? [] );
 
-			var reply = Run( mounts, [], mode, source, Directory.CreateDirectory( Path.Combine( dir, "staging" ) ).FullName, answer, default );
+			var reply = Run( mounts, [], mode, source, null, Directory.CreateDirectory( Path.Combine( dir, "staging" ) ).FullName, answer, default );
 			if ( reply?.Outcome != CompilerWorker.Outcome.Succeeded ) throw new InvalidOperationException( $"contentworker couldn't answer {mode}: {reply?.Reason}\n{reply?.Log}" );
 			return File.ReadAllLines( answer );
 		}
@@ -151,14 +151,18 @@ public sealed class ResourceCompiler( string executable, AssetTypeTable types, I
 		var report = Path.Combine( job.Staging, "report.txt" );
 		var mode = job.Mode switch { JobMode.Describe => "describe", JobMode.Adopt => "adopt", _ => "compile" };
 
-		var answer = Run( job.Mounts, job.CompilerArgs, mode, job.Source, job.Staging, report, token );
+		var answer = Run( job.Mounts, job.CompilerArgs, mode, job.Source, job.Input, job.Staging, report, token );
 		if ( answer is null || token.IsCancellationRequested ) return Failed( "cancelled" );
 		if ( answer.Outcome is not (CompilerWorker.Outcome.Succeeded or CompilerWorker.Outcome.Failed) ) return Failed( $"contentworker {answer.Reason}\n{answer.Log}" );
 
 		// What the job logged on its thread
 		var log = $"{report}.log";
-		var text = File.Exists( log ) ? File.ReadAllText( log ).Trim() : "";
-		File.Delete( log );
+		var text = "";
+		if ( File.Exists( log ) )
+		{
+			text = File.ReadAllText( log ).Trim();
+			File.Delete( log );
+		}
 
 		var lines = File.Exists( report ) ? File.ReadAllLines( report ) : [];
 		File.Delete( report );
@@ -174,10 +178,10 @@ public sealed class ResourceCompiler( string executable, AssetTypeTable types, I
 	/// output loaded) runs on a new one, as does one interrupted by another job's timeout or cancellation; neither counts
 	/// as a loss.
 	/// </summary>
-	CompilerWorker.Answer Run( IReadOnlyList<(string Mod, string Path)> mounted, IReadOnlyList<string> compilerArgs, string mode, string source, string staging, string report, CancellationToken token )
+	CompilerWorker.Answer Run( IReadOnlyList<(string Mod, string Path)> mounted, IReadOnlyList<string> compilerArgs, string mode, string source, JobInput input, string staging, string report, CancellationToken token )
 	{
 		if ( InProcess is not null )
-			return token.IsCancellationRequested ? null : new( InProcess( mode, source, staging, report, compilerArgs ) ? CompilerWorker.Outcome.Succeeded : CompilerWorker.Outcome.Failed, null, "" );
+			return token.IsCancellationRequested ? null : new( InProcess( mode, source, input, staging, report, compilerArgs ) ? CompilerWorker.Outcome.Succeeded : CompilerWorker.Outcome.Failed, null, "" );
 
 		for ( var attempt = 0; ; attempt++ )
 		{
@@ -196,7 +200,7 @@ public sealed class ResourceCompiler( string executable, AssetTypeTable types, I
 				if ( worker is null ) return null;
 				try
 				{
-					answer = worker.Run( mode, source, staging, report, compilerArgs, Timeout, token );
+					answer = worker.Run( mode, source, input, staging, report, compilerArgs, Timeout, token );
 				}
 				catch
 				{

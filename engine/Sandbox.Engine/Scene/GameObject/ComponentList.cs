@@ -94,6 +94,8 @@ public enum FindMode
 [Expose]
 public class ComponentList
 {
+	static readonly ProfileScope CpuCreate = new( "Component.Create" );
+
 	readonly GameObject go;
 
 	/// <summary>
@@ -131,6 +133,7 @@ public class ComponentList
 	/// </summary>
 	public Component Create( TypeDescription type, bool startEnabled = true )
 	{
+		using var cpu = CpuCreate.Start();
 		if ( !type.TargetType.IsAssignableTo( typeof( Component ) ) )
 			return null;
 
@@ -151,6 +154,7 @@ public class ComponentList
 	/// </summary>
 	public T Create<T>( bool startEnabled = true ) where T : Component, new()
 	{
+		using var cpu = CpuCreate.Start();
 		using var batch = CallbackBatch.Batch();
 		var t = new T();
 
@@ -169,6 +173,7 @@ public class ComponentList
 	/// </summary>
 	internal Component Create( Type type, bool startEnabled = true )
 	{
+		using var cpu = CpuCreate.Start();
 		if ( !type.IsAssignableTo( typeof( Component ) ) )
 			return null;
 
@@ -475,6 +480,7 @@ public class ComponentList
 	internal void ExecuteEnabledInSelfAndDescendants<T>( Action<T> action )
 	{
 		if ( !go.IsValid() || !go.Enabled ) return;
+		var profiling = Profiler.ScopesActive;
 
 		if ( _internalList is not null )
 		{
@@ -486,6 +492,7 @@ public class ComponentList
 
 				if ( component is T target && component.Active )
 				{
+					using var cpu = profiling ? ProfileCallbackScopes.ForType( component.GetType(), Sandbox.Scene.EventScopeName<T>.Value ).Start() : default;
 					action.Invoke( target );
 				}
 			}
@@ -508,6 +515,7 @@ public class ComponentList
 	internal void ExecuteEnabledInSelfAndDescendants<T, TState>( TState state, Action<T, TState> action )
 	{
 		if ( !go.IsValid() || !go.Enabled ) return;
+		var profiling = Profiler.ScopesActive;
 
 		if ( _internalList is not null )
 		{
@@ -519,6 +527,7 @@ public class ComponentList
 
 				if ( component is T target && component.Active )
 				{
+					using var cpu = profiling ? ProfileCallbackScopes.ForType( component.GetType(), Sandbox.Scene.EventScopeName<T>.Value ).Start() : default;
 					action.Invoke( target, state );
 				}
 			}
@@ -574,6 +583,7 @@ public class ComponentList
 
 	private void ExecuteGeneric<T>( Action<T> action, FindMode find = FindMode.EnabledInSelfAndDescendants )
 	{
+		var profiling = Profiler.ScopesActive;
 		bool enabledOnly = find.Contains( FindMode.Enabled );
 		bool disabledOnly = find.Contains( FindMode.Disabled );
 
@@ -600,6 +610,7 @@ public class ComponentList
 
 				if ( component is T target )
 				{
+					using var cpu = profiling ? ProfileCallbackScopes.ForType( component.GetType(), Sandbox.Scene.EventScopeName<T>.Value ).Start() : default;
 					action.Invoke( target );
 				}
 			}

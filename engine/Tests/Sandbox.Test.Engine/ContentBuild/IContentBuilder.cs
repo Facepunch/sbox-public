@@ -47,7 +47,8 @@ public sealed record BuildOptions
 
 /// <param name="Success">Every selected asset compiled and nothing was cancelled.</param>
 /// <param name="Failed">Root-relative source paths that failed to compile.</param>
-/// <param name="Jobs">Root-relative sources given to a compiler this build, in dispatch order (not generated children).</param>
+/// <param name="Jobs">Root-relative sources given to a compiler this build, in dispatch order, including generated textures
+/// built as child sources of their own.</param>
 /// <param name="Log">Compiler output, for failure messages.</param>
 /// <param name="Reruns">Compiles discarded and run again because what they read wasn't known in time; a source
 /// appears in <paramref name="Jobs"/> twice only for this. Scenarios require none.</param>

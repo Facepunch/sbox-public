@@ -4758,6 +4758,9 @@ public sealed partial class PolygonMesh : IJsonConvert
 		// Prune hidden entries for faces that no longer exist
 		_hiddenFaces.RemoveWhere( x => !FaceHandleFromIndex( x ).IsValid );
 
+		UpdateLightmapUvs();
+		IsLightmapDirty = false;
+
 		// Pre-compute every face normal once; ComputeFaceNormal will read from this cache
 		// instead of recomputing (which is otherwise called O(V²) times per face during triangulation).
 		CacheFaceNormals();
@@ -6223,6 +6226,7 @@ public sealed partial class PolygonMesh : IJsonConvert
 				Normal = normal,
 				Tangent = tangent,
 				Texcoord = TextureCoord[faceEdge],
+				LightmapUv = _lightmapUvs.GetValueOrDefault( faceEdge ),
 				Blend = Blends[faceEdge],
 				SecondaryBlend = SecondaryBlends?[faceEdge] ?? default,
 				Color = Colors[faceEdge],
@@ -6787,6 +6791,7 @@ public sealed partial class PolygonMesh : IJsonConvert
 		[VertexLayout.Normal] public Vector3 Normal = normal;
 		[VertexLayout.Tangent] public Vector4 Tangent = tangent;
 		[VertexLayout.TexCoord] public Vector2 Texcoord = texcoord;
+		[VertexLayout.TexCoord( 3 )] public Vector2 LightmapUv;
 		[VertexLayout.TexCoord( 4 )] public Color32 Blend = blend;
 		[VertexLayout.TexCoord( 5 )] public Color32 Color = color;
 		[VertexLayout.TexCoord( 6 )] public Color32 SecondaryBlend;

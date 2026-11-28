@@ -423,7 +423,7 @@ public class SoundCompressionTests
 		public Compiled[] Compile( params string[] paths )
 		{
 			Assert.AreEqual( paths.Length, paths.Select( Path.GetFileNameWithoutExtension ).Distinct().Count(), "Sources must have distinct names" );
-			var start = new ProcessStartInfo( Path.Combine( engine, "bin", "win64", "resourcecompiler.exe" ) )
+			var start = new ProcessStartInfo( Path.Combine( engine, NetCore.NativeDllPath, OperatingSystem.IsWindows() ? "resourcecompiler.exe" : "resourcecompiler" ) )
 			{ UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true };
 			foreach ( var arg in new[] { "-f", "-noassert", "-skiprendersystem", "-searchpaths", $"core|{sources}" }.Concat( paths ) ) start.ArgumentList.Add( arg );
 			using var process = Process.Start( start );

@@ -2,11 +2,9 @@ using System.Numerics;
 
 namespace Nav;
 
-/// <summary>
-/// One agent type of a NavMesh: its settings, its tiles, jobs, rebuild cache and generated links, and the
-/// state its queries read. Everything a NavMesh does per agent type happens here; what the types share
-/// (volumes, link definitions and ids, the commit count) lives in the NavMesh.
-/// </summary>
+// One agent type of a NavMesh: its settings, its tiles, jobs, rebuild cache and generated links, and the
+// state its queries read. Everything a NavMesh does per agent type happens here; what the types share
+// (volumes, link definitions and ids, the commit count) lives in the NavMesh.
 internal sealed partial class MeshAgentType
 {
 	internal readonly NavMesh Mesh;
@@ -27,7 +25,6 @@ internal sealed partial class MeshAgentType
 	internal float Epsilon => settings.CellSize / 40f;
 	internal float AreaScale => settings.CellSize * settings.CellSize / 16f;
 
-	// Kept up to date by generation.
 	internal long CacheBytes, TrianglesUsed, TrianglesRejected;
 
 	MeshState state;
@@ -53,19 +50,11 @@ internal sealed partial class MeshAgentType
 	public NavMeshOptions Options => new() { Links = links, Codec = Codec, KeepFields = KeepFields };
 	internal MeshState State => Volatile.Read( ref state );
 
-	/// <summary>
-	/// Tile coordinates are unbounded and may be negative.
-	/// </summary>
 	public (int X, int Y) GetTileAt( Vector3 point ) => (TileOf( point.X ), TileOf( point.Y ));
 
 	// Saturates, so a box without end reaches every tile.
 	int TileOf( float world ) => (int)Math.Clamp( MathF.Floor( world / TileWorld ), int.MinValue, int.MaxValue );
 
-	/// <summary>
-	/// RuntimeBytes is what queries need, including the island data of one area mask. The triangle
-	/// counters are running totals over every build since the mesh was made, rebuilds included, not the
-	/// triangles of the tiles there are now. Safe on any thread.
-	/// </summary>
 	public (int Tiles, int Polygons, int Vertices, long RuntimeBytes, long CacheBytes, long TrianglesUsed, long TrianglesRejected) GetStats()
 	{
 		var s = State;
@@ -103,9 +92,6 @@ internal sealed partial class MeshAgentType
 		return (tiles, polygons, vertices, bytes, Interlocked.Read( ref CacheBytes ), Interlocked.Read( ref TrianglesUsed ), Interlocked.Read( ref TrianglesRejected ));
 	}
 
-	/// <summary>
-	/// Writes the coordinates of loaded tiles and returns how many were written.
-	/// </summary>
 	public int GetTiles( Span<(int X, int Y)> coordinates )
 	{
 		int count = 0;
@@ -122,10 +108,6 @@ internal sealed partial class MeshAgentType
 		return count;
 	}
 
-	/// <summary>
-	/// Appends the polygons of one tile, counter-clockwise seen from above: for consecutive vertices
-	/// a, b, c the cross product of b - a and c - b points up.
-	/// </summary>
 	public void GetPolygons( int tileX, int tileY, List<Vector3> vertices, List<int> vertexCounts, List<byte> areas )
 	{
 		var tile = State.Find( tileX, tileY );

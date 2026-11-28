@@ -1,7 +1,5 @@
 ﻿using System.Collections.Concurrent;
 using NativeEngine;
-using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 using System.Threading.Channels;
 
 namespace Sandbox.Network;
@@ -18,8 +16,8 @@ internal static partial class SteamNetwork
 		{
 			SteamNetwork.Initialize();
 
-			InitHandle( Glue.Networking.CreateSocket( virtualPort ) );
-			address = Glue.Networking.GetIdentity();
+			InitHandle( SteamNative.NetworkingSockets.CreateListenSocketP2P( virtualPort ) );
+			address = SteamNative.NetworkingSockets.GetIdentity();
 		}
 
 		public override string ToString() => $"SteamIdSocket - {address}";
@@ -36,8 +34,10 @@ internal static partial class SteamNetwork
 		{
 			SteamNetwork.Initialize();
 
-			InitHandle( Glue.Networking.CreateIpBasedSocket( Networking.Port, Networking.HideAddress ) );
-			address = Glue.Networking.GetSocketAddress( handle );
+			InitHandle( Networking.HideAddress
+				? SteamNative.NetworkingSockets.CreateListenSocketP2PFakeIP()
+				: SteamNative.NetworkingSockets.CreateListenSocketIP( Networking.Port ) );
+			address = SteamNative.NetworkingSockets.GetListenSocketAddress( handle );
 		}
 
 		public override string ToString() => $"SteamIpSocket - {address}";
@@ -58,18 +58,20 @@ internal static partial class SteamNetwork
 		protected void InitHandle( HSteamListenSocket h )
 		{
 			handle = h;
-			pollGroup = Glue.Networking.CreatePollGroup();
+			pollGroup = SteamNative.NetworkingSockets.CreatePollGroup();
 			sockets[h] = this;
 		}
 
 		internal override void Dispose()
 		{
 			sockets.Remove( handle );
+			OutgoingSteamMessage.Close( OutgoingMessages );
+			IncomingSteamMessage.Close( IncomingMessages );
 
-			Glue.Networking.CloseSocket( handle );
+			SteamNative.NetworkingSockets.CloseListenSocket( handle );
 			handle = default;
 
-			Glue.Networking.DestroyPollGroup( pollGroup );
+			SteamNative.NetworkingSockets.DestroyPollGroup( pollGroup );
 			pollGroup = default;
 		}
 
@@ -81,7 +83,7 @@ internal static partial class SteamNetwork
 			Connections[connection.Id] = c;
 			OnClientConnect?.Invoke( c );
 
-			Glue.Networking.SetPollGroup( connection, pollGroup );
+			SteamNative.NetworkingSockets.SetConnectionPollGroup( connection, pollGroup );
 		}
 
 		internal void OnDisconnected( HSteamNetConnection connection )
@@ -96,132 +98,26 @@ internal static partial class SteamNetwork
 		private Channel<OutgoingSteamMessage> OutgoingMessages { get; } = Channel.CreateUnbounded<OutgoingSteamMessage>();
 		private Channel<IncomingSteamMessage> IncomingMessages { get; } = Channel.CreateUnbounded<IncomingSteamMessage>();
 
-		internal void SendMessage( HSteamNetConnection connection, NetPacket packet, int flags )
+		internal void SendMessage( HSteamNetConnection connection, NetPacket packet, NetFlags flags )
 		{
-			// Ours until the networking thread has copied it to Steam
-			packet.AddReference();
-
-			var queued = OutgoingMessages.Writer.TryWrite( new OutgoingSteamMessage
-			{
-				Connection = connection,
-				Packet = packet,
-				Flags = flags
-			} );
-
-			if ( !queued )
-				packet.Release();
+			OutgoingSteamMessage.Enqueue( OutgoingMessages.Writer, connection, packet, flags );
 		}
 
-		private const int MaxBatchSize = 256;
-		private readonly IntPtr[] _messageBatch = new IntPtr[MaxBatchSize];
-
-		/// <summary>
-		/// Send any queued outgoing messages and process any incoming messages to be queued for handling
-		/// on the main thread.
-		/// </summary>
 		internal override void ProcessMessagesInThread()
 		{
-			var net = Steam.SteamNetworkingSockets();
-			if ( !net.IsValid ) return;
+			if ( !SteamNative.NetworkingSockets.IsAvailable() )
+				return;
 
-			int batchCount = 0;
-			var maxOutgoing = Networking.MaxOutgoingMessagesPerTick;
-			var outgoingCount = 0;
-
-			while ( OutgoingMessages.Reader.TryRead( out var msg ) )
-			{
-				// Let Steam allocate the native buffer so there's no need to pin managed arrays.
-				var steamMsgPtr = Glue.Networking.AllocateMessage( msg.Connection, msg.Packet.Length, msg.Flags );
-				if ( steamMsgPtr == IntPtr.Zero )
-				{
-					msg.Packet.Release();
-					continue;
-				}
-
-				var nativeBuffer = Glue.Networking.GetMessageDataBuffer( steamMsgPtr );
-				Marshal.Copy( msg.Packet.Buffer, 0, nativeBuffer, msg.Packet.Length );
-
-				// Copied into Steam's buffer, we're done with it
-				msg.Packet.Release();
-
-				_messageBatch[batchCount++] = steamMsgPtr;
-
-				if ( batchCount >= MaxBatchSize )
-				{
-					FlushBatch( ref batchCount );
-				}
-
-				if ( maxOutgoing > 0 && ++outgoingCount >= maxOutgoing )
-					break;
-			}
-
-			// Send any remaining messages
-			if ( batchCount > 0 )
-			{
-				FlushBatch( ref batchCount );
-			}
-
-			ProcessIncomingMessages( net );
-		}
-
-		private unsafe void FlushBatch( ref int count )
-		{
-			fixed ( IntPtr* pMessages = _messageBatch )
-			{
-				Glue.Networking.SendMessages( (IntPtr)pMessages, count );
-			}
-
-			count = 0;
-		}
-
-		/// <summary>
-		/// Process any incoming messages from Steam networking and enqueue them to be
-		/// handled by the main thread.
-		/// </summary>
-		/// <param name="net"></param>
-		private unsafe void ProcessIncomingMessages( in ISteamNetworkingSockets net )
-		{
-			var ptr = stackalloc IntPtr[Networking.ReceiveBatchSize];
-			var maxIncoming = Networking.ReceiveBatchSizePerTick;
-			var totalReceived = 0;
-
-			while ( true )
-			{
-				var count = Glue.Networking.GetPollGroupMessages( pollGroup, (IntPtr)ptr, Networking.ReceiveBatchSize );
-				if ( count == 0 ) return;
-
-				for ( var i = 0; i < count; i++ )
-				{
-					var msg = Unsafe.Read<SteamNetworkMessage>( (void*)ptr[i] );
-
-					var data = GC.AllocateUninitializedArray<byte>( msg.Size );
-					Marshal.Copy( (IntPtr)msg.Data, data, 0, data.Length );
-
-					var m = new IncomingSteamMessage
-					{
-						Connection = msg.Connection,
-						Data = data
-					};
-
-					IncomingMessages.Writer.TryWrite( m );
-					net.ReleaseMessage( ptr[i] );
-				}
-
-				totalReceived += count;
-
-				if ( maxIncoming > 0 && totalReceived >= maxIncoming )
-					return;
-			}
+			OutgoingSteamMessage.SendQueued( OutgoingMessages.Reader );
+			IncomingSteamMessage.Receive( IncomingMessages.Writer, pollGroup, SteamNative.NetworkingSockets.ReceiveMessagesOnPollGroup );
 		}
 
 		internal override void GetIncomingMessages( NetworkSystem.MessageHandler handler )
 		{
 			while ( IncomingMessages.Reader.TryRead( out var msg ) )
 			{
-				if ( !Connections.TryGetValue( msg.Connection.Id, out var connection ) )
-					continue;
-
-				connection.OnRawPacketReceived( msg.Data, handler );
+				Connections.TryGetValue( msg.Connection.Id, out var connection );
+				msg.Dispatch( connection, handler );
 			}
 		}
 

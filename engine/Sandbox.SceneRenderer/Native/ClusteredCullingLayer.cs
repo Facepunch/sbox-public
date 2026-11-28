@@ -18,7 +18,7 @@ internal sealed class ClusteredCullingLayer : NativeProceduralLayer
 
 	static readonly int ClusterCount = ClusterCounts.x * ClusterCounts.y * ClusterCounts.z;
 
-	static readonly ComputeShader Compute = new( "shaders/clustered_light_culling_cs.shader" );
+	static ComputeShader Compute = new( "shaders/clustered_light_culling_cs.shader" );
 
 	readonly GpuBuffer clusterLightCounts = CreateStructuredBuffer( ClusterCount, "ClusterLightCounts" );
 	readonly GpuBuffer clusterEnvCounts = CreateStructuredBuffer( ClusterCount, "ClusterEnvMapCounts" );

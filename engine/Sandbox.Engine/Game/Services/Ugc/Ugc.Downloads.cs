@@ -33,10 +33,13 @@ internal static partial class Ugc
 	{
 		ThreadSafe.AssertIsMainThread();
 
-		if ( !NativeEngine.CUgcSubscriptions.DownloadItem( id, true ) )
-			return false;
+		if ( !requested.Add( id ) ) return true;
 
-		requested.Add( id );
+		if ( !SteamNative.Workshop.DownloadItem( id, true ) )
+		{
+			FailDownload( id, CouldntStart );
+			return false;
+		}
 
 		// Find out what it's called while Steam gets going, so it has a name by the time it's coming down
 		GetDetails( id );
@@ -46,11 +49,11 @@ internal static partial class Ugc
 	/// <summary>
 	/// Steam says how a download went
 	/// </summary>
-	static void OnDownloadResult( ulong id, Steamworks.Result result )
+	internal static void OnDownloadResult( ulong id, Sandbox.SteamApi.Result result )
 	{
 		if ( !requested.Contains( id ) ) return;
 
-		if ( result == Steamworks.Result.OK )
+		if ( result == Sandbox.SteamApi.Result.OK )
 			End( id, null );
 		else
 			FailDownload( id, Explain( result ) );
@@ -67,8 +70,26 @@ internal static partial class Ugc
 
 	static void End( ulong id, Failure? failure )
 	{
-		requested.Remove( id );
-		DownloadEnded?.Invoke( Describe( id, 0, 0 ) with { Error = failure?.Message, ErrorHelp = failure?.Help } );
+		if ( !requested.Remove( id ) || DownloadEnded is not { } ended ) return;
+
+		var download = Describe( id, 0, 0 ) with { Error = failure?.Message, ErrorHelp = failure?.Help };
+		foreach ( var notify in Delegate.EnumerateInvocationList( ended ) )
+		{
+			try
+			{
+				notify( download );
+			}
+			catch ( Exception e )
+			{
+				Log.Warning( e, $"Workshop download handler failed for {id}" );
+			}
+		}
+	}
+
+	internal static void CancelDownloads()
+	{
+		foreach ( var id in requested.ToArray() )
+			End( id, Explain( Sandbox.SteamApi.Result.Cancelled ) );
 	}
 
 	/// <summary>
@@ -122,7 +143,7 @@ internal static partial class Ugc
 		try
 		{
 			if ( await Workshop.FetchAsync( id ) is { } item )
-				details[id] = new Details( item.Title, item.Thumb );
+				details[id] = new Details( item.Title, item.Thumbnail );
 		}
 		catch ( Exception e )
 		{

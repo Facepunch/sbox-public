@@ -752,8 +752,6 @@ public partial class SceneViewportWidget : Widget
 
 		DrawCameraSpeedOverlay();
 		DrawOrientationGizmo();
-
-		Overlay?.Update();
 	}
 
 	/// <summary>

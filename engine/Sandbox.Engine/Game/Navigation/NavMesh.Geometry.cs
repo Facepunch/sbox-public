@@ -7,6 +7,8 @@ namespace Sandbox.Navigation;
 
 public sealed partial class NavMesh
 {
+	static readonly ProfileScope CpuCollectGeometry = new( "Navigation.CollectGeometry" );
+
 	private const float TileHeightWorldSpace = 1048576f;
 
 	internal readonly List<NVector3> geometryVertices = new();
@@ -15,6 +17,7 @@ public sealed partial class NavMesh
 	// World space, wound as physics hands the triangles out. No triangles make the tile empty.
 	internal void CollectGeometry( PhysicsWorld world, TileJob job, out NVector3[] vertices, out int[] indices )
 	{
+		using var cpu = CpuCollectGeometry.Start();
 		ThreadSafe.AssertIsMainThread();
 
 		geometryVertices.Clear();

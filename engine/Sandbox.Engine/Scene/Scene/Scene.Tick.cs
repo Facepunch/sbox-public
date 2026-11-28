@@ -57,6 +57,7 @@ public partial class Scene : GameObject
 
 	public void EditorTick( float timeNow, float timeDelta )
 	{
+		using var cpu = CpuEditorTick.Start();
 		// Only tick here if we're an editor scene
 		// The game will tick a game scene!
 		if ( !IsEditor || !IsValid || IsSuspended )
@@ -90,6 +91,7 @@ public partial class Scene : GameObject
 	/// </summary>
 	internal void RunPendingStarts()
 	{
+		using var cpu = CpuPendingStarts.Start();
 		foreach ( var c in pendingStartComponents.EnumerateLocked() )
 		{
 			if ( !c.IsValid() )
@@ -103,9 +105,10 @@ public partial class Scene : GameObject
 	{
 		RunPendingStarts();
 
-		Signal( GameObjectSystem.Stage.Interpolation );
+		using ( CpuSignalInterpolation.Start() ) Signal( GameObjectSystem.Stage.Interpolation );
 
-		foreach ( var c in updateComponents.EnumerateLocked( true ) ) c.InternalUpdate();
+		if ( Profiler.ScopesActive ) TickComponentsProfiled( updateComponents, TickPhase.Update );
+		else foreach ( var c in updateComponents.EnumerateLocked( true ) ) c.InternalUpdate();
 	}
 
 	List<CameraComponent> _cameraViewScratch = new();
@@ -117,6 +120,7 @@ public partial class Scene : GameObject
 	/// </summary>
 	void UpdateCameraViews()
 	{
+		using var cpu = CpuCameraViews.Start();
 		// Snapshot - a modifier could add or remove cameras while we iterate.
 		_cameraViewScratch.Clear();
 		_cameraViewScratch.AddRange( Cameras );
@@ -154,7 +158,8 @@ public partial class Scene : GameObject
 		GetAll( renderScreenPanels );
 		SortScreenPanels( renderScreenPanels );
 
-		foreach ( var c in preRenderComponents.EnumerateLocked() ) c.OnPreRenderInternal();
+		if ( Profiler.ScopesActive ) TickComponentsProfiled( preRenderComponents, TickPhase.PreRender );
+		else foreach ( var c in preRenderComponents.EnumerateLocked() ) c.OnPreRenderInternal();
 	}
 
 	/// <summary>
@@ -179,11 +184,21 @@ public partial class Scene : GameObject
 		}
 	}
 
-	static Superluminal _updateTimer = new Superluminal( "Scene.Update", Color.Cyan );
-	static Superluminal _preRenderTimer = new Superluminal( "Scene.PreRender", Color.Cyan );
-	static Superluminal _signalUpdateBones = new Superluminal( "Signal.UpdateBones", Color.Cyan );
-	static Superluminal _signalStarthUpdate = new Superluminal( "Signal.StartUpdate", Color.Cyan );
-	static Superluminal _signalFinishUpdate = new Superluminal( "Signal.FinishUpdate", Color.Cyan );
+	static readonly ProfileScope CpuEditorTick = new( "Scene.EditorTick" );
+	static readonly ProfileScope CpuGameTick = new( "Scene.GameTick" );
+	static readonly ProfileScope CpuFixedUpdate = new( "Scene.FixedUpdate" );
+	static readonly ProfileScope CpuProcessDeletes = new( "Scene.ProcessDeletes" );
+	static readonly ProfileScope CpuPendingStarts = new( "Scene.PendingStarts" );
+	static readonly ProfileScope CpuCameraViews = new( "Scene.CameraViews" );
+	static readonly ProfileScope CpuStageStart = new( "Scene.StageStart" );
+	static readonly ProfileScope CpuStageEnd = new( "Scene.StageEnd" );
+	static readonly ProfileScope CpuSignalInterpolation = new( "Scene.Signal.Interpolation" );
+	static readonly ProfileScope CpuSignalStartUpdate = new( "Scene.Signal.StartUpdate" );
+	static readonly ProfileScope CpuSignalUpdateBones = new( "Scene.Signal.UpdateBones" );
+	static readonly ProfileScope CpuSignalFinishUpdate = new( "Scene.Signal.FinishUpdate" );
+	static readonly ProfileScope CpuSignalStartFixedUpdate = new( "Scene.Signal.StartFixedUpdate" );
+	static readonly ProfileScope CpuSignalPhysicsStep = new( "Scene.Signal.PhysicsStep" );
+	static readonly ProfileScope CpuSignalFinishFixedUpdate = new( "Scene.Signal.FinishFixedUpdate" );
 
 	Action _internalFixedUpdate;
 
@@ -210,7 +225,7 @@ public partial class Scene : GameObject
 	void SharedTick()
 	{
 		DispatchLogEvents();
-		Scene.RunEvent<ISceneStage>( x => x.Start() );
+		using ( CpuStageStart.Start() ) Scene.RunEvent<ISceneStage>( x => x.Start() );
 
 		if ( !IsEditor )
 		{
@@ -231,19 +246,18 @@ public partial class Scene : GameObject
 		{
 			ProcessDeletes();
 
-			using ( _signalStarthUpdate.Start() )
+			using ( CpuSignalStartUpdate.Start() )
 			{
 				Signal( GameObjectSystem.Stage.StartUpdate );
 			}
 
-			using ( _updateTimer.Start() )
 			using ( PerformanceStats.Timings.Update.Scope() )
 			{
 				PreTickReset();
 				InternalUpdate();
 			}
 
-			using ( _signalUpdateBones.Start() )
+			using ( CpuSignalUpdateBones.Start() )
 			{
 				Signal( GameObjectSystem.Stage.UpdateBones );
 			}
@@ -253,7 +267,6 @@ public partial class Scene : GameObject
 
 			if ( !Application.IsHeadless )
 			{
-				using ( _preRenderTimer.Start() )
 				using ( PerformanceStats.Timings.Render.Scope() )
 				{
 					PreRender();
@@ -262,7 +275,7 @@ public partial class Scene : GameObject
 
 			ProcessDeletes();
 
-			using ( _signalFinishUpdate.Start() )
+			using ( CpuSignalFinishUpdate.Start() )
 			{
 				Signal( GameObjectSystem.Stage.FinishUpdate );
 			}
@@ -276,7 +289,7 @@ public partial class Scene : GameObject
 			}
 		}
 
-		Scene.RunEvent<ISceneStage>( x => x.End() );
+		using ( CpuStageEnd.Start() ) Scene.RunEvent<ISceneStage>( x => x.End() );
 
 		if ( !IsEditor )
 		{
@@ -320,6 +333,7 @@ public partial class Scene : GameObject
 
 	public void GameTick( double timeDelta = 0.1 )
 	{
+		using var cpu = CpuGameTick.Start();
 		if ( !IsValid || IsSuspended ) return;
 
 		UpdateTime( timeDelta );
@@ -360,21 +374,18 @@ public partial class Scene : GameObject
 
 	Input.Context FixedUpdateInputContext { get; set; } = Input.Context.Create( "Scene.FixedUpdate" );
 
-	static Superluminal _fixedUpdateTimer = new Superluminal( "Scene.FixedUpdate", Color.Cyan );
-	static Superluminal _processDeletesTimer = new Superluminal( "ProcessDeletes", Color.Orange );
-
 	internal void InternalFixedUpdate()
 	{
 		if ( !IsValid )
 			return;
 
+		using var cpu = CpuFixedUpdate.Start();
 		FixedUpdateInputContext.Flip();
 		using var _ = FixedUpdateInputContext.Push();
 
 		try
 		{
-			using var timing = _fixedUpdateTimer.Start();
-			Signal( GameObjectSystem.Stage.StartFixedUpdate );
+			using ( CpuSignalStartFixedUpdate.Start() ) Signal( GameObjectSystem.Stage.StartFixedUpdate );
 
 			// All components that have not had OnStart() called yet
 			// ?: Is there a chance this gets called before Update()? Should this even be here
@@ -383,16 +394,21 @@ public partial class Scene : GameObject
 
 			using ( PerformanceStats.Timings.Update.Scope() )
 			{
-				foreach ( var c in fixedUpdateComponents.EnumerateLocked() )
+				if ( Profiler.ScopesActive )
+					TickComponentsProfiled( fixedUpdateComponents, TickPhase.FixedUpdate );
+				else
 				{
-					if ( !c.IsValid() )
-						continue;
+					foreach ( var c in fixedUpdateComponents.EnumerateLocked() )
+					{
+						if ( !c.IsValid() )
+							continue;
 
-					c.InternalFixedUpdate();
+						c.InternalFixedUpdate();
+					}
 				}
 			}
 
-			Signal( GameObjectSystem.Stage.PhysicsStep );
+			using ( CpuSignalPhysicsStep.Start() ) Signal( GameObjectSystem.Stage.PhysicsStep );
 
 			if ( !IsValid )
 				return;
@@ -405,7 +421,7 @@ public partial class Scene : GameObject
 				}
 			}
 
-			using ( _processDeletesTimer.Start() )
+			using ( CpuProcessDeletes.Start() )
 			{
 				ProcessDeletes();
 			}
@@ -415,7 +431,7 @@ public partial class Scene : GameObject
 				SyncContext.FrameStage.FixedUpdate.Trigger();
 			}
 
-			Signal( GameObjectSystem.Stage.FinishFixedUpdate );
+			using ( CpuSignalFinishFixedUpdate.Start() ) Signal( GameObjectSystem.Stage.FinishFixedUpdate );
 		}
 		finally
 		{

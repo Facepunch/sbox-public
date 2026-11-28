@@ -1,0 +1,46 @@
+{
+  "@prefix": "tool.fingerposer",
+  "name": {
+    "en": "Finger Poser"
+  },
+  "hint.description": {
+    "en": "Select a hand to edit its fingers, or copy the pose to another hand."
+  },
+  "hint.apply": {
+    "en": "Apply pose to hand"
+  },
+  "hint.select": {
+    "en": "Copy hand pose and edit in tool panel"
+  },
+  "hint.reset": {
+    "en": "Restore hand pose"
+  },
+  "finger.thumb": {
+    "en": "Thumb"
+  },
+  "finger.index": {
+    "en": "Index"
+  },
+  "finger.middle": {
+    "en": "Middle"
+  },
+  "finger.ring": {
+    "en": "Ring"
+  },
+  "finger.pinky": {
+    "en": "Pinky"
+  },
+  "finger.base": {
+    "en": "Base bend"
+  },
+  "finger.middle_joint": {
+    "en": "Middle bend"
+  },
+  "finger.tip": {
+    "en": "Tip bend"
+  },
+  "finger.spread": {
+    "@context": "Slider for moving a finger sideways at the knuckle.",
+    "en": "Spread"
+  }
+}

@@ -351,6 +351,9 @@ public class ReviewTests
 		Assert.AreEqual( path.Corners[1], entry );
 		Assert.AreEqual( path.Corners[2], exit );
 		Assert.IsTrue( mesh.State.IsValid( link, Filters.All ) );
+		Assert.IsTrue( mesh.GetLinkEnds( last, out _, out _, out bool startConnected, out bool endConnected ) && startConnected && endConnected );
+		Assert.IsFalse( mesh.GetLinkEnds( last + 1, out _, out _, out _, out _ ) );
+		Assert.IsFalse( mesh.GetLink( -1, out _, out _ ) );
 
 		// The query answers for a link as it does for a polygon: valid, not allowed by a filter that
 		// forbids its area, and stale once the link is set again or removed
@@ -372,6 +375,13 @@ public class ReviewTests
 		mesh.RemoveLink( last );
 		mesh.Commit();
 		Assert.IsFalse( query.IsValid( again, Filters.All ), "The link is gone" );
+		Assert.AreEqual( PathStatus.Partial, query.FindPath( new Vector3( 105, 325, 0 ), new Vector3( 505, 325, 200 ), Snap, Filters.All, path ) );
+
+		// The freed top id is taken again, and survives a rebuild of its tile
+		Assert.AreEqual( last, mesh.AddLink( Ladder() ) );
+		mesh.CommitTiles( [GridMesh.Tile( 0, 0, new GridMesh.Layer( 0 ), new GridMesh.Layer( 200 ) )] );
+		Assert.AreEqual( PathStatus.Complete, query.FindPath( new Vector3( 105, 325, 0 ), new Vector3( 505, 325, 200 ), Snap, Filters.All, path ) );
+		Assert.AreEqual( last, path.Polys.ToArray().Single( p => p.IsLink ).Link );
 	}
 
 	[TestMethod]

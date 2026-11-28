@@ -17,12 +17,12 @@ public partial class BaseNpc
 	public GameObject GroundObject { get; private set; }
 
 	/// <summary>
-	/// The collider component we're standing on. Null if we're standing nothing
+	/// The collider or rigidbody we're standing on. Null if we're standing on nothing.
 	/// </summary>
 	internal Component GroundComponent { get; private set; }
 
 	/// <summary>
-	/// If we're stnding on a surface this is it
+	/// If we're standing on a surface this is it
 	/// </summary>
 	public Surface GroundSurface { get; private set; }
 
@@ -58,9 +58,19 @@ public partial class BaseNpc
 
 		PhysicsCarrier = carrier;
 
+		// Taken hold of getting up, it struggles instead
+		if ( carrier.IsValid() )
+			EndGetUp();
+
 		// A mover that doesn't use the ground gives its body to physics only while it is carried.
-		if ( Networking.IsHost && Movement.IsValid() )
+		if ( Networking.IsHost && Movement.IsValid() && KnockdownState != KnockdownStates.Down )
 			SetPhysicsControl( carrier.IsValid() || (UsesGround && !IsOnGround) );
+
+		if ( Networking.IsHost ) UpdateBodyOwner();
+
+		// A flick is told from where it was when taken hold of
+		_swingVelocity = _rigidbody.IsValid() ? _rigidbody.Velocity : default;
+		_sinceSwingSample = 0;
 
 		if ( previous.IsValid() )
 			OnCarryStopped( previous );
@@ -102,17 +112,17 @@ public partial class BaseNpc
 
 		if ( PhysicsCarrier.IsValid() )
 		{
-			// never grounded while being held by a player, even if we are on the ground
+			// Never grounded while carried, even if we are on the ground
 			UpdateGroundFromTraceResult( default );
 			return;
 		}
 
 		// The navigation layer carries us across a link, off the ground or not
-		if ( Movement is NavigationLayer navigation && navigation.IsValid() && navigation.IsTraversingLink )
+		if ( Movement.IsValid() && Movement.IsCrossingLink )
 			return;
 
 		// Just launched: stay off the floor we left until we stop rising, or the ground probe lands us at once
-		if ( _launched && (_sinceLaunch < 0.1f || _rigidbody.IsValid() && _rigidbody.Velocity.z > 0f) )
+		if ( _launched && (_sinceLaunch < 0.1f || (_rigidbody.IsValid() && _rigidbody.Velocity.z > 0f)) )
 		{
 			UpdateGroundFromTraceResult( default );
 			return;
@@ -123,15 +133,20 @@ public partial class BaseNpc
 		// The mover eases us down steps, so while it walks us we can be up to a step above the floor
 		var to = WorldPosition - up * (IsOnGround ? 8 + Movement.StepHeight : 8);
 
-		var tr = Scene.Trace.Ray( from, to )
-								.IgnoreGameObjectHierarchy( GameObject )
-								.WithCollisionRules( Tags )
-								.WithoutTags( GroundExcludedTags )
-								.Run();
+		var tr = GroundTrace( Scene.Trace.Ray( from, to ) ).Run();
+
+		// Started inside something, such as a prop we are pushing: it says nothing about the ground, so look past it
+		if ( tr.StartedSolid && tr.GameObject.IsValid() )
+			tr = GroundTrace( Scene.Trace.Ray( from, to ) ).IgnoreGameObjectHierarchy( tr.GameObject.Root ).Run();
 
 		if ( !tr.StartedSolid && tr.Hit )
 		{
 			UpdateGroundFromTraceResult( tr );
+		}
+		else if ( RestingOn() is { Hit: true } support )
+		{
+			// The ray from our middle misses, but the body stands on something, like a ledge's edge
+			UpdateGroundFromTraceResult( support );
 		}
 		else if ( _sinceAirMovement > 0.5f && _airContact.IsValid() )
 		{
@@ -146,6 +161,20 @@ public partial class BaseNpc
 			UpdateGroundFromTraceResult( default );
 		}
 	}
+
+	// The body itself swept down a little, like PlayerController's hull probe, while it isn't rising or falling
+	SceneTraceResult RestingOn()
+	{
+		if ( !_rigidbody.IsValid() || MathF.Abs( _rigidbody.Velocity.z ) > 5f || _rigidbody.PhysicsBody is not { IsValid: true } body ) return default;
+
+		// From a little above: resting on it, the body already touches it
+		var up = WorldRotation.Up;
+		var tr = GroundTrace( Scene.Trace.Body( body, body.Transform.WithPosition( body.Position + up * 2 ), body.Position - up * 2 ) ).Run();
+
+		return !tr.StartedSolid && tr.Hit && tr.Normal.z > 0.7f ? tr : default;
+	}
+
+	private SceneTrace GroundTrace( SceneTrace trace ) => trace.IgnoreGameObjectHierarchy( GameObject ).WithCollisionRules( Tags ).WithoutTags( GroundExcludedTags );
 
 	void UpdateGroundFromTraceResult( SceneTraceResult tr )
 	{
@@ -166,7 +195,7 @@ public partial class BaseNpc
 	{
 		_airContact = null;
 
-		if ( _rigidbody.IsValid() ) _rigidbody.MotionEnabled = !IsOnGround;
+		UpdateBodyOwner();
 		if ( UsesGround ) SetPhysicsControl( !IsOnGround );
 	}
 
@@ -180,9 +209,17 @@ public partial class BaseNpc
 		_airContact = null;
 		_launched = false;
 
-		var physics = PhysicsCarrier.IsValid() || UsesGround;
-		if ( _rigidbody.IsValid() ) _rigidbody.MotionEnabled = physics;
-		SetPhysicsControl( physics );
+		UpdateBodyOwner();
+		SetPhysicsControl( PhysicsCarrier.IsValid() || UsesGround );
+	}
+
+	// The one place that decides whether physics moves the body or the mover places it
+	internal void UpdateBodyOwner()
+	{
+		if ( !_rigidbody.IsValid() ) return;
+
+		_rigidbody.MotionEnabled = KnockdownState == KnockdownStates.Down || PhysicsCarrier.IsValid() || _launched
+			|| (UsesGround && !IsOnGround) || (Movement.IsValid() && Movement.SimulatesBody);
 	}
 
 	void SetPhysicsControl( bool physics )

@@ -21,15 +21,11 @@ public sealed class NavBuilder
 	internal readonly TileAssembler Assembler = new();
 	internal readonly LinkBuilder Links = new();
 
-	/// <summary>
-	/// Triangles touching the tile that were rasterized as ground, and those that were not because they
-	/// face down, are too steep or have no area.
-	/// </summary>
+	// Triangles touching the tile that were rasterized as ground, and those that were not because they
+	// face down, are too steep or have no area.
 	internal int TrianglesUsed, TrianglesRejected;
 
-	/// <summary>
-	/// Where the field of the last build sits. MinZ is the world height of floor 0.
-	/// </summary>
+	// Where the field of the last build sits. MinZ is the world height of floor 0.
 	internal FieldFrame Frame;
 
 	readonly CachedField unpacked = new();
@@ -39,13 +35,10 @@ public sealed class NavBuilder
 	byte[] packed = [];
 
 	/// <summary>
-	/// Reads the job, writes the job. Bad geometry and exceeded limits end the job Failed with Error
-	/// set, as does a job that needs geometry and was not given any. A job given no triangles builds to
-	/// an empty tile. A codec that throws while compressing ends the job Failed too, with its message.
-	/// A kept field the codec does not hand back, or throws on, ends the job NeedsGeometry: commit it and
-	/// the tile comes back as a job that asks for triangles.
-	/// Once warm it allocates only the arrays of the tile it produces and, for a tile that volumes
-	/// overlap, of the field the mesh keeps.
+	/// Builds the job. Bad geometry, exceeded limits, missing geometry and a codec that throws while
+	/// compressing end it Failed with Error set. A kept field the codec does not hand back ends it
+	/// NeedsGeometry: commit it and the tile comes back as a job that asks for triangles. Once warm it
+	/// allocates only the arrays of the tile and of the field the mesh keeps.
 	/// </summary>
 	public void Build( TileJob job ) => Build( job, job.Vertices.Span, job.Indices.Span, job.HasGeometry );
 
@@ -55,9 +48,8 @@ public sealed class NavBuilder
 	{
 		var status = Run( job, vertices, indices, hasGeometry, out var tile, out string? error );
 
-		// A field that came back from the codec is used only when its checksum says it is the one that went
-		// in. Should a build from it fail all the same, the tile is built from geometry instead: if the field
-		// was not the reason, that build fails as well and says why.
+		// A build from a kept field that fails goes back to geometry; if the field was not the reason, that
+		// build fails as well and says why.
 		if ( status == TileJobStatus.Failed && job.Cached?.Packed != null )
 		{
 			status = TileJobStatus.NeedsGeometry;
@@ -175,11 +167,9 @@ public sealed class NavBuilder
 		return tile != null;
 	}
 
-	/// <summary>
-	/// Checks the triangles and finds the height range of those that touch the tile, which decides where
-	/// floor 0 of the field is. any is false when none touches. False with an error for data that cannot
-	/// be built from.
-	/// </summary>
+	// Checks the triangles and finds the height range of those that touch the tile, which decides where
+	// floor 0 of the field is. any is false when none touches. False with an error for data that cannot
+	// be built from.
 	internal bool Prepare( ReadOnlySpan<Vector3> vertices, ReadOnlySpan<int> indices, float minZ, float maxZ, in BuildConfig config, ref FieldFrame frame, out bool any, out string? error )
 	{
 		TrianglesUsed = 0;
@@ -230,10 +220,8 @@ public sealed class NavBuilder
 		return true;
 	}
 
-	/// <summary>
-	/// The triangles Prepare accepted, as solid spans. Every triangle is an obstacle; one that faces up
-	/// within the slope limit is ground as well.
-	/// </summary>
+	// The triangles Prepare accepted, as solid spans. Every triangle is an obstacle; one that faces up
+	// within the slope limit is ground as well.
 	internal void Rasterize( ReadOnlySpan<Vector3> vertices, ReadOnlySpan<int> indices, float minZ, float maxZ, in BuildConfig config, in FieldFrame frame )
 	{
 		Solid.Reset( config.FieldSize, config.FieldSize );
@@ -252,11 +240,8 @@ public sealed class NavBuilder
 		}
 	}
 
-	// Ground when the unit normal's z is above the cosine of the slope limit. A triangle thinner than a
-	// hundred-thousandth of its own size has no direction worth trusting and is not ground. Two things
-	// here are as they are only to match today's engine bit for bit, and can go once that comparison is
-	// no longer needed: the normal's components are summed in the order x, z, y (its Y-up code), and the
-	// triangle is clipped as v0, v2, v1, which decides the cut points.
+	// A near-degenerate triangle is not ground. Summing the normal as x, z, y and clipping as v0, v2, v1
+	// exist only to match the engine bit for bit.
 	[System.Runtime.CompilerServices.MethodImpl( System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining )]
 	static bool IsGround( Vector3 v0, Vector3 v1, Vector3 v2, float walkableCos )
 	{
@@ -279,10 +264,8 @@ public sealed class NavBuilder
 	internal readonly SolidField Apron = new();
 	internal FieldFrame ApronFrame;
 
-	/// <summary>
-	/// Rasterises the triangles into four strips around the field, each a window of a field cells wider
-	/// than the tile's on every side, with its floor 0 at floorZ.
-	/// </summary>
+	// Rasterises the triangles into four strips around the field, each a window of a field cells wider
+	// than the tile's on every side, with its floor 0 at floorZ.
 	internal void RasterizeApron( ReadOnlySpan<Vector3> vertices, ReadOnlySpan<int> indices, float minZ, float maxZ, in BuildConfig config, int tileX, int tileY, float floorZ, int cells )
 	{
 		int main = config.FieldSize, size = main + 2 * cells;
@@ -331,10 +314,8 @@ public sealed class NavBuilder
 		return min.X <= frame.MaxX && max.X >= frame.MinX && min.Y <= frame.MaxY && max.Y >= frame.MinY && min.Z <= maxZ && max.Z >= minZ;
 	}
 
-	/// <summary>
-	/// The area of every span: what erosion left, then the volumes. Returns a hash that stands for all
-	/// of them and is never 0.
-	/// </summary>
+	// The area of every span: what erosion left, then the volumes. Returns a hash that stands for all
+	// of them and is never 0.
 	internal ulong MarkAreas( ReadOnlySpan<NavVolume> volumes, in FieldFrame frame, float cellHeight )
 	{
 		if ( Field.Area.Length < Field.SpanCount ) Field.Area = new byte[Field.SpanCount + Field.SpanCount / 2];
@@ -356,9 +337,7 @@ public sealed class NavBuilder
 		return Fnv.Hash( area.AsSpan( 0, Field.SpanCount ) );
 	}
 
-	/// <summary>
-	/// The polygons of the last stage as a tile: vertices from cells to world, then the tile's arrays.
-	/// </summary>
+	// The polygons of the last stage as a tile: vertices from cells to world, then the tile's arrays.
 	internal Tile? Assemble( int tileX, int tileY, float originZ, in NavSettings settings, out string? error )
 	{
 		var cells = Polys.Verts;
@@ -379,9 +358,7 @@ public sealed class NavBuilder
 		return Assembler.Create( tileX, tileY, verts, Polys.Polys.AsSpan( 0, count * Poly.MaxVerts ), Polys.Neis.AsSpan( 0, count * Poly.MaxVerts ), Polys.Areas.AsSpan( 0, count ), settings, out error );
 	}
 
-	/// <summary>
-	/// Points the working field at a kept one. Only the column index is rebuilt.
-	/// </summary>
+	// Points the working field at a kept one. Only the column index is rebuilt.
 	internal void OpenField( CachedField cached )
 	{
 		int size = cached.Size;
@@ -405,9 +382,7 @@ public sealed class NavBuilder
 		Field.Con = cached.Cons;
 	}
 
-	/// <summary>
-	/// Copies the field of a build from triangles into target, growing its arrays when they are too small.
-	/// </summary>
+	// Copies the field of a build from triangles into target, growing its arrays when they are too small.
 	internal void CopyFieldTo( CachedField target, float originZ )
 	{
 		int columns = Field.Width * Field.Height;
@@ -427,9 +402,8 @@ public sealed class NavBuilder
 		target.SpanCount = spanCount;
 	}
 
-	// The field of the build that just ran, in the form the mesh keeps: what the codec makes of it when
-	// that is smaller, the arrays otherwise. Null with an error when the codec throws: it is the caller's
-	// code, and a job that never ends would be handed out for ever.
+	// The field as the mesh keeps it: compressed when that is smaller. Null with an error when the codec
+	// throws, so the job fails instead of being handed out for ever.
 	CachedField? Pack( in NavCodec codec, float originZ, out string? error )
 	{
 		error = null;

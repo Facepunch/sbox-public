@@ -265,6 +265,36 @@ public class LightProbeVolumeTests
 		Assert.AreEqual( -1, loaded.BakeLightIndex );
 	}
 
+	/// <summary>
+	/// The preview switches live lights and probes while preserving their saved bake settings.
+	/// </summary>
+	[TestMethod]
+	public void LightmapPreviewCanHideAndRestoreTheBake()
+	{
+		using var scope = scene.Push();
+		scene.LightingMode = SceneLightingMode.Lightmap;
+		var bake = scene.Lightmap;
+		using var ambient = Texture.CreateVolume( 2, 2, 12 ).Finish();
+		var probe = scene.CreateObject().Components.Create<LightProbeVolume>();
+		probe.Texture = ambient;
+		var light = scene.CreateObject().Components.Create<PointLight>();
+		light.BakeLightIndex = 3;
+
+		bake.PreviewEnabled = false;
+		Assert.IsNull( FindProbe( scene, probe ) );
+		Assert.AreEqual( 0u, light.SceneObject.lightNative.GetLightFlags() & 32u );
+		Assert.AreEqual( 3, light.BakeLightIndex );
+		Assert.AreSame( ambient, probe.Texture );
+		Assert.IsFalse( Json.SerializeAsObject( bake ).ContainsKey( nameof( bake.PreviewEnabled ) ) );
+
+		light.Enabled = false;
+		light.Enabled = true;
+		Assert.AreEqual( 0u, light.SceneObject.lightNative.GetLightFlags() & 32u );
+		bake.PreviewEnabled = true;
+		Assert.IsNotNull( FindProbe( scene, probe ) );
+		Assert.AreNotEqual( 0u, light.SceneObject.lightNative.GetLightFlags() & 32u );
+	}
+
 	[TestMethod]
 	public void SourcePointAttenuationSurvivesSerialization()
 	{

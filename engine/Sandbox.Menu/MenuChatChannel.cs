@@ -1,6 +1,5 @@
 using Sandbox.Engine;
-using Steamworks;
-using Steamworks.Data;
+using Sandbox.SteamApi;
 using System;
 using System.Text;
 
@@ -32,7 +31,7 @@ public sealed class MenuChatChannel : IDisposable, ILobby
 	/// <summary>
 	/// The current chat channel owner.
 	/// </summary>
-	public Friend Owner => new( lobby.Owner );
+	public Friend Owner => lobby.Owner;
 
 	/// <summary>
 	/// Number of players currently in the chat channel.
@@ -47,7 +46,7 @@ public sealed class MenuChatChannel : IDisposable, ILobby
 	/// <summary>
 	/// Members of a joined chat channel. Search results cannot enumerate members.
 	/// </summary>
-	public IEnumerable<Friend> Members => lobby.Members.Select( x => new Friend( x ) );
+	public IEnumerable<Friend> Members => lobby.Members;
 
 	/// <summary>
 	/// Whether this handle still owns Steam membership.
@@ -82,7 +81,7 @@ public sealed class MenuChatChannel : IDisposable, ILobby
 	/// <summary>
 	/// Read metadata published by a member.
 	/// </summary>
-	public string GetMemberData( Friend member, string key ) => lobby.GetMemberData( member.Internal, key );
+	public string GetMemberData( Friend member, string key ) => lobby.GetMemberData( member, key );
 
 	/// <summary>
 	/// Publish metadata for the local member.
@@ -110,7 +109,7 @@ public sealed class MenuChatChannel : IDisposable, ILobby
 	/// </summary>
 	public static async Task<MenuChatChannel[]> FindAsync( Dictionary<string, string> filters )
 	{
-		var query = SteamMatchmaking.LobbyList.FilterDistanceWorldwide()
+		var query = SteamMatchmaking.LobbyList
 			.WithKeyValue( "menu_protocol", "1" )
 			.WithKeyValue( "api", Protocol.Api.ToString() )
 			.WithKeyValue( "protocol", Protocol.Network.ToString() )

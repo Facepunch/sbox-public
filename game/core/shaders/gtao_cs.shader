@@ -295,7 +295,7 @@ CS
         return lerp( lowHorizonCos, shc, weight );
     }
 
-    float GTAO_Visibility( int2 fullResPos, float viewspaceZ, float3 viewspaceNormal, float2 localNoise,
+    float GTAO_Visibility( int2 aoPos, int2 fullResPos, float viewspaceZ, float3 viewspaceNormal, float2 localNoise,
                            int sliceCount, const int stepsPerSlice, GTAOConstants consts )
     {
         float2 fullResPixelSize = 1.0 / g_vViewportSize.xy;
@@ -336,6 +336,10 @@ CS
 
         // An AO pixel, in UV. Offsets are snapped to whole AO pixels as XeGTAO snaps them.
         const float2 aoPixelSize = consts.ViewportPixelSize;
+
+        // Depth is fetched from the middle of this AO texel. centerUV is the full resolution texel's, which at an odd
+        // viewport size drifts onto the edge between two AO texels, and there a point sample picks either
+        const float2 fetchUV = ( (float2)aoPos + 0.5 ) * aoPixelSize;
 
         // Slice directions: phi_k = ( k + noise ) * PI / sliceCount, rotated from one to the next
         float stepAngle = XE_GTAO_PI / sliceCount;
@@ -386,8 +390,8 @@ CS
                 for ( float d = pixelStep; d <= screenspaceRadius; d += pixelStep )
                 {
                     const float2 uvOffset = round( d * pixelDirection ) * aoPixelSize;
-                    const float z0 = g_srcWorkingDepth.SampleLevel( PointClamp, centerUV + uvOffset, 0 ).x;
-                    const float z1 = g_srcWorkingDepth.SampleLevel( PointClamp, centerUV - uvOffset, 0 ).x;
+                    const float z0 = g_srcWorkingDepth.SampleLevel( PointClamp, fetchUV + uvOffset, 0 ).x;
+                    const float z1 = g_srcWorkingDepth.SampleLevel( PointClamp, fetchUV - uvOffset, 0 ).x;
                     horizonCos0 = max( horizonCos0, SampleHorizonCos( centerUV + uvOffset, z0, pixCenterPos, viewVec, lowHorizonCos0, thinK, falloffMul, falloffAdd, consts ) );
                     horizonCos1 = max( horizonCos1, SampleHorizonCos( centerUV - uvOffset, z1, pixCenterPos, viewVec, lowHorizonCos1, thinK, falloffMul, falloffAdd, consts ) );
                 }
@@ -419,8 +423,8 @@ CS
                     const float mipLevel = clamp( 2 * log2( stepMiddle ) + mipBias, 0, XE_GTAO_DEPTH_MIP_LEVELS );
 
                     sampleUV[step] = round( s * omega ) * aoPixelSize;
-                    sampleZ0[step] = g_srcWorkingDepth.SampleLevel( PointClamp, centerUV + sampleUV[step], mipLevel ).x;
-                    sampleZ1[step] = g_srcWorkingDepth.SampleLevel( PointClamp, centerUV - sampleUV[step], mipLevel ).x;
+                    sampleZ0[step] = g_srcWorkingDepth.SampleLevel( PointClamp, fetchUV + sampleUV[step], mipLevel ).x;
+                    sampleZ1[step] = g_srcWorkingDepth.SampleLevel( PointClamp, fetchUV - sampleUV[step], mipLevel ).x;
                 }
 
                 // ...then the horizons (approx lines 23, 24 from the paper)
@@ -669,10 +673,10 @@ CS
             // too light, which no denoiser can fix. Slices are what keep it still in motion: with 3 the rotation pattern swims.
             // High is 4x8: 4x6 is 25-55% further from the per pixel reference and shimmers no less.
             float visibility;
-            if ( D_QUALITY == 0 )       visibility = GTAO_Visibility( fullResPos, viewspaceZ, viewspaceNormal, localNoise, 2, 6, sGTAOConsts );
-            else if ( D_QUALITY == 1 )  visibility = GTAO_Visibility( fullResPos, viewspaceZ, viewspaceNormal, localNoise, 3, 8, sGTAOConsts );
-            else if ( D_QUALITY == 2 )  visibility = GTAO_Visibility( fullResPos, viewspaceZ, viewspaceNormal, localNoise, 4, 8, sGTAOConsts );
-            else                        visibility = GTAO_Visibility( fullResPos, viewspaceZ, viewspaceNormal, localNoise, g_nReferenceSlices, 8, sGTAOConsts );
+            if ( D_QUALITY == 0 )       visibility = GTAO_Visibility( aoPos, fullResPos, viewspaceZ, viewspaceNormal, localNoise, 2, 6, sGTAOConsts );
+            else if ( D_QUALITY == 1 )  visibility = GTAO_Visibility( aoPos, fullResPos, viewspaceZ, viewspaceNormal, localNoise, 3, 8, sGTAOConsts );
+            else if ( D_QUALITY == 2 )  visibility = GTAO_Visibility( aoPos, fullResPos, viewspaceZ, viewspaceNormal, localNoise, 4, 8, sGTAOConsts );
+            else                        visibility = GTAO_Visibility( aoPos, fullResPos, viewspaceZ, viewspaceNormal, localNoise, g_nReferenceSlices, 8, sGTAOConsts );
 
             g_outAOZ[aoPos] = visibility;
         }

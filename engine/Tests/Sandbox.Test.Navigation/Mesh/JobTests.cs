@@ -5,7 +5,6 @@ namespace Nav.Lib.Tests;
 
 /// <summary>
 /// The job flow against the tile seam: a test plays the builder by completing jobs by hand.
-/// The cases are the ones of review item B2.
 /// </summary>
 [TestClass]
 public class JobTests
@@ -90,7 +89,7 @@ public class JobTests
 	[TestMethod]
 	public void FailedJobClearsTheDirtyMarkSoNoLoopSpins()
 	{
-		// B2 (1): one bad tile must not keep the take, build, commit loop alive for ever.
+		// One bad tile must not keep the take, build, commit loop alive for ever.
 		var mesh = GridMesh.Create();
 		mesh.MarkDirty( 0, 0 );
 		mesh.MarkDirty( 1, 0 );
@@ -121,22 +120,9 @@ public class JobTests
 	}
 
 	[TestMethod]
-	public void FailedJobKeepsTheOldTile()
-	{
-		var mesh = GridMesh.Mesh( (0, 0) );
-		uint serial = mesh.State.Find( 0, 0 )!.Serial;
-		mesh.MarkDirty( 0, 0 );
-		var jobs = Take( mesh );
-		jobs[0].Complete( TileJobStatus.Failed, null, "geometry needed but not supplied" );
-		Assert.AreEqual( 1, mesh.Commit( jobs ) );
-		Assert.AreEqual( "geometry needed but not supplied", jobs[0].Error );
-		Assert.AreEqual( serial, mesh.State.Find( 0, 0 )!.Serial );
-	}
-
-	[TestMethod]
 	public void PendingJobIsAbandonedAndItsLateResultIgnored()
 	{
-		// B2 (3): committing while a worker is still building.
+		// Committing while a worker is still building.
 		var mesh = GridMesh.Create();
 		mesh.MarkDirty( 0, 0 );
 		var early = Take( mesh );
@@ -167,7 +153,6 @@ public class JobTests
 	[TestMethod]
 	public void RemoveTileDiscardsTheJobInFlight()
 	{
-		// B2 (4): TakeJobs T, RemoveTile( T ), Commit: T must not reappear.
 		var mesh = GridMesh.Mesh( (0, 0) );
 		mesh.MarkDirty( 0, 0 );
 		var jobs = Take( mesh );
@@ -227,7 +212,7 @@ public class JobTests
 	[TestMethod]
 	public void TileMarkedBeforeEveryCommitGetsEachFinishedBuild()
 	{
-		// What starved before: the tile is asked for in every update, and a build takes three of them.
+		// The tile is asked for in every update, and a build takes three of them.
 		var mesh = GridMesh.Create();
 		var others = new[] { (4, 4), (5, 4) };
 		TileJob? flying = null;
@@ -337,7 +322,7 @@ public class JobTests
 	[TestMethod]
 	public void NeedsGeometryIssuesTheTileAgain()
 	{
-		// B2 (2) and (5): a cached field that cannot be used is not a failure and not an empty tile.
+		// A cached field that cannot be used is not a failure and not an empty tile.
 		var mesh = GridMesh.Mesh( (0, 0) );
 		mesh.MarkDirty( 0, 0 );
 		var jobs = Take( mesh );

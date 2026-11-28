@@ -1,5 +1,4 @@
 using System.Numerics;
-using System.Runtime.CompilerServices;
 
 namespace Nav;
 
@@ -197,10 +196,8 @@ public sealed partial class NavQuery
 		if ( nearestOnly && count == distances.Length ) rangeSquared = distances[count - 1];
 	}
 
-	/// <summary>
-	/// Walks the surface in a straight line from a point on start towards to. t is how far it got, 1
-	/// when nothing was in the way; last is the polygon it ended in. False when start is stale.
-	/// </summary>
+	// Walks the surface in a straight line from a point on start towards to. t is how far it got, 1
+	// when nothing was in the way; last is the polygon it ended in. False when start is stale.
 	internal bool Raycast( MeshState s, PolyRef start, Vector3 from, Vector3 to, in NavFilter filter, out float t, out PolyRef last )
 	{
 		t = 0;

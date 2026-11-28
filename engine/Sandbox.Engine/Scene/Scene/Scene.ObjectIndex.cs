@@ -117,7 +117,7 @@ public partial class Scene : GameObject
 		// little bit of magic for components
 		if ( obj is Component c )
 		{
-			if ( c is IUpdateSubscriber || c.OnComponentUpdate is not null ) updateComponents.Add( c );
+			if ( (c is IUpdateSubscriber && c.UpdatesIn( this )) || c.OnComponentUpdate is not null ) updateComponents.Add( c );
 			if ( c is IFixedUpdateSubscriber || c.OnComponentFixedUpdate is not null ) fixedUpdateComponents.Add( c );
 			if ( c is IPreRenderSubscriber ) preRenderComponents.Add( c );
 		}

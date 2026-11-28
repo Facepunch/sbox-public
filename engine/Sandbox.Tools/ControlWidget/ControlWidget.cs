@@ -255,13 +255,18 @@ public abstract class ControlWidget : Widget
 
 	protected virtual int ValueHash => HashCode.Combine( this, SerializedProperty?.GetValue<object>() );
 
+	// The value is read once a debounce (SetContentHash's 0.1 s), not every frame: reading it boxes it, and an inspector has
+	// dozens of these
+	Func<int> valueHash;
+
 	[EditorEvent.Frame]
 	public virtual void Think()
 	{
-		if ( !Visible )
+		// The debounce first: asking Qt whether it's visible is a native call, and an inspector has dozens of these
+		if ( !ContentHashDue( 0.1f ) || !Visible )
 			return;
 
-		if ( SetContentHash( ValueHash, 0.1f ) )
+		if ( SetContentHash( valueHash ??= () => ValueHash, 0.1f ) )
 		{
 			OnValueChanged();
 			CheckDifferentState();

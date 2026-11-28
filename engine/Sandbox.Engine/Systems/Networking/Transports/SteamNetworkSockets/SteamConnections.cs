@@ -1,9 +1,6 @@
 ﻿using NativeEngine;
 using Sandbox.Engine;
-using Steamworks;
-using Steamworks.Data;
-using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
+using Sandbox.SteamApi;
 using System.Threading.Channels;
 
 namespace Sandbox.Network;
@@ -12,7 +9,7 @@ internal static partial class SteamNetwork
 {
 	internal class AuthenticatedConnection : Connection
 	{
-		private HAuthTicket AuthTicketHandle { get; set; }
+		private uint AuthTicketHandle { get; set; }
 
 		internal override bool OnReceiveServerInfo( ref UserInfo userInfo, ServerInfo info )
 		{
@@ -32,7 +29,7 @@ internal static partial class SteamNetwork
 		{
 			base.InternalClose( closeCode, closeReason );
 
-			if ( AuthTicketHandle.Value <= 0 )
+			if ( AuthTicketHandle == 0 )
 				return;
 
 			Services.Auth.CancelAuthTicket( AuthTicketHandle );
@@ -55,7 +52,7 @@ internal static partial class SteamNetwork
 		{
 			Initialize();
 
-			var handle = Glue.Networking.ConnectToSteamId( steamId, virtualPort );
+			var handle = SteamNative.NetworkingSockets.ConnectP2P( steamId, virtualPort );
 			InitHandle( handle );
 			ConnectedSteamId = steamId;
 		}
@@ -75,7 +72,7 @@ internal static partial class SteamNetwork
 		{
 			Initialize();
 
-			var handle = Glue.Networking.ConnectToIpAddress( address );
+			var handle = SteamNative.NetworkingSockets.ConnectByIPAddress( address );
 			InitHandle( handle );
 			ConnectedIpAddress = address;
 		}
@@ -96,12 +93,19 @@ internal static partial class SteamNetwork
 
 		private ulong AuthenticatedSteamId { get; set; }
 
-		static readonly Dictionary<ulong, TaskCompletionSource<ValidateAuthTicketResponse_t>> PendingAuth = new();
+		// Steam keys validation callbacks by user, so only one socket can own their native session.
+		static readonly Dictionary<ulong, SocketConnection> authSessions = new();
+		ulong? authSessionId;
+		TaskCompletionSource<(AuthResponse Result, ulong Owner)> awaitingTicket;
 
-		internal static void OnValidateAuthTicket( ValidateAuthTicketResponse_t response )
+		internal static void OnValidateAuthTicket( ulong steamId, AuthResponse response, ulong owner )
 		{
-			if ( PendingAuth.Remove( response.SteamID, out var tcs ) )
-				tcs.TrySetResult( response );
+			if ( !authSessions.TryGetValue( steamId, out var socket ) ) return;
+			if ( socket.awaitingTicket?.TrySetResult( (response, owner) ) == true ) return;
+
+			// Steam also reports a ticket being revoked after the handshake has succeeded.
+			if ( response != AuthResponse.OK )
+				socket.Close( 0, $"Steam authentication ended: {response}" );
 		}
 
 		public override bool HasPermission( string permission )
@@ -127,32 +131,7 @@ internal static partial class SteamNetwork
 				return false;
 			}
 
-			// Let's end any existing auth session with this user first. Maybe they crashed while
-			// the session was active. It doesn't hurt.
-			Services.Auth.EndAuthSession( info.SteamId );
-
-			// Start waiting for the auth validation callback before calling BeginAuthSession
-			var tcs = new TaskCompletionSource<ValidateAuthTicketResponse_t>();
-			PendingAuth[info.SteamId] = tcs;
-
-			// We need to check if the client has a valid authentication ticket.
-			var result = Services.Auth.BeginAuthSession( info.SteamId, info.AuthTicket );
-			if ( result != BeginAuthResult.OK )
-			{
-				Close( 0, result.ToString() );
-				return false;
-			}
-
-			// Wait for Steam to validate and tell us the app owner
-			var authResponse = await tcs.Task.WaitAsync( TimeSpan.FromSeconds( 30 ) );
-
-			if ( authResponse.AuthSessionResponse != AuthResponse.OK )
-			{
-				Close( 0, $"Auth Failed: {authResponse.AuthSessionResponse}" );
-				return false;
-			}
-
-			OwnerSteamId = authResponse.OwnerSteamID;
+			if ( !await ValidateTicketAsync( info ) ) return false;
 
 			// Let's see if we have another connection with this Steam Id. They might have
 			// crashed, so let's kick the old one.
@@ -163,22 +142,89 @@ internal static partial class SteamNetwork
 			return await base.OnReceiveUserInfo( info );
 		}
 
+		private async Task<bool> ValidateTicketAsync( UserInfo info )
+		{
+			if ( !IsValid ) return false;
+
+			if ( awaitingTicket is not null || authSessionId.HasValue )
+			{
+				Close( 0, "Authentication already started on this connection" );
+				return false;
+			}
+
+			// A reconnect takes over the previous socket's native session before starting its own.
+			if ( authSessions.TryGetValue( info.SteamId, out var previous ) )
+			{
+				if ( previous.awaitingTicket is not null )
+				{
+					Close( 0, "Authentication already in progress" );
+					return false;
+				}
+
+				previous.ReleaseAuthSession();
+			}
+
+			var completion = new TaskCompletionSource<(AuthResponse Result, ulong Owner)>( TaskCreationOptions.RunContinuationsAsynchronously );
+			awaitingTicket = completion;
+			authSessions.Add( info.SteamId, this );
+
+			try
+			{
+				var result = Services.Auth.BeginAuthSession( info.SteamId, info.AuthTicket );
+				if ( result != BeginAuthResult.OK )
+				{
+					authSessions.Remove( info.SteamId );
+					Close( 0, result.ToString() );
+					return false;
+				}
+
+				authSessionId = info.SteamId;
+				var response = await completion.Task.WaitAsync( TimeSpan.FromSeconds( 30 ) );
+				if ( !IsValid ) return false;
+
+				if ( response.Result != AuthResponse.OK )
+				{
+					Close( 0, $"Auth Failed: {response.Result}" );
+					return false;
+				}
+
+				OwnerSteamId = response.Owner;
+				return true;
+			}
+			catch ( TimeoutException )
+			{
+				Close( 0, "Steam authentication timed out" );
+				return false;
+			}
+			finally
+			{
+				awaitingTicket = null;
+			}
+		}
+
+		private void ReleaseAuthSession()
+		{
+			if ( authSessionId is not ulong steamId ) return;
+
+			authSessionId = null;
+			authSessions.Remove( steamId );
+			Services.Auth.EndAuthSession( steamId );
+			awaitingTicket?.TrySetResult( (AuthResponse.AuthTicketCanceled, 0) );
+		}
+
 		internal override void InternalSend( NetPacket packet, NetFlags flags )
 		{
 			if ( !Socket.IsValid() )
 				return;
 
-			Socket.SendMessage( Handle, packet, flags.ToSteamFlags() );
+			Socket.SendMessage( Handle, packet, flags );
 		}
 
 		internal override void InternalClose( int closeCode, string closeReason )
 		{
 			base.InternalClose( closeCode, closeReason );
 
-			if ( AuthenticatedSteamId > 0 )
-			{
-				Services.Auth.EndAuthSession( AuthenticatedSteamId );
-			}
+			ReleaseAuthSession();
 		}
 	}
 
@@ -192,24 +238,6 @@ internal static partial class SteamNetwork
 		protected void InitHandle( HSteamNetConnection h )
 		{
 			handle = h;
-		}
-
-		public string Description => Glue.Networking.GetConnectionDescription( handle );
-		public string Identity => $"{Glue.Networking.GetConnectionSteamId( handle )}";
-
-		ConnectionStatus Status => (ConnectionStatus)Glue.Networking.GetConnectionState( handle );
-
-		public enum ConnectionStatus
-		{
-			None = 0,
-			Connecting = 1,
-			FindingRoute = 2,
-			Connected = 3,
-			ClosedByPeer = 4,
-			ProblemDetectedLocally = 5,
-			FinWait = -1,
-			Linger = -2,
-			Dead = -3
 		}
 
 		public override void Kick( string reason )
@@ -233,19 +261,7 @@ internal static partial class SteamNetwork
 				if ( !timeUntilFetchStats )
 					return cachedStats;
 
-				var net = Steam.SteamNetworkingSockets();
-				var info = net.GetConnectionInfo( Handle );
-
-				cachedStats = new( DisplayName )
-				{
-					Ping = info.m_nPing,
-					InBytesPerSecond = info.m_flInBytesPerSec,
-					InPacketsPerSecond = info.m_flInPacketsPerSec,
-					OutBytesPerSecond = info.m_flOutBytesPerSec,
-					OutPacketsPerSecond = info.m_flOutPacketsPerSec,
-					SendRateBytesPerSecond = info.m_nSendRateBytesPerSecond,
-					ConnectionQuality = info.m_flConnectionQualityLocal
-				};
+				cachedStats = SteamNative.NetworkingSockets.GetConnectionStats( Handle ).ForConnection( DisplayName );
 
 				timeUntilFetchStats = 0.5f;
 
@@ -256,127 +272,25 @@ internal static partial class SteamNetwork
 		private Channel<OutgoingSteamMessage> OutgoingMessages { get; } = Channel.CreateUnbounded<OutgoingSteamMessage>();
 		private Channel<IncomingSteamMessage> IncomingMessages { get; } = Channel.CreateUnbounded<IncomingSteamMessage>();
 
-		private const int MaxBatchSize = 256;
-		private readonly IntPtr[] _messageBatch = new IntPtr[MaxBatchSize];
-
-		/// <summary>
-		/// Send any queued outgoing messages and process any incoming messages to be queued for handling
-		/// on the main thread.
-		/// </summary>
 		internal override void ProcessMessagesInThread()
 		{
-			var net = Steam.SteamNetworkingSockets();
-			if ( !net.IsValid ) return;
+			if ( !SteamNative.NetworkingSockets.IsAvailable() )
+				return;
 
-			int batchCount = 0;
-			var maxOutgoing = Networking.MaxOutgoingMessagesPerTick;
-			var outgoingCount = 0;
-
-			while ( OutgoingMessages.Reader.TryRead( out var msg ) )
-			{
-				// Let Steam allocate the native buffer so there's no need to pin managed arrays.
-				var steamMsgPtr = Glue.Networking.AllocateMessage( msg.Connection, msg.Packet.Length, msg.Flags );
-				if ( steamMsgPtr == IntPtr.Zero )
-				{
-					msg.Packet.Release();
-					continue;
-				}
-
-				var nativeBuffer = Glue.Networking.GetMessageDataBuffer( steamMsgPtr );
-				Marshal.Copy( msg.Packet.Buffer, 0, nativeBuffer, msg.Packet.Length );
-
-				// Copied into Steam's buffer, we're done with it
-				msg.Packet.Release();
-
-				_messageBatch[batchCount++] = steamMsgPtr;
-
-				if ( batchCount >= MaxBatchSize )
-				{
-					FlushBatch( ref batchCount );
-				}
-
-				if ( maxOutgoing > 0 && ++outgoingCount >= maxOutgoing )
-					break;
-			}
-
-			// Send any remaining messages
-			if ( batchCount > 0 )
-			{
-				FlushBatch( ref batchCount );
-			}
-
-			ProcessIncomingMessages( net );
-		}
-
-		/// <summary>
-		/// Process any incoming messages from Steam networking and enqueue them to be
-		/// handled by the main thread.
-		/// </summary>
-		/// <param name="net"></param>
-		private void ProcessIncomingMessages( ISteamNetworkingSockets net )
-		{
-			var ptr = stackalloc IntPtr[Networking.ReceiveBatchSize];
-			var maxIncoming = Networking.ReceiveBatchSizePerTick;
-			var totalReceived = 0;
-
-			while ( true )
-			{
-				var count = Glue.Networking.GetConnectionMessages( handle, (nint)ptr, Networking.ReceiveBatchSize );
-				if ( count == 0 ) return;
-
-				for ( var i = 0; i < count; i++ )
-				{
-					var msg = Unsafe.Read<SteamNetworkMessage>( (void*)ptr[i] );
-					var data = GC.AllocateUninitializedArray<byte>( msg.Size );
-					Marshal.Copy( (IntPtr)msg.Data, data, 0, data.Length );
-
-					var m = new IncomingSteamMessage { Connection = msg.Connection, Data = data };
-
-					IncomingMessages.Writer.TryWrite( m );
-					net.ReleaseMessage( ptr[i] );
-
-					MessagesRecieved++;
-				}
-
-				totalReceived += count;
-
-				if ( maxIncoming > 0 && totalReceived >= maxIncoming )
-					return;
-			}
-		}
-
-		private void FlushBatch( ref int count )
-		{
-			fixed ( IntPtr* pMessages = _messageBatch )
-			{
-				Glue.Networking.SendMessages( (IntPtr)pMessages, count );
-			}
-
-			MessagesSent += count;
-			count = 0;
+			MessagesSent += OutgoingSteamMessage.SendQueued( OutgoingMessages.Reader );
+			MessagesRecieved += IncomingSteamMessage.Receive( IncomingMessages.Writer, handle, SteamNative.NetworkingSockets.ReceiveMessagesOnConnection );
 		}
 
 		internal override void InternalSend( NetPacket packet, NetFlags flags )
 		{
-			// Ours until the networking thread has copied it to Steam
-			packet.AddReference();
-
-			var message = new OutgoingSteamMessage
-			{
-				Connection = handle,
-				Packet = packet,
-				Flags = flags.ToSteamFlags()
-			};
-
-			if ( !OutgoingMessages.Writer.TryWrite( message ) )
-				packet.Release();
+			OutgoingSteamMessage.Enqueue( OutgoingMessages.Writer, handle, packet, flags );
 		}
 
 		internal override void InternalRecv( NetworkSystem.MessageHandler handler )
 		{
 			while ( IncomingMessages.Reader.TryRead( out var msg ) )
 			{
-				OnRawPacketReceived( msg.Data, handler );
+				msg.Dispatch( this, handler );
 			}
 		}
 
@@ -387,7 +301,9 @@ internal static partial class SteamNetwork
 				return;
 
 			closeCode = Math.Clamp( closeCode, (int)NetConnectionEnd.App_Min, (int)NetConnectionEnd.Misc_Max );
-			Glue.Networking.CloseConnection( handle, closeCode, closeReason );
+			OutgoingSteamMessage.Close( OutgoingMessages );
+			IncomingSteamMessage.Close( IncomingMessages );
+			SteamNative.NetworkingSockets.CloseConnection( handle, closeCode, closeReason );
 
 			handle = default;
 		}

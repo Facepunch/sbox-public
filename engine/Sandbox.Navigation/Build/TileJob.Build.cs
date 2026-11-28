@@ -20,9 +20,8 @@ public sealed partial class TileJob
 	internal ulong AreaHash;
 	internal int TrianglesUsed, TrianglesRejected;
 
-	// Links: whether the build looks for them, whether it rasterises an apron, because a tile around this one is not built with it,
-	// the edge points of those tiles with the frames they are packed in, and whether the solid spans go
-	// to the mesh, because a tile around is still to be built or holds its own.
+	// Apron: a tile around is not built with this one. Around: those tiles' edge points with their frames.
+	// KeepSolid: a tile around is still to be built or holds its own spans.
 	internal bool FindLinks, Apron, KeepSolid;
 	internal (EdgePoint[] Points, FieldFrame Frame, int X, int Y)[] Around = [];
 

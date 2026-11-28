@@ -93,6 +93,6 @@ public class FireWeaponTask : BaseTask
 		if ( toTarget.LengthSquared < 1f ) return;
 
 		var targetRot = Rotation.LookAt( toTarget.Normal, Vector3.Up );
-		Npc.WorldRotation = Rotation.Lerp( Npc.WorldRotation, targetRot, AimTurnSpeed * Time.Delta );
+		Npc.SetBodyRotation( Rotation.Lerp( Npc.BodyRotation, targetRot, AimTurnSpeed * Time.Delta ) );
 	}
 }

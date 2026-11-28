@@ -357,6 +357,14 @@ public class EditorMainWindow : DockWindow, IUndoSystemProvider
 		// Which means it will create dock widgets and move them around
 		StateCookie = "SboxSceneEditor";
 
+		// A layout saved before Lighting was added has no dock area for it yet.
+		if ( DockManager.FindDockWidget( "Lighting" ) is { } lighting && lighting.GetDockAreaWidget().IsNull
+			&& DockManager.FindDockWidget( "Inspector" ) is { IsClosed: false } inspector )
+		{
+			DockManager.OpenDock( "Lighting", DockArea.Center, inspector );
+			inspector.SetAsCurrentTab();
+		}
+
 		EditorEvent.Run( "editor.created", this );
 
 		RebuildApps();
@@ -373,7 +381,9 @@ public class EditorMainWindow : DockWindow, IUndoSystemProvider
 	{
 		// classic layout: hierarchy left, inspector right, asset browser + console under the scene
 		var hierarchy = DockManager.OpenDock( "Hierarchy", DockArea.Left );
-		DockManager.OpenDock( "Inspector", DockArea.Right );
+		var inspector = DockManager.OpenDock( "Inspector", DockArea.Right );
+		DockManager.OpenDock( "Lighting", DockArea.Center, inspector );
+		inspector?.SetAsCurrentTab();
 		var browser = DockManager.OpenDock( "Asset Browser", DockArea.Bottom, _centralDock );
 		DockManager.OpenDock( "Console", DockArea.Center, browser );
 

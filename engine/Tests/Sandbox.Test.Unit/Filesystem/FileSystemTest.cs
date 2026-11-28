@@ -6,6 +6,32 @@ namespace FilesystemTests;
 public class FileSystemTest
 {
 	/// <summary>
+	/// A folder made with its parents is found in any case afterwards, even when the parent's listing was read just
+	/// before the parents existed (on Linux, where the disk is case-sensitive and we look names up ignoring case).
+	/// </summary>
+	[TestMethod]
+	public void FolderMadeWithItsParentsIsFoundIgnoringCase()
+	{
+		var dir = Directory.CreateTempSubdirectory( "sbox-fs-case" );
+		try
+		{
+			var fs = new LocalFileSystem( dir.FullName );
+			fs.WriteAllText( "root.txt", "root" );
+			fs.CreateDirectory( "Addons/Red" );
+			fs.WriteAllText( "Addons/Red/red.txt", "Red" );
+
+			Assert.IsTrue( fs.DirectoryExists( "addons/red" ) );
+			Assert.AreEqual( "Red", fs.ReadAllText( "addons/red/red.txt" ) );
+			Assert.AreEqual( "Red", fs.CreateSubSystem( "addons/red" ).ReadAllText( "red.txt" ) );
+			fs.Dispose();
+		}
+		finally
+		{
+			dir.Delete( true );
+		}
+	}
+
+	/// <summary>
 	/// Writing then reading a text file should round-trip the content,
 	/// and existence checks should reflect the write.
 	/// </summary>

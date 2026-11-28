@@ -27,10 +27,8 @@ public sealed class NavPath
 	public ReadOnlySpan<PolyRef> Polys => polys.AsSpan( 0, polyCount );
 
 	/// <summary>
-	/// String-pulled points from the snapped start to the snapped end. A link the path takes gives two
-	/// corners in a row, its entry and its exit; Polys has the link between its two polygons, and
-	/// NavQuery.GetLink returns the same two points when it is asked from the corner before the link.
-	/// For a link that goes both ways GetLink answers by where it is asked from, not by the corridor.
+	/// String-pulled points from the snapped start to the snapped end. A link gives two corners in a row,
+	/// its entry and its exit, the points NavQuery.GetLink returns when asked from the corner before it.
 	/// </summary>
 	public ReadOnlySpan<Vector3> Corners => corners.AsSpan( 0, cornerCount );
 

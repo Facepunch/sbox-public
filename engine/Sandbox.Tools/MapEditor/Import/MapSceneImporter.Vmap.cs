@@ -234,6 +234,18 @@ static partial class MapSceneImporter
 			if ( file.Length == 0 ) throw new InvalidDataException( $"Empty VMAP '{filename}'." );
 			SourceNode ReadReference( string asset ) => ReadReferencedMap( filename, asset, true );
 
+			SourceNode ReadPrefabReference( string asset, SourceNode placement )
+			{
+				if ( string.IsNullOrEmpty( asset ) ) return null;
+				var world = ReadReference( asset );
+				if ( world is null )
+				{
+					placement.ImportWarning = $"Cannot resolve prefab '{asset}' referenced by '{filename}'. Kept its placement as a group.";
+					if ( string.IsNullOrWhiteSpace( placement.Name ) ) placement.Name = asset;
+				}
+				return world;
+			}
+
 			var nodes = new Dictionary<Element, SourceNode>();
 			bool hasOverlays = false;
 			bool hasPropCullBoxes = false;
@@ -327,13 +339,18 @@ static partial class MapSceneImporter
 						instances.Enqueue( (node, target) );
 						break;
 					case "CMapPrefabSubInstance":
+						node.Kind = NodeKind.GroupOrMesh;
 						int id = element.Get( "targetNodeID", -1 );
 						if ( id is <= 0 or int.MaxValue || element.GetValueOrDefault( "targetPrefab" ) is not Element { ClassName: "CMapPrefab" } prefab )
-							goto case "CMapGroup";
-						if ( insidePrefab && !prefab.Get( "loadIfNested", true ) ) goto case "CMapGroup";
+							break;
+						if ( insidePrefab && !prefab.Get( "loadIfNested", true ) ) break;
 						var asset = PrefabMapPath( prefab );
-						if ( string.IsNullOrEmpty( asset ) || ReadReference( asset ) is not { } library ||
-							!GetPrefabNodes( library ).TryGetValue( id, out var definition ) ) goto case "CMapGroup";
+						if ( ReadPrefabReference( asset, node ) is not { } library ) break;
+						if ( !GetPrefabNodes( library ).TryGetValue( id, out var definition ) )
+						{
+							node.ImportWarning = $"Cannot resolve node {id} in prefab '{asset}' referenced by '{filename}'. Kept its placement as a group.";
+							break;
+						}
 
 						subinstanceDefinitions ??= new();
 						if ( !subinstanceDefinitions.TryGetValue( definition, out node.Target ) )
@@ -341,9 +358,12 @@ static partial class MapSceneImporter
 						node.Kind = NodeKind.Instance;
 						break;
 					case "CMapPrefab":
-						if ( insidePrefab && !element.Get( "loadIfNested", true ) ) goto case "CMapGroup";
-						node.TargetMapPath = PrefabMapPath( element );
-						if ( string.IsNullOrEmpty( node.TargetMapPath ) ) goto case "CMapGroup";
+						node.Kind = NodeKind.GroupOrMesh;
+						if ( insidePrefab && !element.Get( "loadIfNested", true ) ) break;
+						var prefabPath = PrefabMapPath( element );
+						node.Target = ReadPrefabReference( prefabPath, node );
+						if ( node.Target is null ) break;
+						node.TargetMapPath = prefabPath;
 						node.Kind = NodeKind.Instance;
 						node.PrefabTargetName = element.Get( "targetName", "" );
 						node.FixupEntityNames = element.Get( "fixupEntityNames", true );
@@ -367,8 +387,6 @@ static partial class MapSceneImporter
 							node.VariableOverrides = new( StringComparer.OrdinalIgnoreCase );
 							for ( int i = 0; i < overrides.Length; i++ ) node.VariableOverrides[overrides[i]] = values[i];
 						}
-						node.Target = ReadReference( node.TargetMapPath );
-						if ( node.Target is null ) throw new FileNotFoundException( $"Cannot resolve prefab '{node.TargetMapPath}' referenced by '{filename}'." );
 						break;
 					case "CMapTileMesh":
 					case "CMapMesh":

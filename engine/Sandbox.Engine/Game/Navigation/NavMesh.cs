@@ -277,11 +277,13 @@ public sealed partial class NavMesh : IDisposable
 	{
 		static float Clamp( float value, float min, float max ) => value >= min ? MathF.Min( value, max ) : min;
 
+		// No step higher than the agent
+		float height = Clamp( AgentHeight, CellHeight, 32767 * CellHeight );
 		return NavSettings.Create( new NavSettingsDesc
 		{
-			AgentHeight = Clamp( AgentHeight, CellHeight, 32767 * CellHeight ),
+			AgentHeight = height,
 			AgentRadius = Clamp( AgentRadius, 0, 127 * CellSize ),
-			AgentClimb = Clamp( AgentStepSize, 0, 32767 * CellHeight ),
+			AgentClimb = Clamp( AgentStepSize, 0, height ),
 			AgentMaxSlope = Clamp( AgentMaxSlope, 0, 90 ),
 			CellSize = CellSize,
 			CellHeight = CellHeight,

@@ -76,9 +76,84 @@ public static partial class AssetSystem
 		foreach ( var extension in extensions.Order( StringComparer.OrdinalIgnoreCase ) )
 		{
 			var gameResource = IsGameResource( extension );
-			if ( !gameResource && FindCompilerForExtension( extension ) is null ) continue;
+			var compiler = FindCompilerForExtension( extension );
+			if ( !gameResource && (compiler is null || compiler.HasAttribute<ResourceCompiler.NoCompiledReadsAttribute>()) ) continue;
 
 			yield return $".{extension}\t{(gameResource ? $".{extension.ToLowerInvariant()}_c" : "")}";
+		}
+	}
+
+	/// <summary>
+	/// Same result as <see cref="ManagedCompilerTypes()"/> by scanning the engine, tools and compiler assemblies directly,
+	/// avoiding full <see cref="Sandbox.Internal.TypeLibrary"/> and <see cref="GameData"/> construction when a worker only
+	/// answers type/fingerprint queries on an up-to-date build.
+	/// </summary>
+	internal static IEnumerable<string> ManagedCompilerTypes( IEnumerable<System.Reflection.Assembly> compilerAssemblies )
+	{
+		var gameResources = new HashSet<string>( StringComparer.OrdinalIgnoreCase );
+		var compilerTypes = new List<Type>();
+
+		(System.Reflection.Assembly Assembly, bool Dynamic)[] sources =
+		[
+			(typeof( Vector3 ).Assembly, false),
+			(typeof( BaseFileSystem ).Assembly, false),
+			(typeof( Sandbox.Internal.TypeLibrary ).Assembly, false),
+			(typeof( ToolsDll ).Assembly, true),
+			(typeof( EngineLoop ).Assembly, false),
+			(typeof( Facepunch.ActionGraphs.ActionGraph ).Assembly, false),
+			.. (compilerAssemblies ?? []).Select( a => (a, true) ),
+		];
+
+		foreach ( var (assembly, isDynamic) in sources )
+		{
+			foreach ( var type in assembly.GetTypes() )
+			{
+				if ( type.IsAssignableTo( typeof( Delegate ) ) ) continue;
+				if ( !isDynamic && !IsExposedEngineType( type ) ) continue;
+
+				if ( type.IsAssignableTo( typeof( GameResource ) ) )
+				{
+					foreach ( var attr in type.GetCustomAttributes( typeof( AssetTypeAttribute ), inherit: false ).OfType<AssetTypeAttribute>() )
+					{
+						if ( !attr.IsUncompiled && !string.IsNullOrEmpty( attr.Extension ) )
+							gameResources.Add( attr.Extension );
+					}
+				}
+
+				if ( !type.IsInterface && !type.IsAbstract && type.IsAssignableTo( typeof( ResourceCompiler ) ) )
+				{
+					compilerTypes.Add( type );
+				}
+			}
+		}
+
+		var compilers = new Dictionary<string, Type>( StringComparer.OrdinalIgnoreCase );
+		foreach ( var type in OrderCompilers( compilerTypes, x => x ) )
+		{
+			foreach ( var identity in type.GetCustomAttributes( typeof( ResourceCompiler.ResourceIdentityAttribute ), inherit: false ).OfType<ResourceCompiler.ResourceIdentityAttribute>() )
+			{
+				compilers.TryAdd( identity.Name, type );
+			}
+		}
+
+		var extensions = gameResources.Concat( compilers.Keys ).Distinct( StringComparer.OrdinalIgnoreCase );
+		foreach ( var extension in extensions.Order( StringComparer.OrdinalIgnoreCase ) )
+		{
+			var gameResource = gameResources.Contains( extension );
+			compilers.TryGetValue( extension, out var compiler );
+			if ( !gameResource && (compiler is null || Attribute.IsDefined( compiler, typeof( ResourceCompiler.NoCompiledReadsAttribute ), inherit: true )) ) continue;
+
+			yield return $".{extension}\t{(gameResource ? $".{extension.ToLowerInvariant()}_c" : "")}";
+		}
+
+		static bool IsExposedEngineType( Type t )
+		{
+			if ( Attribute.IsDefined( t, typeof( LibraryAttribute ) ) ) return true;
+			if ( Attribute.IsDefined( t, typeof( ExposeAttribute ) ) ) return true;
+			if ( Attribute.IsDefined( t, typeof( ActionGraphIncludeAttribute ) ) ) return true;
+			if ( t.IsNestedPublic && !Attribute.IsDefined( t, typeof( System.Runtime.CompilerServices.CompilerGeneratedAttribute ) ) )
+				return IsExposedEngineType( t.DeclaringType );
+			return false;
 		}
 	}
 
@@ -96,6 +171,18 @@ public static partial class AssetSystem
 		_gameResourceExtensions = null;
 	}
 
+	/// <summary>
+	/// Deterministic compiler precedence shared by <see cref="FindCompilerForExtension"/> and
+	/// <see cref="ManagedCompilerTypes(IEnumerable{System.Reflection.Assembly})"/>: project/addon
+	/// compilers take precedence over built-in <c>Sandbox.Tools</c> compilers, with ties broken by
+	/// assembly and full type name.
+	/// </summary>
+	static IEnumerable<T> OrderCompilers<T>( IEnumerable<T> items, Func<T, Type> getType ) =>
+		items
+			.OrderBy( x => getType( x ).Assembly == typeof( ToolsDll ).Assembly ? 1 : 0 )
+			.ThenBy( x => getType( x ).Assembly.GetName().Name, StringComparer.Ordinal )
+			.ThenBy( x => getType( x ).FullName, StringComparer.Ordinal );
+
 	static TypeDescription FindCompilerForExtension( string extension )
 	{
 		var map = _compilersByExtension;
@@ -104,11 +191,11 @@ public static partial class AssetSystem
 		{
 			map = new Dictionary<string, TypeDescription>( System.StringComparer.OrdinalIgnoreCase );
 
-			foreach ( var type in EditorTypeLibrary.GetTypes<ResourceCompiler>() )
-			{
-				if ( type.IsInterface || type.IsAbstract )
-					continue;
+			var candidates = EditorTypeLibrary.GetTypes<ResourceCompiler>()
+				.Where( type => !type.IsInterface && !type.IsAbstract );
 
+			foreach ( var type in OrderCompilers( candidates, x => x.TargetType ) )
+			{
 				foreach ( var identity in type.GetAttributes<ResourceCompiler.ResourceIdentityAttribute>() )
 				{
 					map.TryAdd( identity.Name, type );

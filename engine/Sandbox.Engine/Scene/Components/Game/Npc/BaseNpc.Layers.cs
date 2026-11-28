@@ -30,6 +30,21 @@ public partial class BaseNpc : Component
 		if ( !Networking.IsHost || !mover.IsValid() || mover.GameObject != GameObject )
 			return;
 
+		// Knocked down, it takes over once we're up
+		if ( KnockdownState == KnockdownStates.Down )
+		{
+			_pendingMover = mover;
+			return;
+		}
+
+		EnableOnly( mover );
+		UpdateMovement();
+	}
+
+	private MovementLayer _pendingMover;
+
+	private void EnableOnly( MovementLayer mover )
+	{
 		foreach ( var other in GetComponents<MovementLayer>( true ) )
 		{
 			if ( other != mover )
@@ -37,7 +52,6 @@ public partial class BaseNpc : Component
 		}
 
 		mover.Enabled = true;
-		UpdateMovement();
 	}
 
 	// Movement is the enabled mover. Called every update too, for movers game code enabled and disabled itself.

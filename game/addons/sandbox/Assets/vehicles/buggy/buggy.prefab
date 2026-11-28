@@ -123,7 +123,7 @@
         "Flags": 0,
         "AngularDamping": 0,
         "EnableImpactDamage": true,
-        "EnhancedCcd": false,
+        "EnhancedCcd": true,
         "Gravity": true,
         "GravityScale": 1,
         "ImpactDamage": 0,

@@ -2,6 +2,7 @@ using NativeEngine;
 using Sandbox.Audio;
 using Sandbox.Engine;
 using Sandbox.Engine.Settings;
+using Sandbox.Diagnostics;
 using Sandbox.Internal;
 using Sandbox.Modals;
 using System;
@@ -10,6 +11,10 @@ namespace Sandbox;
 
 internal class ToolsDll : IToolsDll
 {
+	static readonly ProfileScope CpuNativeFrame = new( "Editor.NativeFrame" );
+	static readonly ProfileScope CpuIdle = new( "Editor.Idle" );
+	static readonly ProfileScope CpuUnload = new( "Editor.UnloadPending" );
+
 	static Logger log = new Logger( "ToolsDll" );
 
 	PackageLoader.Enroller AssemblyEnroller { get; set; }
@@ -63,6 +68,7 @@ internal class ToolsDll : IToolsDll
 		EditorTypeLibrary.AddAssembly( typeof( ToolsDll ).Assembly, true ); // editor can access everything anyway
 		EditorTypeLibrary.AddAssembly( typeof( EngineLoop ).Assembly, false );
 		EditorTypeLibrary.AddAssembly( typeof( Facepunch.ActionGraphs.ActionGraph ).Assembly, false );
+		EditorTypeLibrary.AddAssembly( typeof( Mounting.BaseGameMount ).Assembly, false );
 
 		Sandbox.Internal.TypeLibrary.Editor = EditorTypeLibrary;
 	}
@@ -367,9 +373,9 @@ internal class ToolsDll : IToolsDll
 	{
 		using ( Sandbox.Diagnostics.PerformanceStats.Timings.Editor.Scope() )
 		{
-			g_pToolFramework2.Tools_RunFrame();
-			g_pToolFramework2.Tools_OnIdle( 0 );
-			g_pToolFramework2.Tools_UnloadPending();
+			using ( CpuNativeFrame.Start() ) g_pToolFramework2.Tools_RunFrame();
+			using ( CpuIdle.Start() ) g_pToolFramework2.Tools_OnIdle( 0 );
+			using ( CpuUnload.Start() ) g_pToolFramework2.Tools_UnloadPending();
 		}
 	}
 

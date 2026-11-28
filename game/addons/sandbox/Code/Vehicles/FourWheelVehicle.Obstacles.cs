@@ -62,6 +62,7 @@ public sealed partial class FourWheelVehicle
 		_body.PhysicsBody.ApplyImpulseAt( point, impulse );
 		TrackImpulse( point, impulse );
 		if ( dynamicOther ) other.ApplyImpulseAt( point, -impulse );
-		ReportImpact( MathF.Max( 0, -relative.Dot( normal ) ), point );
+		// The driver feels the speed the push took off the vehicle, not how fast the tyre met the thing
+		ReportImpact( MathF.Max( 0, -relative.Dot( normal ) ), impulse.Length / _body.PhysicsBody.Mass, point );
 	}
 }

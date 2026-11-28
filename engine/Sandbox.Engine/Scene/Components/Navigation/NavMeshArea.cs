@@ -32,6 +32,13 @@ public class NavMeshArea : VolumeComponent, Component.ExecuteInEditor
 	public NavMeshAreaDefinition Area { get; set; }
 
 	/// <summary>
+	/// How far beyond its shape the area reaches, in world units: a box grows sideways, a sphere or capsule all round.
+	/// Zero takes exactly the shape. A blocker with the agent radius keeps agents as far from it as from a wall.
+	/// </summary>
+	[Property, Range( 0, 64 )]
+	public float Margin { get; set; }
+
+	/// <summary>
 	/// The collider this area's shape is based on.
 	/// In almost every case, you will want to use a trigger collider for this.
 	/// </summary>
@@ -115,14 +122,15 @@ public class NavMeshArea : VolumeComponent, Component.ExecuteInEditor
 		_linkedCollider = null;
 	}
 
-	// A blocker removes exactly its shape: the walkable edge comes right up to it
+	// A blocker removes its shape grown by Margin
 	internal Nav.NavVolume CreateVolume()
 	{
 		var shape = SceneVolume;
 		var result = new Nav.NavVolume
 		{
 			Area = (byte)(IsBlocker ? 0 : Scene.NavMesh.AreaDefinitionToId( Area )),
-			LocalToWorld = Matrix4x4.Identity
+			LocalToWorld = Matrix4x4.Identity,
+			Margin = MathF.Max( Margin, 0 )
 		};
 
 		if ( shape.Type == SceneVolume.VolumeTypes.Infinite )

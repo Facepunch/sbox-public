@@ -144,9 +144,32 @@ internal static class EngineFileSystem
 		CoreContent.Mount( new LocalFileSystem( v ) );
 	}
 
-	internal static void AddAssetPath( string ident, string path )
+	internal static void AddAssetPath( string ident, string path, bool tail = false, IReadOnlyList<string> nativePrefixes = null )
 	{
 		(Mounted ?? Assets).Mount( new LocalFileSystem( path ) );
-		NativeEngine.FullFileSystem.AddProjectPath( "xxx", path );
+
+		if ( nativePrefixes is not null )
+		{
+			var modName = $"mod_{ident}";
+			NativeEngine.EngineGlue.AddSearchPath( path, modName, !tail );
+			NativeEngine.EngineGlue.MarkPathIDByRequestOnly( modName, true );
+			// Hammer's external map compile builds -searchpaths from PROJECT and mod_cloud.
+			NativeEngine.EngineGlue.AddSearchPath( path, "PROJECT", !tail );
+
+			foreach ( var prefix in nativePrefixes )
+			{
+				NativeEngine.EngineGlue.AddPrefixedSearchPath( path, "GAME", !tail, prefix );
+				NativeEngine.EngineGlue.AddPrefixedSearchPath( path, "CONTENT", !tail, prefix );
+			}
+		}
+		else if ( tail )
+		{
+			NativeEngine.FullFileSystem.AddCloudPath( $"mod_{ident}", path );
+			NativeEngine.EngineGlue.AddSearchPath( path, "PROJECT", false );
+		}
+		else
+		{
+			NativeEngine.FullFileSystem.AddProjectPath( ident, path );
+		}
 	}
 }

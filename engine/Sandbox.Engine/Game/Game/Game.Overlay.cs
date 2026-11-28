@@ -350,7 +350,7 @@ public static partial class Game
 			if ( Application.IsHeadless || Application.IsDedicatedServer )
 				return;
 
-			if ( steamOverlay && Steamworks.SteamFriends.OpenWebOverlay( url ) )
+			if ( steamOverlay && Sandbox.SteamApi.SteamFriends.OpenWebOverlay( url ) )
 				return;
 
 			using var browser = System.Diagnostics.Process.Start( new System.Diagnostics.ProcessStartInfo( url )

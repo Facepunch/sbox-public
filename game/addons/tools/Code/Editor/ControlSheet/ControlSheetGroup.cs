@@ -167,6 +167,10 @@ public class ControlSheetGroup : Widget
 	[EditorEvent.Frame]
 	public void UpdateVisibility()
 	{
+		// Nothing to do between debounces: return before asking Qt for the parent, as this runs every frame for every group
+		if ( !_deferredExpand && visibilityDebounce < 0.2f )
+			return;
+
 		if ( Parent is null )
 			return;
 

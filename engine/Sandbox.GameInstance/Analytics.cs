@@ -32,10 +32,8 @@ internal static class Analytics
 		var nextMap = Application.Map?.Text ?? "";
 		var mapChanged = mapIdent != nextMap;
 		gameIdent = nextGame;
-		gameVersion = Application.GamePackage?.Revision?.VersionId.ToString() ?? "";
+		gameVersion = VersionText( Application.GamePackage?.Revision?.VersionId );
 		mapIdent = nextMap;
-
-		net = SampleNetwork();
 
 		// Steam counts the workshop items' playtime from what the backend's told - games and maps alike
 		if ( ready && !Application.IsEditor && !Application.IsDedicatedServer )
@@ -49,12 +47,28 @@ internal static class Analytics
 		TryUpdateActivity();
 	}
 
+	static long? lastVersionId;
+	static string lastVersionText = "";
+
+	// The game's version as text, made again only when it changes
+	static string VersionText( long? versionId )
+	{
+		if ( versionId != lastVersionId )
+		{
+			lastVersionId = versionId;
+			lastVersionText = versionId?.ToString() ?? "";
+		}
+
+		return lastVersionText;
+	}
+
 	internal static void TryUpdateActivity()
 	{
 		if ( timeUntilNextUpdate > 0.0f )
 			return;
 
 		timeUntilNextUpdate = 60.0f * 1.0f;
+		net = SampleNetwork();
 
 		var serverAddons = Application.IsDedicatedServer
 			? PackageManager.ActivePackages.Where( x => x.Package is RemotePackage ).Select( x => x.Package.FullIdent ).ToArray()

@@ -16,7 +16,7 @@ internal static class ContactShadows
 	const int WaveSize = 64;
 	const int MaxDispatches = 8;
 
-	static readonly ComputeShader Compute = new( "screen_space_shadows_cs" );
+	static ComputeShader Compute = new( "screen_space_shadows_cs" );
 
 	/// <summary>
 	/// Draw a directional light's contact shadows into <paramref name="mask"/>, from the depth chain (<c>DepthChainDownsample</c>) of a

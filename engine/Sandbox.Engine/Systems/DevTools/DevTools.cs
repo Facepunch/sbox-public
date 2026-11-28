@@ -71,7 +71,7 @@ internal static partial class DevTools
 	/// </summary>
 	internal static PerformanceStats.Timings Timing { get; } = PerformanceStats.Timings.Get( "Dev Tools", "#9aa5b1" );
 
-	[ConCmd( "devtools", ConVarFlags.Protected, Help = "Toggle the dev tools. Pass a tab name (overview, cpu, memory, vram, rendering, network, ui, audio) to open it on that tab" )]
+	[ConCmd( "devtools", ConVarFlags.Protected, Help = "Toggle the dev tools. Pass a tab name (overview, cpu, profiler, memory, vram, rendering, network, ui, audio) to open it on that tab" )]
 	internal static void ToggleCommand( string tab = "" )
 	{
 		if ( Application.IsHeadless )
@@ -159,6 +159,7 @@ internal static partial class DevTools
 	internal static void BuildRoot( RootPanel root, Host host )
 	{
 		root.AddClass( "devtools-root" );
+		root.ImmediateWheelScroll = true;
 		root.StyleSheet.Add( DevToolsStyles.Sheet );
 
 		var window = new DevToolsWindow( host );

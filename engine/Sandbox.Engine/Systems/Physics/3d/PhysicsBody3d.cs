@@ -8,6 +8,8 @@ namespace Sandbox;
 /// </summary>
 internal sealed partial class PhysicsBody3d : PhysicsBodyInternal, IHandle
 {
+	static readonly ProfileScope CpuCreate = new( "Physics3D.CreateBody" );
+
 	internal IPhysicsBody native;
 
 	void IHandle.HandleInit( IntPtr ptr )
@@ -30,6 +32,7 @@ internal sealed partial class PhysicsBody3d : PhysicsBodyInternal, IHandle
 
 	public PhysicsBody3d( PhysicsWorld3d world )
 	{
+		using var cpu = CpuCreate.Start();
 		World = world;
 
 		using ( var h = IHandle.MakeNextHandle( this ) )
@@ -40,6 +43,7 @@ internal sealed partial class PhysicsBody3d : PhysicsBodyInternal, IHandle
 
 	internal PhysicsBody3d( PhysicsWorld3d world, in PhysicsBodySettings settings )
 	{
+		using var cpu = CpuCreate.Start();
 		World = world;
 		_bodyType3d = settings.BodyType;
 		using var handle = IHandle.MakeNextHandle( this );

@@ -1,7 +1,4 @@
-﻿using System.Runtime.InteropServices;
-using System.Text;
-
-namespace Sandbox.Utility;
+﻿namespace Sandbox.Utility;
 
 public static class Steam
 {
@@ -51,33 +48,27 @@ public static class Steam
 
 		if ( Application.IsDedicatedServer )
 		{
-			SteamId = NativeEngine.Steam.SteamGameServer_GetSteamID();
+			SteamId = SteamNative.GameServer.GetSteamId();
 			return;
 		}
 
-		var sf = NativeEngine.Steam.SteamFriends();
-		var su = NativeEngine.Steam.SteamUser();
-		var utils = NativeEngine.Steam.SteamUtils();
 
 		if ( Application.IsJoinLocal && Application.LocalInstanceId > 0 )
 		{
 			SteamId = BaseFakeSteamId + (ulong)Application.LocalInstanceId;
 			PersonaName = LocalInstanceNames[Random.Shared.Next( LocalInstanceNames.Length )];
 		}
-		else if ( su.IsValid )
+		else if ( SteamNative.User.IsAvailable() )
 		{
-			SteamId = su.GetSteamID();
+			SteamId = SteamNative.User.GetSteamId();
 		}
 
-		if ( sf.IsValid && !Application.IsJoinLocal )
+		if ( SteamNative.Friends.IsAvailable() && !Application.IsJoinLocal )
 		{
-			PersonaName = sf.GetPersonaName();
+			PersonaName = SteamNative.Friends.GetPersonaName();
 		}
 
-		if ( utils.IsValid )
-		{
-			utils.InitFilterText( 0 );
-		}
+		SteamNative.Utils.InitFilterText();
 	}
 
 	/// <summary>
@@ -99,38 +90,23 @@ public static class Steam
 	/// <summary>
 	/// Filters text for game content using Steam's text filter.
 	/// </summary>
-	public static string FilterText( string input, SteamId? from = null ) => FilterText( input, Steamworks.TextFilteringContext.GameContent, from );
+	public static string FilterText( string input, SteamId? from = null ) => FilterText( input, Sandbox.SteamApi.TextFilteringContext.GameContent, from );
 
 	/// <summary>
 	/// Filters chat messages using Steam's text filter.
 	/// </summary>
-	public static string FilterChat( string input, SteamId? from = null ) => FilterText( input, Steamworks.TextFilteringContext.Chat, from );
+	public static string FilterChat( string input, SteamId? from = null ) => FilterText( input, Sandbox.SteamApi.TextFilteringContext.Chat, from );
 
 	/// <summary>
 	/// Filters player names using Steam's text filter.
 	/// </summary>
-	public static string FilterName( string input, SteamId? from = null ) => FilterText( input, Steamworks.TextFilteringContext.Name, from );
+	public static string FilterName( string input, SteamId? from = null ) => FilterText( input, Sandbox.SteamApi.TextFilteringContext.Name, from );
 
-	internal static string FilterText( string input, Steamworks.TextFilteringContext context, SteamId? from = null )
+	internal static string FilterText( string input, Sandbox.SteamApi.TextFilteringContext context, SteamId? from = null )
 	{
 		if ( string.IsNullOrWhiteSpace( input ) )
 			return input;
 
-		var utils = NativeEngine.Steam.SteamUtils();
-		if ( !utils.IsValid )
-			return input;
-
-		var size = Encoding.UTF8.GetByteCount( input ) + 1;
-		var buffer = Marshal.AllocHGlobal( size );
-
-		try
-		{
-			utils.FilterText( context, from ?? SteamId, input, buffer, (uint)size );
-			return Marshal.PtrToStringUTF8( buffer ) ?? string.Empty;
-		}
-		finally
-		{
-			Marshal.FreeHGlobal( buffer );
-		}
+		return SteamNative.Utils.FilterText( context, from ?? SteamId, input );
 	}
 }

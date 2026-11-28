@@ -165,15 +165,25 @@ public sealed class NavMeshAgent : Component
 	/// <summary>The current simulated position, including when UpdatePosition is false.</summary>
 	public Vector3 AgentPosition => agentInternal is { } agent ? agent.State.Position : WorldPosition;
 	/// <summary>The requested target, or null when stopped.</summary>
-	public Vector3? TargetPosition => agentInternal?.State is { Status: not (Nav.AgentStatus.Free or Nav.AgentStatus.Idle or Nav.AgentStatus.Arrived) } state ? (Vector3)state.Target : null;
+	public Vector3? TargetPosition => agentInternal?.RawState is { Status: not (Nav.AgentStatus.Free or Nav.AgentStatus.Idle or Nav.AgentStatus.Arrived) } state ? (Vector3)state.Target : null;
 	/// <summary>True while the agent follows a route. False once it has arrived, also at the end of a route that stops short of the target.</summary>
-	public bool IsNavigating => agentInternal is { Removed: false } agent && agent.State.Status is Nav.AgentStatus.Moving or Nav.AgentStatus.OnLink;
-	public Vector3 WishVelocity => agentInternal is { } agent ? agent.State.DesiredVelocity : default;
+	public bool IsNavigating => agentInternal is { Removed: false } agent && agent.RawState.Status is Nav.AgentStatus.Moving or Nav.AgentStatus.OnLink;
+	public Vector3 WishVelocity => agentInternal is { } agent ? agent.RawState.DesiredVelocity : default;
+
+	// For an agent its owner moves: the wish steered round neighbours and walls, at the agent's own acceleration and turn rate
+	internal Vector3 SteeredVelocity => agentInternal is { } agent ? agent.RawState.SteeredVelocity : default;
+
+	// For an agent its owner moves: how far separation pushes it out of its neighbours this step, to move it by once
+	internal Vector3 Push => agentInternal is { } agent ? agent.RawState.Push : default;
+
 	public Vector3 Velocity
 	{
-		get => agentInternal is { } agent ? agent.State.Velocity : default;
+		get => agentInternal is { } agent ? agent.RawState.Velocity : default;
 		set => agentInternal?.SetVelocity( value );
 	}
+
+	// For an agent its owner moves: how it really moves after something other than following SteeredVelocity changed it, for the next crowd step
+	internal void ReportVelocity( Vector3 velocity ) => agentInternal?.SetVelocity( velocity, hold: false );
 
 	/// <summary>Explicitly repositions the simulated agent. Runtime GameObject transforms do not move it.</summary>
 	public void SetAgentPosition( Vector3 position ) => agentInternal?.SetPosition( position );
@@ -220,7 +230,7 @@ public sealed class NavMeshAgent : Component
 			Separation = Separation > 0 ? MathF.Min( Separation, 1 ) : 0,
 			AutoLinks = AutoTraverseLinks,
 			// An agent without a speed of its own is moved by its owner
-			External = MaxSpeed <= 0,
+			Mode = MovedByOwner ? Nav.AgentMode.Steered : MaxSpeed <= 0 ? Nav.AgentMode.Planned : Nav.AgentMode.Moved,
 			Filter = capturedFilter
 		};
 	}
@@ -241,6 +251,21 @@ public sealed class NavMeshAgent : Component
 
 	[Obsolete]
 	public bool SyncAgentPosition { get; set; } = true;
+
+	/// <summary>
+	/// Something else moves the agent, such as physics, and sets its position every tick. The crowd still plans for it,
+	/// steers it round neighbours and walls into <see cref="SteeredVelocity"/> for the owner to follow, and never moves it.
+	/// </summary>
+	internal bool MovedByOwner
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+			field = value;
+			UpdateAgentParameters();
+		}
+	}
 	public Action LinkEnter { get; set; }
 	public Action LinkExit { get; set; }
 	public bool IsTraversingLink => CurrentLinkTraversal.HasValue;
@@ -352,6 +377,8 @@ public sealed class NavMeshAgent : Component
 	protected override void OnUpdate()
 	{
 		if ( agentInternal is null ) return;
+		// Something else moves us: writing the transform back would fight it
+		if ( !UpdatePosition && !UpdateRotation ) return;
 		var state = agentInternal.State;
 		var transform = WorldTransform;
 		if ( UpdatePosition )

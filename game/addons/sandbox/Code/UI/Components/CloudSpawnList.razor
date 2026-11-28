@@ -18,7 +18,7 @@
     </Header>
 
     <Body>
-        @if ( Packages.Count == 0 && Loading )
+        @if ( Packages.Count == 0 && (Loading || _waitingForViewModels) )
         {
             <UILoadingState />
         }
@@ -32,7 +32,8 @@
                 <Item Context="item">
                     @if ( item is Package package )
                     {
-                        <SpawnMenuIcon Ident=@PackageIdent(package) Title=@package.Title HideText=@(IconSize == SpawnMenuIconSize.Small) Tooltip=@(IconSize == SpawnMenuIconSize.Small ? package.Title : "") />
+                        <SpawnMenuIcon class="@(package.Public ? "" : "hidden-package")"
+                            Ident=@PackageIdent(package) Title=@package.Title HideText=@(IconSize == SpawnMenuIconSize.Small) Tooltip=@(IconSize == SpawnMenuIconSize.Small ? package.Title : "") />
                     }
                 </Item>
             </MixedVirtualGrid>
@@ -70,6 +71,7 @@
     int _offset;
     bool _hasMore;
     bool Loading;
+    bool _waitingForViewModels;
     int _rebuildVersion;
 
     SpawnMenuIconSize IconSize => SpawnMenuIconSizeExtensions.Current;
@@ -99,6 +101,13 @@
     {
         base.Tick();
 
+        if ( _waitingForViewModels )
+        {
+            _ = SpawnMenuModels.LoadViewModels();
+            if ( SpawnMenuModels.ViewModels is not null )
+                LoadMore();
+        }
+
         if ( _lastIconSize != IconSize )
             OnIconSizeChanged();
     }
@@ -115,6 +124,7 @@
         _offset = 0;
         _hasMore = true;
         Loading = false;
+        _waitingForViewModels = false;
         Packages.Clear();
         PackageIds.Clear();
 
@@ -132,6 +142,19 @@
         var version = _rebuildVersion;
         var previousCount = Packages.Count;
 
+        if ( PackageType == "model" )
+        {
+            await SpawnMenuModels.LoadViewModels();
+            if ( version != _rebuildVersion || !IsValid ) return;
+
+            _waitingForViewModels = SpawnMenuModels.ViewModels is null;
+            if ( _waitingForViewModels )
+            {
+                Loading = false;
+                return;
+            }
+        }
+
         // Rankings can shift between requests. Advance by the raw page size even when models overlap.
         do
         {
@@ -141,7 +164,14 @@
             var page = result.Packages;
             _offset += page.Length;
             _hasMore = page.Length > 0 && _offset < result.TotalCount;
-            Packages.AddRange( page.Where( package => PackageIds.Add( package.FullIdent ) ) );
+            foreach ( var package in page )
+            {
+                if ( package.TypeName == "model" && SpawnMenuModels.ViewModels?.Contains( package.FullIdent ) == true )
+                    continue;
+
+                if ( PackageIds.Add( package.FullIdent ) )
+                    Packages.Add( package );
+            }
         }
         while ( _hasMore && Packages.Count == previousCount );
 

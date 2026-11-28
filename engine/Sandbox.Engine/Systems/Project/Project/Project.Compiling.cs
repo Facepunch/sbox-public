@@ -32,9 +32,15 @@ public partial class Project
 	int CompilerHash => HashCode.Combine( Active, Current == this, Json.SerializeAsObject( Config.GetCompileSettings() ).ToJsonString(), Config.IsStandaloneOnly, Config.Org, Config.Ident, Config.Type, string.Join( ";", PackageReferences().Concat( EditorPackageReferences() ).Select( x => x.FullIdent ) ) );
 
 	/// <summary>
+	/// Set by tools that override compile settings (such as MenuBuild forcing Release mode)
+	/// so they neither load nor overwrite the editor's cached assemblies.
+	/// </summary>
+	internal static bool DisableAssemblyCache { get; set; }
+
+	/// <summary>
 	/// Whether to save/load compiled assemblies to disk.
 	/// </summary>
-	bool CacheAssemblies => IsBuiltIn && Application.IsEditor && !Application.IsUnitTest && !Application.IsConsoleApp;
+	bool CacheAssemblies => IsBuiltIn && Application.IsEditor && !Application.IsUnitTest && !DisableAssemblyCache;
 
 	/// <summary>
 	/// What a cached assembly was compiled from: this project's compile settings and code files, the code files of
@@ -82,8 +88,9 @@ public partial class Project
 
 	static void WriteCacheFile( string path, Action<string> write )
 	{
-		write( path + ".tmp" );
-		File.Move( path + ".tmp", path, true );
+		var tmp = $"{path}.{Environment.ProcessId}.tmp";
+		write( tmp );
+		File.Move( tmp, path, true );
 	}
 
 	private void UpdateCompiler()

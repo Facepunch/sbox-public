@@ -21,6 +21,9 @@ public class ComputeShader
 	/// </summary>
 	public ComputeShader( string path )
 	{
+		if ( Application.IsShuttingDown )
+			return;
+
 		var material = Material.FromShader( path );
 		Assert.NotNull( material );
 		ComputeMaterial = material;
@@ -31,6 +34,9 @@ public class ComputeShader
 	/// </summary>
 	public ComputeShader( Shader shader )
 	{
+		if ( Application.IsShuttingDown )
+			return;
+
 		var material = Material.FromShader( shader );
 		Assert.NotNull( material );
 		ComputeMaterial = material;

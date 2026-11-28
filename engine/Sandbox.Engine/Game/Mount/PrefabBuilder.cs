@@ -6,6 +6,7 @@ namespace Sandbox.Mounting;
 /// A scoped builder for creating prefabs within a Mount.
 /// Typically used inside a <see cref="Mounting.ResourceLoader.Load"/> implementation.
 /// </summary>
+[Expose]
 public sealed class PrefabBuilder
 {
 	string _name;
@@ -154,6 +155,7 @@ public sealed class PrefabBuilder
 /// <summary>
 /// Disposable scope that manages a temporary scene for <see cref="PrefabBuilder"/>.
 /// </summary>
+[Expose]
 public readonly struct PrefabBuildScope : IDisposable
 {
 	readonly IDisposable _push;

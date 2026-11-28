@@ -209,6 +209,7 @@ public sealed partial class NavCrowd
 		bool filter = !NavFilter.Same( stored.Filter, value.Filter );
 		bool size = stored.Radius != value.Radius || stored.Height != value.Height;
 		bool external = value.External && !stored.External;
+		bool steered = value.Steered && !stored.Steered;
 		bool type = stored.AgentType != value.AgentType;
 		stored = value;
 		if ( type )
@@ -222,6 +223,8 @@ public sealed partial class NavCrowd
 		if ( a.Count == 0 ) a.Flags |= AgentFlags.NeedsPlan;
 		// Its velocity is told by its positions from here on.
 		if ( external ) a.Seen = states[agent].Position;
+		// Steering turns from where it was going.
+		if ( steered ) states[agent].SteeredVelocity = new Vector3( states[agent].Velocity.X, states[agent].Velocity.Y, 0 );
 		Publish( agent );
 	}
 
@@ -296,8 +299,8 @@ public sealed partial class NavCrowd
 	/// It forgets its rest point, keeps its target and joins its route from the new place.
 	/// An External agent is where the caller says, to be said every tick: the position is kept
 	/// exactly as given, on the mesh or not, and the crowd only looks up the polygon under it. Its
-	/// rest point stays, and its Velocity becomes how far it was moved between two Steps over the
-	/// Step's delta, unless SetVelocity was ever called for it.
+	/// rest point and the walls collected round it stay, and its Velocity becomes how far it was moved
+	/// between two Steps over the Step's delta, unless SetVelocity was called since the last Step.
 	/// On a link either kind is just moved; the link goes on.
 	/// </summary>
 	public void SetPosition( int agent, Vector3 position )
@@ -306,7 +309,8 @@ public sealed partial class NavCrowd
 		ref var a = ref agents[agent];
 		ref var state = ref states[agent];
 		state.Position = position;
-		a.WallCount = -1;
+		// Walls are collected again by distance, and when the agent turns up off its corridor.
+		if ( !parms[agent].External ) a.WallCount = -1;
 		if ( state.Link >= 0 ) return;
 
 		if ( !parms[agent].External ) a.Flags &= ~AgentFlags.AtEnd;
@@ -318,13 +322,17 @@ public sealed partial class NavCrowd
 	}
 
 	/// <summary>
-	/// The velocity an agent the crowd moves accelerates from. For an External agent, what neighbours
-	/// see: once this has been called for it the crowd no longer derives its velocity from its positions.
+	/// The velocity an agent the crowd moves accelerates from. For an External agent, its velocity for the next Step,
+	/// what neighbours see, instead of the one its positions tell; for a Steered one also what its steering turns from
+	/// next. An owner calls it with a fresh measurement when something other than following SteeredVelocity changed
+	/// the body's velocity: a knock, a landing, being held. Reported every tick from a body that lags its command by a
+	/// tick, it would slow every start and turn down to that lag.
 	/// </summary>
 	public void SetVelocity( int agent, Vector3 velocity )
 	{
 		if ( !Live( agent ) ) return;
 		states[agent].Velocity = velocity;
+		if ( parms[agent].External && parms[agent].Steered ) states[agent].SteeredVelocity = new Vector3( velocity.X, velocity.Y, 0 );
 		if ( parms[agent].External ) agents[agent].Flags |= AgentFlags.OwnVelocity;
 	}
 
@@ -466,6 +474,7 @@ public sealed partial class NavCrowd
 	static void Halt( ref AgentState state, in AgentParams p )
 	{
 		state.DesiredVelocity = default;
+		state.SteeredVelocity = default;
 		if ( !p.External ) state.Velocity = default;
 	}
 

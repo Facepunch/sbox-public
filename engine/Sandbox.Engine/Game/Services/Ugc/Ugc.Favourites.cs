@@ -1,3 +1,4 @@
+using Sandbox.SteamApi;
 using System.Threading;
 
 namespace Sandbox.Services;
@@ -12,17 +13,15 @@ internal static partial class Ugc
 	/// </summary>
 	internal static async Task<bool> SetFavouriteAsync( ulong id, bool favourite, CancellationToken token = default )
 	{
-		using var request = NativeEngine.CUgcFavourite.SetFavourite( id, favourite );
-		if ( request.IsNull ) return false;
+		if ( !SteamClient.IsValid ) return false;
 
-		while ( !request.m_complete )
-		{
-			await Task.Delay( 50, token );
-		}
+		var call = SteamNative.Workshop.SetFavourite( id, favourite );
+		if ( call == 0 ) return false;
 
-		if ( !request.m_success )
-			Log.Warning( $"Steam didn't {(favourite ? "favourite" : "unfavourite")} workshop item {id} (result {request.m_resultCode})" );
+		var result = await SteamCalls.GetResultAsync( call, SteamNative.Workshop.GetFavouriteUpdateResult, token, Result.IOFailure );
+		if ( result != Result.OK )
+			Log.Warning( $"Steam didn't {(favourite ? "favourite" : "unfavourite")} workshop item {id} (result {result})" );
 
-		return request.m_success;
+		return result == Result.OK;
 	}
 }

@@ -2,9 +2,7 @@ using System.Runtime.CompilerServices;
 
 namespace Nav.Build;
 
-/// <summary>
-/// Turns the solid spans into the eroded open-space field, the part of a build that is cached.
-/// </summary>
+// Turns the solid spans into the eroded open-space field, the part of a build that is cached.
 internal sealed class FieldBuilder
 {
 	ushort[] floors = [];
@@ -13,15 +11,11 @@ internal sealed class FieldBuilder
 	byte[] distances = [];
 	readonly OpenBlocks openBlocks = new();
 
-	/// <summary>
-	/// Ceiling of each open span of the last Compact, for tests.
-	/// </summary>
+	// Ceiling of each open span of the last Compact, for tests.
 	public ushort[] Tops => tops;
 
-	/// <summary>
-	/// One pass per row: decides which solid spans can be stood on (low obstacles, clearance, ledges) and writes an
-	/// open span above each of those, then connects the row's spans to each other and to the row before.
-	/// </summary>
+	// One pass per row: decides which solid spans can be stood on (low obstacles, clearance, ledges) and writes an
+	// open span above each of those, then connects the row's spans to each other and to the row before.
 	public bool Compact( SolidField solid, CompactField field, int walkableHeight, int walkableClimb, out string? error )
 	{
 		int w = solid.Width;
@@ -241,11 +235,9 @@ internal sealed class FieldBuilder
 		}
 	}
 
-	/// <summary>
-	/// Removes everything closer than radius cells to an edge: a two-pass distance transform over the
-	/// connections (2 per straight step, 3 per diagonal). The area lands in the top byte of each connection word.
-	/// Returns how many spans stay walkable.
-	/// </summary>
+	// Removes everything closer than radius cells to an edge: a two-pass distance transform over the
+	// connections (2 per straight step, 3 per diagonal). The area lands in the top byte of each connection word.
+	// Returns how many spans stay walkable.
 	public int Erode( CompactField field, int radius )
 	{
 		int w = field.Width;

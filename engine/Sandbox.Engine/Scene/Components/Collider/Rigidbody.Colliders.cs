@@ -55,4 +55,20 @@ sealed public partial class Rigidbody : Component, Component.ExecuteInEditor, IG
 	{
 		Colliders.Remove( collider );
 	}
+
+	/// <summary>
+	/// Whether any collider gives this body a shape that isn't a trigger.
+	/// </summary>
+	internal bool HasSolidCollider
+	{
+		get
+		{
+			foreach ( var collider in Colliders )
+			{
+				if ( !collider.IsTrigger && collider.Shapes.Count > 0 ) return true;
+			}
+
+			return false;
+		}
+	}
 }

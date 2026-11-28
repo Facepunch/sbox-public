@@ -1,5 +1,5 @@
 using Sandbox.Network;
-using Steamworks;
+using Sandbox.SteamApi;
 
 namespace NetworkTests;
 

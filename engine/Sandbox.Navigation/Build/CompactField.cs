@@ -2,31 +2,23 @@ using System.Runtime.Intrinsics;
 
 namespace Nav.Build;
 
-/// <summary>
-/// The open space above the solid spans: one span per place an agent could stand, with the neighbour it
-/// can step to in each direction. Directions: 0 = -x, 1 = +y, 2 = +x, 3 = -y.
-/// Floor and Con are either the builder's own arrays or those of a CachedField, which is never written.
-/// </summary>
+// The open space above the solid spans: one span per place an agent could stand, with the neighbour it
+// can step to in each direction. Directions: 0 = -x, 1 = +y, 2 = +x, 3 = -y.
+// Floor and Con are either the builder's own arrays or those of a CachedField, which is never written.
 internal sealed class CompactField
 {
 	public int Width, Height;
 	public int SpanCount;
 
-	/// <summary>
-	/// First span of each column, with one more entry behind the last column.
-	/// </summary>
+	// First span of each column, with one more entry behind the last column.
 	public int[] Index = [];
 
 	public ushort[] Floor = [];
 
-	/// <summary>
-	/// Four 6-bit connections. The top byte is only meaningful in a cached field.
-	/// </summary>
+	// Four 6-bit connections. The top byte is only meaningful in a cached field.
 	public uint[] Con = [];
 
-	/// <summary>
-	/// Area per span after erosion and volumes. 0 = not walkable.
-	/// </summary>
+	// Area per span after erosion and volumes. 0 = not walkable.
 	public byte[] Area = [];
 
 	public ushort[] Region = [];
@@ -36,9 +28,7 @@ internal sealed class CompactField
 
 	public static int Connection( uint con, int direction ) => (int)(con >> (direction * 6)) & 63;
 
-	/// <summary>
-	/// True when the 16 values from at on all equal value.
-	/// </summary>
+	// True when the 16 values from at on all equal value.
 	public static bool All( ushort[] values, int at, int value )
 	{
 		var block = values.AsSpan( at, BlockSize );
@@ -64,10 +54,8 @@ internal sealed class CompactField
 		return true;
 	}
 
-	/// <summary>
-	/// values[i] = table[values[i]] for a stretch of spans, a block at a time where they all hold the same value.
-	/// Values from limit on are left alone.
-	/// </summary>
+	// values[i] = table[values[i]] for a stretch of spans, a block at a time where they all hold the same value.
+	// Values from limit on are left alone.
 	public static void Map( ushort[] values, int from, int to, ushort[] table, int limit )
 	{
 		int i = from;
@@ -101,13 +89,14 @@ internal sealed class CompactField
 	};
 }
 
-/// <summary>
-/// Which blocks of BlockSize columns of a field are level open ground, for the stages that skip them.
-/// The field is looked at without a margin of cells on every side, row by row, in blocks from the margin on.
-/// A block is open when every column of it, of the blocks above and below and the two columns beside it
-/// holds exactly one span, and each span of the block connects to all four neighbours. The neighbours of
-/// span i of such a block are i - 1, i + 1 and the spans at the same place in the rows above and below.
-/// </summary>
+// Which blocks of BlockSize columns of a field are level open ground, for the stages that skip them.
+// The field is looked at without a margin of cells on every side, row by row, in blocks from the margin on.
+// A block is open when every column of it, of the blocks above and below and the two columns beside it
+// holds exactly one span, and each span of the block connects to all four neighbours. The neighbours of
+// span i of such a block are i - 1, i + 1 and the spans at the same place in the rows above and below.
+// Counting the spans of those columns together is enough because the climb is at most the height
+// (NavSettings.IsValid): then no two spans of one column connect to one span beside it, so connected
+// spans in all four directions leave no column with two spans and another with none.
 internal sealed class OpenBlocks
 {
 	public bool[] Open = [];

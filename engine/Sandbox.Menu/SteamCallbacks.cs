@@ -1,38 +1,30 @@
 ﻿using Sandbox.Engine;
 using Sandbox.Modals;
-using Steamworks;
-using Steamworks.Data;
+using Sandbox.SteamApi;
 using System.Threading.Tasks;
 
 namespace Sandbox;
 
-/// <summary>
-/// Handles callbacks from Steam lobbies and translates them to our Global, Party or Game lobbies.
-/// </summary>
-internal static class SteamCallbacks
+internal sealed partial class MenuDll
 {
-	internal static void InitSteamCallbacks()
-	{
-		SteamFriends.OnPersonaStateChange += SteamFriends_OnPersonaStateChange;
-		SteamFriends.OnFriendRichPresenceUpdate += SteamFriends_OnPersonaStateChange;
-		SteamFriends.OnGameRichPresenceJoinRequested += SteamFriends_OnGameRichPresenceJoinRequested;
-		SteamFriends.OnGameLobbyJoinRequested += SteamFriends_OnGameLobbyJoinRequested;
-		Dispatch.Install<NewUrlLaunchParameters_t>( _ => OnNewUrlLaunchParameters() );
-	}
+	// Startup pumps Steam callbacks as soon as the menu DLL exists. Only handle them once
+	// Initialize enables menu callbacks, and stop as soon as teardown begins.
+	bool steamCallbacksReady;
 
 	/// <summary>
 	/// Steam was asked to run us again while we're already running, e.g. the Play button on sbox.game.
 	/// Startup reads the same launch command line in <see cref="MenuUtility.StartupGameIdent"/>.
 	/// </summary>
-	private static void OnNewUrlLaunchParameters()
+	void IMenuDll.OnNewSteamUrlLaunchParameters()
 	{
+		if ( !steamCallbacksReady ) return;
+
 		using var scope = GlobalContext.MenuScope();
 
 		if ( Application.IsEditor ) return;
-		if ( !NativeEngine.Steam.SteamApps().IsValid ) return;
 
 #pragma warning disable CS0612 // Type or member is obsolete
-		var switches = Utility.CommandLine.Parse( NativeEngine.Steam.SteamApps().GetCommandLine() );
+		var switches = Utility.CommandLine.Parse( SteamNative.Apps.GetCommandLine() );
 #pragma warning restore CS0612 // Type or member is obsolete
 
 		// Any web page can send this, so only honour opening a game page - never run other switches
@@ -51,22 +43,26 @@ internal static class SteamCallbacks
 		}
 	}
 
-	private static void SteamFriends_OnGameRichPresenceJoinRequested( Steamworks.Friend friend, string connectStr )
+	void IMenuDll.OnSteamGameJoinRequested( string connectStr )
 	{
+		if ( !steamCallbacksReady ) return;
+
 		using var scope = GlobalContext.MenuScope();
 		Api.Activity.GameRequested( new( "invite" ) );
 		MenuUtility.RunCommand( "connect", connectStr.Split( ' ' ).Last() );
 	}
 
-	private static void SteamFriends_OnGameLobbyJoinRequested( Sandbox.SteamId steamId )
+	void IMenuDll.OnSteamLobbyJoinRequested( SteamId steamId )
 	{
+		if ( !steamCallbacksReady ) return;
+
 		IGameInstanceDll.Current.CloseGame();
 		_ = TryJoinLobby( steamId );
 	}
 
 	/// <summary>
 	/// Steam launches the game with <c>+connect_lobby &lt;id&gt;</c> when an invite is accepted while it isn't
-	/// running - the launch equivalent of <see cref="SteamFriends_OnGameLobbyJoinRequested"/>.
+	/// running - the launch equivalent of <see cref="IMenuDll.OnSteamLobbyJoinRequested"/>.
 	/// </summary>
 	[MenuConCmd( "connect_lobby", ConVarFlags.Protected )]
 	public static void ConnectLobby( string lobbyId )
@@ -107,9 +103,11 @@ internal static class SteamCallbacks
 		MenuUtility.RunCommand( "connect", steamId.Value );
 	}
 
-	private static void SteamFriends_OnPersonaStateChange( Steamworks.Friend obj )
+	void IMenuDll.OnSteamFriendChanged( Friend friend )
 	{
+		if ( !steamCallbacksReady ) return;
+
 		using var scope = GlobalContext.MenuScope();
-		Event.Run( "friend.change", new Sandbox.Friend( obj ) );
+		Event.Run( "friend.change", friend );
 	}
 }

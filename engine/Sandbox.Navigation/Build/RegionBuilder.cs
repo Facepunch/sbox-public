@@ -1,11 +1,9 @@
 namespace Nav.Build;
 
-/// <summary>
-/// Layer regions: every row is swept into runs, runs join the region below them when they match it
-/// exactly, then touching regions merge as long as no two spans of one region end up in one column.
-/// Ground of fewer than minRegionCells cells that is joined to no other and does not reach the border
-/// of the tile is dropped.
-/// </summary>
+// Layer regions: every row is swept into runs, runs join the region below them when they match it
+// exactly, then touching regions merge as long as no two spans of one region end up in one column.
+// Ground of fewer than minRegionCells cells that is joined to no other and does not reach the border
+// of the tile is dropped.
 internal sealed class RegionBuilder
 {
 	public const ushort Border = 0x8000;
@@ -31,10 +29,8 @@ internal sealed class RegionBuilder
 	int[] columnRegions = new int[256];
 	int[] lastColumnRegions = new int[256];
 
-	/// <summary>
-	/// Regions for the field without its border, which is only read: it stands for whatever continues in
-	/// the next tile. open are the open blocks of the field for the same border.
-	/// </summary>
+	// Regions for the field without its border, which is only read: it stands for whatever continues in
+	// the next tile. open are the open blocks of the field for the same border.
 	public bool Build( CompactField field, OpenBlocks open, int border, int minRegionCells, out string? error )
 	{
 		int w = field.Width, h = field.Height;
@@ -460,9 +456,7 @@ internal sealed class RegionBuilder
 		field.RegionCount = kept;
 	}
 
-	/// <summary>
-	/// One list of ints per owner, kept in insertion order. The lists are kept between builds.
-	/// </summary>
+	// One list of ints per owner, kept in insertion order. The lists are kept between builds.
 	sealed class IntLists
 	{
 		int[][] items = [];

@@ -85,6 +85,9 @@ public partial class Package
 		return DownloadFiles( null, token, options );
 	}
 
+	static readonly ProfileScope CpuQueueDownloads = new( "Package.QueueDownloads" );
+	static readonly ProfileScope CpuMountDownloaded = new( "Package.MountDownloaded" );
+
 	/// <summary>
 	/// Download the files into the cache, mounting each on <paramref name="fs"/> if there is one
 	/// </summary>
@@ -115,7 +118,8 @@ public partial class Package
 		var loopSw = Stopwatch.StartNew();
 		for ( int i = 0; i < entries.Length; i++ )
 		{
-			TryAddToDownloadQueue( entries[i], resolved[i], fs, downloadQueue, token );
+			using ( CpuQueueDownloads.Start() )
+				TryAddToDownloadQueue( entries[i], resolved[i], fs, downloadQueue, token );
 			if ( loopSw.ElapsedMilliseconds > 8 )
 			{
 				if ( fs is not null ) global::Sandbox.LoadingScreen.Subtitle = System.IO.Path.GetFileName( entries[i].Path );
@@ -207,6 +211,7 @@ public partial class Package
 
 		void MountDownloaded()
 		{
+			using var cpu = CpuMountDownloaded.Start();
 			while ( downloaded.TryDequeue( out var e ) )
 			{
 				AssetDownloadCache.Mount( fs.Redirect, e.File.Path, e.AbsolutePath );

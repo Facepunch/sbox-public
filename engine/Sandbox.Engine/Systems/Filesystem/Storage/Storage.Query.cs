@@ -96,13 +96,15 @@ public static partial class Storage
 		/// </summary>
 		internal async Task<QueryResult> RunEx( string nextToken, CancellationToken token = default )
 		{
-			var result = await Workshop.RunQueryAsync<QueryResult>( this, nextToken, token ) ?? new QueryResult { Items = new() };
-
-			if ( !Workshop.HasNextPage( nextToken, result.NextCursor, result.Items?.Count ?? 0 ) )
-				result.NextCursor = null;
-
-			result.SourceQuery = this;
-			return result;
+			var page = await Workshop.RunPageAsync( this, nextToken, token );
+			return new QueryResult
+			{
+				Items = page?.Items?.Select( QueryItem.From ).ToList() ?? [],
+				ResultCount = page?.ResultCount ?? 0,
+				TotalCount = page?.TotalCount ?? 0,
+				NextCursor = Workshop.HasNextPage( nextToken, page?.NextCursor, page?.Items?.Count ?? 0 ) ? page.NextCursor : null,
+				SourceQuery = this
+			};
 		}
 	}
 
@@ -147,7 +149,19 @@ public static partial class Storage
 		public bool Banned { get; set; }
 		public bool Accepted { get; set; }
 		public ulong FileHandle { get; set; }
+
+		/// <summary>
+		/// Texture path for the item's main preview. Uses <c>workshop://&lt;itemid&gt;/thumb</c>
+		/// when Steam supplies a preview handle, or the preview URL otherwise.
+		/// </summary>
 		public string Preview { get; set; }
+
+		/// <summary>
+		/// The item's <see cref="Preview"/> texture path.
+		/// </summary>
+		[JsonIgnore]
+		public string Thumbnail => Preview;
+
 		public string Filename { get; set; }
 		public ulong Size { get; set; }
 		public string Url { get; set; }
@@ -165,6 +179,33 @@ public static partial class Storage
 
 		public List<string> Tags { get; set; }
 		public Dictionary<string, string> KeyValues { get; set; }
+
+		/// <summary>
+		/// Creates a mutable Storage result with its own copies of the cached item's tags and key values.
+		/// </summary>
+		internal static QueryItem From( Workshop.Item item ) => new()
+		{
+			Id = item.Id,
+			Title = item.Title,
+			Description = item.Description,
+			Visibility = (int)item.Visibility,
+			Banned = item.Banned,
+			Accepted = item.Accepted,
+			FileHandle = item.FileHandle,
+			Preview = item.Thumbnail,
+			Filename = item.Filename,
+			Size = (ulong)item.Size,
+			Url = item.ContentUrl,
+			VotesUp = item.VotesUp,
+			VotesDown = item.VotesDown,
+			Score = item.Score,
+			Metadata = item.Metadata,
+			Owner = item.Owner,
+			Created = item.Created,
+			Updated = item.Updated,
+			Tags = [.. item.Tags],
+			KeyValues = new( item.KeyValues )
+		};
 
 		/// <summary>
 		/// Install this item. This can return null if it's not of the right format.

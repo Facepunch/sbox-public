@@ -472,28 +472,15 @@ namespace Editor
 			if ( Images.TryGetValue( filename, out var pixmap ) )
 				return pixmap;
 
-			if ( filename.StartsWith( "https://" ) || filename.StartsWith( "http://" ) )
+			var isWorkshopPreview = filename.StartsWith( "workshop://", StringComparison.Ordinal );
+			if ( isWorkshopPreview || filename.StartsWith( "https://" ) || filename.StartsWith( "http://" ) )
 			{
-				var t = DownloadToPixmap( filename );
-				if ( t.IsCompletedSuccessfully )
-				{
-					pixmap = t.Result;
-				}
-				else
-				{
-					pixmap = new Pixmap( 1, 1 );
-					pixmap.Clear( Color.Transparent );
-				}
-
-				Images[filename] = pixmap;
-			}
-			else
-			{
-				pixmap = Pixmap.FromFile( filename );
-				Images[filename] = pixmap;
+				var load = LoadRemotePixmap( filename, isWorkshopPreview );
+				pixmap = load.IsCompletedSuccessfully ? load.Result : null;
+				return Images[filename] = pixmap ?? new Pixmap( 1, 1 );
 			}
 
-			return pixmap;
+			return Images[filename] = Pixmap.FromFile( filename );
 		}
 
 		public static Pixmap LoadImage( string filename, int x, int y )
@@ -515,21 +502,27 @@ namespace Editor
 			return pixmap;
 		}
 
-		static async ValueTask<Pixmap> DownloadToPixmap( string filename )
+		static async ValueTask<Pixmap> LoadRemotePixmap( string filename, bool isWorkshopPreview )
 		{
-			var crcName = Sandbox.Utility.Crc64.FromString( filename.ToLower() ).ToString( "x" );
-			var targetPath = FileSystem.WebCache.GetFullPath( "/" ) + $"/{crcName}";
-
-			if ( !FileSystem.WebCache.FileExists( $"/{crcName}" ) )
+			Pixmap pixmap;
+			if ( isWorkshopPreview )
 			{
-				await EditorUtility.DownloadAsync( filename, targetPath, default );
+				pixmap = Pixmap.FromTexture( await Texture.LoadAsync( filename ) );
+			}
+			else
+			{
+				var crcName = Sandbox.Utility.Crc64.FromString( filename.ToLower() ).ToString( "x" );
+				var targetPath = FileSystem.WebCache.GetFullPath( "/" ) + $"/{crcName}";
+				if ( !FileSystem.WebCache.FileExists( $"/{crcName}" ) )
+					await EditorUtility.DownloadAsync( filename, targetPath, default );
 
-				// We downloaded an image successfully, lets redraw the window next frame so it gets drawn
-				EditorUtility.RedrawActiveWindow();
+				pixmap = Pixmap.FromFile( targetPath );
 			}
 
-			var pixmap = Pixmap.FromFile( targetPath );
+			if ( pixmap is null ) return null;
+
 			Images[filename] = pixmap;
+			EditorUtility.RedrawActiveWindow();
 			return pixmap;
 		}
 

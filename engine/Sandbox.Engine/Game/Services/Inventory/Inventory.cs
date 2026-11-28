@@ -1,4 +1,5 @@
 ﻿using System.Threading;
+using Sandbox.SteamApi;
 
 namespace Sandbox.Services;
 
@@ -27,61 +28,37 @@ public static partial class Inventory
 	[ConCmd( "inv_refresh", ConVarFlags.Protected )]
 	internal static async Task<Item[]> Refresh( CancellationToken token = default )
 	{
-		var result = NativeEngine.SteamInventory.GetAllItems();
+		using var result = SteamNative.Inventory.GetAllItems();
 		if ( result.IsNull ) return Array.Empty<Item>();
 
-		try
+		while ( result.IsPending() )
 		{
-			while ( result.IsPending() )
-			{
-				await Task.Delay( 10, token );
-			}
-
-			if ( !result.IsOk() ) return Array.Empty<Item>();
-
-			var wasLoaded = HasLoaded;
-			var previousItems = _items;
-
-			var items = new List<Item>();
-			for ( int i = 0; i < result.Count(); i++ )
-			{
-				items.Add( new Item( result.Get( i ) ) );
-			}
-
-			// This can run on the thread pool, so swap in a whole list rather than editing the one being read
-			_items = items;
-			CurrentBlob = SerializeResult( result );
-			HasLoaded = true;
-
-			// The initial load isn't a purchase, but an already loaded empty inventory can gain new items.
-			if ( !wasLoaded ) return Array.Empty<Item>();
-
-			return items.Where( x => !previousItems.Any( y => y.ItemId == x.ItemId ) ).ToArray();
+			await Task.Delay( 10, token );
 		}
-		finally
-		{
-			result.Destroy();
-		}
+
+		if ( !result.IsOk() ) return Array.Empty<Item>();
+
+		var wasLoaded = HasLoaded;
+		var previousItems = _items;
+
+		var items = ReadItems( result ).Select( x => new Item( x.ItemId, x.DefinitionId ) ).ToList();
+
+		// This can run on the thread pool, so swap in a whole list rather than editing the one being read
+		using var proof = result.Serialize();
+		CurrentBlob = proof.IsNull ? [] : proof.ToArray();
+		_items = items;
+		HasLoaded = true;
+
+		// The initial load isn't a purchase, but an already loaded empty inventory can gain new items.
+		if ( !wasLoaded ) return Array.Empty<Item>();
+
+		return items.Where( x => !previousItems.Any( y => y.ItemId == x.ItemId ) ).ToArray();
 	}
 
 	/// <summary>
 	/// That last serialized inventory proof for the local user, sent as part of UserInfo during connection
 	/// </summary>
 	internal static byte[] CurrentBlob { get; private set; } = Array.Empty<byte>();
-
-	private static unsafe byte[] SerializeResult( CSteamInventoryResult result )
-	{
-		var size = result.GetSerializedSize();
-		if ( size == 0 )
-			return Array.Empty<byte>();
-
-		var buffer = new byte[size];
-		fixed ( byte* ptr = buffer )
-		{
-			result.Serialize( ptr, size );
-		}
-		return buffer;
-	}
 
 	/// <summary>
 	/// Returns true if we have this item
@@ -93,22 +70,19 @@ public static partial class Inventory
 
 	internal static async Task<bool> CheckOut( List<ItemDefinition> cart )
 	{
-		var ids = cart.Select( x => x.Id ).ToArray();
+		if ( cart is not { Count: > 0 } || !SteamClient.IsValid ) return false;
 
+		var ids = cart.Select( x => x.Id ).ToArray();
+		ulong call;
 		unsafe
 		{
-			fixed ( int* idptr = &ids[0] )
+			fixed ( int* definitions = ids )
 			{
-				NativeEngine.SteamInventory.CheckOut( idptr, ids.Length );
+				call = SteamNative.Inventory.StartPurchase( definitions, ids.Length );
 			}
 		}
 
-		while ( NativeEngine.SteamInventory.IsCheckingOut() )
-		{
-			await Task.Delay( 200 );
-		}
-
-		if ( !NativeEngine.SteamInventory.WasCheckoutSuccessful() )
+		if ( !await SteamCalls.GetResultAsync( call, SteamNative.Inventory.GetPurchaseResult ) )
 			return false;
 
 		FastTimer timer = FastTimer.StartNew();
@@ -137,24 +111,4 @@ public static partial class Inventory
 			}
 		}
 	}
-
-	//
-	// called from engine via steam callbacks
-	//
-	internal static void OnDefinitionUpdate()
-	{
-		_ = LoadDefinitions();
-	}
-
-	internal static void OnPricesUpdate( bool success, string v )
-	{
-		Log.Info( $"Prices Updated! {success} - {v}" );
-	}
-
-	internal static void OnPurchaseResult( bool v, ulong orderid, ulong transid )
-	{
-		Log.Info( "Purchase Result!" );
-	}
-
-
 }

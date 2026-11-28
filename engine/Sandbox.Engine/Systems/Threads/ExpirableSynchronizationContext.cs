@@ -10,6 +10,11 @@ namespace Sandbox.Tasks;
 
 internal class ExpirableSynchronizationContext : SynchronizationContext
 {
+	static readonly ProfileScope CpuContinuations = new( "Tasks.ProcessContinuations" );
+	static readonly ProfileScope CpuWait = new( "Tasks.WaitAndPump" );
+	[SkipHotload] static readonly ConditionalWeakTable<Type, ProfileScope> StateMachineProfileScopes = new();
+	static FieldInfo AwaitContinuationAction;
+
 	public const int MaxTimeBetweenYieldsMillis = 1_000;
 
 	[SkipHotload]
@@ -52,7 +57,14 @@ internal class ExpirableSynchronizationContext : SynchronizationContext
 	/// When true, any continuations that attempt to run on this instance will
 	/// log an exception, unless whitelisted by <see cref="AllowPersistentTaskMethods"/>.
 	/// </summary>
-	internal bool HasExpired => _descendant != null;
+	internal bool HasExpired => _descendant != null || _closed;
+
+	private volatile bool _closed;
+
+	/// <summary>
+	/// True once <see cref="Close"/> has run: nothing queued to this instance, or posted to it later, runs.
+	/// </summary>
+	internal bool IsClosed => _closed;
 
 	public int QueueCount => m_queue.Reader.Count;
 
@@ -179,6 +191,19 @@ internal class ExpirableSynchronizationContext : SynchronizationContext
 		.CreateDelegate<Func<Action, Task>>();
 
 	private static readonly Regex StateMachineMethodNameRegex = new Regex( @"^<(?<name>[^>]+)>d__[0-9]+(`[0-9]+)?$" );
+	private static readonly Regex LambdaStateMachineNameRegex = new Regex( @"^<<(?<name>[^>]+)>(b__[0-9_]+|g__(?<local>[^|]+)\|[0-9_]+)>d(__[0-9]+)?(`[0-9]+)?$" );
+
+	/// <summary>
+	/// "Spawn.Lambda" for an async lambda's state machine &lt;&lt;Spawn&gt;b__0&gt;d, "Spawn.Local" for a local function.
+	/// </summary>
+	static string CompilerGeneratedMethodName( string stateMachineName )
+	{
+		var match = LambdaStateMachineNameRegex.Match( stateMachineName );
+		if ( !match.Success ) return null;
+
+		var local = match.Groups["local"];
+		return $"{match.Groups["name"].Value}.{(local.Success ? local.Value : "Lambda")}";
+	}
 
 	private static bool TryGetStateMachineInfo( object state,
 		out IAsyncStateMachine stateMachine, out bool isCancelled,
@@ -294,6 +319,9 @@ internal class ExpirableSynchronizationContext : SynchronizationContext
 	{
 		isCancelled = false;
 
+		// Closed at shutdown: dropped without a warning, logging may already be gone
+		if ( _closed ) return false;
+
 		if ( !HasExpired ) return true;
 
 		var methodInfo = string.Empty;
@@ -344,9 +372,25 @@ internal class ExpirableSynchronizationContext : SynchronizationContext
 		if ( !CheckValid( state, out var isCancelled ) ) return;
 
 		var target = GetCurrentContext();
+		if ( target.IsClosed ) return;
+
 		var data = new Data( d, state, isCancelled ? this : target, Sandbox.Engine.GlobalContext.Current );
 
 		target.m_queue.Writer.TryWrite( data );
+	}
+
+	/// <summary>
+	/// The process is ending and the native engine with it: drops what is queued here and everything posted from now on,
+	/// and <see cref="Wait"/> stops running queued work. A continuation left over from a game or menu task (a Workshop query
+	/// polling Steam, say) would otherwise run in a later wait on this thread, the runtime's own at exit included, and call
+	/// into native code that has been unloaded.
+	/// </summary>
+	public void Close()
+	{
+		_closed = true;
+		m_queue.Writer.TryComplete();
+
+		while ( m_queue.Reader.TryRead( out _ ) ) { }
 	}
 
 	public void Expire( ExpirableSynchronizationContext newInstance )
@@ -366,7 +410,7 @@ internal class ExpirableSynchronizationContext : SynchronizationContext
 	{
 		var ctx = this;
 
-		while ( ctx.HasExpired )
+		while ( ctx._descendant != null )
 		{
 			ctx = ctx._descendant;
 		}
@@ -399,6 +443,8 @@ internal class ExpirableSynchronizationContext : SynchronizationContext
 		if ( HasExpired ) return;
 		if ( m_queue.Reader.Count == 0 ) return;
 
+		using var cpu = CpuContinuations.Start();
+		var profiling = Profiler.ScopesActive;
 		var maxProcess = m_queue.Reader.Count + 8;
 		var oldContext = Current;
 		SetSynchronizationContext( this );
@@ -432,6 +478,7 @@ internal class ExpirableSynchronizationContext : SynchronizationContext
 
 				try
 				{
+					using var callback = profiling ? GetContinuationProfileScope( data ).Start() : default;
 					data.Callback( data.State );
 				}
 				catch ( OperationCanceledException )
@@ -469,14 +516,57 @@ internal class ExpirableSynchronizationContext : SynchronizationContext
 		}
 	}
 
+	// Keyed by the runtime's state machine box type, one per async method, so a lookup reads the target's type and allocates nothing
+	static ProfileScope GetContinuationProfileScope( Data data )
+	{
+		if ( data.State is not Action action ) return ProfileCallbackScopes.ForMethod( data.Callback.Method );
+
+		var targetType = action.Target?.GetType();
+		if ( targetType is { FullName: "System.Threading.Tasks.SynchronizationContextAwaitTaskContinuation+<>c__DisplayClass6_0" } )
+		{
+			AwaitContinuationAction ??= targetType.GetField( "action", BindingFlags.Instance | BindingFlags.Public );
+			if ( AwaitContinuationAction?.GetValue( action.Target ) is not Action inner ) return ProfileCallbackScopes.ForMethod( action.Method );
+			action = inner;
+			targetType = action.Target?.GetType();
+		}
+
+		if ( targetType is not null && StateMachineProfileScopes.TryGetValue( targetType, out var cached ) ) return cached;
+
+		ProfileScope scope = null;
+		try
+		{
+			if ( TryGetStateMachineForDebugger( action )?.Target is IAsyncStateMachine machine )
+				scope = StateMachineProfileScope( machine.GetType() );
+		}
+		catch ( Exception ) { } // Runtime-internal name discovery must never prevent a continuation from running.
+		scope ??= ProfileCallbackScopes.ForMethod( action.Method );
+
+		if ( targetType is not null && targetType.Name.Contains( "StateMachineBox" ) ) StateMachineProfileScopes.AddOrUpdate( targetType, scope );
+		return scope;
+	}
+
+	static ProfileScope StateMachineProfileScope( Type machineType )
+	{
+		var match = StateMachineMethodNameRegex.Match( machineType.Name );
+		var method = match.Success ? match.Groups["name"].Value : CompilerGeneratedMethodName( machineType.Name );
+
+		// Lambdas and local functions live on compiler generated classes, name them after the type that wrote them
+		var type = machineType.DeclaringType;
+		while ( type is not null && type.Name.StartsWith( "<>" ) )
+			type = type.DeclaringType;
+
+		return type is not null && method is not null ? ProfileCallbackScopes.ForType( type, method + ".Continuation" ) : null;
+	}
+
 	public override int Wait( IntPtr[] waitHandles, bool waitAll, int millisecondsTimeout )
 	{
 		const int WAIT_TIMEOUT = 0x102; // 258
 
-		// A zero timeout is a poll, and invalid timeouts should be rejected by the runtime.
-		if ( millisecondsTimeout != Timeout.Infinite && millisecondsTimeout <= 0 )
+		// A zero timeout is a poll, and invalid timeouts should be rejected by the runtime. A closed context runs nothing.
+		if ( _closed || millisecondsTimeout != Timeout.Infinite && millisecondsTimeout <= 0 )
 			return base.Wait( waitHandles, waitAll, millisecondsTimeout );
 
+		using var cpu = CpuWait.Start();
 		var started = Stopwatch.GetTimestamp();
 
 		while ( true )

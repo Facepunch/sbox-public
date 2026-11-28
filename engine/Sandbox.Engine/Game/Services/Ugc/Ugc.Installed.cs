@@ -1,5 +1,4 @@
-using Steamworks;
-using Steamworks.Data;
+using Sandbox.SteamApi;
 using System.Threading;
 
 namespace Sandbox.Services;
@@ -81,7 +80,7 @@ internal static partial class Ugc
 	/// </summary>
 	internal static ItemInfo GetItem( ulong id )
 	{
-		var json = NativeEngine.CUgcSubscriptions.GetItemJson( id );
+		var json = SteamNative.Workshop.GetItemJson( id );
 		if ( string.IsNullOrEmpty( json ) ) return null;
 
 		return Json.Deserialize<ItemInfo>( json );
@@ -114,11 +113,7 @@ internal static partial class Ugc
 		if ( item.NeedsDownload || item.IsDownloading || await IsOutdatedAsync( item, token ) )
 		{
 			if ( !RequestDownload( id ) )
-			{
-				// Still a failed download, even with an older version to carry on with
-				FailDownload( id, CouldntStart );
 				return item.IsInstalled ? item.InstallFolder : null;
-			}
 
 			// Steam marks it pending as soon as we ask for it, so wait until that's cleared - unless Steam says
 			// how it went, or it stops moving
@@ -153,6 +148,9 @@ internal static partial class Ugc
 			}
 			// Steam can take a moment to pick it up - not downloading yet isn't done
 			while ( item.IsDownloading || (item.NeedsDownload && RealTime.NowDouble - asked < StartGrace) );
+
+			if ( item.NeedsDownload && requested.Contains( id ) )
+				FailDownload( id, Stalled );
 		}
 
 		// Steam's result has said why
@@ -167,9 +165,9 @@ internal static partial class Ugc
 
 	static bool IsSteamOnline()
 	{
-		var user = NativeEngine.Steam.SteamUser();
-		if ( user.IsValid )
-			return user.BLoggedOn();
+
+		if ( SteamNative.User.IsAvailable() )
+			return SteamNative.User.IsLoggedOn();
 
 		// A dedicated server, which needs to be online to have got a workshop item at all
 		return true;
@@ -204,7 +202,7 @@ internal static partial class Ugc
 	/// </summary>
 	internal static void Subscribe( ulong id )
 	{
-		NativeEngine.CUgcSubscriptions.SubscribeItem( id );
+		SteamNative.Workshop.SubscribeItem( id );
 		Log.Info( $"Subscribed to workshop item {NameOf( id )}" );
 
 		// Steam tells us it's done in a callback, until then assume it worked
@@ -220,12 +218,11 @@ internal static partial class Ugc
 	/// </summary>
 	internal static void Unsubscribe( ulong id )
 	{
-		NativeEngine.CUgcSubscriptions.UnsubscribeItem( id );
+		SteamNative.Workshop.UnsubscribeItem( id );
 		Log.Info( $"Unsubscribed from workshop item {NameOf( id )}" );
 		subscribed.Remove( id );
 
-		// Steam stops downloading it, stop showing it
-		requested.Remove( id );
+		End( id, Explain( Result.Cancelled ) );
 	}
 
 	/// <summary>
@@ -240,7 +237,7 @@ internal static partial class Ugc
 	{
 		if ( subscribed.Contains( id ) ) return;
 
-		NativeEngine.CUgcSubscriptions.MarkDownloadedItemAsUnused( id );
+		SteamNative.Workshop.MarkDownloadedItemAsUnused( id );
 		removed.Add( id );
 		installed.Remove( id );
 	}
@@ -250,29 +247,48 @@ internal static partial class Ugc
 	/// </summary>
 	internal static ulong[] LocalItemIds( bool subscribedOnly ) => subscribedOnly ? subscribed.ToArray() : installed.ToArray();
 
+	static bool subscriptionsInitialized;
+
+	internal static bool AcceptsSteamNotifications( uint appId, bool server )
+	{
+		return appId == Application.AppId && server == Application.IsDedicatedServer;
+	}
+
+	internal static void ClientShutdown()
+	{
+		SteamNative.Workshop.ShutdownClientQueries();
+
+		if ( Application.IsDedicatedServer ) return;
+
+		subscriptionsInitialized = false;
+		CancelDownloads();
+	}
+
+	internal static void OnSubscriptionsChanged()
+	{
+		if ( subscriptionsInitialized ) Refresh();
+	}
+
+	internal static void OnItemInstalled( ulong id )
+	{
+		if ( !subscriptionsInitialized ) return;
+
+		Log.Info( $"Workshop item {NameOf( id )} downloaded" );
+		MarkInstalled( id );
+	}
+
 	/// <summary>
 	/// Start tracking what we've got, download any subscriptions that are missing, and update any that are out of date
 	/// </summary>
 	internal static void InitializeSubscriptions()
 	{
-		bool isServer = Application.IsDedicatedServer;
-		Dispatch.Install<ItemInstalled_t>( x =>
-		{
-			// Steam reports items installed for other apps too
-			if ( x.AppID.Value != Application.AppId ) return;
-
-			Log.Info( $"Workshop item {NameOf( x.PublishedFileId )} downloaded" );
-			MarkInstalled( x.PublishedFileId );
-		}, isServer );
-		Dispatch.Install<DownloadItemResult_t>( x => OnDownloadResult( x.PublishedFileId, x.Result ), isServer );
-		Dispatch.Install<RemoteStoragePublishedFileSubscribed_t>( x => Refresh(), isServer );
-		Dispatch.Install<RemoteStoragePublishedFileUnsubscribed_t>( x => Refresh(), isServer ); ;
+		subscriptionsInitialized = true;
 
 		Refresh();
 
 		_ = CheckForUpdatesAsync();
 
-		if ( isServer )
+		if ( Application.IsDedicatedServer )
 		{
 			SyncContext.RunBlocking( WaitForServerItemsAsync() );
 		}
@@ -296,18 +312,15 @@ internal static partial class Ugc
 	{
 		ThreadSafe.AssertIsMainThread();
 
-		var subscribedItems = ReadItems( NativeEngine.CUgcSubscriptions.GetSubscribedJson() );
-		var downloadedItems = ReadItems( NativeEngine.CUgcSubscriptions.GetDownloadedJson() );
+		var subscribedItems = ReadItems( SteamNative.Workshop.GetSubscribedJson() );
+		var downloadedItems = ReadItems( SteamNative.Workshop.GetDownloadedJson() );
 
 		subscribed = Application.IsDedicatedServer ? serverItems : subscribedItems.Select( x => x.PublishedFileId ).ToHashSet();
 
 		// Steam downloads subscriptions when it gets round to it - ask for them, so they come down now and we
 		// hear how they went
 		foreach ( var item in subscribedItems.Where( x => x.NeedsDownload || x.IsDownloading ) )
-		{
-			if ( !requested.Contains( item.PublishedFileId ) )
-				StartUpdate( item.PublishedFileId );
-		}
+			StartUpdate( item.PublishedFileId );
 
 		var found = new HashSet<ulong>();
 

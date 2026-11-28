@@ -36,16 +36,11 @@ class TimedCallbackList
 		return DisposeAction.Create( () => Remove( entry ) );
 	}
 
-	static Superluminal _instrument = new Superluminal( "Callback", "#6fced3" );
-
 	public void Run()
 	{
 		for ( int i = 0; i < entries.Count; i++ )
 		{
-			using ( _instrument.Start( entries[i].Description ) )
-			{
-				entries[i].Run();
-			}
+			entries[i].Run();
 		}
 	}
 
@@ -65,6 +60,7 @@ class TimedCallbackList
 	public class CallbackEntry : IComparable<CallbackEntry>
 	{
 		private Action action;
+		readonly ProfileScope profileScope;
 
 		public int Order { get; private set; }
 		public string ClassName { get; private set; }
@@ -80,6 +76,7 @@ class TimedCallbackList
 			Order = order;
 			ClassName = className;
 			Description = description;
+			profileScope = new( $"System.{className}.{description}", "", 0 );
 		}
 
 		internal void ClearMetrics()
@@ -95,6 +92,7 @@ class TimedCallbackList
 
 		public void Run()
 		{
+			using var cpu = profileScope.Start();
 			try
 			{
 				var timer = FastTimer.StartNew();

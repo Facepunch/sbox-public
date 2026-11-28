@@ -36,7 +36,7 @@ public class GuidTests
 		_testPath = System.IO.Path.Combine( _assetsPath, testName );
 		System.IO.Directory.CreateDirectory( _testPath );
 
-		NativeEngine.FullFileSystem.AddProjectPath( "unittest", _assetsPath.ToLowerInvariant() );
+		NativeEngine.FullFileSystem.AddProjectPath( "unittest", Project.NativeSearchPath( _assetsPath ) );
 
 		// Rebuild the guid mappings once so they include the fixtures. A rebuild rescans
 		// everything mounted (~0.5s), and later tests only add files in their own new folder

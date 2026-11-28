@@ -230,20 +230,25 @@ public sealed partial class ModelPhysics
 
 	private void CreateParts( PhysicsGroupDescription physics, Transform world, ComponentFlags componentFlags )
 	{
-		var boneObjects = Model.CreateBoneObjects( GameObject );
 		var bones = Model.Bones;
+		var partBones = new BoneCollection.Bone[physics.Parts.Count];
+		for ( int i = 0; i < physics.Parts.Count; i++ )
+		{
+			partBones[i] = bones.GetBone( physics.Parts[i].BoneName );
+		}
+
+		var boneObjects = Model.CreateBoneObjects( GameObject, partBones );
 		var bodyFlags = componentFlags;
 		var colliderFlags = componentFlags;
 
 		// Joints reference parts by index, but parts can be skipped below
 		_partBodyIndex = new int[physics.Parts.Count];
 		Array.Fill( _partBodyIndex, -1 );
-		var partIndex = -1;
 
-		foreach ( var part in physics.Parts )
+		for ( int partIndex = 0; partIndex < physics.Parts.Count; partIndex++ )
 		{
-			partIndex++;
-			var bone = bones.GetBone( part.BoneName );
+			var part = physics.Parts[partIndex];
+			var bone = partBones[partIndex];
 
 			if ( bone is null )
 				continue;

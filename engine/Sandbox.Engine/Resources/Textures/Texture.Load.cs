@@ -56,6 +56,7 @@ public partial class Texture
 	/// </summary>
 	static Texture LoadInternal( BaseFileSystem filesystem, string filepath, bool warnOnMissing = true )
 	{
+		if ( Application.IsShuttingDown ) return null;
 		//if ( Host.IsUnitTest ) return null;
 		if ( string.IsNullOrWhiteSpace( filepath ) ) return null;
 
@@ -159,6 +160,10 @@ public partial class Texture
 
 		// if no filesystem provided
 		filesystem ??= GlobalContext.Current.FileMount;
+
+		// Load the Workshop item's thumbnail through Steam.
+		if ( filepath.StartsWith( "workshop://", StringComparison.Ordinal ) )
+			return TextureLoader.WorkshopThumbnail.Load( filepath, warnOnMissing );
 
 		// Project menu artwork is available before the game's assets are mounted. Keep the
 		// qualified path as the texture's identity, but read the image from that project's folder.

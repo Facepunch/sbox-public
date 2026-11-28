@@ -113,8 +113,11 @@ public class MixerWidget : Widget
 	{
 		meterWidget.UpdateValues( mixer.Meter );
 
-		SetContentHash( ContentHash, 0.1f );
+		SetContentHash( contentHash ??= ContentHash, 0.1f );
 	}
+
+	// Made once: passing the method itself would make a delegate each call
+	Func<int> contentHash;
 
 	int ContentHash()
 	{

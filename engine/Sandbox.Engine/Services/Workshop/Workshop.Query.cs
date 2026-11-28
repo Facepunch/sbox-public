@@ -1,4 +1,5 @@
 using Sandbox.Services;
+using System.Collections.Concurrent;
 using System.Threading;
 
 namespace Sandbox;
@@ -174,7 +175,7 @@ internal static partial class Workshop
 		static string Tag( ItemType type ) => type.ToString().ToLowerInvariant();
 
 		/// <summary>
-		/// The query as Steam takes it - see <see cref="RunQueryAsync"/>
+		/// The query as Steam takes it - see <see cref="RunPageAsync"/>
 		/// </summary>
 		object ToRequest() => new
 		{
@@ -261,7 +262,7 @@ internal static partial class Workshop
 
 		internal static async Task<QueryResult> RunAsync( object request, string cursor, CancellationToken token )
 		{
-			var page = await RunQueryAsync<Page>( request, cursor, token );
+			var page = await RunPageAsync( request, cursor, token );
 			var next = HasNextPage( cursor, page?.NextCursor, page?.Items?.Count ?? 0 );
 
 			return new QueryResult
@@ -277,32 +278,74 @@ internal static partial class Workshop
 	/// <summary>
 	/// A page of items, as Steam answers a query
 	/// </summary>
-	sealed class Page
+	internal sealed class Page
 	{
+		/// <summary>
+		/// Number of results Steam reported for this page.
+		/// </summary>
+		public int ResultCount { get; set; }
 		public int TotalCount { get; set; }
 		public string NextCursor { get; set; }
 		public List<Item> Items { get; set; }
 	}
 
+	static ulong nextQueryId;
+	static readonly ConcurrentDictionary<ulong, TaskCompletionSource<string>> pendingQueries = new();
+
+	internal static void OnQueryCompleted( ulong requestId, string json )
+	{
+		if ( pendingQueries.TryRemove( requestId, out var completion ) )
+			completion.TrySetResult( json );
+	}
+
+	static async Task<string> RequestPageAsync( string json, string cursor, CancellationToken token )
+	{
+		if ( !ThreadSafe.IsMainThread ) await MainThread.Wait();
+		token.ThrowIfCancellationRequested();
+
+		if ( !SteamApi.SteamClient.IsValid && !SteamNative.GameServer.IsAvailable() )
+			return null;
+
+		var id = ++nextQueryId;
+		var completion = new TaskCompletionSource<string>( TaskCreationOptions.RunContinuationsAsynchronously );
+		pendingQueries[id] = completion;
+
+		try
+		{
+			if ( !SteamNative.Workshop.StartQuery( id, json, cursor ) ) return null;
+			return await completion.Task.WaitAsync( token ).ConfigureAwait( false );
+		}
+		finally
+		{
+			if ( pendingQueries.TryRemove( id, out _ ) )
+				MainThread.Queue( () => SteamNative.Workshop.CancelQuery( id ) );
+		}
+	}
+
 	/// <summary>
-	/// Ask Steam - a query as it takes it, for the page from <paramref name="cursor"/> ("*" for the first), read as
-	/// <typeparamref name="T"/>. What every workshop query comes down to, <see cref="Storage.Query"/>'s too. Null if
-	/// Steam couldn't be asked.
+	/// Reads one page from Steam and caches its items for later lookups by Workshop item ID.
+	/// Pass "*" for the first page. Returns null if Steam couldn't answer.
 	/// </summary>
-	internal static async Task<T> RunQueryAsync<T>( object request, string cursor, CancellationToken token ) where T : class
+	internal static async Task<Page> RunPageAsync( object request, string cursor, CancellationToken token )
 	{
 		// The native side wants the sort order as a number - System.Text.Json's default
 		var json = System.Text.Json.JsonSerializer.Serialize( request );
+		var result = await RequestPageAsync( json, cursor, token );
 
-		using var query = NativeEngine.CUgcQuery.CreateQuery( json, cursor );
-		if ( query.IsNull ) return null;
-
-		while ( !query.m_complete )
+		if ( string.IsNullOrEmpty( result ) ) return null;
+		var page = Json.Deserialize<Page>( result );
+		foreach ( var item in page?.Items ?? [] )
 		{
-			await Task.Delay( 50, token );
+			if ( item.Id is 0 or ulong.MaxValue ) continue;
+
+			// Steam returns an empty title for a deleted item.
+			if ( string.IsNullOrEmpty( item.Title ) )
+				ItemsById.TryRemove( item.Id, out _ );
+			else
+				ItemsById[item.Id] = item;
 		}
 
-		return query.m_success ? Json.Deserialize<T>( query.GetResultJson() ) : null;
+		return page;
 	}
 
 	/// <summary>
@@ -325,24 +368,35 @@ internal static partial class Workshop
 	/// </summary>
 	internal const int UpdateCheckCacheAge = 60;
 
+	static readonly ConcurrentDictionary<ulong, Item> ItemsById = new();
+
 	/// <summary>
-	/// Ask the Workshop about an item you know the id of. Null if there isn't one, or the Workshop can't be asked.
+	/// Returns the cached item, or looks it up on Steam. Returns null if it's unavailable.
+	/// Supplying <paramref name="maxCacheAge"/> always queries Steam with that age limit in seconds.
 	/// </summary>
-	internal static async Task<Item> FetchAsync( ulong id, CancellationToken token = default, int maxCacheAge = DetailsCacheAge )
+	internal static async Task<Item> FetchAsync( ulong workshopItemId, CancellationToken token = default, int? maxCacheAge = null )
 	{
-		return (await FetchAsync( [id], token, maxCacheAge )).FirstOrDefault();
+		if ( workshopItemId is 0 or ulong.MaxValue ) return null;
+		if ( maxCacheAge is null && ItemsById.TryGetValue( workshopItemId, out var item ) ) return item;
+
+		return (await FetchAsync( [workshopItemId], token, maxCacheAge )).FirstOrDefault();
 	}
 
 	/// <summary>
-	/// Ask the Workshop about the items with these ids - leaving out any there aren't, or all of them if it can't be asked.
-	/// Steam can answer from what it's cached in the last <paramref name="maxCacheAge"/> seconds.
+	/// Returns known items and fetches missing ones from Steam in batches. Unavailable items are omitted.
+	/// Supplying <paramref name="maxCacheAge"/> queries Steam for every requested item with that age limit in seconds.
 	/// </summary>
-	internal static async Task<Item[]> FetchAsync( IReadOnlyCollection<ulong> ids, CancellationToken token, int maxCacheAge = DetailsCacheAge )
+	internal static async Task<Item[]> FetchAsync( IReadOnlyCollection<ulong> workshopItemIds, CancellationToken token, int? maxCacheAge = null )
 	{
-		var pages = await Task.WhenAll( ids.Chunk( 50 ).Select( chunk =>
-			RunQueryAsync<Page>( new { FileIds = chunk, MaxCacheAge = maxCacheAge }, "*", token ) ) );
+		var requestedIds = workshopItemIds.Where( workshopItemId => workshopItemId is not (0 or ulong.MaxValue) ).Distinct().ToArray();
+		var idsToFetch = maxCacheAge.HasValue ? requestedIds : requestedIds.Where( workshopItemId => !ItemsById.ContainsKey( workshopItemId ) );
 
-		// One that's been deleted comes back with nothing in it
+		var pages = await Task.WhenAll( idsToFetch.Chunk( 50 ).Select( chunk =>
+			RunPageAsync( new { FileIds = chunk, MaxCacheAge = maxCacheAge ?? DetailsCacheAge }, "*", token ) ) );
+
+		if ( maxCacheAge is null )
+			return requestedIds.Select( workshopItemId => ItemsById.GetValueOrDefault( workshopItemId ) ).OfType<Item>().ToArray();
+
 		return pages.SelectMany( x => x?.Items ?? [] )
 			.Where( x => !string.IsNullOrEmpty( x.Title ) )
 			.ToArray();

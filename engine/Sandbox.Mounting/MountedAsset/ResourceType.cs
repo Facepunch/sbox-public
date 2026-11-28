@@ -3,6 +3,7 @@
 /// <summary>
 /// What resource can come out of this file
 /// </summary>
+[Expose]
 public enum ResourceType
 {
 	None,

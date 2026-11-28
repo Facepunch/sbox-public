@@ -62,6 +62,10 @@ internal class TcpChannel : Connection
 		{
 			// normal
 		}
+		catch ( System.IO.EndOfStreamException )
+		{
+			// The other end closed the connection: a player leaving, not an error
+		}
 		catch ( Exception e )
 		{
 			Log.Warning( e, $"TcpChannel: {e.Message}" );

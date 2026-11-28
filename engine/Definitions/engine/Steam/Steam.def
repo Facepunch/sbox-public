@@ -1,0 +1,356 @@
+#include "sbox/steam/steamapi.h"
+
+native class Steam.Buffer as SteamNative.Buffer
+{
+	void Dispose(); [delete]
+	byte[] GetData( out int size );
+}
+
+[small]
+native struct HSteamListenSocket as Sandbox.Network.HSteamListenSocket;
+
+[small]
+native struct HSteamNetPollGroup as Sandbox.Network.HSteamNetPollGroup;
+
+[small]
+native struct HSteamNetConnection as Sandbox.Network.HSteamNetConnection;
+
+[small]
+native enum EBeginAuthSessionResult as Sandbox.SteamApi.BeginAuthResult;
+
+native enum EFriendRelationship as Sandbox.SteamApi.Relationship;
+native enum EPersonaState as Sandbox.SteamApi.FriendState;
+native enum ETextFilteringContext as Sandbox.SteamApi.TextFilteringContext;
+native enum ELobbyType as Sandbox.SteamApi.LobbyType;
+native struct Steam::Workshop::Progress as Sandbox.Services.WorkshopProgress;
+native struct Steam::Networking::ConnectionStats as Sandbox.Network.SteamConnectionStats;
+native struct SteamItemDetails_t as Sandbox.Services.InventoryItem;
+native enum Steam::Networking::SendFlags as Sandbox.NetFlags;
+native enum Steam::Friends::AvatarSize as Sandbox.SteamApi.AvatarSize;
+native enum EWorkshopVote as Sandbox.SteamApi.WorkshopVote;
+native enum EResult as Sandbox.SteamApi.Result;
+native enum EAuthSessionResponse as Sandbox.SteamApi.AuthResponse;
+native enum EPersonaChange as Sandbox.SteamApi.PersonaChange;
+native enum ESteamNetworkingConnectionState as Sandbox.SteamApi.ConnectionState;
+native enum ESteamNetworkingAvailability as Sandbox.SteamApi.SteamNetworkingAvailability;
+
+managed static class Sandbox.SteamApi.Callbacks
+{
+	static void SteamApiCallCompleted( ulong call );
+	static void SteamShutdown();
+	static void WebAuthTicketReceived( string ticket );
+	static void NewUrlLaunchParameters();
+	static void ValidateAuthTicket( ulong steamId, EAuthSessionResponse response, ulong owner, bool server );
+	static void FriendChanged( ulong steamId, EPersonaChange flags );
+	static void GameRichPresenceJoinRequested( string connect );
+	static void GameLobbyJoinRequested( ulong lobbyId );
+	static void InventoryDefinitionsUpdated( void* ids, int count );
+	static void InventoryPricesUpdated( string catalog );
+	static void ItemInstalled( uint appId, ulong fileId, bool server );
+	static void ItemDownloadFinished( uint appId, ulong fileId, EResult result, bool server );
+	static void WorkshopSubscriptionsChanged( uint appId );
+	static void WorkshopQueryCompleted( ulong requestId, string json );
+	static void BrowserNeedsPaint( uint browser, void* pixels, uint width, uint height );
+	static bool BrowserAllowsNavigation( uint browser, string url );
+	static void BrowserUrlChanged( uint browser, string url );
+	static void BrowserTitleChanged( uint browser, string title );
+	static void BrowserFinishedRequest( uint browser, string url, string title );
+	static void BrowserSetCursor( uint browser, string cursor );
+	static void SteamServersConnected();
+	static void SteamServerConnectFailure( EResult result, bool stillRetrying );
+	static void SteamServersDisconnected( EResult result );
+
+	static void LobbyInvite( ulong lobbyId, ulong memberId );
+	static void LobbyMemberEntered( ulong lobbyId, ulong memberId );
+	static void LobbyMemberLeft( ulong lobbyId, ulong memberId );
+	static void LobbyEntered( ulong lobbyId );
+	static void LobbyDataUpdated( ulong lobbyId, ulong targetId );
+	static void LobbyChatMessage( ulong lobbyId, ulong memberId, void* message, int length );
+	static void NetworkingDebugOutput( int level, string message );
+	static void SocketConnected( HSteamListenSocket socket, HSteamNetConnection connection );
+	static void SocketDisconnected( HSteamListenSocket socket, HSteamNetConnection connection );
+	static bool ShouldAcceptConnection( HSteamListenSocket socket, HSteamNetConnection connection );
+	static void Disconnected( HSteamNetConnection connection, int reasonCode, string reasonString );
+	static void MessagingSessionAccepted( ulong steamId );
+	static void MessagingSessionFailed( ulong steamId, ESteamNetworkingConnectionState state, int reasonCode, string reason );
+}
+
+native static class Steam.Apps as SteamNative.Apps
+{
+	static bool IsInstalled( int appId );
+	static bool IsDlcInstalled( int appId );
+	static bool IsOwned( int appId );
+	static std::string GetCommandLine();
+	static std::string GetAppInstallDir( int appId );
+}
+
+native static class Steam.Friends as SteamNative.Friends
+{
+	static bool IsAvailable();
+	static string GetAnimatedAvatarUrlResult( ulong call );
+	static ulong RequestEquippedProfileItems( ulong steamId );
+	static string GetPersonaName();
+	static SteamNative.Buffer GetFriendIds();
+	static Sandbox.SteamApi.Relationship GetFriendRelationship( ulong steamId );
+	static Sandbox.SteamApi.FriendState GetFriendPersonaState( ulong steamId );
+	static string GetFriendPersonaName( ulong steamId );
+	static string GetPlayerNickname( ulong steamId );
+	static bool GetFriendGamePlayed( ulong steamId, out ulong gameId );
+	static bool RequestUserInformation( ulong steamId, bool nameOnly );
+	static int GetAvatar( ulong steamId, Steam::Friends::AvatarSize size );
+	static void ActivateGameOverlayToUser( string dialog, ulong steamId );
+	static void ActivateGameOverlayToWebPage( string url );
+	static void ActivateGameOverlayInviteDialog( ulong lobbyId );
+	static bool InviteUserToGame( ulong steamId, string connect );
+	static string GetFriendRichPresence( ulong steamId, string key );
+	static bool SetRichPresence( string key, string value );
+	static void ClearRichPresence();
+}
+
+native static class Steam.User as SteamNative.User
+{
+	static bool IsAvailable();
+	static bool IsLoggedOn();
+	static ulong GetSteamId();
+}
+
+native static class Steam.GameServer as SteamNative.GameServer
+{
+	static bool IsAvailable();
+	static void SetServerName( string name );
+	static void SetMapName( string name );
+	static void SetGameTags( string tags );
+	static void SetAdvertiseServerActive( bool heartbeats );
+	static void SetAdvertisement( string description, string name, string map, int maxPlayers, bool passwordProtected, string tags );
+	static void SetPasswordProtected( bool passwordProtected );
+	static void LogOn( string token );
+	static void LogOff();
+	static void ConfigureDedicatedServer( string description );
+	static bool IsLoggedOn();
+	static std::string GetPublicIP();
+	static void Initialize( int gamePort, int queryPort, string serverVersion );
+	static ulong GetSteamId();
+	static void Shutdown();
+}
+
+native static class Steam.Utils as SteamNative.Utils
+{
+	static bool IsOverlayEnabled();
+	static bool IsSteamRunningOnSteamDeck();
+	static bool GetImageSize( int image, out uint width, out uint height );
+	static bool GetImageRGBA( int image, void* pixels, int size );
+	static EResult GetCallStatus( ulong call );
+	static bool InitFilterText();
+	static std::string FilterText( Sandbox.SteamApi.TextFilteringContext context, ulong steamId, string text );
+}
+
+native static class Steam.Matchmaking as SteamNative.Matchmaking
+{
+	static ulong GetLobbyCreatedResult( ulong call );
+	static bool GetLobbyEnterResult( ulong call, out ulong lobbyId, out uint response );
+	static SteamNative.Buffer GetLobbyListResult( ulong call );
+	static bool IsAvailable();
+	static ulong RequestLobbyList( int minSlots, int maxResults, string stringFilters );
+	static ulong CreateLobby( Sandbox.SteamApi.LobbyType type, int maxMembers );
+	static ulong JoinLobby( ulong lobbyId );
+	static void LeaveLobby( ulong lobbyId );
+	static bool InviteUserToLobby( ulong lobbyId, ulong invitee );
+	static int GetNumLobbyMembers( ulong lobbyId );
+	static SteamNative.Buffer GetLobbyMemberIds( ulong lobbyId );
+	static string GetLobbyData( ulong lobbyId, string key );
+	static bool SetLobbyData( ulong lobbyId, string key, string data );
+	static std::string GetLobbyMetadata( ulong lobbyId );
+	static bool DeleteLobbyData( ulong lobbyId, string key );
+	static bool RequestLobbyData( ulong lobbyId );
+	static string GetLobbyMemberData( ulong lobbyId, ulong user, string key );
+	static void SetLobbyMemberData( ulong lobbyId, string key, string value );
+	static bool SendLobbyChatMsg( ulong lobbyId, void* data, int size );
+	static bool SetLobbyMemberLimit( ulong lobbyId, int maxMembers );
+	static int GetLobbyMemberLimit( ulong lobbyId );
+	static bool SetLobbyType( ulong lobbyId, Sandbox.SteamApi.LobbyType type );
+	static ulong GetLobbyOwner( ulong lobbyId );
+	static bool SetLobbyOwner( ulong lobbyId, ulong owner );
+}
+
+native enum ISteamHTMLSurface::EHTMLKeyModifiers as Sandbox.KeyboardModifiers;
+native enum Steam::HtmlSurface::MouseButtons as Sandbox.MouseButtons;
+
+native static class Steam.HtmlSurface as SteamNative.HtmlSurface
+{
+	static uint GetBrowserReadyResult( ulong call );
+	static bool Initialize();
+	static void Shutdown();
+	static ulong CreateBrowser( string userAgent );
+	static void RemoveBrowser( uint browser );
+	static void LoadURL( uint browser, string url );
+	static void ExecuteJavascript( uint browser, string script );
+	static void SetSize( uint browser, uint width, uint height );
+	static void SetKeyFocus( uint browser, bool focused );
+	static void SetBackgroundMode( uint browser, bool background );
+	static void SetDPIScalingFactor( uint browser, float scale );
+	static void SetKeyState( uint browser, uint key, Sandbox.KeyboardModifiers modifiers, bool pressed );
+	static void KeyChar( uint browser, uint unicodeChar, Sandbox.KeyboardModifiers modifiers );
+	static void SetMouseButtonState( uint browser, Sandbox.MouseButtons buttons, bool pressed );
+	static void MouseMove( uint browser, int x, int y );
+	static void MouseWheel( uint browser, int delta );
+}
+
+native static class Steam.RemoteStorage as SteamNative.RemoteStorage
+{
+	static ulong DownloadPreview( ulong handle );
+	static SteamNative.Buffer ReadDownloadedPreviewResult( ulong call, ulong expectedFile, int maxBytes );
+}
+
+native static class Steam.Networking.Messages as SteamNative.NetworkingMessages
+{
+	static bool IsAvailable();
+	static ESteamNetworkingConnectionState GetSessionStatus( ulong steamId, out int reason, out string detail );
+	static EResult SendMessageToUser( ulong steamId, void* data, int dataSize, Steam::Networking::SendFlags flags, int channel );
+	static int ReceiveMessagesOnChannel( int channel, void* messages, int maxMessages );
+	static bool CloseChannelWithUser( ulong steamId, int channel );
+	[nogc]
+	static void* GetMessageData( void* message, out int size, out HSteamNetConnection connection, out ulong steamId );
+	static void ReleaseMessages( void* messages, int count );
+	static Steam::Networking::ConnectionStats GetConnectionStats( ulong steamId );
+}
+
+native static class Steam.Networking.Sockets as SteamNative.NetworkingSockets
+{
+	static HSteamListenSocket CreateListenSocketP2P( int virtualPort );
+	static HSteamListenSocket CreateListenSocketIP( int port );
+	static HSteamListenSocket CreateListenSocketP2PFakeIP();
+	static void BeginAsyncRequestFakeIP();
+	static void CloseListenSocket( HSteamListenSocket socket );
+	static std::string GetListenSocketAddress( HSteamListenSocket socket );
+	static std::string GetIdentity();
+	static HSteamNetPollGroup CreatePollGroup();
+	static void DestroyPollGroup( HSteamNetPollGroup group );
+	static void SetConnectionPollGroup( HSteamNetConnection connection, HSteamNetPollGroup group );
+	static int ReceiveMessagesOnPollGroup( HSteamNetPollGroup group, void* messages, int maxMessages );
+	static HSteamNetConnection ConnectP2P( ulong steamId, int virtualPort );
+	static HSteamNetConnection ConnectByIPAddress( string address );
+	static void CloseConnection( HSteamNetConnection connection, int reason, string description );
+	static void SendMessages( void* messages, int count );
+	static int ReceiveMessagesOnConnection( HSteamNetConnection connection, void* messages, int maxMessages );
+
+	static bool IsAvailable();
+	static Steam::Networking::ConnectionStats GetConnectionStats( HSteamNetConnection handle );
+	static bool Initialize( int timeoutSeconds );
+}
+
+native static class Steam.Networking.Utils as SteamNative.NetworkingUtils
+{
+	static void SetDebugOutputEnabled( bool enabled );
+	static ESteamNetworkingAvailability GetRelayNetworkStatus( out string detail );
+	static void* AllocateMessage( HSteamNetConnection connection, byte[] data, int size, Steam::Networking::SendFlags flags );
+
+	static bool SetSimulatedNetworkConditions( int latencyMs, int lossPercent );
+	static std::string GetLocalPingLocationString();
+	static int EstimatePingFromLocationString( string locationString );
+}
+
+native static class Steam.Auth as SteamNative.Auth
+{
+	static bool RequestWebTicket();
+	static void CancelWebTicket();
+	static SteamNative.Buffer GetTicket( ulong targetSteamId, out uint handle );
+	static EBeginAuthSessionResult BeginSession( ulong steamId, void* ticket, int length );
+	static void EndSession( ulong steamId );
+	static void CancelTicket( uint ticket );
+}
+
+native static class Steam.Runtime as SteamNative.Runtime
+{
+	static void RunCallbacks();
+}
+
+native class Steam.Inventory.Result as SteamNative.InventoryResult
+{
+	void Dispose(); [delete]
+
+	bool IsPending();
+	bool IsOk();
+
+	Sandbox.Services.InventoryItem[] GetItemData( out int count );
+
+	SteamNative.Buffer Serialize();
+}
+
+native static class Steam.Inventory as SteamNative.Inventory
+{
+	// getting an inventory contents
+	SteamNative.InventoryResult GetAllItems();
+
+	std::string GetDefinitionProperties( int definitionId );
+
+	ulong StartPurchase( int[] definitions, int count );
+	bool GetPurchaseResult( ulong call );
+
+	SteamNative.InventoryResult Deserialize( byte[] buffer, uint bufferSize );
+}
+
+native static class Steam.Screenshots as SteamNative.Screenshots
+{
+	bool WriteScreenshot( void* pixels, uint byteCount, int width, int height );
+}
+
+native class Steam.Workshop.Update as SteamNative.WorkshopUpdate
+{
+    static ulong CreateCommunityItem();
+    static ulong CreateMtxItem();
+    static SteamNative.WorkshopUpdate GetCreatedItem( ulong call );
+    static SteamNative.WorkshopUpdate OpenCommunityItem( ulong itemId );
+
+    void Dispose(); [delete]
+
+    ulong GetPublishedFileId();
+
+    ulong Submit( string update, string changeNote );
+    EResult GetSubmitResult( ulong call );
+
+    ulong ChangeDependency( ulong dependency, bool add );
+    static EResult GetDependencyResult( ulong call, bool add );
+
+    Steam::Workshop::Progress GetProgress();
+    bool NeedsLegalAgreement();
+}
+
+native static class Steam.Workshop as SteamNative.Workshop
+{
+	static bool StartQuery( ulong requestId, string json, string cursor );
+	static void CancelQuery( ulong requestId );
+	static void ShutdownClientQueries();
+
+	static ulong GetVote( ulong fileId );
+	static EWorkshopVote GetVoteResult( ulong call );
+	static ulong SetVote( ulong fileId, bool up );
+	static EResult GetVoteUpdateResult( ulong call );
+	static ulong SetFavourite( ulong fileId, bool favourite );
+	static EResult GetFavouriteUpdateResult( ulong call );
+
+	static std::string GetSubscribedJson();
+	static std::string GetDownloadedJson();
+	static bool MarkDownloadedItemAsUnused( ulong fileid );
+	static std::string GetItemJson( ulong fileid );
+	static bool DownloadItem( ulong fileid, bool highPriority );
+	static void SubscribeItem( ulong fileid );
+	static void UnsubscribeItem( ulong fileid );
+	static void StartPlaytimeTracking( ulong fileid );
+	static void StopPlaytimeTracking( ulong fileid );
+	static bool InitWorkshopForGameServer( string folder );
+}
+
+native class Steam.Matchmaking.ServerList as SteamNative.ServerList
+{
+	static SteamNative.ServerList Create( Sandbox.Services.ServerList serverObj ); [new]
+	void Destroy(); [delete]
+
+	void StartQuery( bool lan );
+	void AddFilter( string key, string value );
+}
+
+managed class Sandbox.Services.ServerList
+{
+	void OnServerResponded( string json );
+	void OnFinished();
+}

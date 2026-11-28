@@ -67,10 +67,8 @@ public sealed partial class NavQuery
 
 	int TileCoord( float v, int low, int high ) => (int)Math.Clamp( MathF.Floor( v / tileWorld ), low, high );
 
-	/// <summary>
-	/// Nearest polygon among those whose bounds touch the box around point, restricted to one island
-	/// when islands is given. Tiles are visited in rings around the point and pruned by distance.
-	/// </summary>
+	// Nearest polygon among those whose bounds touch the box around point, restricted to one island
+	// when islands is given. Tiles are visited in rings around the point and pruned by distance.
 	internal bool Nearest( MeshState s, Vector3 point, Vector3 half, in NavFilter filter, IslandMap? islands, int island, out uint id, out Vector3 nearest )
 	{
 		id = PolyRef.NoId;

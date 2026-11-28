@@ -5,9 +5,7 @@ namespace Nav.Build;
 
 internal enum LinkKind : byte { Drop, Jump }
 
-/// <summary>
-/// A drop or jump a build found clear. Start is an agent radius inside the edge it leaves over.
-/// </summary>
+// A drop or jump a build found clear. Start is an agent radius inside the edge it leaves over.
 internal struct FoundLink
 {
 	public Vector3 Start, End;
@@ -25,11 +23,9 @@ internal struct FoundLink
 	public readonly FoundLink Up => new() { Start = End, End = Start, Kind = LinkKind.Jump };
 }
 
-/// <summary>
-/// A point on a polygon edge whose search for a landing left the field of its tile's build: where
-/// links into other tiles start. X and Y in quarter cells from the corner of the field, Z in cell
-/// heights from its floor 0, the edge's normal in 65536ths of a turn.
-/// </summary>
+// A point on a polygon edge whose search for a landing left the field of its tile's build: where
+// links into other tiles start. X and Y in quarter cells from the corner of the field, Z in cell
+// heights from its floor 0, the edge's normal in 65536ths of a turn.
 internal struct EdgePoint
 {
 	public ushort X, Y, Z, Angle;
@@ -54,13 +50,11 @@ internal struct EdgePoint
 	}
 }
 
-/// <summary>
-/// What a build from triangles found about links. Own: the whole way lies in the tile's field. Open: the
-/// edge points whose search left it. With an apron, Seam are the links from those that land beyond the
-/// field, and Incoming those from the edge points of the tiles around that land in this tile, each with
-/// the tile its edge point is in: a start lies an agent radius behind its edge point, which may be
-/// across a border.
-/// </summary>
+// What a build from triangles found about links. Own: the whole way lies in the tile's field. Open: the
+// edge points whose search left it. With an apron, Seam are the links from those that land beyond the
+// field, and Incoming those from the edge points of the tiles around that land in this tile, each with
+// the tile its edge point is in: a start lies an agent radius behind its edge point, which may be
+// across a border.
 internal sealed class LinkSet
 {
 	public FoundLink[] Own = [], Seam = [], Incoming = [];
@@ -69,11 +63,9 @@ internal sealed class LinkSet
 	public float MinZ;
 }
 
-/// <summary>
-/// The solid spans of one tile build as the mesh holds them until the tiles around are built: the
-/// first span of each row, per column the spans of its row up to and with its own, min | max &lt;&lt; 16
-/// per span.
-/// </summary>
+// The solid spans of one tile build as the mesh holds them until the tiles around are built: the
+// first span of each row, per column the spans of its row up to and with its own, min | max << 16
+// per span.
 internal sealed class HeldField
 {
 	public FieldFrame Frame;
@@ -135,11 +127,9 @@ internal sealed class HeldField
 	}
 }
 
-/// <summary>
-/// One tile's part of a job that judges links across tile borders: the edge points to search the mesh
-/// from, and the held spans of the tile and the eight around it, row by row, to check the ways by.
-/// Found comes back.
-/// </summary>
+// One tile's part of a job that judges links across tile borders: the edge points to search the mesh
+// from, and the held spans of the tile and the eight around it, row by row, to check the ways by.
+// Found comes back.
 internal sealed class SeamTask
 {
 	public int X, Y;
@@ -150,13 +140,11 @@ internal sealed class SeamTask
 	public FoundLink[] Found = [];
 }
 
-/// <summary>
-/// Links from the fields of a tile build. The solid spans say where an agent's body fits, the open
-/// spans where it can stand. A way is clear when every column under it, over the agent's width less a
-/// cell on each side, has no solid between the agent's climb and its height above the way. A drop goes
-/// out level and then straight down; a jump follows NavLinkSettings.JumpHeight. Links are found as if
-/// there were no volumes, on ground that erosion left walkable.
-/// </summary>
+// Links from the fields of a tile build. The solid spans say where an agent's body fits, the open
+// spans where it can stand. A way is clear when every column under it, over the agent's width less a
+// cell on each side, has no solid between the agent's climb and its height above the way. A drop goes
+// out level and then straight down; a jump follows NavLinkSettings.JumpHeight. Links are found as if
+// there were no volumes, on ground that erosion left walkable.
 internal sealed class LinkBuilder
 {
 	readonly List<FoundLink> own = new(), seam = new(), incoming = new(), probes = new();
@@ -176,11 +164,9 @@ internal sealed class LinkBuilder
 	bool wide, fromAround;
 	Vector2 tileMin;
 
-	/// <summary>
-	/// The links of a tile just built from triangles, from the fields the builder still holds. With an
-	/// apron the triangles are rasterised once more, as solid spans only, into a ring around the field as
-	/// wide as a link is long, when an edge point of this tile or of one around it needs to see that far.
-	/// </summary>
+	// The links of a tile just built from triangles, from the fields the builder still holds. With an
+	// apron the triangles are rasterised once more, as solid spans only, into a ring around the field as
+	// wide as a link is long, when an edge point of this tile or of one around it needs to see that far.
 	public LinkSet Run( Tile tile, NavBuilder builder, in FieldFrame frame, in BuildConfig config, in NavSettings settings, in NavLinkSettings links, TileJob job, ReadOnlySpan<Vector3> vertices, ReadOnlySpan<int> indices )
 	{
 		own.Clear();
@@ -264,9 +250,7 @@ internal sealed class LinkBuilder
 
 	static FoundLink[] Array( List<FoundLink> list ) => list.Count > 0 ? list.ToArray() : [];
 
-	/// <summary>
-	/// Whether the straight way from an edge point, this long and this much to either side, comes over a tile.
-	/// </summary>
+	// Whether the straight way from an edge point, this long and this much to either side, comes over a tile.
 	public static bool Toward( Vector3 edge, Vector3 outward, float length, float margin, Vector2 tileMin, float tileWorld )
 	{
 		Vector2 from = new Vector2( edge.X, edge.Y ) - tileMin, to = from + new Vector2( outward.X, outward.Y ) * length;
@@ -304,11 +288,9 @@ internal sealed class LinkBuilder
 		reach = links.Reach( settings );
 	}
 
-	/// <summary>
-	/// The links from a tile's edge points into other tiles: found on the mesh, clear by the held spans of
-	/// every tile they pass over. Over a tile whose spans are not held nothing is known and no link is
-	/// taken. What lands in the tile itself its build has seen.
-	/// </summary>
+	// The links from a tile's edge points into other tiles: found on the mesh, clear by the held spans of
+	// every tile they pass over. Over a tile whose spans are not held nothing is known and no link is
+	// taken. What lands in the tile itself its build has seen.
 	public void Judge( SeamTask task, MeshState state, MeshAgentType mesh, NavQuery query, in BuildConfig config )
 	{
 		solid = apron = null;
@@ -558,10 +540,8 @@ internal sealed class LinkBuilder
 		return true;
 	}
 
-	/// <summary>
-	/// Removes every link that one before it stands for by Same. Those that stay are sorted: the ones that
-	/// can be taken both ways first, then by length.
-	/// </summary>
+	// Removes every link that one before it stands for by Same. Those that stay are sorted: the ones that
+	// can be taken both ways first, then by length.
 	public void Thin( List<FoundLink> links, float spacing )
 	{
 		if ( links.Count < 2 ) return;
@@ -602,11 +582,9 @@ internal sealed class LinkBuilder
 		links.RemoveRange( kept, links.Count - kept );
 	}
 
-	/// <summary>
-	/// Whether a stands for b: of one kind, a going every way b goes, with both ends less than spacing
-	/// apart, the same way round or, when a can be taken both ways, the other. A drop and the jump back up
-	/// it are of two kinds and never stand for each other.
-	/// </summary>
+	// Whether a stands for b: of one kind, a going every way b goes, with both ends less than spacing
+	// apart, the same way round or, when a can be taken both ways, the other. A drop and the jump back up
+	// it are of two kinds and never stand for each other.
 	public static bool Same( in FoundLink a, in FoundLink b, float spacing )
 	{
 		if ( a.Kind != b.Kind || (b.Bidirectional && !a.Bidirectional) ) return false;

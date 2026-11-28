@@ -382,13 +382,14 @@ public class CrowdAgentTests
 	{
 		var sim = new Sim( new() { Doorway = true } );
 		var external = Walker();
-		external.External = true;
+		external.Mode = AgentMode.Planned;
 		Vector3 start = At( 100, 100 ), target = At( 540, 100 );
 		int agent = sim.Add( start, target, external );
+		sim.Run( 19 );
 		sim.Crowd.SetVelocity( agent, new Vector3( 3, 4, 0 ) );
-		sim.Run( 20 );
+		sim.Run( 1 );
 		Assert.AreEqual( start, sim.Position( agent ), "The crowd never moves an External agent" );
-		Assert.AreEqual( new Vector3( 3, 4, 0 ), sim[agent].Velocity, "Its velocity is what the caller says" );
+		Assert.AreEqual( new Vector3( 3, 4, 0 ), sim[agent].Velocity, "Its velocity is what the caller says, for a Step" );
 		Assert.AreEqual( AgentStatus.Moving, sim.Status( agent ) );
 		Assert.AreEqual( 120f, sim[agent].DesiredVelocity.Length(), 0.01f );
 		var corners = sim.Crowd.GetCorners( agent ).ToArray();
@@ -422,7 +423,7 @@ public class CrowdAgentTests
 	{
 		var sim = new Sim();
 		var body = Walker();
-		body.External = true;
+		body.Mode = AgentMode.Planned;
 		var place = At( 320, 320 );
 		int still = sim.Add( place, body );
 		int walker = sim.Add( At( 200, 320 ), At( 440, 320 ) );
@@ -442,6 +443,53 @@ public class CrowdAgentTests
 		Assert.IsTrue( Flat( sim.Position( inside ), place ) >= 15.9f );
 	}
 
+	// Two agents side by side, 40 either side of a link's line, head for its one entry and on past the top. With
+	// one at a time the caller takes over at the link (no AutoLinks) and takes one agent across in a second while the
+	// other waits on the link; without it the crowd takes each across. Both get on the link once and arrive. Steered
+	// External agents alike, moved by their owner along SteeredVelocity, which points up the link while they are on it.
+	[TestMethod]
+	[DataRow( false, false )]
+	[DataRow( true, false )]
+	[DataRow( false, true )]
+	[DataRow( true, true )]
+	public void TwoAgentsHeadingForOneLinkEntryBothTakeIt( bool oneAtATime, bool external )
+	{
+		var sim = new Sim( new() { UpperFloor = true, Link = true } );
+		Vector3[] targets = [At( 120, 280, 201 ), At( 120, 360, 201 )];
+		var value = Walker( !oneAtATime );
+		value.Mode = external ? AgentMode.Steered : AgentMode.Moved;
+		int[] agents = [sim.Add( At( 260, 280 ), targets[0], value ), sim.Add( At( 260, 360 ), targets[1], value )];
+		var watches = new[] { new LinkWatch(), new LinkWatch() };
+		int crossing = -1, crossed = 0;
+		float climbed = 0;
+		for ( int step = 0; step < 1000 && agents.Any( a => sim.Status( a ) != AgentStatus.Arrived ); step++ )
+		{
+			if ( external )
+			{
+				foreach ( int a in agents ) sim.Crowd.SetPosition( a, sim.Position( a ) + sim[a].SteeredVelocity * 0.02f + sim[a].Push );
+			}
+			sim.Step();
+			for ( int k = 0; k < 2; k++ ) watches[k].See( sim[agents[k]] );
+			if ( !oneAtATime ) continue;
+			if ( crossing < 0 ) crossing = agents.FirstOrDefault( sim.OnLink, -1 );
+			if ( crossing < 0 || (climbed += 0.02f) < 1 ) continue;
+			sim.Crowd.SetPosition( crossing, sim[crossing].LinkEnd );
+			sim.Crowd.CompleteLink( crossing );
+			crossing = -1;
+			climbed = 0;
+			crossed++;
+		}
+
+		for ( int k = 0; k < 2; k++ )
+		{
+			Assert.AreEqual( AgentStatus.Arrived, sim.Status( agents[k] ), $"Agent {k} at {sim.Position( agents[k] )}" );
+			// An External agent's height is its owner's business.
+			Assert.IsTrue( (external ? Flat( sim.Position( agents[k] ), targets[k] ) : Vector3.Distance( sim.Position( agents[k] ), targets[k] )) < 2.5f, $"Agent {k} at {sim.Position( agents[k] )}" );
+			Assert.AreEqual( 1, watches[k].Entered.Count, $"Agent {k} got on the link once" );
+		}
+		if ( oneAtATime ) Assert.AreEqual( 2, crossed );
+	}
+
 	[TestMethod]
 	[DataRow( true )]
 	[DataRow( false )]
@@ -449,7 +497,7 @@ public class CrowdAgentTests
 	{
 		var sim = new Sim( new() { UpperFloor = true, Link = true } );
 		var external = Walker( autoLinks );
-		external.External = true;
+		external.Mode = AgentMode.Planned;
 		var target = At( 400, 320, 201 );
 		int agent = sim.Add( At( 300, 320 ), target, external );
 		void Follow() => sim.Crowd.SetPosition( agent, sim.Position( agent ) + sim[agent].DesiredVelocity * 0.02f );
@@ -501,7 +549,7 @@ public class CrowdAgentTests
 	{
 		var sim = new Sim();
 		var external = Walker();
-		external.External = true;
+		external.Mode = AgentMode.Planned;
 		var target = At( 500, 320 );
 		// On the mesh but not at its height, beside it within the placement box, far beside it, high above it.
 		Vector3[] places = [At( 100, 320, 9.25f ), At( -10.5f, 300, 1 ), At( -200, 320, 1 ), At( 300, 300, 400 )];
@@ -544,21 +592,23 @@ public class CrowdAgentTests
 	{
 		var sim = new Sim();
 		var external = Walker();
-		external.External = true;
+		external.Mode = AgentMode.Planned;
 		int derived = sim.Add( At( 100, 300 ), external );
 		int told = sim.Add( At( 100, 400 ), external );
 		sim.Step();
 		Assert.AreEqual( Vector3.Zero, sim[derived].Velocity, "It has not been moved yet" );
 
-		// Moved 2.4 units a tick of a fiftieth: 120 units per time unit. Also off the mesh and in the air.
-		sim.Crowd.SetVelocity( told, new Vector3( 0, 30, 0 ) );
+		// Moved 2.4 units a tick of a fiftieth: 120 units per time unit. Also off the mesh and in the air. The one told
+		// a velocity has it for the Step it was told for, and its positions tell it again after.
 		for ( int tick = 0; tick < 10; tick++ )
 		{
 			sim.Crowd.SetPosition( derived, sim.Position( derived ) + new Vector3( 2.4f, 0, tick > 5 ? 3 : 0 ) );
 			sim.Crowd.SetPosition( told, sim.Position( told ) + new Vector3( 2.4f, 0, 0 ) );
+			if ( tick % 2 == 0 ) sim.Crowd.SetVelocity( told, new Vector3( 0, 30, 0 ) );
 			sim.Step();
 			Assert.IsTrue( Vector3.Distance( sim[derived].Velocity, new Vector3( 120, 0, tick > 5 ? 150 : 0 ) ) < 0.05f, $"Tick {tick}: {sim[derived].Velocity}" );
-			Assert.AreEqual( new Vector3( 0, 30, 0 ), sim[told].Velocity, "What the caller told stays" );
+			if ( tick % 2 == 0 ) Assert.AreEqual( new Vector3( 0, 30, 0 ), sim[told].Velocity, "What the caller told counts for its Step" );
+			else Assert.IsTrue( Vector3.Distance( sim[told].Velocity, new Vector3( 120, 0, 0 ) ) < 0.05f, $"Tick {tick}: then its positions tell it: {sim[told].Velocity}" );
 		}
 
 		// Standing still, and with a Step of another length.
@@ -586,7 +636,7 @@ public class CrowdAgentTests
 	{
 		var sim = new Sim();
 		var body = Walker();
-		body.External = true;
+		body.Mode = AgentMode.Planned;
 		// Hovering 60 above the floor, more than the placement box is high: it has no polygon. It spans
 		// z 61 to 93, in the way of an agent 80 tall and above the head of one 32 tall.
 		var place = At( 320, 320, 61 );

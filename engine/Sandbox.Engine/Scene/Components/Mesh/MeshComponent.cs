@@ -212,6 +212,9 @@ public sealed partial class MeshComponent : Collider, ExecuteInEditor, ITintable
 		_sceneObject = null;
 	}
 
+	// Off the update list in play: a mesh edits only in the editor, and the collision setter rebuilds itself. A map has thousands
+	internal override bool UpdatesIn( Scene scene ) => scene.IsEditor;
+
 	protected override void OnUpdate()
 	{
 		base.OnUpdate();
@@ -232,7 +235,7 @@ public sealed partial class MeshComponent : Collider, ExecuteInEditor, ITintable
 		if ( Scene?.IsEditor != true && (_builtMesh is null || _builtCollision == Collision) ) return;
 		if ( !Active || !PhysicsBody.IsValid() ) return;
 
-		if ( Scene.IsEditor && (_builtMesh != Mesh || Mesh?.IsDirty == true) )
+		if ( (Scene.IsEditor && (_builtMesh != Mesh || Mesh?.IsDirty == true)) || Mesh?.IsLightmapDirty == true )
 		{
 			RebuildRenderMesh();
 		}
@@ -367,10 +370,16 @@ public sealed partial class MeshComponent : Collider, ExecuteInEditor, ITintable
 		{
 			Mesh.Transform = WorldTransform;
 			Mesh.SetSmoothingAngle( SmoothingAngle );
+
+			// An edit moves the lightmap's charts
+			if ( _builtMesh == Mesh && Mesh.IsDirty )
+				LightmapOffset = null;
+
+			UpdateLightmap();
 		}
 
 		var model = Model;
-		if ( _builtMesh != Mesh || Mesh?.IsDirty == true || model is null )
+		if ( _builtMesh != Mesh || Mesh?.IsDirty == true || Mesh?.IsLightmapDirty == true || model is null )
 			model = Mesh?.Rebuild( Collision );
 		else
 		{
@@ -434,7 +443,7 @@ public sealed partial class MeshComponent : Collider, ExecuteInEditor, ITintable
 		if ( DisabledInLowQuality ) _sceneObject.Flags.SetFlag( Rendering.SceneObjectFlags.DisabledInLowQuality, true );
 		_sceneObject.Flags.CastShadows = RenderType == ShadowRenderType.On || RenderType == ShadowRenderType.ShadowsOnly;
 		_sceneObject.Flags.ExcludeGameLayer = RenderType == ShadowRenderType.ShadowsOnly;
-		_sceneObject.Flags.IsStatic = GameObject.IsStatic;
+		UpdateLightmap();
 	}
 
 	/// <summary>

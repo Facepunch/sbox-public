@@ -18,6 +18,9 @@ public partial class Panel
 	[Parameter]
 	public string TooltipClass { get; set; }
 
+	internal float? TooltipDelay { get; set; }
+	internal float TooltipOffset { get; set; } = 20;
+
 	/// <summary>
 	/// Build a richer tooltip than a line of text. Called with the tooltip panel as it's about to be
 	/// shown - add whatever it should contain: labels, images, anything. If <see cref="Tooltip"/> is

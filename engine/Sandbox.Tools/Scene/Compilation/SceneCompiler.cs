@@ -24,9 +24,6 @@ internal static partial class SceneCompiler
 		public bool HasCompileGeometry { get; init; }
 	}
 
-	[Menu( "Editor", "Scene/View Compile Report", "list", Priority = 1002 )]
-	public static void ViewCompileReport() => EditorEvent.Run( "scene.compile.show-report", "Report" );
-
 	/// <summary>
 	/// Everything the active scene has to compile, and why the rest is being left alone.
 	/// Reports remain available when saving is required before compilation.
@@ -125,6 +122,7 @@ internal static partial class SceneCompiler
 			session.Cancel.ThrowIfCancellationRequested();
 			var sceneFolder = scene.Editor.GetSceneFolder()
 				?? throw new InvalidOperationException( "This scene has nowhere to write its compiled resources." );
+
 			var sourceRevision = CaptureSourceRevision( sourcePath );
 			session.Phase( "Copying scene" );
 			var sourceFile = scene.CreateSceneFile();
@@ -289,6 +287,7 @@ internal static partial class SceneCompiler
 				renderer.Model = aggregates[i].Model;
 				renderer.Tint = plans[i].Tint;
 				renderer.Fragments = aggregates[i].Fragments;
+				renderer.Lightmapped = plans[i].Lightmapped;
 			}
 
 			for ( int i = 0; i < collision.Count; i++ )

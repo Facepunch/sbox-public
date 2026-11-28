@@ -22,8 +22,6 @@ public static partial class Rpc
 		Static
 	}
 
-	static readonly Superluminal _ph = new( "Rpc", Color.Cyan );
-
 	static ByteStream BeginMessage( RpcTarget target )
 	{
 		var bs = ByteStream.Create( 128 );
@@ -192,7 +190,7 @@ public static partial class Rpc
 			return;
 		}
 
-		using var profiler = _ph.Start( method.Name );
+		using var cpu = Profiler.ScopesActive ? ProfileCallbackScopes.ForMethod( method ).Start() : default;
 
 		if ( NetworkDebugSystem.Current is { TracksCalls: true } debug )
 			debug.Track( $"{(typeDesc ?? member.TypeDescription).FullName}.{method.Name}", bs.Length, outbound: false, source );

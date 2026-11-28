@@ -155,7 +155,7 @@ internal sealed class MapReference
 		if ( WorkshopId != 0 )
 		{
 			var item = await Workshop.FetchAsync( WorkshopId );
-			return (item?.Title, item?.Thumb is { Length: > 0 } thumb ? thumb : null, null);
+			return (item?.Title, item?.Thumbnail, null);
 		}
 
 		if ( mountIdent is not null )

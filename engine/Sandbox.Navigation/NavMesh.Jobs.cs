@@ -5,28 +5,21 @@ namespace Nav;
 
 public sealed partial class NavMesh
 {
-	// The commit count every published build is stamped from (Serial), and whether the commit under way
-	// has counted yet. maxRound: the highest count whose serials still fit 32 bits.
+	// maxRound: the highest commit count whose serials still fit 32 bits.
 	uint commits;
 	bool counted;
 	readonly uint maxRound;
 
-	// Counted up before a commit of several agent types publishes and again after, so a Save reads
-	// every type as of one commit: odd while a commit is publishing.
+	// Odd while a commit is publishing, so a Save reads every type as of one commit.
 	int publishing;
 
 	// Which type TakeJobs serves first.
 	int rotation;
 
-	/// <summary>
-	/// The serial of every build agent type type publishes in the commit under way: the mesh's commit
-	/// count times the number of types, plus the type. So a reused slot never validates an old PolyRef,
-	/// and a PolyRef of one type never validates in another: for a mesh of one type the serial is the
-	/// count itself. These are the 32 serial bits of a PolyRef. After 2^32 / types commits (more than two
-	/// years at sixty a second for one type, one year for two, 52 days for sixteen) the count starts
-	/// again at 1, 0 being no serial. A PolyRef kept through all of them could then name a later build
-	/// of its slot, which is accepted: a wider serial would cost every PolyRef.
-	/// </summary>
+	// The PolyRef serial of a build of type in the commit under way: commit count * types + type, so a reused
+	// slot never validates an old PolyRef and no PolyRef validates in another type. After 2^32 / types commits
+	// the count restarts at 1; a PolyRef kept that long may then name a later build of its slot, accepted
+	// because a wider serial would cost every PolyRef.
 	internal uint Serial( int type )
 	{
 		if ( !counted )
@@ -42,14 +35,12 @@ public sealed partial class NavMesh
 	}
 
 	/// <summary>
-	/// The whole level in one call: sorts the triangles into tiles, builds every tile they reach on this
-	/// thread for every agent type and commits in batches. Nothing of the input is kept. A triangle is
-	/// ground when the cross product of v1 - v0 and v2 - v0 points up, within the slope limit. A triangle
-	/// with an index out of range or a coordinate that is not finite is left out and counted as rejected.
-	/// Tiles that were already dirty are built too, and one of those that no triangle reaches any more
-	/// is removed. Returns the number of failed tiles; failures, when given, gets each of them with its
-	/// reason. A failures list of this kind cannot say which agent type failed: on a mesh of several
-	/// types pass the other.
+	/// The whole level in one call: sorts the triangles into tiles, builds every tile they reach for every
+	/// agent type on this thread and commits in batches. Nothing of the input is kept. A triangle is ground
+	/// when the cross product of v1 - v0 and v2 - v0 points up, within the slope limit; one with an index out
+	/// of range or a coordinate that is not finite is rejected. Already dirty tiles are built too, and those
+	/// no triangle reaches are removed. Returns the number of failed tiles, listed with their reasons in
+	/// failures when given. On a mesh of several types use the overload whose failures name the type.
 	/// </summary>
 	public int Build( NavBuilder builder, ReadOnlySpan<Vector3> vertices, ReadOnlySpan<int> indices, List<(int X, int Y, string Error)>? failures = null )
 	{
@@ -101,8 +92,8 @@ public sealed partial class NavMesh
 	}
 
 	/// <summary>
-	/// Tiles of every agent type that are dirty or have a job in flight, and those whose links across a
-	/// tile border a job is still to judge. Owner thread.
+	/// Tiles of every agent type that are dirty, have a job in flight, or have border links still to judge.
+	/// Owner thread.
 	/// </summary>
 	public int PendingTiles
 	{
@@ -115,9 +106,7 @@ public sealed partial class NavMesh
 	}
 
 	/// <summary>
-	/// Whether this tile is dirty, has a job in flight or has links across its borders still to be
-	/// judged. False once every change made to it so far has been built and committed, or failed.
-	/// Owner thread.
+	/// Whether this tile is dirty, has a job in flight or has border links still to judge. Owner thread.
 	/// </summary>
 	public bool IsPending( int tileX, int tileY ) => Single.IsPending( tileX, tileY );
 	public bool IsPending( int agentType, int tileX, int tileY ) => TypeAt( agentType ).IsPending( tileX, tileY );
@@ -145,13 +134,11 @@ public sealed partial class NavMesh
 	public void RemoveTile( int agentType, int tileX, int tileY ) => TypeAt( agentType ).RemoveTile( tileX, tileY );
 
 	/// <summary>
-	/// Hands out jobs for dirty tiles of every agent type, oldest first per type, at most one in flight
-	/// per tile. Returns how many. A tile that is marked again while its job is in flight gets its next
-	/// job after that one has been committed. With generated links, one job at a time per type also
-	/// judges links across tile borders; when no tile is dirty that is a job that builds no tile and
-	/// needs no geometry, built and committed like the others. On a mesh of several types the span is
-	/// shared out evenly between them, starting with another type each call, and what one type cannot
-	/// use goes to the others.
+	/// Hands out jobs for dirty tiles, oldest first per agent type, at most one in flight per tile, and
+	/// returns how many. A tile marked again while its job is in flight gets its next job after that one is
+	/// committed. With generated links, one job at a time per type also judges links across tile borders,
+	/// which may be a job that builds no tile and needs no geometry. Several types share the span evenly,
+	/// starting with another type each call.
 	/// </summary>
 	public int TakeJobs( Span<TileJob> jobs )
 	{
@@ -177,27 +164,29 @@ public sealed partial class NavMesh
 	}
 
 	/// <summary>
-	/// Publishes built jobs of every agent type, pending tile removals and link changes, one new state
-	/// per type that changed. Returns the number of failed jobs. A failed tile stays clean until it is
-	/// marked dirty again. A job still Pending is abandoned: its tile stays dirty and a later result for
-	/// it is ignored. A tile that was marked dirty while its job was in flight gets that job's result all
-	/// the same and stays dirty, so a tile that changes all the time shows a build that is one job old
-	/// instead of none. Only a RemoveTile makes the job in flight count for nothing. Jobs of another mesh
-	/// are left out.
+	/// Publishes built jobs, pending tile removals and link changes, one new state per agent type that
+	/// changed, and returns the number of failed jobs. A failed tile stays clean until marked dirty again.
+	/// A job still Pending is abandoned: its tile stays dirty and a later result is ignored. A tile marked
+	/// dirty while its job was in flight still gets that job's result and stays dirty; only RemoveTile
+	/// discards it. Jobs of another mesh are left out.
 	/// </summary>
 	public int Commit( ReadOnlySpan<TileJob> jobs )
 	{
 		counted = false;
-		if ( types.Length == 1 ) return types[0].Commit( jobs );
-
 		uint before = 0, after = 0;
 		foreach ( var type in types ) before += type.State.Version;
 		Interlocked.Increment( ref publishing );
 		int failed = 0;
-		foreach ( var type in types ) failed += type.Commit( jobs );
-		foreach ( var type in types ) after += type.State.Version;
-		if ( after != before ) Volatile.Write( ref version, version + 1 );
-		Interlocked.Increment( ref publishing );
+		try
+		{
+			foreach ( var type in types ) failed += type.Commit( jobs );
+		}
+		finally
+		{
+			foreach ( var type in types ) after += type.State.Version;
+			if ( after != before ) Volatile.Write( ref version, version + 1 );
+			Interlocked.Increment( ref publishing );
+		}
 		return failed;
 	}
 

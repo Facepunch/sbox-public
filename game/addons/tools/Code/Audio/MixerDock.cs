@@ -60,11 +60,14 @@ public class MixerDock : Widget
 	[EditorEvent.Frame]
 	public void Frame()
 	{
-		if ( SetContentHash( ContentHash, 0.5f ) )
+		if ( SetContentHash( contentHash ??= ContentHash, 0.5f ) )
 		{
 			Rebuild();
 		}
 	}
+
+	// Made once: passing the method itself would make a delegate each call
+	Func<int> contentHash;
 
 	int ContentHash() => HashCode.Combine( Mixer.Master );
 

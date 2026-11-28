@@ -745,7 +745,9 @@ public sealed partial class IndirectLightVolume : Component, Component.ExecuteIn
 		return Probes[flatIndex];
 	}
 
-	[Menu( "Editor", "Scene/Bake Indirect Light Volumes", "snowing", Priority = 1100 )]
+	/// <summary>
+	/// Bake the indirect light volumes in the active editor scene.
+	/// </summary>
 	public static async Task BakeAll()
 	{
 		if ( Application.Editor is null )

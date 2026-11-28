@@ -2,9 +2,7 @@ using System.Numerics;
 
 namespace Nav.Build;
 
-/// <summary>
-/// Where the field sits in the world.
-/// </summary>
+// Where the field sits in the world.
 internal struct FieldFrame
 {
 	public float MinX, MinY, MinZ;
@@ -16,20 +14,16 @@ internal static class Rasterizer
 {
 	public const int MaxClipVerts = 8;
 
-	/// <summary>
-	/// Clips the triangle to every cell it touches and adds the height range of each piece as a span.
-	/// The triangle is cut into rows first, then each row into columns, and the cut points of one
-	/// cell are the inputs of the next, so the heights depend on that order.
-	/// </summary>
+	// Clips the triangle to every cell it touches and adds the height range of each piece as a span.
+	// The triangle is cut into rows first, then each row into columns, and the cut points of one
+	// cell are the inputs of the next, so the heights depend on that order.
 	public static void Triangle( SolidField field, in FieldFrame frame, Vector3 v0, Vector3 v1, Vector3 v2, int area, int mergeThreshold )
 	{
 		Triangle( field, frame, v0, v1, v2, area, mergeThreshold, field.Width, field.Height, 0, field.Width );
 	}
 
-	/// <summary>
-	/// The same into a window of the field: w by h cells whose first column is origin, in a field stride
-	/// columns wide. The frame is that of the window.
-	/// </summary>
+	// The same into a window of the field: w by h cells whose first column is origin, in a field stride
+	// columns wide. The frame is that of the window.
 	public static void Triangle( SolidField field, in FieldFrame frame, Vector3 v0, Vector3 v1, Vector3 v2, int area, int mergeThreshold, int w, int h, int origin, int stride )
 	{
 		var triangleMin = Vector3.Min( Vector3.Min( v0, v1 ), v2 );
@@ -161,10 +155,8 @@ internal static class Rasterizer
 		}
 	}
 
-	/// <summary>
-	/// A triangle that stays inside one cell height gives every cell the same span, so only the cells
-	/// at the ends of a row, where its outline decides whether a piece exists at all, need clipping.
-	/// </summary>
+	// A triangle that stays inside one cell height gives every cell the same span, so only the cells
+	// at the ends of a row, where its outline decides whether a piece exists at all, need clipping.
 	static bool FlatSpan( in FieldFrame frame, float minZ, float maxZ, int cuts, out int spanMin, out int spanMax )
 	{
 		float low = (minZ - frame.MinZ) * frame.InverseCellHeight;

@@ -3,7 +3,7 @@ using Sandbox.Network;
 using Sandbox.Utility;
 using Sandbox.VR;
 using Sentry;
-using Steamworks;
+using Sandbox.SteamApi;
 using System.Diagnostics;
 using System.Threading;
 
@@ -299,14 +299,11 @@ internal static class Bootstrap
 #pragma warning disable CS0612 // Type or member is obsolete
 
 			// Look for a command line from Steam (this is for stuff like playing from https://sbox.game/)
-			if ( NativeEngine.Steam.SteamApps().IsValid )
+			var steamCommandLine = SteamNative.Apps.GetCommandLine();
+			if ( !Application.IsHeadless && !string.IsNullOrEmpty( steamCommandLine ) )
 			{
-				var steamCommandLine = NativeEngine.Steam.SteamApps().GetCommandLine();
-				if ( !Application.IsHeadless && !string.IsNullOrEmpty( steamCommandLine ) )
-				{
-					// Any web page or a friend's rich presence can set this, so only take what opening or joining a game needs
-					CommandLine.AddSwitches( steamCommandLine, "rungame", "webreferrer", "connect", "connect_lobby" );
-				}
+				// Any web page or a friend's rich presence can set this, so only take what opening or joining a game needs
+				CommandLine.AddSwitches( steamCommandLine, "rungame", "webreferrer", "connect", "connect_lobby" );
 			}
 
 #pragma warning restore CS0612 // Type or member is obsolete

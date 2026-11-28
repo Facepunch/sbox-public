@@ -106,7 +106,9 @@ public partial class EnvmapProbe : ISceneCompile
 		if ( progress is not null ) progress.Current = 3;
 	}
 
-	[Menu( "Editor", "Scene/Bake Envmaps", "panorama_photosphere", Priority = 1000 )]
+	/// <summary>
+	/// Bake every envmap probe set to baked mode in the active editor scene.
+	/// </summary>
 	public static async Task BakeAll()
 	{
 		if ( Application.Editor is null )

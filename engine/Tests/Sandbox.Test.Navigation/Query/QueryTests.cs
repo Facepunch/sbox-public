@@ -125,7 +125,6 @@ public class QueryTests
 	[TestMethod]
 	public void SearchWallAndMoveQueriesShareScratchWithoutDisturbingEachOther()
 	{
-		// Port of the search part of BoundsSearchAndTileReuse.
 		var mesh = Mesh( new Layout( Obstacles: true ) );
 		var query = new NavQuery( mesh );
 		Vector3 from = new( 50, 320, 0 ), to = new( 590, 320, 0 );
@@ -298,7 +297,7 @@ public class QueryTests
 		var filter = Filters.All.WithForbiddenAreas( forbidden );
 		var islands = NavQuery.GetIslands( s, filter );
 
-		// The reference: one union-find over all polygons, as the first version did it.
+		// The reference: one union-find over all polygons.
 		var ids = new List<uint>();
 		var at = new Dictionary<uint, int>();
 		foreach ( var page in s.Pages )
@@ -434,30 +433,20 @@ public class QueryTests
 	}
 
 	[TestMethod]
-	public void HeightIsThePolygonPlane()
+	public void HeightAndClosestPointAreOnThePolygonPlaneOrTheNearestEdge()
 	{
 		var mesh = GridMesh.Mesh( GridMesh.Tile( 0, 0, new GridMesh.Layer( 0, Height: ( x, y ) => x * 0.5f ) ) );
 		var query = new NavQuery( mesh );
-		Assert.IsTrue( query.FindNearest( new Vector3( 103, 205, 60 ), Snap, Filters.All, out var poly, out var nearest ) );
-		Assert.AreEqual( 51.5f, nearest.Z, 0.001f );
-		Assert.IsTrue( query.GetHeight( poly, new Vector3( 107, 203, -500 ), out float z ) );
-		Assert.AreEqual( 53.5f, z, 0.001f );
-		Assert.IsFalse( query.GetHeight( poly, new Vector3( 150, 203, 0 ), out _ ), "Not over the polygon" );
-		Assert.IsFalse( query.GetHeight( default, new Vector3( 107, 203, 0 ), out _ ) );
-	}
-
-	[TestMethod]
-	public void ClosestPointIsOnThePlaneOrOnTheNearestEdge()
-	{
-		var mesh = GridMesh.Mesh( GridMesh.Tile( 0, 0, new GridMesh.Layer( 0, Height: ( x, y ) => x * 0.5f ) ) );
-		var query = new NavQuery( mesh );
-		Assert.IsTrue( query.FindNearest( new Vector3( 103, 205, 60 ), Snap, Filters.All, out var poly, out _ ) );
+		Assert.IsTrue( query.FindNearest( new Vector3( 103, 205, 60 ), Snap, Filters.All, out var poly, out var onPlane ) );
+		Assert.AreEqual( 51.5f, onPlane.Z, 0.001f );
 
 		// Over the polygon: straight down or up to its plane, however far
 		Assert.IsTrue( query.ClosestPoint( poly, new Vector3( 107, 203, -500 ), out var closest ) );
 		Assert.AreEqual( new Vector3( 107, 203, 53.5f ), closest );
 		Assert.IsTrue( query.GetHeight( poly, new Vector3( 107, 203, -500 ), out float z ) );
-		Assert.AreEqual( z, closest.Z );
+		Assert.AreEqual( 53.5f, z, 0.001f );
+		Assert.IsFalse( query.GetHeight( poly, new Vector3( 150, 203, 0 ), out _ ), "Not over the polygon" );
+		Assert.IsFalse( query.GetHeight( default, new Vector3( 107, 203, 0 ), out _ ) );
 
 		// Beside it: what a nearest query that ends on this polygon answers
 		var beside = new Vector3( -30, 203, 3 );

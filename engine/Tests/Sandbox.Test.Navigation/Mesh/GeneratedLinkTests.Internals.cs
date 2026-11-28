@@ -10,7 +10,6 @@ namespace Nav.Lib.Tests;
 /// </summary>
 public partial class GeneratedLinkTests
 {
-	// C8: what a tile keeps.
 	[TestMethod]
 	public void EdgePointIsEightBytesAndComesBackWithinAQuarterCell()
 	{

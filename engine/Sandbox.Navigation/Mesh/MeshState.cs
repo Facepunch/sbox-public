@@ -2,9 +2,7 @@ using System.Numerics;
 
 namespace Nav;
 
-/// <summary>
-/// A resolved link. Poly ids are PolyRef.NoId for an end that found no polygon. Serial 0 marks a free id.
-/// </summary>
+// A resolved link. Poly ids are PolyRef.NoId for an end that found no polygon. Serial 0 marks a free id.
 internal struct LinkEntry
 {
 	public NavLink Def;
@@ -15,11 +13,9 @@ internal struct LinkEntry
 	public readonly bool Connected => StartPoly != PolyRef.NoId && EndPoly != PolyRef.NoId;
 }
 
-/// <summary>
-/// Everything a query reads. Immutable once published, except the lazily added island maps. Tiles sit
-/// in pages by slot and links in pages by id, so a commit copies the roots and the pages it touches,
-/// not one entry per loaded tile or link.
-/// </summary>
+// Everything a query reads. Immutable once published, except the lazily added island maps. Tiles sit
+// in pages by slot and links in pages by id, so a commit copies the roots and the pages it touches,
+// not one entry per loaded tile or link.
 internal sealed class MeshState
 {
 	public const int PageBits = 8, PageSize = 1 << PageBits;
@@ -109,10 +105,8 @@ internal sealed class MeshState
 	}
 }
 
-/// <summary>
-/// Tile coordinates to slot. Blocks of 16 x 16 tiles in an open-addressing table, so a commit that
-/// changes the set of tiles copies the table of blocks and the blocks it touches.
-/// </summary>
+// Tile coordinates to slot. Blocks of 16 x 16 tiles in an open-addressing table, so a commit that
+// changes the set of tiles copies the table of blocks and the blocks it touches.
 internal sealed class TileIndex
 {
 	const int BlockBits = 4, BlockMask = (1 << BlockBits) - 1, BlockTiles = 1 << (BlockBits * 2);

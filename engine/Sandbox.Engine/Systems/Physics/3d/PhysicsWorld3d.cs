@@ -8,6 +8,8 @@ namespace Sandbox;
 /// </summary>
 internal sealed partial class PhysicsWorld3d : PhysicsWorldInternal, IHandle
 {
+	static readonly ProfileScope CpuStep = new( "Physics3D.Step" );
+
 	internal IPhysicsWorld native => world;
 	internal IPhysicsWorld world;
 
@@ -135,6 +137,7 @@ internal sealed partial class PhysicsWorld3d : PhysicsWorldInternal, IHandle
 	/// </summary>
 	public override void Step( double worldTime, float delta, int subSteps )
 	{
+		using var cpu = CpuStep.Start();
 		Assert.True( IsTransient, "You can only step simulation of physics worlds that you create" );
 		if ( !world.IsValid ) return;
 
@@ -198,7 +201,7 @@ internal sealed partial class PhysicsWorld3d : PhysicsWorldInternal, IHandle
 					var ab = new Collision( sa, sb, c );
 					OnIntersectionStart?.InvokeWithWarning( ab );
 					a.Body.DispatchIntersectionStart( ab );
-					b.Body.DispatchIntersectionStart( new Collision( sb, sa, c ) );
+					b.Body.DispatchIntersectionStart( new Collision( sb, sa, c ) { Normal = -c.Normal } );
 				}
 				else if ( ptr->Reason == IntersectionEventType_t.Hit )
 				{
@@ -216,7 +219,7 @@ internal sealed partial class PhysicsWorld3d : PhysicsWorldInternal, IHandle
 					var ab = new Collision( sa, sb, c );
 					OnIntersectionUpdate?.InvokeWithWarning( ab );
 					a.Body.DispatchIntersectionUpdate( ab );
-					b.Body.DispatchIntersectionUpdate( new Collision( sb, sa, c ) );
+					b.Body.DispatchIntersectionUpdate( new Collision( sb, sa, c ) { Normal = -c.Normal } );
 				}
 				else if ( ptr->Reason == IntersectionEventType_t.TriggerBegin )
 				{

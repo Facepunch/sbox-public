@@ -66,22 +66,37 @@ public class SceneOverlayWidget : Widget
 	}
 
 	internal RealTimeSince timeSinceNeededRedraw = 0.0f;
+	bool paintedOverGame;
 
+	bool InGameView => Parent is SceneViewportWidget vw && vw.SceneView.CurrentView == SceneViewWidget.ViewMode.Game;
+
+	/// <summary>
+	/// While something draws over the game view (the panel inspector's highlights), repaint every 0.1 s, and once more
+	/// after it stops to clear it. A repaint redraws the whole translucent window (most of a millisecond of Qt's time),
+	/// so there's no repaint on a timer while nothing draws; the overlay's own widgets repaint themselves when they change.
+	/// </summary>
 	[EditorEvent.Frame]
 	public void Frame()
 	{
-		if ( timeSinceNeededRedraw > 0.1f )
+		if ( timeSinceNeededRedraw <= 0.1f )
+			return;
+
+		timeSinceNeededRedraw = 0.0f;
+
+		var paints = InGameView && PanelInspector.PanelInspectorWidget.HighlightsInGameView;
+		if ( paints || paintedOverGame )
 		{
 			Update();
-			timeSinceNeededRedraw = 0.0f;
 		}
+
+		paintedOverGame = paints;
 	}
 
 	protected override void OnPaint()
 	{
 		Active = this;
 
-		if ( Parent is SceneViewportWidget vw && vw.SceneView.CurrentView == SceneViewWidget.ViewMode.Game )
+		if ( InGameView )
 		{
 			EditorEvent.Run( "sceneview.paintoverlay" );
 		}

@@ -248,6 +248,8 @@ public partial class Scene : GameObject
 		NavMesh?.Dispose();
 		NavMesh = default;
 
+		Lightmap = null;
+
 		RenderAttributes.Clear();
 
 		DisposeListeners();
@@ -334,8 +336,8 @@ public partial class Scene : GameObject
 		HotloadObjectIndex();
 	}
 
-	static Superluminal _renderTimer = new Superluminal( "Scene.Render", Color.Cyan );
-	static Superluminal _cameraRenderTimer = new Superluminal( "Camera", Color.Cyan );
+	static readonly ProfileScope _renderTimer = new( "Scene.Render" );
+	static readonly ProfileScope _cameraRenderTimer = new( "Scene.Camera" );
 
 	internal void Render( SwapChainHandle_t swapChain, Vector2? size )
 	{
@@ -354,7 +356,7 @@ public partial class Scene : GameObject
 				if ( cc.Active == false ) continue;
 				if ( cc.IsSceneEditorCamera ) continue;
 
-				using var _cam = _cameraRenderTimer.Start( cc.GameObject?.Name );
+				using var _cam = _cameraRenderTimer.Start( cc.GameObject.Name );
 				cc.AddToRenderList( swapChain, size );
 			}
 		}

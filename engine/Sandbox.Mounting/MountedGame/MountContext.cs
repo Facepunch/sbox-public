@@ -1,5 +1,6 @@
 ﻿namespace Sandbox.Mounting;
 
+[Expose]
 public ref struct MountContext
 {
 	private BaseGameMount source;

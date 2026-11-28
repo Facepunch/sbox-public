@@ -35,7 +35,42 @@ public static class LoadingScreen
 				StepFraction = null;
 				Package = null;
 			}
+
+			_changes++;
+			if ( !value && CollectsAfterLoad )
+				_ = CollectWhatTheLoadLeft( _changes );
 		}
+	}
+
+	/// <summary>
+	/// Counts the screen being shown and hidden, so a collection queued as it went away is dropped if it came back.
+	/// </summary>
+	static int _changes;
+
+	/// <summary>
+	/// How long after the screen goes the heap is collected: the menu's loading overlay lets go of the game's art a second
+	/// after it's put away, once it has faded out.
+	/// </summary>
+	const float CollectSeconds = 2;
+
+	/// <summary>
+	/// Not on a dedicated server, in a terminal, a test or a benchmark (it settles the heap itself between runs).
+	/// </summary>
+	static bool CollectsAfterLoad => !Application.IsDedicatedServer && !Application.IsHeadless && !Application.IsUnitTest && !Application.IsBenchmark;
+
+	/// <summary>
+	/// Once a load's screen has gone, start collecting what the load left, in the background. A game that allocates
+	/// little can go its whole session without another full collection, and textures nothing holds any more (the loading
+	/// art, a 20 MB screenshot) keep their video memory until their engine objects are collected.
+	/// </summary>
+	static async Task CollectWhatTheLoadLeft( int change )
+	{
+		await Task.Delay( TimeSpan.FromSeconds( CollectSeconds ) );
+		if ( change != _changes || _loading ) return;
+
+		// It returns at once: the collection runs on the background GC thread, and the finalizers it queues free the
+		// textures' video memory between frames
+		GC.Collect( GC.MaxGeneration, GCCollectionMode.Forced, blocking: false );
 	}
 
 	/// <summary>
@@ -170,7 +205,7 @@ public static class LoadingScreen
 	/// down. Ones that aren't packages, or are local, are skipped. With <paramref name="withReferences"/>,
 	/// everything they reference too, and everything that references - what installing them pulls in
 	/// (a game's libraries and the cloud assets it uses), less anything already installed. Package info
-	/// and manifests only; nothing's downloaded.
+	/// and manifests only; nothing's downloaded. Waits at most <see cref="ReserveWait"/>.
 	/// </summary>
 	internal static async Task ReserveDownloads( IEnumerable<string> idents, System.Threading.CancellationToken token = default, bool withReferences = false )
 	{
@@ -217,9 +252,25 @@ public static class LoadingScreen
 			}
 		}
 
-		await Task.WhenAll( idents.Where( x => IsPackage( x ) && Unseen( x ) ).Select( Reserve ) );
+		var sizing = Task.WhenAll( idents.Where( x => IsPackage( x ) && Unseen( x ) ).Select( Reserve ) );
+		try
+		{
+			await sizing.WaitAsync( ReserveWait, token );
+		}
+		catch ( TimeoutException )
+		{
+			Log.Info( $"Sizing up the downloads took over {ReserveWait.TotalSeconds:0} s; going on without it" );
+		}
+
 		token.ThrowIfCancellationRequested();
 	}
+
+	/// <summary>
+	/// The longest <see cref="ReserveDownloads"/> holds what waits on it (a join installing the server's packages): the sizes
+	/// only fill the loading bar, and a package lookup the backend never answers would hold the join for the request's whole
+	/// timeout. Lookups that answer later still size the bar, for downloads that haven't started.
+	/// </summary>
+	static readonly TimeSpan ReserveWait = TimeSpan.FromSeconds( 5 );
 
 	/// <summary>
 	/// A URL or filepath to show as the background image.

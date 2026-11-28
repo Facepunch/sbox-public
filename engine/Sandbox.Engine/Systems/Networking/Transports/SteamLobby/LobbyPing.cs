@@ -53,7 +53,6 @@ internal static class LobbyPing
 		if ( !TryGetLocation( ownerId, metadata, out var location ) )
 			return -1;
 
-		var utils = NativeEngine.Steam.SteamNetworkingUtils();
-		return utils.IsValid ? utils.EstimatePingFromLocationString( location ) : -1;
+		return SteamNative.NetworkingUtils.EstimatePingFromLocationString( location );
 	}
 }

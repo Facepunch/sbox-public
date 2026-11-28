@@ -286,7 +286,7 @@ public abstract partial class Component : IJsonConvert, IComponentLister, IValid
 	public Action OnComponentUpdate
 	{
 		get => _onComponentUpdate;
-		set => SetUpdateAction<IUpdateSubscriber>( ref _onComponentUpdate, value, Scene.updateComponents );
+		set => SetUpdateAction( ref _onComponentUpdate, value, Scene.updateComponents, this is IUpdateSubscriber && UpdatesIn( Scene ) );
 	}
 
 	[Group( "Component" )]
@@ -294,7 +294,7 @@ public abstract partial class Component : IJsonConvert, IComponentLister, IValid
 	public Action OnComponentFixedUpdate
 	{
 		get => _onComponentFixedUpdate;
-		set => SetUpdateAction<IFixedUpdateSubscriber>( ref _onComponentFixedUpdate, value, Scene.fixedUpdateComponents );
+		set => SetUpdateAction( ref _onComponentFixedUpdate, value, Scene.fixedUpdateComponents, this is IFixedUpdateSubscriber );
 	}
 
 	[Group( "Component" )]
@@ -338,10 +338,10 @@ public abstract partial class Component : IJsonConvert, IComponentLister, IValid
 
 	/// <summary>
 	/// Replaces <paramref name="currentAction"/> with <paramref name="newAction"/>, and adds / removes this component
-	/// from the given <paramref name="updateSet"/>, depending on whether the new action is null, and this type implements
-	/// the given <typeparamref name="TSubscriber"/> interface.
+	/// from the given <paramref name="updateSet"/>, depending on whether the new action is null, unless <paramref name="listed"/>:
+	/// the component is on the set for its own update anyway (its subscriber interface, where the scene runs it).
 	/// </summary>
-	private void SetUpdateAction<TSubscriber>( ref Action currentAction, Action newAction, HashSetEx<Component> updateSet )
+	private void SetUpdateAction( ref Action currentAction, Action newAction, HashSetEx<Component> updateSet, bool listed )
 	{
 		var hadAction = currentAction is not null;
 		var hasAction = newAction is not null;
@@ -349,7 +349,7 @@ public abstract partial class Component : IJsonConvert, IComponentLister, IValid
 		currentAction = newAction;
 
 		if ( !_enabledState ) return;
-		if ( this is TSubscriber || hadAction == hasAction ) return;
+		if ( listed || hadAction == hasAction ) return;
 
 		if ( hasAction )
 		{

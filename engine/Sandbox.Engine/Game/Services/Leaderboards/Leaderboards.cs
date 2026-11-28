@@ -91,7 +91,7 @@ public static partial class Leaderboards
 
 			try
 			{
-				var targetId = TargetSteamId != 0 ? TargetSteamId : (long)Steamworks.SteamClient.SteamId.Value;
+				var targetId = TargetSteamId != 0 ? TargetSteamId : (long)Sandbox.SteamApi.SteamClient.SteamId.Value;
 				var result = await Backend.Leaderboards.QueryLegacy( package, name, targetId, Group, MaxEntries );
 
 				if ( result is null )

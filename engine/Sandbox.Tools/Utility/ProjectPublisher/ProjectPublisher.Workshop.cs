@@ -261,7 +261,7 @@ public partial class ProjectPublisher
 
 		// If we can't see it we can't tell - leave its images alone
 		WorkshopHasImages = item?.HasImages ?? true;
-		WorkshopHasThumb = item is null || !string.IsNullOrEmpty( item.Thumb );
+		WorkshopHasThumb = item is null || item.Thumbnail is not null;
 	}
 
 	/// <summary>

@@ -17,16 +17,17 @@ public sealed partial class ModelBuilder
 		modelBuilder.SetEyePosition( eyePosition );
 		modelBuilder.SetMaxEyeDeflection( maxEyeDeflection );
 
-		if ( modelData is null )
+		if ( modelData is null && poseConstraints is null )
 			return;
 
-		var json = JsonSerializer.Serialize( modelData, Model.DataJsonOptions );
+		var json = modelData is null ? "{}" : JsonSerializer.Serialize( modelData, Model.DataJsonOptions );
 		var data = NativeEngine.EngineGlue.JsonToKeyValues3( json );
 		if ( !data.IsValid )
 			throw new InvalidOperationException( "Could not convert model game data to KeyValues3." );
 
 		try
 		{
+			WritePoseConstraints( data );
 			if ( !modelBuilder.SetModelKeyValues( data ) )
 				throw new InvalidOperationException( "Could not serialize model game data." );
 		}

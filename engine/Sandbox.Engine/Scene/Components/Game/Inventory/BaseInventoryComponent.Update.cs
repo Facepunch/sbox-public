@@ -30,6 +30,7 @@ public partial class BaseInventoryComponent
 		if ( ActiveItem.IsProxy )
 			return;
 
+		using var cpu = Profiler.ScopesActive ? ProfileCallbackScopes.ForType( ActiveItem.GetType(), "Control" ).Start() : default;
 		ActiveItem.Control();
 	}
 }

@@ -145,7 +145,10 @@ internal sealed class CaseInsensitivePhysicalFileSystem : PhysicalFileSystem
 		base.CreateDirectoryImpl( path );
 		var resolved = ConvertPathToInternal( path );
 		InvalidateParent( resolved );
-		_directoryCache.TryRemove( resolved, out _ );
+
+		// Creating a/b/c can create a and b too, so every listing above the new folder may be missing one
+		for ( var directory = resolved; directory is not null; directory = Path.GetDirectoryName( directory ) )
+			_directoryCache.TryRemove( directory, out _ );
 	}
 
 	protected override void DeleteDirectoryImpl( UPath path, bool isRecursive )

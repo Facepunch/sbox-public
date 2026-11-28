@@ -486,7 +486,7 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 			camera.VolumetricFog.IndirectStrength = 1.0f;
 			camera.VolumetricFog.Anisotropy = 1;
 			camera.VolumetricFog.Scattering = 1.0f;
-			camera.VolumetricFog.BakedIndirectTexture = Scene.Get<VolumetricFogController>()?.BakedFogTexture;
+			camera.VolumetricFog.BakedIndirectTexture = Scene.Lightmap?.PreviewEnabled == false ? null : Scene.Get<VolumetricFogController>()?.BakedFogTexture;
 		}
 
 		//

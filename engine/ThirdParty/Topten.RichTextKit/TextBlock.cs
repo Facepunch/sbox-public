@@ -47,10 +47,43 @@ namespace Topten.RichTextKit
 					value = 0;
 				if ( _maxWidth != value )
 				{
+					var keep = LayoutHoldsAtMaxWidth( value );
 					_maxWidth = value;
-					InvalidateLayout();
+					if ( keep )
+						_maxWidthResolved = _noWrap && _overflow == TextOverflow.None ? float.MaxValue : (value ?? float.MaxValue);
+					else
+						InvalidateLayout();
 				}
 			}
+		}
+
+		/// <summary>
+		/// Whether laying out again at a new max width would give the current layout: it's up to date, left aligned (other
+		/// alignments place lines against the max width), with no line limit or overflow handling (which use the width to
+		/// cut lines), laid out without a width (or at this one), and every line, trailing whitespace included, fits the new
+		/// width: lines only wrap where they don't. A label measured unbounded and then laid out at its own width keeps its
+		/// layout this way.
+		/// </summary>
+		bool LayoutHoldsAtMaxWidth( float? value )
+		{
+			if ( _needsLayout || _truncated || _maxLines.HasValue || _overflow != TextOverflow.None ) return false;
+			if ( ResolveTextAlignment() != TextAlignment.Left ) return false;
+
+			var resolved = _noWrap ? float.MaxValue : (value ?? float.MaxValue);
+			if ( resolved == _maxWidthResolved ) return true;
+
+			// Only from a layout made without a width, so no line was wrapped, while every line still fits, with room to spare
+			// for rounding in the line breaker's sums
+			if ( _maxWidthResolved != float.MaxValue ) return false;
+			foreach ( var line in _lines )
+			{
+				foreach ( var run in line.RunsInternal )
+				{
+					if ( run.XCoord + run.Width + 0.5f > resolved ) return false;
+				}
+			}
+
+			return true;
 		}
 
 		/// <summary>

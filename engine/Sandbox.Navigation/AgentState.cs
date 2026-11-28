@@ -17,6 +17,21 @@ public struct AgentState
 	public Vector3 Position, Velocity, DesiredVelocity;
 
 	/// <summary>
+	/// DesiredVelocity steered round neighbours and walls and turned at the agent's Acceleration and turn rate: what
+	/// an agent the crowd moves walked at in the last substep, before walls and neighbours stopped it, and what a
+	/// Steered External agent's owner should move it at until the next Step. For an External agent that is not
+	/// Steered, on a link and where the agent does not walk, it is DesiredVelocity, with nothing to steer round; a
+	/// Steered External agent leaves a link going on as it crossed it.
+	/// </summary>
+	public Vector3 SteeredVelocity;
+
+	/// <summary>
+	/// Steered External agents only, zero for others: how far separation pushes the agent out of overlaps with its
+	/// neighbours, along the surface, for its owner to move it by once after this Step, on top of SteeredVelocity.
+	/// </summary>
+	public Vector3 Push;
+
+	/// <summary>
 	/// As last requested. Meaningful while Status is Pending, Moving, OnLink, Blocked or Unreachable.
 	/// </summary>
 	public Vector3 Target;

@@ -32,8 +32,8 @@ public partial class PartyRoom
 		if ( member.IsMe )
 			return new MemberStatus( JoiningStage, (float?)DownloadProgress?.Fraction );
 
-		var stage = Enum.TryParse<JoinStage>( steamLobby.GetMemberData( member.Internal, "join_stage" ), out var s ) && Enum.IsDefined( s ) ? s : JoinStage.None;
-		float? progress = float.TryParse( steamLobby.GetMemberData( member.Internal, "join_progress" ), NumberStyles.Float, CultureInfo.InvariantCulture, out var p ) && float.IsFinite( p )
+		var stage = Enum.TryParse<JoinStage>( steamLobby.GetMemberData( member, "join_stage" ), out var s ) && Enum.IsDefined( s ) ? s : JoinStage.None;
+		float? progress = float.TryParse( steamLobby.GetMemberData( member, "join_progress" ), NumberStyles.Float, CultureInfo.InvariantCulture, out var p ) && float.IsFinite( p )
 			? Math.Clamp( p, 0, 1 )
 			: null;
 

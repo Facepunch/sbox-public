@@ -40,21 +40,27 @@ public partial class BaseNpc : Component.ICollisionListener
 	{
 		var airborne = IsAirborne;
 
-		// The ground check catches us a few units up, a frame before the body touches down - so a
-		// landing often never reports a collision. Take the hit here, from how fast we were falling.
+		var launched = _launched;
 		if ( PhysicsCarrier.IsValid() )
 			_launched = false;
 
+		// The ground check finds the floor a frame before the body touches it, so take the landing here
 		if ( _wasAirborne && !airborne )
 			TakeImpact( MathF.Max( -_airVelocity.z, 0f ), WorldPosition, Vector3.Up, "fall" );
 
 		if ( !airborne )
 			_launched = false;
 
+		// Landed from a launch: the mover has the body again
+		if ( launched && !_launched && UsesGround )
+			UpdateBodyOwner();
+
 		_wasAirborne = airborne;
 		// A mover that doesn't use the ground says for itself whether the NPC is grounded
 		if ( UsesGround )
 			Animation.IsGrounded = !airborne && !(Animation.Traversal is { } crossing && (crossing == NavMeshLinkType.Jump || crossing == NavMeshLinkType.Drop));
+
+		Animation.IsCarried = PhysicsCarrier.IsValid();
 
 		if ( !airborne || !_rigidbody.IsValid() )
 			return;
@@ -82,9 +88,14 @@ public partial class BaseNpc : Component.ICollisionListener
 		_sinceLaunch = 0;
 
 		UpdateGroundFromTraceResult( default );
-		_rigidbody.MotionEnabled = true;
+		UpdateBodyOwner();
 		if ( UsesGround ) Movement.OnPhysicsControlStarted();
 		_rigidbody.Velocity = velocity;
+	}
+
+	void ICollisionListener.OnCollisionStop( CollisionStop collision )
+	{
+		Untouched( collision.Other.Body );
 	}
 
 	/// <summary>
@@ -94,19 +105,32 @@ public partial class BaseNpc : Component.ICollisionListener
 	/// </summary>
 	void ICollisionListener.OnCollisionStart( Collision collision )
 	{
-		if ( !Networking.IsHost || !IsAirborne )
+		if ( !Networking.IsHost )
+			return;
+
+		// Down, the ragdoll takes the hits
+		if ( KnockdownState == KnockdownStates.Down )
+			return;
+
+		if ( Movement.IsValid() )
+			Movement.OnCollision( collision );
+
+		// The hit that knocks us down isn't also a fall: it leaves us off our feet
+		if ( KnockdownOnHit( collision ) )
+			return;
+
+		Touched( collision.Other.Body );
+
+		if ( !IsAirborne )
 			return;
 
 		var other = collision.Other.GameObject;
 		_airContact = other.IsValid() && !other.Tags.Has( "npc" ) ? other : null;
 
+		// The normal out of the surface, toward us
 		var point = collision.Contact.Point;
-		var normal = collision.Contact.Normal;
+		var normal = -collision.Normal;
 		var speed = MathF.Max( MathF.Abs( collision.Contact.NormalSpeed ), MathF.Abs( Vector3.Dot( _airVelocity, normal ) ) );
-
-		// Face the normal out of the surface, toward us
-		if ( Vector3.Dot( EyePosition - point, normal ) < 0f )
-			normal = -normal;
 
 		// Hitting the floor is a fall, being slammed into a wall (or ceiling) is a crush
 		TakeImpact( speed, point, normal, MathF.Abs( normal.z ) > 0.7f ? "fall" : "crush" );
@@ -116,16 +140,19 @@ public partial class BaseNpc : Component.ICollisionListener
 	/// A hard hit hurts - harsher than a player's fall damage, being flung around
 	/// should hurt. Nothing at or below <see cref="MaxSafeImpactSpeed"/>, fatal at <see cref="FatalImpactSpeed"/>.
 	/// </summary>
-	private void TakeImpact( float speed, Vector3 position, Vector3 normal, string tag )
+	private void TakeImpact( float speed, Vector3 position, Vector3 normal, string tag ) => TakeImpact( speed, position, normal, tag, MaxSafeImpactSpeed, FatalImpactSpeed );
+
+	// The normal points out of what we hit, toward us. Hurts from safe, kills at fatal.
+	private void TakeImpact( float speed, Vector3 position, Vector3 normal, string tag, float safe, float fatal )
 	{
-		if ( _launched || Health < 1f || speed <= MaxSafeImpactSpeed || FatalImpactSpeed <= MaxSafeImpactSpeed )
+		if ( _launched || Health < 1f || speed <= safe || fatal <= safe )
 			return;
 
 		// One hit, however many ways it gets reported
 		if ( _timeSinceImpact < 0.25f )
 			return;
 
-		var amount = MathX.Remap( speed, MaxSafeImpactSpeed, FatalImpactSpeed, 0f, 100f );
+		var amount = MathX.Remap( speed, safe, fatal, 0f, 100f );
 		if ( amount < 1f )
 			return;
 

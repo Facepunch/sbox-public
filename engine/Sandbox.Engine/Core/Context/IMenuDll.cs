@@ -7,6 +7,27 @@ internal interface IMenuDll
 	public void Bootstrap();
 	public Task Initialize();
 	public void Tick();
+
+	/// <summary>
+	/// Handles a Steam launch request received while the menu is running.
+	/// </summary>
+	void OnNewSteamUrlLaunchParameters();
+
+	/// <summary>
+	/// Updates the menu when a friend changes persona or rich presence.
+	/// </summary>
+	void OnSteamFriendChanged( Friend friend );
+
+	/// <summary>
+	/// Joins a game from a Steam rich presence invite.
+	/// </summary>
+	void OnSteamGameJoinRequested( string connect );
+
+	/// <summary>
+	/// Joins a lobby from a Steam invite.
+	/// </summary>
+	void OnSteamLobbyJoinRequested( SteamId lobbyId );
+
 	public void RunEvent( string name );
 	public void RunEvent( string name, object argument );
 	public void RunEvent( string name, object arg0, object arg1 );

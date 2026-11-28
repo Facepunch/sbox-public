@@ -6,6 +6,7 @@
       "Title": "Buggy Rigged",
       "Type": "model",
       "Org": "local",
+      "OrgTitle": null,
       "Ident": "buggy_rigged",
       "Schema": 0,
       "IncludeSourceFiles": false,

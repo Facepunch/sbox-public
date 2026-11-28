@@ -565,7 +565,7 @@ public abstract partial class Connection : BytePack.ISerializer
 			if ( IsDedicatedServer ) return Name;
 
 			string source = null;
-			if ( Steamworks.SteamFriends.IsInstalled )
+			if ( Sandbox.SteamApi.SteamFriends.IsInstalled )
 			{
 				var personaName = FriendInfo.DisplayName;
 				if ( !string.IsNullOrWhiteSpace( personaName ) )
@@ -668,15 +668,7 @@ public abstract partial class Connection : BytePack.ISerializer
 
 	private async Task ProcessInventoryBlobAsync( byte[] blob )
 	{
-		CSteamInventoryResult result;
-		unsafe
-		{
-			fixed ( byte* ptr = blob )
-			{
-				result = NativeEngine.SteamInventory.Deserialize( ptr, (uint)blob.Length );
-			}
-		}
-
+		using var result = DeserializeInventory( blob );
 		if ( result.IsNull )
 		{
 			Log.Warning( $"Connection {Name}: inventory blob deserialization failed" );
@@ -693,19 +685,18 @@ public abstract partial class Connection : BytePack.ISerializer
 		if ( !result.IsOk() )
 		{
 			Log.Warning( $"Connection {Name}: inventory result not OK after deserialization" );
-			result.Destroy();
 			return;
 		}
 
-		var items = new HashSet<int>();
-		for ( var i = 0; i < result.Count(); i++ )
-		{
-			var item = result.Get( i );
-			items.Add( (int)item.DefinitionId() );
-		}
+		_verifiedInventoryItems = Services.Inventory.ReadItems( result ).Select( x => x.DefinitionId ).ToHashSet();
+	}
 
-		_verifiedInventoryItems = items;
-		result.Destroy();
+	static unsafe SteamNative.InventoryResult DeserializeInventory( byte[] blob )
+	{
+		fixed ( byte* ptr = blob )
+		{
+			return SteamNative.Inventory.Deserialize( ptr, (uint)blob.Length );
+		}
 	}
 
 	/// <summary>

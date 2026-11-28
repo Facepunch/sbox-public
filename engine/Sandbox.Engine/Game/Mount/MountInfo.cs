@@ -3,6 +3,7 @@
 /// <summary>
 /// Information about a single mount
 /// </summary>
+[Expose]
 public struct MountInfo
 {
 	/// <summary>
@@ -37,6 +38,7 @@ public struct MountInfo
 /// <summary>
 /// Information about a mount resource
 /// </summary>
+[Expose]
 public struct MountResourceInfo
 {
 	/// <inheritdoc cref="ResourceLoader.Path" />
@@ -69,6 +71,7 @@ public struct MountResourceInfo
 }
 
 
+[Expose]
 public interface IThumbnailProvider
 {
 	Texture Thumbnail { get; }
@@ -77,6 +80,7 @@ public interface IThumbnailProvider
 /// <summary>
 /// A mount resource with a display title, shown beside its file name (a map's name, like "Hangar" for E1M1).
 /// </summary>
+[Expose]
 public interface ITitleProvider
 {
 	/// <summary>

@@ -146,6 +146,70 @@ public class JobDispatcherTest
 		if ( Parallel ) Assert.IsTrue( threads.Any( x => x != Environment.CurrentManagedThreadId ), "Workers took part" );
 	}
 
+	static float tiny = 1.5e-38f;
+	static float half = 0.75f;
+
+	/// <summary>
+	/// A product that comes out denormal is flushed to zero by a caller in the engine's floating-point mode (the main
+	/// thread's) and by every worker running its jobs, and kept by all of them in the runtime's default mode.
+	/// </summary>
+	[TestMethod]
+	[DoNotParallelize]
+	public void WorkersUseTheCallersFloatingPointMode()
+	{
+		if ( !OperatingSystem.IsWindows() ) Assert.Inconclusive( "The mode is only carried over on Windows." );
+
+		var previous = FloatingPointMode.Current;
+		var results = new int[512];
+		var threads = new int[512];
+		try
+		{
+			foreach ( var mode in new[] { FloatingPointMode.FlushDenormals, 0u, FloatingPointMode.FlushDenormals } )
+			{
+				FloatingPointMode.Set( mode );
+				var expected = BitConverter.SingleToInt32Bits( tiny * half );
+				Assert.AreEqual( mode == 0, expected != 0, "the caller's own product" );
+
+				JobDispatcher.For( results.Length, 0, ( _, i ) =>
+				{
+					Thread.SpinWait( 200 );
+					results[i] = BitConverter.SingleToInt32Bits( tiny * half );
+					threads[i] = Environment.CurrentManagedThreadId;
+				}, itemsPerBatch: 1 );
+
+				Assert.IsTrue( results.All( x => x == expected ), $"mode {mode:X8}: {results.Count( x => x != expected )} jobs differ" );
+			}
+		}
+		finally
+		{
+			FloatingPointMode.Set( previous );
+		}
+
+		// Workers wake one after another, so 512 short jobs can all finish on the caller before the first is up (CI's runner,
+		// 2026-11-25): when none took part, give them jobs long enough to join in before asking again
+		if ( Parallel && threads.All( x => x == Environment.CurrentManagedThreadId ) )
+		{
+			FloatingPointMode.Set( FloatingPointMode.FlushDenormals );
+			try
+			{
+				JobDispatcher.For( 64, 0, ( _, i ) =>
+				{
+					Thread.SpinWait( 200_000 );
+					results[i] = BitConverter.SingleToInt32Bits( tiny * half );
+					threads[i] = Environment.CurrentManagedThreadId;
+				}, itemsPerBatch: 1 );
+			}
+			finally
+			{
+				FloatingPointMode.Set( previous );
+			}
+
+			Assert.IsTrue( results.Take( 64 ).All( x => x == 0 ), "long jobs flush the denormal too" );
+		}
+
+		if ( Parallel ) Assert.IsTrue( threads.Any( x => x != Environment.CurrentManagedThreadId ), "Workers took part" );
+	}
+
 	[TestMethod]
 	public void JobsDoNotChangeTheCallersContext()
 	{
@@ -348,6 +412,29 @@ public class JobDispatcherTest
 		finally
 		{
 			SynchronizationContext.SetSynchronizationContext( previous );
+		}
+	}
+
+	/// <summary>
+	/// The caller wakes only a couple of workers itself and those wake the rest, so every worker still joins in: items that
+	/// each wait for all of the threads to be in at once only finish if they are.
+	/// </summary>
+	[TestMethod]
+	public void WokenWorkersWakeTheRest()
+	{
+		var threads = Math.Min( JobDispatcher.Workers.Count + 1, JobDispatcher.MaxDegreeOfParallelism );
+		if ( threads <= JobDispatcher.Workers.CallerWakes + 1 ) Assert.Inconclusive( "Too few workers to need waking in turn." );
+
+		for ( int run = 0; run < 20; run++ )
+		{
+			using var barrier = new Barrier( threads );
+			var met = 0;
+			JobDispatcher.For( threads, barrier, ( b, i ) =>
+			{
+				if ( b.SignalAndWait( 10_000 ) ) Interlocked.Increment( ref met );
+			}, itemsPerBatch: 1, maxDegreeOfParallelism: threads );
+
+			Assert.AreEqual( threads, met, $"run {run}: {threads} threads didn't all take part" );
 		}
 	}
 

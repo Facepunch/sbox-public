@@ -27,6 +27,7 @@ partial class TransformComponentWidget : ComponentEditorWidget
 		Layout.Clear( true );
 
 		content = new Widget();
+		contentEnabled = null;
 
 		var cs = new ControlSheet();
 		cs.IncludePropertyNames = true;
@@ -82,10 +83,33 @@ partial class TransformComponentWidget : ComponentEditorWidget
 		return false;
 	}
 
+	bool? contentEnabled;
+	RealTimeUntil nextBoneCheck;
+
 	[EditorEvent.Frame]
 	public void Frame()
 	{
-		content.Enabled = !IsBone() || IsProceduralBone();
+		// The bone flags change rarely: looked at every 0.1 s as the inspector's controls are, and Qt told only of a change
+		if ( contentEnabled.HasValue && !nextBoneCheck ) return;
+		nextBoneCheck = 0.1f;
+
+		var enabled = ContentEnabled();
+		if ( contentEnabled == enabled ) return;
+
+		contentEnabled = enabled;
+		content.Enabled = enabled;
+	}
+
+	/// <summary>
+	/// Whether the transform can be edited: not a bone, or a procedural one (<see cref="IsBone"/>, <see cref="IsProceduralBone"/>
+	/// with the flags read once).
+	/// </summary>
+	bool ContentEnabled()
+	{
+		if ( SerializedObject.IsMultipleTargets ) return true;
+
+		var flags = gameObject.GetProperty( nameof( GameObject.Flags ) ).GetValue<GameObjectFlags>();
+		return !flags.HasFlag( GameObjectFlags.Bone ) || flags.HasFlag( GameObjectFlags.ProceduralBone );
 	}
 
 	public override void OnHeaderContextMenu( Menu menu )

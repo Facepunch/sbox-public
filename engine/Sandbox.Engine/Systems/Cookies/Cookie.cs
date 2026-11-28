@@ -21,6 +21,11 @@ internal struct CookieItem
 public sealed class CookieContainer
 {
 	private Dictionary<string, CookieItem> CookieCache;
+
+	/// <summary>
+	/// The last value <see cref="Get{T}"/> parsed for each key, and the string it parsed.
+	/// </summary>
+	private readonly Dictionary<string, (string Json, object Value)> Parsed = new();
 	private Timer Timer;
 	private string Name;
 	private BaseFileSystem FileSystem;
@@ -131,9 +136,17 @@ public sealed class CookieContainer
 		var json = GetString( key, null );
 		if ( json == null ) return fallback;
 
+		// Settings are read every frame, so reuse the last parse of the same string. Only values: a cached
+		// object would be shared with every caller, who could change it.
+		var cacheable = typeof( T ).IsValueType || typeof( T ) == typeof( string );
+		if ( cacheable && Parsed.TryGetValue( key, out var parsed ) && ReferenceEquals( parsed.Json, json ) && parsed.Value is T value )
+			return value;
+
 		try
 		{
-			return JsonSerializer.Deserialize<T>( json );
+			var result = JsonSerializer.Deserialize<T>( json );
+			if ( cacheable ) Parsed[key] = (json, result);
+			return result;
 		}
 		catch ( Exception )
 		{
@@ -166,7 +179,7 @@ public sealed class CookieContainer
 
 		if ( CookieCache.TryGetValue( key, out CookieItem item ) )
 		{
-			var timeout = DateTimeOffset.Now.AddDays( 30 ).ToUnixTimeSeconds();
+			var timeout = DateTimeOffset.UtcNow.AddDays( 30 ).ToUnixTimeSeconds();
 
 			// Moving the expiry by less than a day isn't worth a save
 			if ( item.DeleteAt == 0 && timeout - item.Timeout < 60 * 60 * 24 )

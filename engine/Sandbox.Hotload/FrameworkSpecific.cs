@@ -688,8 +688,10 @@ namespace Sandbox
 				| BindingFlags.Instance | BindingFlags.Static
 				| BindingFlags.DeclaredOnly;
 
-			var xMembers = x.GetMembers( AllDeclared );
-			var yMembers = y.GetMembers( AllDeclared );
+			// Generated initializers for added fields only exist in the compile that added them
+
+			var xMembers = x.GetMembers( AllDeclared ).Where( m => !Hotload.IsAddedFieldInitializer( m ) ).ToArray();
+			var yMembers = y.GetMembers( AllDeclared ).Where( m => !Hotload.IsAddedFieldInitializer( m ) ).ToArray();
 
 			if ( xMembers.Length != yMembers.Length )
 			{

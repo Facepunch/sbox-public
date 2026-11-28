@@ -9,6 +9,11 @@ namespace Sandbox.Network;
 /// </summary>
 internal partial class NetworkSystem
 {
+	static readonly ProfileScope CpuTick = new( "Network.Tick" );
+	static readonly ProfileScope CpuIncoming = new( "Network.HandleIncomingMessages" );
+	static readonly ProfileScope CpuGameSystem = new( "Network.GameSystemTick" );
+	static readonly ProfileScope CpuSlowTick = new( "Network.SocketTick" );
+
 	readonly Logger log;
 
 	/// <summary>
@@ -301,9 +306,13 @@ internal partial class NetworkSystem
 	/// </summary>
 	public void Tick()
 	{
-		HandleIncomingMessages();
+		using var cpu = CpuTick.Start();
 
-		GameSystem?.TickInternal();
+		using ( CpuIncoming.Start() )
+			HandleIncomingMessages();
+
+		using ( CpuGameSystem.Start() )
+			GameSystem?.TickInternal();
 
 		TickHostMigration();
 
@@ -311,6 +320,7 @@ internal partial class NetworkSystem
 
 		if ( timeSinceTick >= 1f )
 		{
+			using var slow = CpuSlowTick.Start();
 			timeSinceTick = 0f;
 
 			foreach ( var socket in sockets )

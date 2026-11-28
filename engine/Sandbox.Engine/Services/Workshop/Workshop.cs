@@ -1,6 +1,6 @@
 using Sandbox.Services;
 using Sandbox.Services.Players;
-using Steamworks;
+using Sandbox.SteamApi;
 using System.Text.Json.Serialization;
 using System.Threading;
 
@@ -48,6 +48,39 @@ internal static partial class Workshop
 		public string Thumb { get; init; }
 
 		/// <summary>
+		/// Steam Remote Storage handle for the item's main preview image.
+		/// </summary>
+		public ulong PreviewHandle { get; init; }
+
+		/// <summary>
+		/// Texture path used to display the preview in game.
+		/// </summary>
+		internal string Thumbnail => Id is not (0 or ulong.MaxValue) && PreviewHandle is not (0 or ulong.MaxValue)
+			? $"workshop://{Id}/thumb"
+			: string.IsNullOrEmpty( Thumb ) ? null : Thumb;
+
+		/// <summary>
+		/// Whether Steam accepted the item for use in the game.
+		/// </summary>
+		public bool Accepted { get; init; }
+
+		/// <summary>
+		/// Steam Remote Storage handle for the item's primary file.
+		/// </summary>
+		public ulong FileHandle { get; init; }
+
+		/// <summary>
+		/// Filename supplied by Steam for the item's primary file.
+		/// </summary>
+		public string Filename { get; init; }
+
+		/// <summary>
+		/// URL supplied by Steam for items that link to external content.
+		/// </summary>
+		[JsonPropertyName( "Url" )]
+		public string ContentUrl { get; init; }
+
+		/// <summary>
 		/// How many images and videos it has besides its preview image
 		/// </summary>
 		public int AdditionalPreviews { get; init; }
@@ -60,7 +93,7 @@ internal static partial class Workshop
 		/// <summary>
 		/// Does its page have any images - its preview, or others added to it
 		/// </summary>
-		public bool HasImages => !string.IsNullOrEmpty( Thumb ) || AdditionalPreviews > 0;
+		public bool HasImages => Thumbnail is not null || AdditionalPreviews > 0;
 
 		/// <summary>
 		/// Who published it
@@ -111,6 +144,7 @@ internal static partial class Workshop
 		/// <summary>
 		/// Its page on the Steam Workshop
 		/// </summary>
+		[JsonIgnore]
 		public string Url => GetUrl( Id );
 
 		/// <summary>

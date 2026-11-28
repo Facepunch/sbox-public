@@ -14,14 +14,10 @@ partial class Compiler
 			EnableCorelibPolyfills = _config.Whitelist
 		};
 
-		if ( Group.AllowFastHotload && incrementalState.HasState )
-		{
-			processor.Run( compiler, syntaxTrees, incrementalState.Compilation );
-		}
-		else
-		{
-			processor.Run( compiler, syntaxTrees );
-		}
+		// The previous compile is also used to find added fields, so pass it even without fast hotloading
+
+		processor.AllowILHotload = Group.AllowFastHotload;
+		processor.Run( compiler, syntaxTrees, incrementalState.HasState ? incrementalState.Compilation : null );
 
 		output.Diagnostics.AddRange( processor.Diagnostics );
 

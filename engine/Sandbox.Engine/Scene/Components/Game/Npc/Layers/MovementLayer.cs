@@ -86,6 +86,28 @@ public abstract class MovementLayer : BaseNpcLayer
 	protected internal virtual bool UsesGround => false;
 
 	/// <summary>
+	/// Whether physics moves the body while this mover walks it, so it stays dynamic on the ground too.
+	/// </summary>
+	internal virtual bool SimulatesBody => false;
+
+	/// <summary>
+	/// The body touched something, on the ground or off it. Host only.
+	/// </summary>
+	internal virtual void OnCollision( Collision collision ) { }
+
+	// How much this mover changed the body's velocity itself this tick, so a knock can tell it from a shove
+	internal virtual Vector3 SteeringChange => default;
+
+	// The velocity this mover means the body to have, ground carry included, so a shove can be told from walking
+	internal virtual Vector3 IntendedVelocity => default;
+
+	// Crossing a link, where the mover sets the body's path itself
+	internal virtual bool IsCrossingLink => false;
+
+	// Stand still a moment, then carry on with the move
+	internal virtual void PauseMovement( float seconds ) { }
+
+	/// <summary>
 	/// How far above the floor this mover can carry a grounded NPC, such as easing it down a step.
 	/// </summary>
 	protected internal virtual float StepHeight => 0f;

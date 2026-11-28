@@ -88,11 +88,42 @@ public static class ShaderCompile
 		native.Init( createinterface );
 	}
 
+	sealed class IncludeCacheScope : IDisposable
+	{
+		readonly bool _batch;
+		bool _disposed;
+
+		public IncludeCacheScope( bool batch )
+		{
+			_batch = batch;
+			ShaderTools.BeginIncludeCache( batch );
+			native.BeginIncludeCache( batch );
+		}
+
+		public void Dispose()
+		{
+			if ( _disposed ) return;
+			_disposed = true;
+			native.EndIncludeCache( _batch );
+			ShaderTools.EndIncludeCache( _batch );
+		}
+	}
+
+	/// <summary>
+	/// Shares a thread-safe shader include cache (both found and missing paths) across native shader parsing
+	/// and DXC compilation for the lifetime of the returned scope. Non-batch scopes refresh the cache on entry
+	/// so overlapping editor compiles after a save never read stale includes; batch scopes keep entries alive
+	/// across all shaders in the batch and clear when the outermost scope ends.
+	/// </summary>
+	internal static IDisposable BeginIncludeCache( bool batch = false ) => new IncludeCacheScope( batch );
+
 	/// <summary>
 	/// Compile a shader from a filename ("/folder/file.shader")
 	/// </summary>
 	internal static async Task<Results> Compile( string absoluteFilePath, string relativeFilePath, ShaderCompileOptions compileOptions, CancellationToken token )
 	{
+		using var includeCache = BeginIncludeCache();
+
 		var shader = new ShaderSource();
 		shader.AbsolutePath = absoluteFilePath;
 		shader.RelativePath = relativeFilePath;
@@ -152,6 +183,8 @@ public static class ShaderCompile
 
 	internal static async Task<Results> RecompileFromCompiled( string compiledFilePath, ShaderCompileOptions compileOptions, CancellationToken token )
 	{
+		using var includeCache = BeginIncludeCache();
+
 		var result = new Results();
 
 		var embedded = ShaderSource.ReadEmbeddedSource( compiledFilePath );
@@ -173,6 +206,9 @@ public static class ShaderCompile
 		// (the FEATURE pseudo-program isn't in here - Serialize writes it straight from the native vfx).
 		var shaderSource = new ShaderSource { AbsolutePath = compiledFilePath };
 
+		// Share one compile context across all programs so included files are only loaded once per shader.
+		using var context = GetSharedContext();
+
 		foreach ( var (name, source) in embedded )
 		{
 			if ( !Enum.TryParse<ShaderProgramType>( name, out var programType ) )
@@ -184,7 +220,7 @@ public static class ShaderCompile
 			var program = new ProgramSource { ProgramType = programType };
 			shaderSource.Programs.Add( program );
 
-			var success = await program.RecompileFromMaskedSource( compileOptions, vfx, source, result, token );
+			var success = await program.RecompileFromMaskedSource( compileOptions, vfx, source, context, result, token );
 			if ( !success )
 				return result;
 		}
@@ -226,11 +262,14 @@ public static class ShaderCompile
 		// Open the source file
 		var source = await System.IO.File.ReadAllTextAsync( s.AbsolutePath );
 
+		// Share one compile context across all programs so included files are only loaded once per shader.
+		using var context = GetSharedContext();
+
 		// Snapshot - the loop awaits per program, so anything touching the list while a
 		// compile is in flight would invalidate a live enumerator.
 		foreach ( var program in s.Programs.ToArray() )
 		{
-			var success = await program.Compile( compileOptions, vfx, source, result, token, s.AbsolutePath, s.RelativePath );
+			var success = await program.Compile( compileOptions, vfx, source, context, result, token, s.AbsolutePath, s.RelativePath );
 
 			if ( !success )
 				return result;
@@ -287,7 +326,7 @@ public static class ShaderCompile
 		return Environment.ProcessorCount;
 	}
 
-	internal static ShaderCompileContext GetSharedContext( ShaderProgramType programType )
+	internal static ShaderCompileContext GetSharedContext()
 	{
 		return new ShaderCompileContext( native.CreateSharedContext() );
 	}

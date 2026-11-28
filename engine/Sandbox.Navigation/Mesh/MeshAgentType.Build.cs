@@ -1,13 +1,10 @@
-using System.Numerics;
 using Nav.Build;
 
 namespace Nav;
 
 internal sealed partial class MeshAgentType
 {
-	// What the owner keeps about a tile for rebuilds. A tile has a record while it has a kept field or
-	// stands for a set of volumes. Field is set the first time the tile is built from triangles with a
-	// volume over it, and stays until its geometry changes with no volume over it or the tile is removed.
+	// What the owner keeps about a tile for rebuilds, while it has a kept field or stands for a set of volumes.
 	sealed class TileRecord
 	{
 		public CachedField? Field;
@@ -20,9 +17,8 @@ internal sealed partial class MeshAgentType
 	// Owner thread.
 	readonly Dictionary<(int X, int Y), TileRecord> records = new();
 
-	// The volume hash of every record that has one, in the order of y, then x: what Save writes beside the
-	// tiles. The owner publishes it after the state that holds the tiles it describes. hashesChanged: a
-	// hash of the records is not in it yet.
+	// The volume hash of every record that has one, by y then x, for Save. Published after the state that
+	// holds the tiles it describes.
 	(int Y, int X, ulong Hash)[] tileHashes = [];
 	bool hashesChanged;
 
@@ -35,13 +31,14 @@ internal sealed partial class MeshAgentType
 	// The volume set a tile stands for. Owner thread.
 	internal ulong VolumeHashOf( int tileX, int tileY ) => records.TryGetValue( (tileX, tileY), out var record ) ? record.VolumeHash : 0;
 
-	// Called by a load: the volume set each tile was baked with. The fields are not in a bake.
-	internal void SetVolumeHashes( ReadOnlySpan<Tile> tiles, ReadOnlySpan<ulong> hashes )
+	// Called by a load: the volume set each place was baked with, with or without a tile. The fields are
+	// not in a bake.
+	internal void SetVolumeHashes( ReadOnlySpan<(int X, int Y, ulong Hash)> hashes )
 	{
-		for ( int i = 0; i < tiles.Length; i++ )
+		foreach ( var (x, y, hash) in hashes )
 		{
-			if ( hashes[i] == 0 ) continue;
-			records[(tiles[i].X, tiles[i].Y)] = new TileRecord { VolumeHash = hashes[i] };
+			if ( hash == 0 ) continue;
+			records[(x, y)] = new TileRecord { VolumeHash = hash };
 			loadedUnchecked = hashesChanged = true;
 		}
 		PublishVolumeHashes();
@@ -73,9 +70,8 @@ internal sealed partial class MeshAgentType
 		Volatile.Write( ref tileHashes, published );
 	}
 
-	// Called at the start of TakeJobs. A loaded tile that was baked with volumes is marked dirty once:
-	// when the volumes over it now are the ones it was baked with, PrepareJob drops the mark, otherwise
-	// the tile is rebuilt, so a volume that left the scene since the bake does not leave its mark behind.
+	// A loaded tile baked with volumes is marked dirty once; PrepareJob drops the mark when its volumes
+	// are still the same, so a volume gone since the bake does not leave its mark behind.
 	void CheckLoadedTiles()
 	{
 		if ( !loadedUnchecked ) return;
@@ -86,9 +82,8 @@ internal sealed partial class MeshAgentType
 		}
 	}
 
-	// Called for every job TakeJobs is about to hand out. Gives it the volumes over its tile and, when
-	// only volumes changed, the kept field to rebuild from. A tile whose volumes are the ones it was
-	// built with, or where there is nothing to mark, gets no job.
+	// Gives a job the volumes over its tile and, when only volumes changed, the kept field to rebuild from.
+	// A tile whose volumes are the ones it was built with, or with nothing to mark, gets no job.
 	partial void PrepareJob( TileJob job, bool geometryForced, ref bool issue )
 	{
 		job.Volumes = VolumesOver( job.X, job.Y, out job.VolumeHash );

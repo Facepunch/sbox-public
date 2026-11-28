@@ -160,6 +160,23 @@ class LoadContext : AssemblyLoadContext
 		return lc.Assembly;
 	}
 
+	/// <summary>
+	/// Every child context starts unloading. A collectible context holds itself until it's told to unload, so children left
+	/// alone kept a closed game's assemblies, their statics and what those reach (its last scene) for good.
+	/// </summary>
+	public void UnloadChildren()
+	{
+		foreach ( var child in Children )
+		{
+			child.Assembly = null;
+			child.Unload();
+		}
+
+		Children.Clear();
+	}
+
+	internal int ChildCount => Children.Count;
+
 	public void UnloadChild( Assembly asm )
 	{
 		var match = Children.FirstOrDefault( x => x.Assembly == asm );

@@ -1,7 +1,6 @@
 using Microsoft.Extensions.Caching.Memory;
 using NativeEngine;
-using Steamworks;
-using Steamworks.Data;
+using Sandbox.SteamApi;
 using System.Collections.Concurrent;
 using System.Threading;
 
@@ -32,8 +31,6 @@ internal static class Avatar
 	{
 		ConVarSystem.ConVarChanged += OnConVarChanged;
 	}
-
-	record struct AvatarData( int Width, int Height, byte[] Pixels );
 
 	static void OnConVarChanged( Command command, string oldValue )
 	{
@@ -88,7 +85,7 @@ internal static class Avatar
 	{
 		try
 		{
-			int size = 0;
+			var size = AvatarSize.Medium;
 			var filename = url;
 
 			if ( filename.StartsWith( "avatar:" ) )
@@ -99,13 +96,13 @@ internal static class Avatar
 			if ( filename.StartsWith( "avatarbig:" ) )
 			{
 				filename = filename.Substring( "avatarbig:".Length );
-				size = 1;
+				size = AvatarSize.Large;
 			}
 
 			if ( filename.StartsWith( "avatarsmall:" ) )
 			{
 				filename = filename.Substring( "avatarsmall:".Length );
-				size = 2;
+				size = AvatarSize.Small;
 			}
 
 			filename = filename.Trim( '/', ' ' );
@@ -119,7 +116,7 @@ internal static class Avatar
 			//
 			// Bots and Streamer Mode users get a deterministic, generated avatar
 			//
-			if ( Preferences.StreamerMode || Utility.Steam.IsFakeSteamId( steamid ) || !Steam.SteamFriends().IsValid )
+			if ( Preferences.StreamerMode || Utility.Steam.IsFakeSteamId( steamid ) || !SteamNative.Friends.IsAvailable() )
 			{
 				var generated = _generatedCache.GetOrAdd( steamid, GenerateAvatar );
 				placeholder.CopyFrom( generated );
@@ -130,25 +127,21 @@ internal static class Avatar
 			if ( ct.IsCancellationRequested ) return;
 
 			// Cache key based on resolved steamid + size
-			var cacheKey = $"{steamid}:{size}";
+			var cacheKey = (steamid, size);
 
-			if ( !_dataCache.TryGetValue( cacheKey, out AvatarData cached ) )
+			if ( !_dataCache.TryGetValue( cacheKey, out AvatarImage cached ) )
 			{
-				var result = size == 0 ? await SteamFriends.GetMediumAvatarAsync( steamid ) :  // 0
-							(size == 1 ? await SteamFriends.GetLargeAvatarAsync( steamid ) :  // 1
-										 await SteamFriends.GetSmallAvatarAsync( steamid )); // 2
+				var result = await SteamFriends.GetAvatarAsync( steamid, size );
 				if ( !result.HasValue )
 				{
 					Log.Warning( $"AvatarLoader - Couldn't get avatar for {steamid} ({url})" );
 					return;
 				}
 
-				cached = new AvatarData( (int)result.Value.Width, (int)result.Value.Height, result.Value.Data );
+				cached = result.Value;
 				_dataCache.Set( cacheKey, cached, new MemoryCacheEntryOptions()
 					.SetSlidingExpiration( TimeSpan.FromMinutes( 10 ) ) );
 			}
-
-			//Log.Info( $"Got Avatar For {steamid} ({cached.Width} x {cached.Height})" );
 
 			if ( ct.IsCancellationRequested ) return;
 
@@ -171,7 +164,7 @@ internal static class Avatar
 			placeholder.CopyFrom( texture );
 			placeholder.IsLoaded = true;
 
-			if ( size != 0 )
+			if ( size != AvatarSize.Medium )
 				return;
 
 			if ( ct.IsCancellationRequested ) return;
@@ -179,12 +172,7 @@ internal static class Avatar
 			//
 			// If we want the animated texture, request if they have it and load it from the url.
 			//
-			var callback = Steam.SteamFriends().RequestEquippedProfileItems( steamid );
-			var r = await new CallResult<EquippedProfileItems_t>( callback, false );
-			if ( !r.HasValue || !r.Value.HasAnimatedAvatar )
-				return;
-
-			var item = Steam.SteamFriends().GetProfileItemPropertyString( steamid, 0, 0 );
+			var item = await SteamFriends.GetAnimatedAvatarUrlAsync( steamid, ct );
 			if ( string.IsNullOrWhiteSpace( item ) )
 				return;
 

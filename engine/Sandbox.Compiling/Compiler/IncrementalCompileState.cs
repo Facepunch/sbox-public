@@ -81,7 +81,7 @@ class IncrementalCompileState
 				continue;
 			}
 
-			var changes = Generator.ILHotloadProcessor.GetChanges( oldTree, newTree );
+			var changes = Generator.HotloadProcessor.GetChanges( oldTree, newTree );
 
 			if ( string.IsNullOrEmpty( changes ) )
 			{

@@ -15,7 +15,7 @@ internal sealed class NativeOcclusionCull : IDisposable
 	// frame's or one big camera's buffers for good. Long enough to ride out a camera passing through a quiet stretch
 	const int ShrinkAfter = 300;
 
-	static readonly ComputeShader Compute = new( "shaders/occlusion_cull_cs.shader" );
+	static ComputeShader Compute = new( "shaders/occlusion_cull_cs.shader" );
 
 	int capacity = InitialCapacity;
 	int requested;

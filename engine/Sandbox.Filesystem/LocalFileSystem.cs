@@ -23,6 +23,9 @@ internal class LocalFileSystem : BaseFileSystem
 			Physical = new Zio.FileSystems.PhysicalFileSystem();
 		}
 
+		// A relative root is under the current directory. Zio resolves it that way on Windows and refuses it elsewhere
+		rootFolder = System.IO.Path.GetFullPath( rootFolder );
+
 		// Everything the physical filesystem hands back is in real on-disk casing, so if we root
 		// the sub filesystem below at a differently cased path then nothing underneath it comes
 		// back rooted correctly and SubFileSystem throws at us. Fix the case first.

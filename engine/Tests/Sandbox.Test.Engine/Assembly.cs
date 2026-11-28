@@ -26,6 +26,10 @@ public class TestInit
 
 		NetCore.InitializeInterop( gameFolder );
 
+		// NuGet brings SkiaSharp's native library for Windows only; elsewhere it's the game's own copy in bin/<platform>, which
+		// the engine's resolver finds as the game does
+		if ( !OperatingSystem.IsWindows() ) DLLImportResolver.SetupResolvers();
+
 		Api.Init();
 
 		// Usually this, is created by native source 2, we have to do it manually here, as we don't init native source2 for this assembly.

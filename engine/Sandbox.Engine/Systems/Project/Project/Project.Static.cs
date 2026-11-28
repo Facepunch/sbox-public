@@ -332,9 +332,15 @@ public partial class Project
 		}
 	}
 
+	/// <summary>
+	/// A folder as the native filesystem's search paths name it: lowercased where the disk ignores case, as it is on
+	/// Linux, where lowercasing names another folder (".../Assets" isn't ".../assets").
+	/// </summary>
+	internal static string NativeSearchPath( string path ) => OperatingSystem.IsLinux() ? path : path.ToLowerInvariant();
+
 	private void StartCompilation()
 	{
-		NativeEngine.FullFileSystem.AddProjectPath( ConfigFilePath, GetAssetsPath().ToLowerInvariant() );
+		NativeEngine.FullFileSystem.AddProjectPath( ConfigFilePath, NativeSearchPath( GetAssetsPath() ) );
 
 		// What the editor's put on disk for it - the cloud assets its own use, and generated files - found from there as
 		// they are in the editor, rather than nowhere

@@ -175,7 +175,7 @@ public sealed partial class ModelPhysics : Component, IScenePhysicsEvents, IHasM
 				if ( !rb.IsValid() ) continue;
 
 				mass += rb.Mass;
-				center += rb.Mass * world.PointToWorld( rb.MassCenter );
+				center += rb.Mass * rb.WorldTransform.PointToWorld( rb.MassCenter );
 			}
 
 			return mass > 0.0f ? center / mass : world.Position;
@@ -483,31 +483,21 @@ public sealed partial class ModelPhysics : Component, IScenePhysicsEvents, IHasM
 		if ( _rendererBonePosition is null || _rendererBoneVelocity is null )
 			return;
 
-		var boneObjects = Model.CreateBoneObjects( GameObject );
-
-		foreach ( var pair in boneObjects )
+		foreach ( var body in Bodies )
 		{
-			if ( pair.Key is null )
+			var rb = body.Component;
+			if ( !rb.IsValid() )
 				continue;
 
-			if ( !pair.Value.IsValid() )
+			if ( body.Bone < 0 || body.Bone >= _rendererBonePosition.Length || body.Bone >= _rendererBoneVelocity.Length )
 				continue;
 
-			if ( _rendererBonePosition.Length <= pair.Key.Index )
-				continue;
+			var tx = _rendererBonePosition[body.Bone];
+			var vl = _rendererBoneVelocity[body.Bone];
 
-			if ( _rendererBoneVelocity.Length <= pair.Key.Index )
-				continue;
-
-			var tx = _rendererBonePosition[pair.Key.Index];
-			var vl = _rendererBoneVelocity[pair.Key.Index];
-
-			if ( pair.Value.GetComponent<Rigidbody>() is { } body )
-			{
-				body.WorldTransform = tx;
-				body.Velocity = vl.Linear;
-				body.AngularVelocity = vl.Angular;
-			}
+			rb.WorldTransform = tx;
+			rb.Velocity = vl.Linear;
+			rb.AngularVelocity = vl.Angular;
 		}
 
 		_rendererBoneVelocity = default;

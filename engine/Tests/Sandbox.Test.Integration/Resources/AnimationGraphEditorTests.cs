@@ -56,7 +56,7 @@ public partial class AnimationGraphEditorTests
 		_assetsPath = project.GetAssetsPath();
 		_folder = $"ag2_editor_guid_{Guid.NewGuid():N}";
 		Directory.CreateDirectory( Path.Combine( _assetsPath, _folder ) );
-		NativeEngine.FullFileSystem.AddProjectPath( "unittest", _assetsPath.ToLowerInvariant() );
+		NativeEngine.FullFileSystem.AddProjectPath( "unittest", Project.NativeSearchPath( _assetsPath ) );
 	}
 
 	[TestCleanup]

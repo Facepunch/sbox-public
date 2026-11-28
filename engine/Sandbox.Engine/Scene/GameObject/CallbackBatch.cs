@@ -47,11 +47,13 @@ class CallbackBatch : System.IDisposable
 			if ( Actions.Count == 0 )
 				return;
 
+			var profiling = Profiler.ScopesActive;
 			foreach ( var action in Actions )
 			{
 				try
 				{
 					using var scope = action.Scene is not null ? new ScenePushScope( action.Scene ) : default;
+					using var cpu = profiling && (action.Target is not null || action.FallbackAction is not null) ? GetProfileScope( action ).Start() : default;
 
 					switch ( action.Target )
 					{
@@ -70,6 +72,10 @@ class CallbackBatch : System.IDisposable
 				}
 			}
 		}
+
+		static ProfileScope GetProfileScope( ActionTarget action ) => action.Target is { } target
+			? ProfileCallbackScopes.ForType( target.GetType(), action.name )
+			: ProfileCallbackScopes.ForMethod( action.FallbackAction.Method );
 	}
 
 	Dictionary<CommonCallback, Group> Groups = new();

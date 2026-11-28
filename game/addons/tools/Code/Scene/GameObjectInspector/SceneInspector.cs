@@ -1,8 +1,14 @@
-﻿namespace Editor.Inspectors;
+namespace Editor.Inspectors;
 
+/// <summary>
+/// Edits general scene properties in the Inspector.
+/// </summary>
 [Inspector( typeof( Scene ) )]
 public class SceneInspector : InspectorWidget
 {
+	/// <summary>
+	/// Builds the property sheet for the inspected scene.
+	/// </summary>
 	public SceneInspector( SerializedObject so ) : base( so )
 	{
 		var cs = new ControlSheet();
@@ -14,6 +20,7 @@ public class SceneInspector : InspectorWidget
 
 		Layout = Layout.Column();
 		Layout.Add( cs );
+
 		Layout.AddStretchCell();
 	}
 }

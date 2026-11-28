@@ -14,19 +14,39 @@ public static partial class Input
 	static IDisposable defaultContextScope;
 
 	/// <summary>
-	/// Get all of the contexts
+	/// Get all of the contexts. A struct: every key and mouse event walks them.
 	/// </summary>
-	internal static IEnumerable<Context> Contexts
+	internal static ContextList Contexts
 	{
 		get
 		{
 			// remove collected
 			contexts.RemoveAll( x => x.TryGetTarget( out _ ) == false );
+			return default;
+		}
+	}
 
-			foreach ( var t in contexts )
+	internal readonly struct ContextList
+	{
+		public Enumerator GetEnumerator() => default;
+
+		public struct Enumerator
+		{
+			int next;
+
+			public Context Current { get; private set; }
+
+			public bool MoveNext()
 			{
-				if ( t.TryGetTarget( out var x ) )
-					yield return x;
+				while ( next < contexts.Count )
+				{
+					if ( !contexts[next++].TryGetTarget( out var context ) ) continue;
+
+					Current = context;
+					return true;
+				}
+
+				return false;
 			}
 		}
 	}
@@ -210,9 +230,10 @@ public static partial class Input
 			if ( ReferenceEquals( recycledKeys, KeysPrevious ) || ReferenceEquals( recycledKeys, KeysCurrent ) )
 				recycledKeys = new();
 
+			// HashSet's own enumerator: UnionWith and ExceptWith take an IEnumerable and box it for every held key's flip
 			recycledKeys.Clear();
-			recycledKeys.UnionWith( AccumKeysPressed );
-			recycledKeys.ExceptWith( AccumKeysReleased );
+			foreach ( var key in AccumKeysPressed ) recycledKeys.Add( key );
+			foreach ( var key in AccumKeysReleased ) recycledKeys.Remove( key );
 			AccumKeysPressed = recycledKeys;
 			AccumKeysReleased.Clear();
 		}

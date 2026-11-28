@@ -15,6 +15,11 @@ public static class Application
 	internal static bool IsInitialized { get; private set; }
 
 	/// <summary>
+	/// True while AppSystem.Shutdown is tearing down static resource references and native subsystems.
+	/// </summary>
+	internal static bool IsShuttingDown { get; set; }
+
+	/// <summary>
 	/// Steam AppId of S&amp;box.
 	/// </summary>
 	public static ulong AppId { get; internal set; } = 590830;
@@ -168,14 +173,14 @@ public static class Application
 #endif
 
 	/// <summary>
-	/// Returns true if the microphone is currently listening
+	/// Returns true if the microphone is currently listening, for voice chat or speech recognition
 	/// </summary>
-	public static bool IsMicrophoneListening => VoiceManager.IsListening;
+	public static bool IsMicrophoneListening => VoiceManager.IsListening || Speech.Recognition.IsListening;
 
 	/// <summary>
 	/// Returns true if the microphone is currently listening and actually hearing/capturing sounds
 	/// </summary>
-	public static bool IsMicrophoneRecording => VoiceManager.IsRecording;
+	public static bool IsMicrophoneRecording => VoiceManager.IsRecording || Speech.Recognition.IsHearingSound;
 
 	/// <summary>
 	/// Is the game window in focus?

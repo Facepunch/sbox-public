@@ -51,7 +51,7 @@ public static partial class PerformanceStats
 		public string Name { get; internal set; }
 		public Color Color { get; internal set; }
 
-		Superluminal _superluminal;
+		readonly ProfileScope _profileScope;
 
 		internal static void FlipAll()
 		{
@@ -91,7 +91,7 @@ public static partial class PerformanceStats
 		{
 			Name = name;
 			Color = color;
-			_superluminal = new Superluminal( Name, color );
+			_profileScope = new( $"Timings.{name}", "", 0 );
 		}
 
 		public struct Frame
@@ -164,13 +164,12 @@ public static partial class PerformanceStats
 
 		internal Performance.ScopeSection Scope()
 		{
-			_superluminal.Start();
-
 			Interlocked.Increment( ref calls );
 
 			return new Performance.ScopeSection()
 			{
 				Source = this,
+				CpuSample = _profileScope.Start(),
 				Outer = Opened(),
 				Timer = FastTimer.StartNew(),
 				// Only snapshot on main thread — GC.GetTotalPauseDuration() is process-wide,
@@ -198,7 +197,6 @@ public static partial class PerformanceStats
 			}
 
 			Interlocked.Add( ref ticks, elapsedTicks );
-			_superluminal.Dispose();
 		}
 
 		internal void AddMilliseconds( double ms, int addcalls = 1 )

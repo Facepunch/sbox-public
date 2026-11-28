@@ -41,8 +41,8 @@ internal sealed class ScreenSpaceReflectionsPass : IDisposable
 		BilateralUpscale = 1
 	}
 
-	static readonly ComputeShader ShaderCs = new( "screen_space_reflections_cs" );
-	static readonly ComputeShader ClassifyShaderCs = new( "screen_space_reflections_classify_cs" );
+	static ComputeShader ShaderCs = new( "screen_space_reflections_cs" );
+	static ComputeShader ClassifyShaderCs = new( "screen_space_reflections_classify_cs" );
 
 	static readonly ProfilingSampler[] PassProfiles =
 	[

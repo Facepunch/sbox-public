@@ -36,7 +36,8 @@ public sealed partial class SceneCompileSession
 	internal static IEnumerable<CompileJob> DiscoverJobs( Scene scene, SceneCompileWork runtimeWork )
 	{
 		var owners = scene.Components.GetAll<ISceneCompile>( FindMode.EverythingInSelfAndDescendants )
-			.Concat( scene.GetSystems().OfType<ISceneCompile>() );
+			.Concat( scene.GetSystems().OfType<ISceneCompile>() )
+			.Append( scene.Lightmap ).OfType<ISceneCompile>();
 
 		var jobs = owners.Select( owner => new CompileJob( owner, Describe( owner ) ) )
 			.Where( job => job.Work is not null )

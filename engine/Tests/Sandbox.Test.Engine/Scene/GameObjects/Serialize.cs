@@ -335,7 +335,8 @@ public class SerializeTest : SceneTest
 	[TestMethod]
 	public void SerializeWithChildren()
 	{
-		using var scope = new Scene().Push();
+		var scene = new Scene();
+		using var scope = scene.Push();
 
 		var timer = new ScopeTimer( "Creation" );
 		var go1 = new GameObject();
@@ -380,6 +381,9 @@ public class SerializeTest : SceneTest
 		Assert.AreEqual( go1.Enabled, go2.Enabled );
 		Assert.AreEqual( go1.LocalTransform, go2.LocalTransform );
 		Assert.AreEqual( go2.Children.Count, childrenCount );
+
+		// Left to the finalizer, its 30,000 components would tear down during some later test
+		scene.Destroy();
 	}
 
 	[TestMethod]

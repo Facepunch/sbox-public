@@ -159,6 +159,7 @@ internal sealed class DevToolsWindow : Panel
 		AddTab( new DevToolsConsoleTab() );
 		AddTab( new DevToolsGlanceTab() );
 		AddTab( new DevToolsCpuTab() );
+		AddTab( new DevToolsProfilerTab() );
 		AddTab( new DevToolsMemoryTab() );
 		AddTab( new DevToolsVramTab() );
 		AddTab( new DevToolsRenderingTab() );

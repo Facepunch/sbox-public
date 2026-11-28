@@ -15,6 +15,7 @@ namespace Sandbox.Mounting;
 /// mounted. Their names are shared with the engine and every game, and one that is taken is not registered, so
 /// give them a prefix of your own, such as the mount's ident.
 /// </remarks>
+[Expose]
 public abstract class BaseGameMount
 {
 	/// <summary>

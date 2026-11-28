@@ -32,6 +32,8 @@ public partial class PanelInspectorWidget : Widget
 
 		TreeView.ItemHoverEnter += OnHoverNode;
 		TreeView.ItemHoverLeave += o => OnHoverNode( null );
+
+		all.Add( this );
 	}
 
 	Option HighlightSelected;
@@ -149,6 +151,32 @@ public partial class PanelInspectorWidget : Widget
 
 	Sandbox.Internal.IPanel SelectedPanel;
 	Sandbox.Internal.IPanel HoveredPanel;
+
+	static readonly List<PanelInspectorWidget> all = new();
+
+	/// <summary>
+	/// Whether a panel inspector has a highlight to draw over the game view (<see cref="DrawGameOverlay"/>), so the
+	/// scene overlay keeps repainting for it.
+	/// </summary>
+	internal static bool HighlightsInGameView
+	{
+		get
+		{
+			foreach ( var inspector in all )
+			{
+				if ( inspector.HoveredPanel.IsValid() || (inspector.HighlightSelected?.Checked == true && inspector.SelectedPanel.IsValid()) )
+					return true;
+			}
+
+			return false;
+		}
+	}
+
+	public override void OnDestroyed()
+	{
+		base.OnDestroyed();
+		all.Remove( this );
+	}
 
 	void DrawBoxSize( Rect inner, Rect outer, Rect rect, Color color )
 	{

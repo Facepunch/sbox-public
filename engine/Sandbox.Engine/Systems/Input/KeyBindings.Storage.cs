@@ -11,7 +11,7 @@ internal static partial class KeyBindings
 
 	internal static uint ResolveAccountId( bool hasSteamUser, ulong steamId ) => hasSteamUser ? (uint)steamId : 0;
 
-	static Storage CreateStorage() => new( EngineFileSystem.Root, ResolveAccountId( Steam.SteamUser().IsValid, Game.SteamId.ValueUnsigned ) );
+	static Storage CreateStorage() => new( EngineFileSystem.Root, ResolveAccountId( SteamNative.User.IsAvailable(), Game.SteamId.ValueUnsigned ) );
 
 	internal static bool Initialize( bool enabled, bool developer )
 	{

@@ -6,6 +6,10 @@
 [Expose]
 sealed class ParticleGameSystem : GameObjectSystem
 {
+	static readonly ProfileScope CpuPrepare = new( "Particles.PrepareWork" );
+	static readonly ProfileScope CpuSimulate = new( "Particles.SimulateAndWait" );
+	static readonly ProfileScope CpuFinalize = new( "Particles.Finalize" );
+
 	private List<ParticleEffect.ParticleWork> workList = new( 64 );
 
 	// Reused so we don't re-enumerate Scene.GetAll (iterator allocs) three times per frame
@@ -29,29 +33,36 @@ sealed class ParticleGameSystem : GameObjectSystem
 
 		workList.Clear();
 
-		foreach ( var p in _effects )
+		using ( CpuPrepare.Start() )
 		{
-			var delta = p.Timing switch
+			foreach ( var p in _effects )
 			{
-				ParticleEffect.TimingMode.GameTime => timeDelta,
-				ParticleEffect.TimingMode.RealTime => realTimeDelta,
-				_ => timeDelta // default to GameTime
-			};
+				var delta = p.Timing switch
+				{
+					ParticleEffect.TimingMode.GameTime => timeDelta,
+					ParticleEffect.TimingMode.RealTime => realTimeDelta,
+					_ => timeDelta // default to GameTime
+				};
 
-			p.TryPreWarm();
-			p.PreStep( delta );
-			p.CollectWork( workList );
+				p.TryPreWarm();
+				p.PreStep( delta );
+				p.CollectWork( workList );
+			}
 		}
 
 		// Work items are only 16 particles each, so threads claim many at a time: claiming one at a
 		// time spends more on the shared counter than on the particles
-		JobDispatcher.For( workList.Count, this, static ( system, i ) => system.ProcessWork( system.workList[i] ) );
+		using ( CpuSimulate.Start() )
+			JobDispatcher.For( workList.Count, this, static ( system, i ) => system.ProcessWork( system.workList[i] ) );
 
-		foreach ( var p in _effects )
+		using ( CpuFinalize.Start() )
 		{
-			p.SpawnDeferredParticleCollisionPrefabs();
-			p.ApplyDeferredParticleForces();
-			p.PostStep();
+			foreach ( var p in _effects )
+			{
+				p.SpawnDeferredParticleCollisionPrefabs();
+				p.ApplyDeferredParticleForces();
+				p.PostStep();
+			}
 		}
 
 		workList.Clear();

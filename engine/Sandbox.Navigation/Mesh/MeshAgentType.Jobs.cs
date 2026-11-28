@@ -6,9 +6,7 @@ namespace Nav;
 
 internal sealed partial class MeshAgentType
 {
-	// Per tile: whether something changed that no job has seen yet, and the job in flight. A tile that
-	// is neither dirty nor in flight has no entry. NeedsGeometry belongs to the dirty mark: the triangles
-	// changed. Discard is set by a RemoveTile on the job in flight.
+	// Only tiles that are dirty or in flight have one. Discard: a RemoveTile hit the job in flight.
 	struct Mark
 	{
 		public bool Dirty, NeedsGeometry, Discard;
@@ -16,10 +14,8 @@ internal sealed partial class MeshAgentType
 	}
 
 	readonly Dictionary<(int X, int Y), Mark> marks = new();
-	// In the order tiles became dirty, from dirtyHead on. A dirty tile without a job has at least one
-	// entry; an entry for anything else is skipped when it comes up. With links, the tiles that became
-	// dirty between two TakeJobs are handed out row by row, so that a generation holds the solid spans
-	// of two rows of tiles and not of all of them: dirtySorted is where the tiles not yet sorted begin.
+	// Tiles in the order they became dirty, from dirtyHead on; stale entries are skipped. With links, the
+	// entries from dirtySorted on are sorted by row, so generation holds the solid spans of two tile rows.
 	readonly List<(int X, int Y)> dirtyQueue = new();
 	int dirtyHead, dirtySorted;
 	readonly List<TileJob> published = new();
@@ -32,17 +28,8 @@ internal sealed partial class MeshAgentType
 	// Ids added, set or removed here since the last commit, each once.
 	readonly List<int> linkQueue = new();
 
-	/// <summary>
-	/// Tiles that are dirty or have a job in flight, and those whose links across a tile border a job is
-	/// still to judge. Owner thread.
-	/// </summary>
 	public int PendingTiles => marks.Count + seamsDue;
 
-	/// <summary>
-	/// Whether this tile is dirty, has a job in flight or has links across its borders still to be
-	/// judged. False once every change made to it so far has been built and committed, or failed.
-	/// Owner thread.
-	/// </summary>
 	public bool IsPending( int tileX, int tileY ) => marks.ContainsKey( (tileX, tileY) ) || SeamsPending( (tileX, tileY) );
 
 	// Throws for a box MarkDirty refuses.
@@ -55,8 +42,7 @@ internal sealed partial class MeshAgentType
 		if ( ((double)maxX - minX + 1) * ((double)maxY - minY + 1) > MaxTiles ) throw new ArgumentException( "The box covers more tiles than a mesh can hold" );
 	}
 
-	// Geometry changed inside this box, checked by CheckDirtyBox: every tile it can affect is rebuilt by
-	// the next jobs.
+	// The box was checked by CheckDirtyBox.
 	internal void MarkDirty( Vector3 min, Vector3 max )
 	{
 		float border = BorderCells * settings.CellSize;
@@ -66,13 +52,9 @@ internal sealed partial class MeshAgentType
 				MarkDirty( x, y, true );
 	}
 
-	/// <summary>
-	/// The triangles of this tile changed: it is rebuilt by a job that asks for them. Owner thread.
-	/// </summary>
 	public void MarkDirty( int tileX, int tileY ) => MarkDirty( tileX, tileY, true );
 
-	// geometry: the triangles changed, so the rebuild cache cannot serve the next job. Without it only
-	// what is marked on the tile changed.
+	// geometry: the triangles changed, so the rebuild cache cannot serve the next job.
 	internal void MarkDirty( int tileX, int tileY, bool geometry )
 	{
 		ref var mark = ref CollectionsMarshal.GetValueRefOrAddDefault( marks, (tileX, tileY), out _ );
@@ -83,9 +65,6 @@ internal sealed partial class MeshAgentType
 		if ( mark.InFlight == null ) dirtyQueue.Add( (tileX, tileY) );
 	}
 
-	/// <summary>
-	/// Takes effect at the next Commit. The result of a job in flight for this tile is discarded.
-	/// </summary>
 	public void RemoveTile( int tileX, int tileY )
 	{
 		changes.Add( new( tileX, tileY, null, null ) );
@@ -98,13 +77,6 @@ internal sealed partial class MeshAgentType
 		if ( mark.InFlight == null ) marks.Remove( (tileX, tileY) );
 	}
 
-	/// <summary>
-	/// Hands out jobs for dirty tiles, oldest first, at most one in flight per tile. Returns how many.
-	/// A tile that is marked again while its job is in flight gets its next job after that one has been
-	/// committed. With generated links, one job at a time also judges links across tile borders; when no
-	/// tile is dirty that is a job that builds no tile and needs no geometry, built and committed like
-	/// the others.
-	/// </summary>
 	public int TakeJobs( Span<TileJob> jobs )
 	{
 		CheckLoadedTiles();
@@ -161,14 +133,7 @@ internal sealed partial class MeshAgentType
 
 	static readonly Comparer<(int X, int Y)> RowOrder = Comparer<(int X, int Y)>.Create( static ( a, b ) => a.Y != b.Y ? a.Y.CompareTo( b.Y ) : a.X.CompareTo( b.X ) );
 
-	/// <summary>
-	/// Publishes built jobs, pending tile removals and link changes in one state swap. Returns the number
-	/// of failed jobs. A failed tile stays clean until it is marked dirty again. A job still Pending is
-	/// abandoned: its tile stays dirty and a later result for it is ignored. A tile that was marked dirty
-	/// while its job was in flight gets that job's result all the same and stays dirty, so a tile that
-	/// changes all the time shows a build that is one job old instead of none. Only a RemoveTile makes
-	/// the job in flight count for nothing.
-	/// </summary>
+	// One state swap. See NavMesh.Commit.
 	public int Commit( ReadOnlySpan<TileJob> jobs )
 	{
 		int failed = 0;
@@ -222,18 +187,12 @@ internal sealed partial class MeshAgentType
 		return failed;
 	}
 
-	/// <summary>
-	/// Publishes pending link and RemoveTile changes without jobs.
-	/// </summary>
 	public int Commit() => Commit( default );
 
 	// The border a tile build reads around itself, in cells.
 	int BorderCells => global::Nav.Build.BuildConfig.BorderCells( settings );
 
-	// Where generation hooks in, see NavMesh.Build.cs. PrepareJob gives a job its volumes and cached
-	// field, or clears issue when the tile turns out clean. JobPublished keeps what a job leaves behind
-	// for later rebuilds. TileRemoved drops what was kept for a tile. PublishVolumeHashes hands Save the
-	// volume hashes once the state they describe is out.
+	// Generation hooks, in MeshAgentType.Build.cs. PrepareJob clears issue when the tile turns out clean.
 	partial void PrepareJob( TileJob job, bool geometryForced, ref bool issue );
 	partial void JobPublished( TileJob job );
 	partial void TileRemoved( int tileX, int tileY );
@@ -250,9 +209,6 @@ internal sealed partial class MeshAgentType
 
 	internal bool LinkInUse( int id ) => (uint)id < (uint)linkStatus.Length && linkStatus[id] is LinkUsed or LinkDirty;
 
-	/// <summary>
-	/// The ends of a link as of the last Commit: snapped where an end found the mesh, as placed otherwise.
-	/// </summary>
 	public bool GetLinkEnds( int id, out Vector3 start, out Vector3 end, out bool startConnected, out bool endConnected )
 	{
 		ref readonly var entry = ref State.LinkAt( id );

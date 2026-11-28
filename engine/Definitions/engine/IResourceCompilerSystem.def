@@ -45,7 +45,7 @@ native static accessor g_pResourceCompilerSystem as IResourceCompilerSystem
 		return g_pResourceCompilerSystem->GenerateResourceFile( path, compileSettings );
 	}
 
-	bool RunBuildJob( string mode, string source, string staging, string report, string args );
+	bool RunBuildJob( string mode, string source, string input, uint inputFingerprint, string staging, string report, string args );
 	void MountBuildJobStaging( string staging, bool mount );
 	void UnloadBuildJobs();
 	bool HasLoadedCompiledFile( string fullPath );

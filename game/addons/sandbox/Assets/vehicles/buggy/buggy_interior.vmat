@@ -1,0 +1,13 @@
+
+Layer0
+{
+	shader "shaders/complex.shader_c"
+
+	TextureColor "vehicles/buggy/textures/buggy_interior_color.png"
+	TextureAmbientOcclusion "vehicles/buggy/textures/buggy_interior_ao.png"
+	TextureNormal "vehicles/buggy/textures/buggy_interior_normal.png"
+	TextureRoughness "vehicles/buggy/textures/buggy_interior_rough.png"
+	F_METALNESS_TEXTURE 1
+	TextureMetalness "vehicles/buggy/textures/buggy_interior_metal.png"
+
+}

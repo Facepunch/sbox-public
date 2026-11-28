@@ -27,6 +27,7 @@ public abstract partial class Component
 		if ( !ShouldExecute ) return;
 
 		if ( StartCalled ) return;
+		using var cpu = Profiler.ScopesActive ? ProfileCallbackScopes.ForType( GetType(), "OnStart" ).Start() : default;
 
 		// Disable any interpolation during OnStart. We might be created in a Fixed Update context.
 		using ( GameTransform.DisableInterpolation() )
@@ -44,6 +45,9 @@ public abstract partial class Component
 			}
 		}
 	}
+
+	/// <summary>Whether this component goes on <paramref name="scene"/>'s update list; read once as it joins.</summary>
+	internal virtual bool UpdatesIn( Scene scene ) => true;
 
 	internal virtual void InternalUpdate()
 	{

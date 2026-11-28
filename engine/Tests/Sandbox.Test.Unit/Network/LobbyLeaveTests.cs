@@ -1,4 +1,4 @@
-using Steamworks.Data;
+using Sandbox.SteamApi;
 
 namespace NetworkTests;
 

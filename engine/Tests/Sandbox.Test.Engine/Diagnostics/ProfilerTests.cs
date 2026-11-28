@@ -1,0 +1,1054 @@
+using Sandbox.Diagnostics;
+using System;
+using System.Collections.Generic;
+using System.Runtime.InteropServices;
+using System.Threading;
+using NativeProfiler = NativeEngine.Profiler;
+
+namespace EngineTests;
+
+// The recorder is process-wide; other profiler tests must not change sessions while a test owns it.
+[TestClass, DoNotParallelize]
+public class ProfilerTests
+{
+	static System.Threading.Tasks.Task<Profiler.Capture> StartCapture( float seconds = 1, int eventLimit = Profiler.MaxEvents ) =>
+		Profiler.StartCapture( seconds, eventLimit, collector: false );
+
+	static readonly ProfileScope Parent = new( "Test.Profiler.Parent" );
+	static readonly ProfileScope Child = new( "Test.Profiler.Child" );
+	static readonly ProfileScope Worker = new( "Test.Profiler.Worker" );
+
+	static Profiler.Capture ExampleCapture( bool incomplete = false, ulong dropped = 0 ) => new(
+		1, 20, dropped, false, incomplete ? 1 : 0, [], [],
+		[
+			new( 0, 1, 1, -1, 0, 0, 10, incomplete ? null : 2, incomplete ),
+			new( 1, 2, 1, 0, 1, 1, 7, 3, false ),
+			new( 2, 1, 1, 1, 2, 2, 5, 3, false ),
+			new( 3, 3, 1, 0, 1, 7, 9, 2, false ),
+			new( 4, 2, 2, -1, 0, 0, 20, 20, false )
+		], [] );
+
+	[TestMethod]
+	public void CallTreeKeepsRecursionAndExcludesOtherThreads()
+	{
+		var rows = Profiler.CallTree( ExampleCapture(), 0 );
+		CollectionAssert.AreEqual( new[] { 0, 1, 2, 3 }, rows.Select( x => x.SpanIndex ).ToArray() );
+		CollectionAssert.AreEqual( new double?[] { 100, 60, 30, 20 }, rows.Select( x => x.PercentOfRoot ).ToArray() );
+		CollectionAssert.AreEqual( new double?[] { 100, 60, 50, 20 }, rows.Select( x => x.PercentOfParent ).ToArray() );
+		Assert.AreEqual( 2, Profiler.CallTree( ExampleCapture(), 1 ).Length );
+		Assert.AreEqual( 2, Profiler.CallTree( ExampleCapture(), 0, 2 ).Length );
+		Profiler.CallTree( ExampleCapture(), 0, 4, 0, out var exactLimit );
+		Assert.IsFalse( exactLimit );
+		Profiler.CallTree( ExampleCapture(), 0, 3, 0, out var truncated );
+		Assert.IsTrue( truncated );
+	}
+
+	[TestMethod]
+	public void TreeLimitPreservesSiblingsBeforeDeeperDescendants()
+	{
+		var rows = Profiler.CallTree( ExampleCapture(), 0, 3, 0, out var truncated );
+		CollectionAssert.AreEqual( new[] { 0, 1, 3 }, rows.Select( x => x.SpanIndex ).ToArray() );
+		Assert.IsTrue( truncated );
+		CollectionAssert.AreEqual( new double?[] { 100, 60, 20 }, rows.Select( x => x.PercentOfRoot ).ToArray() );
+		var rootOnly = Profiler.CallTree( ExampleCapture(), 0, 1, 0, out truncated );
+		Assert.AreEqual( 1, rootOnly.Length );
+		Assert.IsTrue( truncated );
+		var leaf = Profiler.CallTree( ExampleCapture(), 3, 1, 0, out truncated );
+		Assert.AreEqual( 1, leaf.Length );
+		Assert.IsFalse( truncated );
+	}
+
+	[TestMethod]
+	public void AnalysisDoesNotInventSelfTimeOrPercentagesForMissingData()
+	{
+		var rows = Profiler.CallTree( ExampleCapture( incomplete: true ), 0 );
+		Assert.IsTrue( rows.All( x => x.PercentOfRoot is null ) );
+		Assert.IsNull( rows[1].PercentOfParent );
+		Assert.AreEqual( 50d, rows[2].PercentOfParent );
+		CollectionAssert.AreEqual( new[] { 0, 1, 2, 3 }, Profiler.CallTree( ExampleCapture( dropped: 1 ), 0 ).Select( x => x.SpanIndex ).ToArray() );
+		var costs = Profiler.CostsInRange( ExampleCapture(), 2, 5, 1 );
+		Assert.AreEqual( 6d, costs.Single( x => x.ScopeId == 1 ).InclusiveMs );
+		Assert.IsTrue( costs.All( x => x.SelfMs is null ) );
+	}
+
+	[TestMethod]
+	public void UnknownSelfTimeDoesNotOutrankMeasuredSelfTime()
+	{
+		var costs = Profiler.CostsInRange( ExampleCapture( incomplete: true ), 0, 20 );
+		CollectionAssert.AreEqual( new uint[] { 2, 3, 1 }, costs.Select( x => x.ScopeId ).ToArray() );
+		Assert.IsNull( costs[^1].SelfMs );
+		Assert.IsTrue( costs[^1].InclusiveMs > costs[1].SelfMs.Value );
+	}
+
+	[TestMethod]
+	public void DurationHistogramIncludesMaximumAndUsesNearestRankPercentiles()
+	{
+		var stats = Profiler.DescribeDurations( Enumerable.Range( 1, 100 ).Select( x => (double)x ).Concat( [double.NaN, double.PositiveInfinity, -1] ), 10 );
+		Assert.AreEqual( 100, stats.Count );
+		Assert.AreEqual( 100, stats.Bins.Sum() );
+		Assert.AreEqual( 11, stats.Bins[^1] );
+		Assert.AreEqual( 50d, stats.P50Ms );
+		Assert.AreEqual( 95d, stats.P95Ms );
+		Assert.AreEqual( 99d, stats.P99Ms );
+		Assert.AreEqual( 0, Profiler.DescribeDurations( [] ).Count );
+	}
+
+	[TestInitialize]
+	public void Initialize()
+	{
+		ThreadSafe.MarkMainThread();
+		Profiler.StopCapture();
+		Profiler.PendingCompletion?.GetAwaiter().GetResult();
+		NativeProfiler.Stop();
+	}
+
+	[TestCleanup]
+	public void Cleanup()
+	{
+		Profiler.StopCapture();
+		Profiler.PendingCompletion?.GetAwaiter().GetResult();
+		NativeProfiler.Stop();
+	}
+
+	static Profiler.Span Named( Profiler.Capture capture, string name )
+	{
+		var id = capture.Sites.Single( x => x.Name == name ).Id;
+		return capture.Spans.Single( x => x.ScopeId == id );
+	}
+
+	[TestMethod]
+	public void ManagedNativeManagedScopesShareTheSameTreeAndClock()
+	{
+		var nativeSite = NativeProfiler.RegisterScope( "Test.Profiler.Native", "test.cpp", 1 );
+		var task = StartCapture( 2 );
+		using ( Parent.Start() )
+		{
+			var native = NativeProfiler.Begin( nativeSite, 0 );
+			try { using var sample = Child.Start(); }
+			finally { NativeProfiler.End( native ); }
+		}
+		Profiler.StopCapture();
+		var capture = task.GetAwaiter().GetResult();
+		var parent = Named( capture, "Test.Profiler.Parent" );
+		var middle = Named( capture, "Test.Profiler.Native" );
+		var child = Named( capture, "Test.Profiler.Child" );
+		Assert.AreEqual( 0UL, capture.DroppedEvents );
+		Assert.AreEqual( 0, capture.IncompleteScopes );
+		Assert.AreEqual( -1, parent.Parent );
+		Assert.AreEqual( parent.Index, middle.Parent );
+		Assert.AreEqual( middle.Index, child.Parent );
+		Assert.AreEqual( parent.ThreadKey, child.ThreadKey );
+		Assert.IsTrue( parent.StartMs <= middle.StartMs && middle.StartMs <= child.StartMs );
+		Assert.IsTrue( child.EndMs <= middle.EndMs && middle.EndMs <= parent.EndMs );
+		Assert.AreEqual( parent.DurationMs, parent.SelfMs.Value + middle.DurationMs, 0.000001 );
+		Assert.AreEqual( middle.DurationMs, middle.SelfMs.Value + child.DurationMs, 0.000001 );
+	}
+
+	[TestMethod]
+	public void CaptureBoundaryClipsOpenScopesAndDoesNotCarryParentsIntoNextCapture()
+	{
+		var first = StartCapture( 2 );
+		var parent = Parent.Start();
+		using ( Child.Start() ) { }
+		Profiler.StopCapture();
+		var capture = first.GetAwaiter().GetResult();
+		var clipped = Named( capture, "Test.Profiler.Parent" );
+		Assert.IsTrue( clipped.Incomplete );
+		Assert.IsNull( clipped.SelfMs );
+		Assert.AreEqual( capture.DurationMs, clipped.EndMs );
+
+		var second = StartCapture( 2 );
+		parent.Dispose();
+		using ( Child.Start() ) { }
+		Profiler.StopCapture();
+		var next = second.GetAwaiter().GetResult();
+		Assert.AreEqual( -1, Named( next, "Test.Profiler.Child" ).Parent );
+		Assert.AreEqual( 0, next.IncompleteScopes );
+	}
+
+	[TestMethod]
+	public void RecursionAndExceptionUnwindingRemainBalanced()
+	{
+		var task = StartCapture( 2 );
+		using ( Parent.Start() )
+		{
+			try
+			{
+				using var recursive = Parent.Start();
+				using var child = Child.Start();
+				throw new InvalidOperationException( "Expected unwind" );
+			}
+			catch ( InvalidOperationException ) { }
+			using var sibling = Child.Start();
+		}
+		Profiler.StopCapture();
+		var capture = task.GetAwaiter().GetResult();
+		CollectionAssert.AreEqual( new[] { -1, 0, 1, 0 }, capture.Spans.Select( x => x.Parent ).ToArray() );
+		Assert.AreEqual( 0, capture.IncompleteScopes );
+		Assert.IsTrue( capture.Spans.All( x => x.SelfMs >= 0 ) );
+	}
+
+	[TestMethod]
+	public void WorkerThreadsHaveIndependentNesting()
+	{
+		var task = StartCapture( 2 );
+		var threads = new Thread[4];
+		for ( int n = 0; n < threads.Length; n++ )
+		{
+			threads[n] = new Thread( () =>
+			{
+				for ( int i = 0; i < 20; i++ )
+				{
+					using var parent = Worker.Start();
+					using var child = Child.Start();
+				}
+			} );
+			threads[n].Name = $"Test worker {n}";
+		}
+		foreach ( var thread in threads ) thread.Start();
+		foreach ( var thread in threads ) Assert.IsTrue( thread.Join( TimeSpan.FromSeconds( 10 ) ) );
+		Profiler.StopCapture();
+		var capture = task.GetAwaiter().GetResult();
+		Assert.AreEqual( 160, capture.Spans.Length );
+		CollectionAssert.AreEquivalent( Enumerable.Range( 0, 4 ).Select( i => $"Test worker {i}" ).ToArray(), capture.Threads.Select( x => x.Name ).ToArray() );
+		Assert.AreEqual( 0UL, capture.DroppedEvents );
+		foreach ( var span in capture.Spans.Where( x => x.Parent >= 0 ) )
+			Assert.AreEqual( span.ThreadKey, capture.Spans[span.Parent].ThreadKey );
+	}
+
+	[TestMethod]
+	public void LegacyTimingScopesParticipateInProfilerCaptures()
+	{
+		var timing = PerformanceStats.Timings.Get( "Test.Profiler.LegacyTiming" );
+		var task = StartCapture( 2 );
+		using ( Parent.Start() )
+		{
+			using ( timing.Scope() )
+			using ( timing.Scope() )
+			{
+				using var child = Child.Start();
+			}
+		}
+		Profiler.StopCapture();
+		var capture = task.GetAwaiter().GetResult();
+		Assert.AreEqual( 4, capture.Spans.Length );
+		CollectionAssert.AreEqual( new[] { -1, 0, 1, 2 }, capture.Spans.Select( x => x.Parent ).ToArray() );
+		Assert.AreEqual( 0, capture.IncompleteScopes );
+		Assert.AreEqual( 0UL, capture.DroppedEvents );
+		Assert.AreEqual( 2, timing.CurrentCalls );
+	}
+
+	[TestMethod]
+	public void RingOverflowPreservesOtherThreadsAndRecoversAfterTheGap()
+	{
+		var outer = new ProfileScope( "Test.Profiler.OverflowOuter" );
+		var recoveredParent = new ProfileScope( "Test.Profiler.RecoveredParent" );
+		var recoveredChild = new ProfileScope( "Test.Profiler.RecoveredChild" );
+		using var flooded = new ManualResetEventSlim();
+		using var resume = new ManualResetEventSlim();
+		var task = StartCapture( 2 );
+		using ( Parent.Start() ) { using ( Child.Start() ) { } }
+		Profiler.Update();
+		var worker = Task.Run( () =>
+		{
+			using ( outer.Start() )
+			{
+				for ( int i = 0; i < Profiler.RingCapacity; i++ ) { using var scope = Worker.Start(); }
+				flooded.Set();
+				resume.Wait();
+				using ( recoveredParent.Start() ) { using ( recoveredChild.Start() ) { } }
+			}
+		} );
+		try
+		{
+			Assert.IsTrue( flooded.Wait( TimeSpan.FromSeconds( 5 ) ) );
+			Profiler.Update();
+			using ( Parent.Start() ) { using ( Child.Start() ) { } }
+		}
+		finally { resume.Set(); worker.GetAwaiter().GetResult(); }
+		Profiler.StopCapture();
+		var capture = task.GetAwaiter().GetResult();
+		Assert.IsTrue( capture.DroppedEvents > 0 );
+		Assert.IsFalse( capture.HierarchyReliable );
+		var main = capture.Spans.Where( x => x.ThreadKey == capture.Spans[0].ThreadKey ).ToArray();
+		Assert.AreEqual( 4, main.Length );
+		Assert.IsTrue( main.All( x => !x.Incomplete && x.SelfMs.HasValue ) );
+		Assert.AreEqual( main[0].Index, main[1].Parent );
+		Assert.AreEqual( main[2].Index, main[3].Parent );
+		var clipped = Named( capture, "Test.Profiler.OverflowOuter" );
+		Assert.IsTrue( clipped.Incomplete );
+		Assert.IsNull( clipped.SelfMs );
+		var parent = Named( capture, "Test.Profiler.RecoveredParent" );
+		var child = Named( capture, "Test.Profiler.RecoveredChild" );
+		Assert.AreEqual( -1, parent.Parent );
+		Assert.AreEqual( parent.Index, child.Parent );
+		Assert.IsFalse( parent.Incomplete );
+		Assert.IsNotNull( parent.SelfMs );
+		Assert.AreEqual( 2, Profiler.CallTree( capture, parent.Index ).Length );
+	}
+
+	[TestMethod]
+	public void DeadlineWaitsForAFrameBoundaryInsteadOfClippingAnInFrameDrain()
+	{
+		var task = StartCapture( 0.05f );
+		using ( Parent.Start() )
+		{
+			Thread.Sleep( 60 );
+			Profiler.Update();
+			Assert.IsTrue( Profiler.IsRecording );
+			using ( Child.Start() ) { }
+		}
+		Profiler.Update( frameBoundary: true );
+		Assert.IsFalse( Profiler.IsRecording );
+		var capture = task.GetAwaiter().GetResult();
+		Assert.AreEqual( 0, capture.IncompleteScopes );
+		Assert.IsNotNull( Named( capture, "Test.Profiler.Parent" ).SelfMs );
+	}
+
+	[TestMethod]
+	public void EventLimitStopsCaptureAndNextCaptureRecovers()
+	{
+		const int eventLimit = 4000;
+		var task = StartCapture( 10, eventLimit );
+		for ( int batch = 0; batch < 100 && Profiler.IsRecording; batch++ )
+		{
+			for ( int i = 0; i < 1000; i++ ) { using ( Parent.Start() ) { using ( Child.Start() ) { } } }
+			Profiler.Update();
+		}
+		Assert.IsFalse( Profiler.IsRecording, "The event limit must stop recording without waiting for the deadline." );
+		var capture = task.GetAwaiter().GetResult();
+		Assert.IsTrue( capture.EventLimitReached );
+		Assert.IsFalse( Profiler.IsRecording );
+		Assert.IsTrue( capture.Spans.Length <= eventLimit / 2 );
+		Assert.AreEqual( 0UL, capture.DroppedEvents );
+		Assert.IsTrue( capture.Spans.Any( x => x.SelfMs.HasValue ) );
+		Assert.AreEqual( capture.Spans[0].Index, capture.Spans[1].Parent );
+		Assert.AreEqual( 2, Profiler.CallTree( capture, 0 ).Length );
+
+		var next = StartCapture( 2 );
+		using ( Child.Start() ) { }
+		Profiler.StopCapture();
+		var recovered = next.GetAwaiter().GetResult();
+		Assert.IsTrue( recovered.HierarchyReliable );
+		Assert.AreEqual( 1, recovered.Spans.Length );
+		Assert.IsFalse( Named( recovered, "Test.Profiler.Child" ).Incomplete );
+	}
+
+	[TestMethod]
+	public void OnlyFourCapturesAreRetained()
+	{
+		var ids = new List<long>();
+		for ( int i = 0; i < 5; i++ )
+		{
+			var task = StartCapture( 2 );
+			using ( Parent.Start() ) { }
+			Profiler.StopCapture();
+			ids.Add( task.GetAwaiter().GetResult().Id );
+		}
+		Assert.IsNull( Profiler.Find( ids[0] ) );
+		Assert.IsNotNull( Profiler.Find( ids[1] ) );
+		Assert.AreEqual( ids[^1], Profiler.Find( 0 ).Id );
+	}
+
+	[TestMethod, TestCategory( Allocations.Category )]
+	public void WarmedScopesDoNotAllocate()
+	{
+		StartCapture( 2 );
+		Allocations.AssertSettles( "Cached profile scope begin/end", () =>
+		{
+			for ( int i = 0; i < 100; i++ ) { using var scope = Parent.Start(); }
+		}, beforePass: () =>
+		{
+			Profiler.Update();
+			if ( !Profiler.IsRecording ) StartCapture( 2 );
+		} );
+		Profiler.StopCapture();
+		Allocations.AssertSettles( "Disabled profile scopes", () =>
+		{
+			for ( int i = 0; i < 100; i++ ) { using var scope = Parent.Start(); }
+		} );
+	}
+
+	[TestMethod]
+	public void LargerRingDrainsABurstBeyondTheOldCapacity()
+	{
+		var task = StartCapture( 2 );
+		for ( int i = 0; i < 12_000; i++ ) { using var scope = Parent.Start(); }
+		Profiler.StopCapture();
+		var capture = task.GetAwaiter().GetResult();
+		Assert.AreEqual( 12_000, capture.Spans.Length );
+		Assert.AreEqual( 0UL, capture.DroppedEvents );
+		Assert.AreEqual( 0, capture.IncompleteScopes );
+	}
+
+	[TestMethod]
+	public void CaptureBudgetReservesFinalizationAndRetainedCaptures()
+	{
+		Assert.AreEqual( 48, Marshal.SizeOf<Profiler.Span>() );
+		const long budget = 2L * 1024 * 1024 * 1024;
+		var empty = Profiler.CaptureInstanceLimit( 0, budget );
+		var withPrevious = Profiler.CaptureInstanceLimit( empty, budget );
+		Assert.AreEqual( 16_777_216, empty );
+		Assert.IsTrue( withPrevious < empty );
+		Assert.IsTrue( 256L * 1024 * 1024 + empty * 64L + withPrevious * 112L <= budget );
+	}
+
+	[TestMethod]
+	public void CollectorFailureFaultsTheTaskWithoutBreakingTheEngineLoop()
+	{
+		var task = StartCapture( 1 );
+		var builder = typeof( Profiler ).GetField( "_builder", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic ).GetValue( null );
+		builder.GetType().GetField( "CollectorError" ).SetValue( builder, new InvalidOperationException( "Injected collector failure" ) );
+		Profiler.Update();
+		Assert.IsFalse( Profiler.IsRecording );
+		Assert.ThrowsException<InvalidOperationException>( () => task.GetAwaiter().GetResult() );
+		var next = StartCapture( 1 );
+		using ( Parent.Start() ) { }
+		Profiler.StopCapture();
+		Assert.AreEqual( 1, next.GetAwaiter().GetResult().Spans.Length );
+	}
+
+	[TestMethod]
+	public void OpenEndedCaptureRecordsUntilStoppedOrTheLimit()
+	{
+		var task = Profiler.StartCapture( float.PositiveInfinity, collector: false );
+		Assert.IsTrue( Profiler.RecordingIsOpenEnded );
+		using ( Parent.Start() ) { }
+		Profiler.Update( frameBoundary: true );
+		Assert.IsTrue( Profiler.IsRecording );
+		Profiler.StopCapture();
+		Assert.AreEqual( 1, task.GetAwaiter().GetResult().Spans.Length );
+
+		var limited = Profiler.StartCapture( float.PositiveInfinity, eventLimit: 64, collector: false );
+		for ( int i = 0; i < 1000; i++ ) { using var scope = Parent.Start(); }
+		Profiler.Update( frameBoundary: true );
+		Assert.IsFalse( Profiler.IsRecording );
+		Assert.IsTrue( limited.GetAwaiter().GetResult().EventLimitReached );
+	}
+
+	[TestMethod]
+	public void BackgroundLimitStopsEmissionBeforeTheNextFrame()
+	{
+		var task = Profiler.StartCapture( 10, eventLimit: 64 );
+		for ( int i = 0; i < 1000; i++ ) { using var scope = Parent.Start(); }
+		Assert.IsTrue( SpinWait.SpinUntil( () => !Profiler.IsRecording, TimeSpan.FromSeconds( 5 ) ) );
+		var dropped = NativeProfiler.DroppedEvents();
+		for ( int i = 0; i < 100_000; i++ ) { using var scope = Parent.Start(); }
+		Assert.AreEqual( dropped, NativeProfiler.DroppedEvents() );
+		Profiler.StopCapture();
+		var capture = task.GetAwaiter().GetResult();
+		Assert.IsTrue( capture.EventLimitReached );
+		Assert.AreEqual( 0UL, capture.DroppedEvents );
+	}
+
+	static Profiler.Capture FileCapture()
+	{
+		var capture = ExampleCapture() with
+		{
+			Sites = [new( 1, "Engine.Frame", "frame.cs", 1 ), new( 2, "Child", "child.cs", 2 ), new( 3, "Sibling", "child.cs", 3 )],
+			Threads = [new( 1, 101, "Main" ), new( 2, 102, "Worker" )]
+		};
+		return capture with { ThreadSpans = new() { [1] = new( capture.Spans, 0, 4 ), [2] = new( capture.Spans, 4, 1 ) } };
+	}
+
+	static byte[] FileBytes()
+	{
+		using var stream = new System.IO.MemoryStream();
+		Profiler.WriteCapture( FileCapture(), stream );
+		return stream.ToArray();
+	}
+
+	[TestMethod]
+	public void BinaryCaptureRoundTripPreservesScopesAndAnalysis()
+	{
+		var original = FileCapture();
+		using var stream = new System.IO.MemoryStream( FileBytes() );
+		var loaded = Profiler.ReadCapture( stream );
+		CollectionAssert.AreEqual( original.Spans, loaded.Spans );
+		CollectionAssert.AreEqual( original.Sites, loaded.Sites );
+		CollectionAssert.AreEqual( original.Threads, loaded.Threads );
+		CollectionAssert.AreEqual( Profiler.CallTree( original, 0 ), Profiler.CallTree( loaded, 0 ) );
+		CollectionAssert.AreEqual( Profiler.CostsInRange( original, 2, 9 ), Profiler.CostsInRange( loaded, 2, 9 ) );
+		Assert.AreEqual( 2, loaded.Frames.Length );
+		Assert.AreSame( loaded.Spans, loaded.ThreadSpans[1].Array );
+	}
+
+	[TestMethod]
+	public void BinaryCaptureRoundTripKeepsAllocations()
+	{
+		// Loaded once, so it has its analyzed frames
+		var analyzed = Profiler.ReadCapture( new System.IO.MemoryStream( FileBytes() ) );
+		var original = analyzed with { Allocations = [new( "System.String", 1, 7, 3, 300_000 ), new( "Sandbox.Vertex[]", 2, 0, 1, 100_000, 12.5 )] };
+		original = original with { Frames = original.Frames.Select( ( x, i ) => x with { AllocatedBytes = i == 0 ? 2048 : null } ).ToArray() };
+
+		using var stream = new System.IO.MemoryStream();
+		Profiler.WriteCapture( original, stream );
+		stream.Position = 0;
+		var loaded = Profiler.ReadCapture( stream );
+
+		CollectionAssert.AreEqual( original.Allocations, loaded.Allocations );
+		CollectionAssert.AreEqual( original.Frames.Select( x => x.AllocatedBytes ).ToArray(), loaded.Frames.Select( x => x.AllocatedBytes ).ToArray() );
+		CollectionAssert.AreEqual( original.Spans, loaded.Spans );
+	}
+
+	static readonly ProfileScope Labelled = new( "Test.Profiler.Labelled" );
+
+	[TestMethod]
+	public void InstanceLabelsAreRecordedSavedAndStreamed()
+	{
+		string path = null;
+		try
+		{
+			var nativeSite = NativeProfiler.RegisterScope( "Test.Profiler.NativeLabelled", "test.cpp", 3 );
+			var task = Profiler.StartCapture( 2, collector: false, streamToDisk: true );
+			using ( Labelled.Start( "Opaque" ) ) { }
+			using ( Labelled.Start( "Translucent" ) ) { }
+			using ( Labelled.Start() ) { }
+			NativeProfiler.End( NativeProfiler.Begin( nativeSite, NativeProfiler.Label( "View #3" ) ) );
+			using ( Labelled.Start( "Opaque" ) ) { }
+			Profiler.StopCapture();
+			var capture = task.GetAwaiter().GetResult();
+			Assert.IsNotNull( capture.SourceFile, capture.StorageError );
+			path = Profiler.CapturePath( capture.SourceFile );
+
+			static string[] Labels( Profiler.Capture c )
+			{
+				var sites = c.Sites.Where( x => x.Name is "Test.Profiler.Labelled" or "Test.Profiler.NativeLabelled" ).Select( x => x.Id ).ToHashSet();
+				return c.Spans.Where( x => sites.Contains( x.ScopeId ) ).Select( x => c.LabelOf( x ) ).ToArray();
+			}
+			var expected = new[] { "Opaque", "Translucent", null, "View #3", "Opaque" };
+			CollectionAssert.AreEqual( expected, Labels( capture ) );
+			var site = capture.Sites.Single( x => x.Name == "Test.Profiler.Labelled" );
+			var first = capture.Spans.First( x => x.ScopeId == site.Id );
+			Assert.AreEqual( "Test.Profiler.Labelled · Opaque", capture.InstanceName( first, site.Name ) );
+			Assert.AreEqual( 4, capture.Costs.Single( x => x.ScopeId == site.Id ).Calls, "Stats stay grouped by scope" );
+
+			using var saved = new System.IO.MemoryStream();
+			Profiler.WriteCapture( capture, saved );
+			saved.Position = 0;
+			CollectionAssert.AreEqual( expected, Labels( Profiler.ReadCapture( saved ) ) );
+
+			var streamed = Profiler.LoadCapture( capture.SourceFile ).GetAwaiter().GetResult();
+			CollectionAssert.AreEqual( expected, Labels( streamed ) );
+		}
+		finally { if ( path is not null ) System.IO.File.Delete( path ); }
+	}
+
+	static float[] Counters( float drawCalls, float gpuMs )
+	{
+		var values = Enumerable.Repeat( float.NaN, Profiler.FrameCounterCount ).ToArray();
+		values[(int)Profiler.FrameCounter.DrawCalls] = drawCalls;
+		values[(int)Profiler.FrameCounter.GpuMs] = gpuMs;
+		return values;
+	}
+
+	[TestMethod]
+	public void FrameCountersAttachToTheFrameThatEndedAndSurviveSaving()
+	{
+		// The second frame of the example runs from 2 to 5 ms
+		var analyzed = Profiler.ReadCapture( new System.IO.MemoryStream( FileBytes() ) );
+		var frame = analyzed.Frames[1];
+		var capture = analyzed with { CounterSamples = [new( frame.StartMs - 0.5, Counters( 1, 1 ) ), new( frame.EndMs, Counters( 120, 3.5f ) )] };
+		Assert.AreEqual( 120, Profiler.FrameCounterValue( capture, 1, Profiler.FrameCounter.DrawCalls ) );
+		Assert.AreEqual( 3.5f, Profiler.FrameCounterValue( capture, 1, Profiler.FrameCounter.GpuMs ) );
+		Assert.IsTrue( float.IsNaN( Profiler.FrameCounterValue( capture, 1, Profiler.FrameCounter.Triangles ) ) );
+
+		using var stream = new System.IO.MemoryStream();
+		Profiler.WriteCapture( capture, stream );
+		stream.Position = 0;
+		var loaded = Profiler.ReadCapture( stream );
+		Assert.AreEqual( 2, loaded.CounterSamples.Length );
+		for ( int i = 0; i < 2; i++ )
+		{
+			Assert.AreEqual( capture.CounterSamples[i].Ms, loaded.CounterSamples[i].Ms );
+			CollectionAssert.AreEqual( capture.CounterSamples[i].Values, loaded.CounterSamples[i].Values );
+		}
+		Assert.AreEqual( 120, Profiler.FrameCounterValue( loaded, 1, Profiler.FrameCounter.DrawCalls ) );
+	}
+
+	[TestMethod]
+	public void StreamedCapturesCarryFrameCounters()
+	{
+		string path = null;
+		try
+		{
+			var task = Profiler.StartCapture( 10, collector: false, streamToDisk: true );
+			for ( int i = 0; i < 5; i++ )
+			{
+				Profiler.Update( frameBoundary: true );
+				using ( ProfileScope_Frame.Start() ) Thread.Sleep( 2 );
+			}
+			Profiler.Update( frameBoundary: true );
+			Profiler.StopCapture();
+			var capture = task.GetAwaiter().GetResult();
+			Assert.IsNotNull( capture.SourceFile, capture.StorageError );
+			path = Profiler.CapturePath( capture.SourceFile );
+			Assert.AreEqual( 6, capture.CounterSamples.Length );
+			Assert.AreEqual( 5, capture.Frames.Length );
+			Assert.IsTrue( Enumerable.Range( 0, 5 ).All( x => Profiler.FrameCounters( capture, x ) is not null ) );
+
+			var loaded = Profiler.LoadCapture( capture.SourceFile ).GetAwaiter().GetResult();
+			Assert.AreEqual( 6, loaded.CounterSamples.Length );
+			Assert.IsTrue( Enumerable.Range( 0, 5 ).All( x => Profiler.FrameCounters( loaded, x ) is not null ) );
+
+			// A window keeps the samples inside it, on its own clock
+			var start = loaded.Frames[2].StartMs;
+			var window = Profiler.LoadCapture( capture.SourceFile, start, loaded.Frames[3].EndMs + 0.5 - start ).GetAwaiter().GetResult();
+			Assert.IsTrue( window.CounterSamples.Length is >= 1 and <= 3 );
+			Assert.IsTrue( window.CounterSamples.All( x => x.Ms >= 0 && x.Ms <= window.DurationMs ) );
+		}
+		finally { if ( path is not null ) System.IO.File.Delete( path ); }
+	}
+
+	static readonly Logger TestLog = new( "ProfilerTests" );
+
+	[TestMethod]
+	public void WarningsAndErrorsBecomeMarkersThatSurviveSavingAndStreaming()
+	{
+		string path = null;
+		try
+		{
+			var task = Profiler.StartCapture( 10, collector: false, streamToDisk: true );
+			using ( Parent.Start() )
+			{
+				TestLog.Warning( "Test marker warning" );
+				TestLog.Info( "Test marker info" );
+			}
+			var worker = new Thread( () => { using ( Worker.Start() ) TestLog.Error( "Test marker error" ); } );
+			worker.Start();
+			Assert.IsTrue( worker.Join( TimeSpan.FromSeconds( 10 ) ) );
+			Profiler.StopCapture();
+			var capture = task.GetAwaiter().GetResult();
+			Assert.IsNotNull( capture.SourceFile, capture.StorageError );
+			path = Profiler.CapturePath( capture.SourceFile );
+
+			var warning = capture.Markers.Single( x => x.Text.Contains( "Test marker warning" ) );
+			Assert.AreEqual( LogLevel.Warn, warning.Level );
+			Assert.AreEqual( Named( capture, "Test.Profiler.Parent" ).ThreadKey, warning.ThreadKey );
+			var error = capture.Markers.Single( x => x.Text.Contains( "Test marker error" ) );
+			Assert.AreEqual( LogLevel.Error, error.Level );
+			Assert.AreEqual( Named( capture, "Test.Profiler.Worker" ).ThreadKey, error.ThreadKey );
+			Assert.IsFalse( capture.Markers.Any( x => x.Text.Contains( "Test marker info" ) ) );
+			Assert.IsTrue( warning.Ms >= 0 && warning.Ms <= capture.DurationMs );
+
+			using var saved = new System.IO.MemoryStream();
+			Profiler.WriteCapture( capture, saved );
+			saved.Position = 0;
+			CollectionAssert.AreEqual( capture.Markers, Profiler.ReadCapture( saved ).Markers );
+
+			var streamed = Profiler.LoadCapture( capture.SourceFile ).GetAwaiter().GetResult();
+			CollectionAssert.AreEqual( capture.Markers, streamed.Markers );
+		}
+		finally { if ( path is not null ) System.IO.File.Delete( path ); }
+	}
+
+	[TestMethod]
+	public void MarkersStopAtTheCapLimit()
+	{
+		var task = StartCapture( 10 );
+		for ( int i = 0; i < Profiler.MaxMarkers + 5; i++ ) TestLog.Warning( "Test marker flood" );
+		Profiler.StopCapture();
+		var capture = task.GetAwaiter().GetResult();
+		Assert.AreEqual( Profiler.MaxMarkers, capture.Markers.Length );
+		Assert.IsTrue( capture.MarkersLost >= 5 );
+	}
+
+	[TestMethod]
+	public void CompareListsTheScopeThatGrewAsARegression()
+	{
+		static Profiler.Capture Record( int childMs )
+		{
+			var task = StartCapture( 10 );
+			for ( int i = 0; i < 3; i++ )
+			{
+				using ( ProfileScope_Frame.Start() )
+				using ( Parent.Start() )
+				using ( Child.Start() )
+					Thread.Sleep( childMs );
+			}
+			Profiler.StopCapture();
+			return task.GetAwaiter().GetResult();
+		}
+
+		var baseline = Record( 1 );
+		var candidate = Record( 8 );
+		var result = Editor.Mcp.PerfTools.ProfilerCompare( baseline.Id, candidate.Id ).GetAwaiter().GetResult();
+		var json = System.Text.Json.JsonSerializer.SerializeToElement( result );
+		Assert.AreEqual( "per frame", json.GetProperty( "Unit" ).GetString() );
+		var regressions = json.GetProperty( "Regressions" );
+		Assert.AreEqual( "Test.Profiler.Child", regressions[0].GetProperty( "Name" ).GetString() );
+		Assert.IsTrue( regressions[0].GetProperty( "DeltaSelfMs" ).GetDouble() > 0 );
+		Assert.ThrowsException<Editor.Mcp.McpException>( () => Editor.Mcp.PerfTools.ProfilerCompare( baseline.Id, baseline.Id ).GetAwaiter().GetResult() );
+	}
+
+	[TestMethod]
+	public void LabelsInternByContentAndCutOnACharacterBoundary()
+	{
+		Assert.AreEqual( 0u, NativeProfiler.Label( "" ) );
+		var id = NativeProfiler.Label( "Test.Label.Same" );
+		Assert.AreNotEqual( 0u, id );
+		Assert.AreEqual( id, NativeProfiler.Label( new string( "Test.Label.Same".ToCharArray() ) ) );
+		var accents = NativeProfiler.GetLabel( NativeProfiler.Label( new string( 'é', 40 ) ) );
+		Assert.AreEqual( new string( 'é', 31 ), accents );
+	}
+
+	[TestMethod]
+	public void GarbageCollectionsShowAsPausesWithFrameAllocations()
+	{
+		var task = StartCapture( 2 );
+		Profiler.Update( frameBoundary: true );
+		using ( ProfileScope_Frame.Start() )
+		{
+			var garbage = new List<byte[]>();
+			for ( int i = 0; i < 64; i++ ) garbage.Add( new byte[64 * 1024] );
+			GC.KeepAlive( garbage );
+			GC.Collect( 0, GCCollectionMode.Forced, true );
+		}
+		Profiler.Update( frameBoundary: true );
+		Profiler.StopCapture();
+		var capture = task.GetAwaiter().GetResult();
+
+		var pause = capture.Sites.FirstOrDefault( x => x.Name.StartsWith( "GC.Pause." ) );
+		Assert.IsNotNull( pause, "no GC pause site" );
+		var lane = capture.Threads.Single( x => x.Key == Profiler.GcThreadKey );
+		Assert.IsTrue( capture.ThreadSpans[lane.Key].Any( x => x.ScopeId == pause.Id && x.DurationMs > 0 ) );
+
+		var frame = capture.Frames.Single();
+		Assert.IsTrue( frame.AllocatedBytes >= 64 * 64 * 1024, $"frame allocations {frame.AllocatedBytes}" );
+		Assert.IsTrue( capture.Allocations.Sum( x => x.Bytes ) > 0 );
+	}
+
+	static readonly ProfileScope ProfileScope_Frame = new( Profiler.FrameScopeName );
+	static readonly ProfileScope ProfileScope_Quiet = new( "Test.Quiet" );
+	static readonly ProfileScope ProfileScope_Allocating = new( "Test.Allocating" );
+
+	[TestMethod]
+	public void AllocationSamplesAreChargedToTheOpenScope()
+	{
+		static void Run( ProfileScope scope, bool allocate )
+		{
+			using var _ = scope.Start();
+			var keep = new List<byte[]>();
+			var timer = System.Diagnostics.Stopwatch.StartNew();
+			while ( timer.ElapsedMilliseconds < 5 )
+			{
+				if ( allocate ) keep.Add( new byte[16 * 1024] );
+			}
+			GC.KeepAlive( keep );
+		}
+
+		var task = StartCapture( 2 );
+		Profiler.Update( frameBoundary: true );
+		using ( ProfileScope_Frame.Start() )
+		{
+			Run( ProfileScope_Quiet, false );
+			Run( ProfileScope_Allocating, true );
+			Run( ProfileScope_Quiet, false );
+		}
+		Profiler.Update( frameBoundary: true );
+		Profiler.StopCapture();
+		var capture = task.GetAwaiter().GetResult();
+
+		var site = capture.Sites.Single( x => x.Name == "Test.Allocating" );
+		var thread = capture.Spans.First( x => x.ScopeId == site.Id ).ThreadKey;
+		var arrays = capture.Allocations.Where( x => x.Type == "System.Byte[]" && x.ThreadKey == thread ).ToArray();
+		var charged = arrays.Where( x => x.ScopeId == site.Id ).Sum( x => x.Bytes );
+		var total = arrays.Sum( x => x.Bytes );
+		Assert.IsTrue( total > 0 && charged >= total * 0.9, $"{charged} of {total} bytes charged to the allocating scope" );
+	}
+
+	[TestMethod]
+	public void BinaryCaptureRejectsTruncationBadHeadersAndInvalidParents()
+	{
+		void Invalid( byte[] bytes ) => Assert.ThrowsException<System.IO.InvalidDataException>( () => Profiler.ReadCapture( new System.IO.MemoryStream( bytes ) ) );
+		var bytes = FileBytes();
+		Invalid( bytes[..^1] );
+		var bad = bytes.ToArray(); bad[0] ^= 1; Invalid( bad );
+		bad = bytes.ToArray(); BitConverter.GetBytes( int.MaxValue ).CopyTo( bad, 64 + 36 ); Invalid( bad );
+		bad = bytes.ToArray(); BitConverter.GetBytes( double.NaN ).CopyTo( bad, 64 + 16 ); Invalid( bad );
+		var spanOffset = bytes.Length - 44 - 5 * 48;
+		bad = bytes.ToArray(); BitConverter.GetBytes( 4 ).CopyTo( bad, spanOffset + 48 + 40 ); Invalid( bad );
+		bad = bytes.ToArray(); bad[spanOffset + 46] = 2; Invalid( bad );
+		bad = bytes.ToArray(); BitConverter.GetBytes( double.NaN ).CopyTo( bad, spanOffset ); Invalid( bad );
+		bad = bytes.ToArray(); BitConverter.GetBytes( 999u ).CopyTo( bad, spanOffset + 36 ); Invalid( bad );
+		Assert.ThrowsException<System.IO.InvalidDataException>( () => Profiler.ReadCapture( new System.IO.MemoryStream( bytes ), maximumSpans: 4 ) );
+	}
+
+	[TestMethod]
+	public void UnknownTrackSectionsAreSkipped()
+	{
+		var bytes = FileBytes();
+		var oldDirectory = BitConverter.ToInt64( bytes, 32 );
+		using var stream = new System.IO.MemoryStream();
+		using var writer = new System.IO.BinaryWriter( stream, System.Text.Encoding.UTF8, true );
+		writer.Write( bytes, 0, (int)oldDirectory );
+		writer.Write( 16u ); writer.Write( 7u ); writer.Write( 8L );
+		var unknownOffset = stream.Position;
+		writer.Write( 123L );
+		var directory = stream.Position;
+		writer.Write( 0xffffu ); writer.Write( 1u ); writer.Write( 52L ); writer.Write( 2 );
+		writer.Write( bytes, (int)oldDirectory + 20, 24 );
+		writer.Write( 16u ); writer.Write( 7u ); writer.Write( unknownOffset ); writer.Write( 8L );
+		stream.Position = 32; writer.Write( directory ); stream.Position = 0;
+		CollectionAssert.AreEqual( FileCapture().Spans, Profiler.ReadCapture( stream ).Spans );
+	}
+
+	[TestMethod]
+	public void StreamContinuesAfterRamLimitAndLoadsIndexedWindows()
+	{
+		string path = null;
+		try
+		{
+			var task = Profiler.StartCapture( 10, eventLimit: 64, collector: false, streamToDisk: true );
+			using ( Parent.Start() )
+			{
+				for ( int batch = 0; batch < 10; batch++ )
+				{
+					for ( int i = 0; i < 1000; i++ ) { using var child = Child.Start(); }
+					Profiler.Update();
+				}
+			}
+			Profiler.StopCapture();
+			var preview = task.GetAwaiter().GetResult();
+			Assert.IsTrue( preview.EventLimitReached );
+			Assert.IsTrue( preview.Spans.Count( x => x.ThreadKey != Profiler.GcThreadKey ) <= 32 );
+			Assert.IsNull( preview.StorageError, preview.StorageError );
+			Assert.IsNotNull( preview.SourceFile );
+			path = Profiler.CapturePath( preview.SourceFile );
+			var loaded = Profiler.LoadCapture( preview.SourceFile ).GetAwaiter().GetResult();
+			Assert.AreEqual( 10_001, loaded.Spans.Length );
+			Assert.IsFalse( loaded.EventLimitReached );
+			Assert.AreEqual( 0, loaded.IncompleteScopes );
+			Assert.AreEqual( 0UL, loaded.DroppedEvents );
+			var start = loaded.Spans[5000].StartMs;
+			var end = loaded.Spans[5500].EndMs;
+			var window = Profiler.LoadCapture( preview.SourceFile, start, end - start ).GetAwaiter().GetResult();
+			Assert.IsTrue( window.Spans.Length is > 1 and < 1000 );
+			Assert.AreEqual( start, window.SourceOffsetMs );
+			Assert.IsTrue( window.Spans[0].Incomplete, "The checkpoint restores the parent crossing the window start." );
+			Assert.IsTrue( window.Spans.Skip( 1 ).All( x => x.Parent == 0 ) );
+			Assert.IsTrue( window.Spans.All( x => x.EndMs <= window.DurationMs ) );
+		}
+		finally { if ( path is not null ) System.IO.File.Delete( path ); }
+	}
+
+	[TestMethod]
+	public void StreamWriteFailureReleasesAndDeletesThePartialFile()
+	{
+		var task = Profiler.StartCapture( 10, collector: false, streamToDisk: true );
+		var flags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
+		var builder = typeof( Profiler ).GetField( "_builder", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic ).GetValue( null );
+		var archive = builder.GetType().GetField( "Archive" ).GetValue( builder );
+		var partial = (string)archive.GetType().GetField( "_temporary", flags ).GetValue( archive );
+		((System.IO.Stream)archive.GetType().GetField( "_stream", flags ).GetValue( archive )).Dispose();
+		using ( Parent.Start() ) { }
+		Profiler.Update();
+		Profiler.StopCapture();
+		var capture = task.GetAwaiter().GetResult();
+		Assert.IsNotNull( capture.StorageError );
+		Assert.IsNull( capture.SourceFile );
+		Assert.IsFalse( System.IO.File.Exists( partial ) );
+	}
+
+	[TestMethod]
+	[DataRow( false, false )]
+	[DataRow( true, false )]
+	[DataRow( false, true )]
+	public void StreamCheckpointRestoresQuietScopesAndToleratesLateEvents( bool lateEvent, bool stopped )
+	{
+		var nested = System.Reflection.BindingFlags.NonPublic;
+		var writerType = typeof( Profiler ).GetNestedType( "ArchiveWriter", nested );
+		var eventType = typeof( Profiler ).GetNestedType( "NativeEvent", nested );
+		var threadType = typeof( Profiler ).GetNestedType( "NativeThread", nested );
+		var writer = Activator.CreateInstance( writerType, 1000UL );
+		var thread = Activator.CreateInstance( threadType );
+		threadType.GetField( "Key" ).SetValue( thread, 1UL ); threadType.GetField( "Id" ).SetValue( thread, 101UL );
+		var events = Array.CreateInstance( eventType, lateEvent ? 2 : 1 );
+		for ( int i = 0; i < events.Length; i++ )
+		{
+			var e = Activator.CreateInstance( eventType );
+			eventType.GetField( "Ticks" ).SetValue( e, (ulong)(1000 + i * 1000) );
+			eventType.GetField( "Token" ).SetValue( e, (ulong)(i + 1) );
+			eventType.GetField( "Scope" ).SetValue( e, (uint)(i + 1) );
+			eventType.GetField( "Session" ).SetValue( e, 1u ); events.SetValue( e, i );
+		}
+		Assert.IsTrue( (bool)writerType.GetMethod( "Enqueue" ).Invoke( writer, [thread, events, events.Length] ) );
+		if ( stopped )
+		{
+			var stop = writerType.GetMethod( "RequestStop", System.Reflection.BindingFlags.Instance | nested );
+			stop.Invoke( writer, ["disk size limit", 1300UL] );
+			var rejected = events.GetValue( 0 );
+			eventType.GetField( "Ticks" ).SetValue( rejected, 1200UL ); events.SetValue( rejected, 0 );
+			Assert.IsFalse( (bool)writerType.GetMethod( "Enqueue" ).Invoke( writer, [thread, events, events.Length] ) );
+			stop.Invoke( writer, ["disk writer backlog", 1400UL] );
+		}
+		var metadata = new Profiler.Capture( 0, 1500, 0, false, 0, [new( 1, 101, "Main" )], [new( 1, "Parent", "", 0 ), new( 2, "Child", "", 0 )], [], [] )
+		{ ThreadSpans = new() { [1] = ArraySegment<Profiler.Span>.Empty } };
+		var name = (string)writerType.GetMethod( "Finish" ).Invoke( writer, [metadata, 1500UL] );
+		try
+		{
+			var whole = Profiler.LoadCapture( name ).GetAwaiter().GetResult();
+			Assert.AreEqual( 1, whole.Spans.Length );
+			Assert.AreEqual( stopped ? 1200d : 1500d, whole.DurationMs );
+			if ( stopped ) Assert.AreEqual( "disk size limit", whole.LimitReason );
+			var window = Profiler.LoadCapture( name, 1100, 100 ).GetAwaiter().GetResult();
+			Assert.AreEqual( 1, window.Spans.Length );
+			Assert.AreEqual( 0d, window.Spans[0].StartMs );
+			Assert.AreEqual( 100d, window.Spans[0].EndMs );
+			Assert.IsTrue( window.Spans[0].Incomplete );
+		}
+		finally { System.IO.File.Delete( Profiler.CapturePath( name ) ); }
+	}
+
+	[TestMethod]
+	public void CaptureNamesCannotEscapeTheProfilesDirectory()
+	{
+		foreach ( var name in new[] { "", "../outside", "C:/outside", "a\\b", ".hidden", "a:b" } )
+			Assert.ThrowsException<ArgumentException>( () => Profiler.CapturePath( name ) );
+		Assert.IsTrue( Profiler.CapturePath( "example" ).EndsWith( "example.sprof" ) );
+	}
+
+	[StructLayout( LayoutKind.Sequential )]
+	struct Event { public ulong Ticks, Token; public uint Scope, Session; }
+	[StructLayout( LayoutKind.Sequential )]
+	unsafe struct ThreadInfo { public ulong Id, Key; public fixed byte Name[64]; }
+
+	[TestMethod]
+	public unsafe void RetiredThreadSlotsAreReusedAfterDrain()
+	{
+		var events = new Event[8192];
+		var keys = new HashSet<ulong>();
+		var site = NativeProfiler.RegisterScope( "Test.Profiler.RetiredThread", "test.cpp", 2 );
+		var session = NativeProfiler.Start();
+		var dropped = NativeProfiler.DroppedEvents();
+		for ( int i = 0; i < NativeProfiler.ThreadSlots() + 8; i++ )
+		{
+			var thread = new Thread( () => { NativeProfiler.AttachThread(); var token = NativeProfiler.Begin( site, 0 ); NativeProfiler.End( token ); } );
+			thread.Start();
+			Assert.IsTrue( thread.Join( TimeSpan.FromSeconds( 10 ) ) );
+			fixed ( Event* buffer = events )
+			{
+				for ( int slot = 0; slot < NativeProfiler.ThreadSlots(); slot++ )
+				{
+					ThreadInfo info = default;
+					var count = NativeProfiler.Drain( slot, (IntPtr)buffer, events.Length, (IntPtr)(&info) );
+					if ( count > 0 && events.Take( count ).Any( x => x.Session == session && x.Scope == site ) ) keys.Add( info.Key );
+				}
+			}
+		}
+		NativeProfiler.Stop();
+		Assert.AreEqual( NativeProfiler.ThreadSlots() + 8, keys.Count );
+		Assert.AreEqual( dropped, NativeProfiler.DroppedEvents() );
+	}
+
+	static Profiler.RawGpuSpan Pass( ulong start, ulong end, uint scope, int parent ) => new( start, end, scope, parent, false );
+
+	[TestMethod]
+	public void GpuPassesUnderAnUnplacedPassKeepTheirParentsLaterPasses()
+	{
+		// B hides C, so C and its child D can't be placed; E still belongs under A
+		Profiler.RawGpuSpan[] raw = [Pass( 0, 100, 1, -1 ), Pass( 10, 50, 2, 0 ), Pass( 20, 30, 3, 0 ), Pass( 22, 25, 4, 2 ), Pass( 60, 70, 5, 0 )];
+		var (graphics, compute) = Profiler.GpuLanes( raw, 0, 100, int.MaxValue, out var lost );
+		Assert.AreEqual( 0, compute.Count );
+		Assert.AreEqual( 0, lost );
+		CollectionAssert.AreEqual( new uint[] { 1, 2, 5 }, graphics.Select( x => x.Scope ).ToArray() );
+		var e = graphics.Single( x => x.Scope == 5 );
+		Assert.AreEqual( 1, e.Depth );
+		Assert.AreEqual( 0, e.Parent );
+		Assert.AreEqual( 60ul, e.Start );
+
+		var limited = Profiler.GpuLanes( raw, 0, 100, 2, out lost );
+		Assert.AreEqual( 2, limited.Graphics.Count );
+		Assert.AreEqual( 1, lost );
+	}
+
+	[TestMethod]
+	public void GpuTrackWindowsKeepOnlyTheirPassesWithinTheLimit()
+	{
+		var site = new Profiler.Site( 0x10001, "GPU.Test", "", 0 );
+		// Children listed before their parents, as a frame's snapshot can have them
+		Profiler.RawGpuSpan[] raw = [Pass( 12, 14, site.Id, 1 ), Pass( 10, 20, site.Id, -1 ), Pass( 100, 120, site.Id, -1 ), Pass( 105, 110, site.Id, 2 ), Pass( 200, 210, site.Id, -1 )];
+		using var stream = new System.IO.MemoryStream();
+		using ( var writer = new System.IO.BinaryWriter( stream, System.Text.Encoding.UTF8, true ) ) Profiler.WriteGpuTrack( writer, new( [site], raw ) );
+
+		stream.Position = 0;
+		var window = Profiler.ReadGpuTrack( stream, 90, 150, int.MaxValue, out var lost );
+		Assert.AreEqual( 0, lost );
+		CollectionAssert.AreEqual( new ulong[] { 100, 105 }, window.Spans.Select( x => x.Start ).ToArray() );
+		Assert.AreEqual( 0, window.Spans[1].Parent );
+
+		stream.Position = 0;
+		var first = Profiler.ReadGpuTrack( stream, 0, 50, int.MaxValue, out _ );
+		CollectionAssert.AreEqual( new[] { 1, -1 }, first.Spans.Select( x => x.Parent ).ToArray() );
+
+		stream.Position = 0;
+		var limited = Profiler.ReadGpuTrack( stream, 0, 1000, 3, out lost );
+		Assert.AreEqual( 3, limited.Spans.Length );
+		Assert.AreEqual( 2, lost );
+	}
+
+	[TestMethod]
+	public void CompareCountsOnlyCpuWorkInsideCompleteFrames()
+	{
+		Profiler.Site[] sites = [new( 1, Profiler.FrameScopeName, "", 0 ), new( 2, "Test.Work", "", 0 ), new( 3, "GC.Pause.Gen0", "", 0 )];
+		static Profiler.Capture Make( Profiler.Site[] sites, bool boundaryWork, long id )
+		{
+			var main = new List<Profiler.Span>
+			{
+				new( 0, 1, 1, -1, 0, 0, 10, 5, false ),
+				new( 1, 2, 1, 0, 1, 2, 7, 5, false ),
+				new( 2, 1, 1, -1, 0, 10, 20, 5, false ),
+				new( 3, 2, 1, 2, 1, 12, 17, 5, false )
+			};
+			// Work cut by the capture's start or end, outside any complete frame
+			if ( boundaryWork ) main.Add( new( 4, 2, 1, -1, 0, 20, 29, 9, false ) );
+			var spans = main.ToList();
+			var gpuStart = spans.Count;
+			spans.Add( new( gpuStart, 2, Profiler.GpuGraphicsKey, -1, 0, 0, boundaryWork ? 9 : 1, boundaryWork ? 9 : 1, false ) );
+			return new Profiler.Capture( id, 30, 0, false, 0,
+				[new( 1, 1, "Main" ), new( Profiler.GpuGraphicsKey, 0, "GPU graphics" )], sites, spans.ToArray(), [] )
+			{
+				ThreadSpans = new() { [1] = new( spans.ToArray(), 0, main.Count ), [Profiler.GpuGraphicsKey] = new( spans.ToArray(), gpuStart, 1 ) },
+				Frames = [new( 0, 0, 0, 10, false ), new( 1, 2, 10, 10, false )]
+			};
+		}
+
+		var result = Editor.Mcp.PerfTools.CompareCaptures( Make( sites, true, 1 ), Make( sites, false, 2 ) );
+		var json = System.Text.Json.JsonSerializer.SerializeToElement( result );
+		Assert.AreEqual( "per frame", json.GetProperty( "Unit" ).GetString() );
+		Assert.AreEqual( 0, json.GetProperty( "TotalRegressions" ).GetInt32() );
+		Assert.AreEqual( 0, json.GetProperty( "TotalImprovements" ).GetInt32() );
+		Assert.IsTrue( json.GetProperty( "GpuBusyMs" ).GetProperty( "Baseline" ).GetDouble() > json.GetProperty( "GpuBusyMs" ).GetProperty( "Candidate" ).GetDouble() );
+	}
+
+	[TestMethod]
+	public void StreamedCapturesKeepCountersPastTheirInMemoryLimit()
+	{
+		string path = null;
+		try
+		{
+			var task = Profiler.StartCapture( 10, 16, collector: false, streamToDisk: true );
+			for ( int i = 0; i < 20; i++ )
+			{
+				Profiler.Update( frameBoundary: true );
+				using ( ProfileScope_Frame.Start() )
+				using ( Parent.Start() )
+				using ( Child.Start() )
+					Thread.Sleep( 1 );
+				Profiler.Update();
+			}
+			Profiler.Update( frameBoundary: true );
+			Profiler.StopCapture();
+			var capture = task.GetAwaiter().GetResult();
+			Assert.IsNotNull( capture.SourceFile, capture.StorageError );
+			path = Profiler.CapturePath( capture.SourceFile );
+			Assert.IsTrue( capture.EventLimitReached, "the in-memory part should stop at its limit" );
+
+			var loaded = Profiler.LoadCapture( capture.SourceFile ).GetAwaiter().GetResult();
+			Assert.AreEqual( 20, loaded.Frames.Length );
+			Assert.AreEqual( 21, loaded.CounterSamples.Length );
+			Assert.IsTrue( Enumerable.Range( 0, 20 ).All( x => Profiler.FrameCounters( loaded, x ) is not null ) );
+		}
+		finally { if ( path is not null ) System.IO.File.Delete( path ); }
+	}
+}

@@ -2,12 +2,9 @@
 using Sandbox.Network;
 using Sandbox.Utility;
 using Sentry;
-using Steamworks;
-using Steamworks.Data;
+using Sandbox.SteamApi;
 using System.Diagnostics;
-using System.Text;
 using System.Threading;
-using Steam = NativeEngine.Steam;
 
 namespace Sandbox;
 
@@ -308,35 +305,11 @@ public static partial class Networking
 
 	internal static void Bootstrap()
 	{
-		var utils = NativeEngine.Steam.SteamNetworkingUtils();
-		if ( !utils.IsValid ) return;
-
-		var sockets = NativeEngine.Steam.SteamNetworkingSockets();
-		if ( !sockets.IsValid ) return;
-
-		Log.Info( "Bootstrap Networking..." );
-		utils.InitializeRelayNetwork();
-
-		// conna: fuck it, let's set these to insane values.
-		var maxBufferSize = 1024 * 1024 * 64;
-		utils.SetConfig( NetConfig.SendBufferSize, maxBufferSize );
-		utils.SetConfig( NetConfig.RecvBufferSize, maxBufferSize );
-		utils.SetConfig( NetConfig.RecvMaxMessageSize, maxBufferSize );
-		utils.SetConfig( NetConfig.RecvBufferMessages, 256 * 256 );
-
-		// conna: allow 120s before a client will disconnect from a timeout.
-		utils.SetConfig( NetConfig.TimeoutConnected, ConnectionTimeout * 1000 );
-
-		// conna: when these two values are not the same, there seems to be a bug that causes the send buffer
-		// to often become clogged up and not clear properly. Ultimately resulting in heavier load and backlog.
-		// These values are ridiculous because there's no way to remove this limit. So let's just make it 1gbps.
-		utils.SetConfig( NetConfig.SendRateMin, 1024 * 1024 * 1024 );
-		utils.SetConfig( NetConfig.SendRateMax, 1024 * 1024 * 1024 );
-
-		utils.SetConfig( NetConfig.P2P_Transport_ICE_Enable, Defines.k_nSteamNetworkingConfig_P2P_Transport_ICE_Enable_All );
-		utils.SetConfig( NetConfig.P2P_STUN_ServerList, "stun.l.google.com:19302,stun1.l.google.com:19302,stun2.l.google.com:19302,stun3.l.google.com:19302,stun4.l.google.com:19302" );
-
-		sockets.StartAuthentication();
+		if ( SteamNative.NetworkingSockets.Initialize( ConnectionTimeout ) )
+		{
+			Log.Info( "Bootstrap Networking..." );
+			_appliedNetworkConditions = null;
+		}
 	}
 
 	/// <summary>
@@ -352,24 +325,9 @@ public static partial class Networking
 	/// Get the status of our connection to the Steam Datagram Relay service.
 	/// </summary>
 	/// <returns></returns>
-	internal static unsafe SteamNetworkingAvailability GetSteamRelayStatus( out string debugMsg )
+	internal static SteamNetworkingAvailability GetSteamRelayStatus( out string debugMsg )
 	{
-		var utils = Steam.SteamNetworkingUtils();
-		if ( !utils.IsValid )
-		{
-			debugMsg = "SteamNetworkingUtils is not initialized";
-			return SteamNetworkingAvailability.Unknown;
-		}
-
-		var buffer = new byte[256];
-
-		fixed ( byte* ptr = buffer )
-		{
-
-			var availability = Glue.Networking.GetRelayNetworkStatus( new( ptr ) );
-			debugMsg = Encoding.UTF8.GetString( buffer ).TrimEnd( '\0' );
-			return availability;
-		}
+		return SteamNative.NetworkingUtils.GetRelayNetworkStatus( out debugMsg );
 	}
 
 	/// <summary>
@@ -383,28 +341,13 @@ public static partial class Networking
 		LocalStats = default;
 	}
 
-	private static int? OldFakePacketLoss { get; set; }
-	private static int? OldFakeLag { get; set; }
+	private static (int Latency, int Loss)? _appliedNetworkConditions;
+
 	private static void UpdateFakeLag()
 	{
-		var utils = NativeEngine.Steam.SteamNetworkingUtils();
-		if ( !utils.IsValid ) return;
-
-
-		if ( OldFakePacketLoss != FakePacketLoss )
-		{
-			var clampedPacketLoss = FakePacketLoss.Clamp( 0, 100 );
-			utils.SetConfig( NetConfig.FakePacketLoss_Send, clampedPacketLoss );
-			utils.SetConfig( NetConfig.FakePacketLoss_Recv, clampedPacketLoss );
-			OldFakePacketLoss = FakePacketLoss;
-		}
-
-		if ( OldFakeLag == FakeLag )
-			return;
-
-		utils.SetConfig( NetConfig.FakePacketLag_Send, FakeLag );
-		utils.SetConfig( NetConfig.FakePacketLag_Recv, FakeLag );
-		OldFakeLag = FakeLag;
+		var conditions = (FakeLag, FakePacketLoss);
+		if ( _appliedNetworkConditions != conditions && SteamNative.NetworkingUtils.SetSimulatedNetworkConditions( FakeLag, FakePacketLoss ) )
+			_appliedNetworkConditions = conditions;
 	}
 
 	/// <summary>
@@ -455,7 +398,6 @@ public static partial class Networking
 
 		try
 		{
-			SteamNetwork.RunCallbacks();
 			System?.Tick();
 			System?.SendTableUpdates();
 			System?.SendHeartbeat();
@@ -627,10 +569,10 @@ public static partial class Networking
 			if ( token.IsCancellationRequested )
 				return false;
 
-			Log.Info( $"Server started! (SteamID: {Steam.SteamGameServer_GetSteamID()})" );
+			Log.Info( $"Server started! (SteamID: {SteamNative.GameServer.GetSteamId()})" );
 			if ( !HideAddress )
 			{
-				var publicIp = Steam.SteamGameServer().GetPublicIP();
+				var publicIp = SteamNative.GameServer.GetPublicIP();
 				Log.Info( $"\tPublic IP is {(string.IsNullOrEmpty( publicIp ) ? "unknown" : $"{publicIp}:{Port}")}" );
 			}
 
@@ -678,7 +620,7 @@ public static partial class Networking
 			if ( token.IsCancellationRequested )
 				return false;
 
-			Disconnect();
+			await DisconnectAfterLoad( ActiveSceneLoad(), token );
 			return false;
 		}
 
@@ -689,6 +631,26 @@ public static partial class Networking
 		AddLocalListenSocket( net );
 
 		return true;
+	}
+
+	/// <summary>
+	/// The load the active scene is in the middle of, or null. The host joins the game it hosts at a load's end
+	/// (<see cref="GameNetworkSystem.OnLoadedScene"/>), which is where a game spawns its player.
+	/// </summary>
+	static Task ActiveSceneLoad() => Game.ActiveScene is { } scene && scene.IsValid() && scene.IsLoading ? scene.WaitForLoading() : null;
+
+	/// <summary>
+	/// Disconnect after a lobby that couldn't be made, once <paramref name="load"/> (the active scene's, if it's loading) is
+	/// over. The host joins at the load's end: a lobby failing after the load leaves the host's player in the game, but
+	/// disconnecting during the load meant the host never joined and no player spawned. Which comes first is a race between
+	/// the lobby's answer and the map's load. Nothing happens if another lobby or a disconnect came meanwhile (<paramref name="token"/>).
+	/// </summary>
+	internal static async Task DisconnectAfterLoad( Task load, CancellationToken token )
+	{
+		if ( load is not null ) await Task.WhenAny( load );
+		if ( token.IsCancellationRequested ) return;
+
+		Disconnect();
 	}
 
 	/// <summary>

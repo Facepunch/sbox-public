@@ -103,7 +103,7 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 		}
 	}
 
-	static Superluminal _executeCommandList = new Superluminal( "ExecuteCommandList", Color.Cyan );
+	static readonly ProfileScope _executeCommandList = new( "Camera.ExecuteCommandList" );
 
 	/// <summary>
 	/// Custom command lists may read the normals G-buffer without declaring it. Keep it for those cameras.

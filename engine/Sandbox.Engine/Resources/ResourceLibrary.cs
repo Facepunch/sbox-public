@@ -243,16 +243,15 @@ public partial class ResourceSystem
 
 		_lastWeakPrune = 0;
 
-		var dead = WeakIndex.Where( kvp => !kvp.Value.TryGetTarget( out _ ) ).Select( kvp => kvp.Key ).ToList();
-		foreach ( var key in dead )
+		// Dictionary allows removing the current entry while enumerating, so the sweep allocates nothing
+		foreach ( var (key, weak) in WeakIndex )
 		{
-			WeakIndex.Remove( key );
+			if ( !weak.TryGetTarget( out _ ) ) WeakIndex.Remove( key );
 		}
 
-		var deadNative = WeakIndexLong.Where( kvp => !kvp.Value.TryGetTarget( out _ ) ).Select( kvp => kvp.Key ).ToList();
-		foreach ( var key in deadNative )
+		foreach ( var (key, weak) in WeakIndexLong )
 		{
-			WeakIndexLong.Remove( key );
+			if ( !weak.TryGetTarget( out _ ) ) WeakIndexLong.Remove( key );
 		}
 	}
 

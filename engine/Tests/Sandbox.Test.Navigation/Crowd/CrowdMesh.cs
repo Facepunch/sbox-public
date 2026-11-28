@@ -63,6 +63,24 @@ static class CrowdMesh
 		return id;
 	}
 
+	/// <summary>A corridor 40 wide from x 0 to 640, y 300 to 340: walls on both sides, room for two agents of radius 8 to pass.</summary>
+	public static NavMesh Corridor()
+	{
+		Vector3[] verts = [new( 0, 300, 1 ), new( 0, 340, 1 ), new( 640, 340, 1 ), new( 640, 300, 1 )];
+		var polys = new Poly[1];
+		polys[0].VertCount = 4;
+		polys[0].Area = 1;
+		for ( int j = 0; j < 4; j++ )
+		{
+			polys[0].Verts[j] = (ushort)j;
+			polys[0].Neis[j] = Poly.Wall;
+		}
+		var tile = new TileAssembler().Create( 0, 0, verts, polys, Settings(), out var error ) ?? throw new InvalidOperationException( error );
+		var mesh = new NavMesh( Settings(), NavMeshOptions.Create( Settings() ) );
+		mesh.CommitTiles( [tile] );
+		return mesh;
+	}
+
 	/// <summary>
 	/// An L-shaped floor round a wall corner at (280, 360): everything left of x 280 and everything
 	/// above y 360. The corner is cut off from (280, 348) to (292, 360), the way erosion rounds the

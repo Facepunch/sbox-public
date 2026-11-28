@@ -84,6 +84,10 @@ public sealed class DepthOfField : BasePostProcess<DepthOfField>
 	{
 		base.OnDisabled();
 
+		// The camera keeps this frame's layers until its next build: empty the list they hold, so it doesn't run with the
+		// buffers disposed below
+		command.Reset();
+
 		TileListBuffer?.Dispose();
 		TileListBuffer = null;
 

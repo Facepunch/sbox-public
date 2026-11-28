@@ -19,6 +19,7 @@ public static unsafe class Performance
 	public ref struct ScopeSection
 	{
 		internal Timings Source;
+		internal ProfileScope.Instance CpuSample;
 		// The scope that was open on this thread when this one opened, open again once this one closes.
 		internal Timings Outer;
 		internal FastTimer Timer;
@@ -30,6 +31,7 @@ public static unsafe class Performance
 		public void Dispose()
 		{
 			Source?.ScopeFinished( this );
+			CpuSample.Dispose();
 		}
 	}
 }

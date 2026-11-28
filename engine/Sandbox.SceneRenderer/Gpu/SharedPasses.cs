@@ -17,8 +17,8 @@ internal enum DepthResolveMode
 /// </summary>
 internal static class SharedPasses
 {
-	static readonly ComputeShader DepthResolveCompute = new( "shaders/depthresolve_cs.shader" );
-	static readonly Material DepthResolve = Material.FromShader( "shaders/depthresolve.shader" );
+	static ComputeShader DepthResolveCompute = new( "shaders/depthresolve_cs.shader" );
+	static Material DepthResolve = Material.FromShader( "shaders/depthresolve.shader" );
 
 	/// <summary>
 	/// The depth chain's target for a viewport this size: a temporary RG32F texture with every mip, never multisampled.

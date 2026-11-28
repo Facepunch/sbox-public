@@ -139,44 +139,42 @@ public class BindCollection
 	}
 
 	/// <summary>
-	/// Enumerate all actions that contain this button
+	/// Enumerate all actions that contain this button: this collection's, or with no actions set (an older project) its base's.
+	/// A struct, walked on every key press and release.
 	/// </summary>
-	internal IEnumerable<ActionBind> EnumerateWithButton( string button )
+	internal ButtonBinds EnumerateWithButton( string button )
 	{
-		//
-		// No actions set (older project) fall back to use common binds
-		//
-		if ( Actions.Count == 0 )
-		{
-			if ( Base == null )
-				yield break;
+		var collection = this;
+		while ( collection is { Actions.Count: 0 } ) collection = collection.Base;
+		return new ButtonBinds( collection, button );
+	}
 
-			foreach ( var action in Base.EnumerateWithButton( button ) )
+	internal readonly struct ButtonBinds( BindCollection collection, string button )
+	{
+		public Enumerator GetEnumerator() => new( collection, button );
+
+		public struct Enumerator( BindCollection collection, string button )
+		{
+			Dictionary<string, ActionBind>.Enumerator actions = collection is null ? default : collection.Actions.GetEnumerator();
+			readonly bool any = collection is not null;
+
+			public ActionBind Current { get; private set; }
+
+			public bool MoveNext()
 			{
-				yield return action;
+				if ( !any ) return false;
+
+				while ( actions.MoveNext() )
+				{
+					var action = actions.Current.Value;
+					if ( !action.HasButton( button ) ) continue;
+
+					Current = action;
+					return true;
+				}
+
+				return false;
 			}
-
-			yield break;
-		}
-
-		foreach ( var action in Actions )
-		{
-			//
-			// If this is a common action then check for the action set in the common collection instead.
-			// 
-			// I'm commenting this out for now since it's not letting people override the default binds
-			// - Carson
-			//if ( Base != null && action.Value.IsCommon && Base.Actions.TryGetValue( action.Key, out var common ) )
-			//{
-			//	if ( common.HasButton( button ) )
-			//		yield return common;
-
-			//	continue;
-			//}
-
-			if ( !action.Value.HasButton( button ) ) continue;
-
-			yield return action.Value;
 		}
 	}
 

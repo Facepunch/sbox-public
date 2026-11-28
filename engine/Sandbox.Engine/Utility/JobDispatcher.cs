@@ -13,7 +13,8 @@ namespace Sandbox;
 /// <para>
 /// Jobs run in the calling thread's execution context, so async locals such as the current
 /// <see cref="Engine.GlobalContext"/> are the caller's on every thread, and what a job changes in it doesn't leak back to
-/// the caller or into later jobs. When a job throws, no more are claimed, every running job is joined, and the first
+/// the caller or into later jobs. They run in the caller's <see cref="FloatingPointMode"/> too, so their results are the
+/// same whichever thread runs them, and however many there are. When a job throws, no more are claimed, every running job is joined, and the first
 /// exception is rethrown.
 /// </para>
 /// <para>
@@ -166,6 +167,7 @@ internal static class JobDispatcher
 		volatile bool failed;
 		Exception error;
 		ExecutionContext context;
+		uint floatingPointMode;
 		readonly object gate = new();
 
 		/// <summary>
@@ -197,9 +199,15 @@ internal static class JobDispatcher
 
 			// The caller's context as it stands, no copy, or an empty one when it suppressed flow
 			context = ExecutionContext.Capture() ?? EmptyContext.Value;
+
+			// Workers flush denormals exactly as the caller does, or bits of a result would depend on the thread
+			floatingPointMode = FloatingPointMode.Current;
 		}
 
 		bool Complete => Volatile.Read( ref done ) >= total || (failed && Volatile.Read( ref inside ) == 0);
+
+		/// <summary>Whether there's a range left to claim: a worker waking another for it isn't wasted.</summary>
+		internal bool HasWork => !failed && Volatile.Read( ref next ) < total;
 
 		/// <summary>
 		/// Claim the next range, or false when there's none left. Never moves past the end, so a late claim can't wrap.
@@ -258,6 +266,7 @@ internal static class JobDispatcher
 		{
 			try
 			{
+				FloatingPointMode.Set( floatingPointMode );
 				ExecutionContext.Run( context, WorkIn, this );
 			}
 			finally
@@ -372,12 +381,26 @@ internal static class JobDispatcher
 	/// The dispatcher's own threads, one fewer than there are cores, started on first use. They only ever run dispatcher
 	/// work, so nothing else blocking them can stall a frame, and they sleep on a last-in-first-out semaphore so the
 	/// threads that just ran are the ones woken, still warm.
+	/// <para>
+	/// The caller wakes only <see cref="CallerWakes"/> of them: a wake is a system call, and on a many-core machine waking
+	/// every worker from the main or render thread cost more than the work. Each worker that takes an entry whose batch
+	/// still has work wakes up to <see cref="WorkerWakes"/> more, so the rest join in a few steps, off the caller.
+	/// </para>
 	/// </summary>
 	[SkipHotload]
 	internal static class Workers
 	{
 		static readonly WorkQueue queue = new();
 		static readonly Lazy<Semaphore> semaphore = new( Start );
+
+		/// <summary>Workers the queuing thread wakes itself.</summary>
+		internal const int CallerWakes = 2;
+
+		/// <summary>Workers each woken worker wakes in turn, while wakes are owed and its batch has work left.</summary>
+		internal const int WorkerWakes = 2;
+
+		// Wakes owed for entries queued beyond the caller's own
+		static int owedWakes;
 
 		/// <summary>
 		/// How many worker threads there are.
@@ -394,7 +417,30 @@ internal static class JobDispatcher
 			if ( entries <= 0 ) return;
 
 			queue.Enqueue( batch, entries );
-			semaphore.Value.Release( entries );
+
+			// Owed first, so a worker woken below can pass them on
+			var now = Math.Min( entries, CallerWakes );
+			if ( entries > now ) Interlocked.Add( ref owedWakes, entries - now );
+			semaphore.Value.Release( now );
+		}
+
+		// Pass owed wakes on to sleeping workers, when the batch this worker took still has ranges to claim. Wakes owed
+		// for a batch with nothing left are dropped: whichever worker is awake takes its entries off the queue anyway.
+		static void PassOnWakes( Batch batch )
+		{
+			var owed = Volatile.Read( ref owedWakes );
+			while ( owed > 0 )
+			{
+				var take = Math.Min( owed, WorkerWakes );
+				var seen = Interlocked.CompareExchange( ref owedWakes, owed - take, owed );
+				if ( seen == owed )
+				{
+					if ( batch.HasWork ) semaphore.Value.Release( take );
+					return;
+				}
+
+				owed = seen;
+			}
 		}
 
 		static Semaphore Start()
@@ -419,7 +465,10 @@ internal static class JobDispatcher
 			while ( true )
 			{
 				while ( queue.TryDequeue( out var batch ) )
+				{
+					PassOnWakes( batch );
 					batch.RunQueued();
+				}
 
 				wait.Wait();
 			}

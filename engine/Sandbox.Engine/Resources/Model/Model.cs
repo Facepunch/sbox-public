@@ -90,6 +90,8 @@ public sealed partial class Model : Resource
 
 		MeshInfo = null;
 
+		Rendering.LightmapGeometry.Forget( this );
+
 		IToolsDll.Current?.RunEvent( "model.reload", this );
 
 		foreach ( var scene in Scene.AllIncludingUnlisted )

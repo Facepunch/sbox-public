@@ -229,7 +229,7 @@ public static partial class MenuUtility
 			//
 			if ( _friendList is null )
 			{
-				_friendList = Steamworks.SteamFriends.GetFriends().Select( x => new Friend( x ) ).ToList();
+				_friendList = Sandbox.SteamApi.SteamFriends.GetFriendIds().Select( id => new Friend( id ) ).ToList();
 			}
 
 			return _friendList;
@@ -454,7 +454,7 @@ public static partial class MenuUtility
 			.Select( x => ulong.TryParse( x, out var id ) ? id : 0 ).Where( x => x != 0 ).Distinct()
 			.Select( x => new Friend( x ) ).ToArray();
 		foreach ( var member in members )
-			Steamworks.SteamFriends.RequestUserInformation( member.Id );
+			Sandbox.SteamApi.SteamFriends.RequestUserInformation( member.Id );
 		return members;
 	}
 

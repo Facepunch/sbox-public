@@ -9,7 +9,7 @@
 [Hide]
 public class VolumetricFogController : Component, Component.ExecuteInEditor
 {
-	public Texture BakedFogTexture { get; set; }
+	[Property, Hide] public Texture BakedFogTexture { get; set; }
 	public float GlobalScale { get; set; } = 1.0f;
 
 	internal static void InitializeFromLegacy( GameObject go, Sandbox.MapLoader.ObjectEntry kv )

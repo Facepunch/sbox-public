@@ -1,11 +1,17 @@
 ﻿using Sandbox.Internal;
 using System;
+using Sandbox.Diagnostics;
 
 namespace Editor;
 
 
 internal static class ManagedTools
 {
+	static readonly ProfileScope CpuFrame = new( "Editor.ManagedFrame" );
+	static readonly ProfileScope CpuApplication = new( "Editor.ApplicationStartFrame" );
+	static readonly ProfileScope CpuFrameEvents = new( "Editor.FrameEvents" );
+	static readonly ProfileScope CpuThumbnails = new( "Editor.Thumbnails" );
+
 	/// <summary>
 	/// This gets set when the assemblies are changed, which means we may have new tools and menu options.
 	/// This ultimately triggers a tools.refresh on the next frame.
@@ -25,7 +31,7 @@ internal static class ManagedTools
 		// Init steam and log into the api
 		//
 		{
-			Steamworks.SteamClient.Init( (int)Sandbox.Application.AppId );
+			Sandbox.SteamApi.SteamClient.Init();
 			AccountLoginTask = AccountInformation.Update();
 		}
 
@@ -85,6 +91,8 @@ internal static class ManagedTools
 
 		while ( AccountLoginTask is not null && !AccountLoginTask.IsCompleted )
 		{
+			// The normal engine frame hasn't started pumping the login ticket callback yet.
+			SteamNative.Runtime.RunCallbacks();
 			Sandbox.Engine.IToolsDll.Current?.Spin();
 			System.Threading.Thread.Sleep( 16 );
 		}
@@ -97,7 +105,8 @@ internal static class ManagedTools
 
 	public static void RunFrame()
 	{
-		Application.StartFrame();
+		using var cpu = CpuFrame.Start();
+		using ( CpuApplication.Start() ) Application.StartFrame();
 
 		// Release all shortcut key states when the editor loses focus (alt-tab)
 		var isActive = EditorMainWindow.Current?.IsActiveWindow ?? false;
@@ -120,8 +129,8 @@ internal static class ManagedTools
 			BindSystem.Tick();
 		}
 
-		EditorEvent.Run( "tool.frame" );
-		AssetThumbnail.Frame();
+		using ( CpuFrameEvents.Start() ) EditorEvent.Run( "tool.frame" );
+		using ( CpuThumbnails.Start() ) AssetThumbnail.Frame();
 	}
 
 	public static void Shutdown()

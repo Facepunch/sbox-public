@@ -71,4 +71,11 @@ public abstract partial class ResourceCompiler
 		}
 	}
 
+	/// <summary>
+	/// Marks a compiler that never reads compiled outputs of other assets, so the content builder does not need to
+	/// describe its sources before scheduling them.
+	/// </summary>
+	[AttributeUsage( AttributeTargets.Class )]
+	internal sealed class NoCompiledReadsAttribute : System.Attribute;
+
 }

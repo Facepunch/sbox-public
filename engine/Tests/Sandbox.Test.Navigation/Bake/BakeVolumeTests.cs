@@ -1,4 +1,6 @@
 using System.Buffers;
+using System.Buffers.Binary;
+using System.Diagnostics;
 using System.Numerics;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
@@ -151,19 +153,167 @@ public class BakeVolumeTests
 		Assert.AreEqual( 0, Take( again ).Length );
 	}
 
-	[TestMethod]
-	public void VolumesCompareByValue()
+	static void BuildAll( NavMesh mesh, TileJob[] jobs )
 	{
-		var volume = new NavVolume { Shape = VolumeShape.Capsule, Area = 3, LocalToWorld = Matrix4x4.CreateRotationZ( 0.5f ), A = new Vector3( 1, 2, 3 ), B = new Vector3( 4, 5, 6 ), Radius = 7 };
-		var same = volume;
-		Assert.AreEqual( volume, same );
-		Assert.IsTrue( volume == same );
-		Assert.IsTrue( volume != default );
-		Assert.AreNotEqual( volume, volume with { Shape = VolumeShape.Sphere } );
-		Assert.AreNotEqual( volume, volume with { Area = 4 } );
-		Assert.AreNotEqual( volume, volume with { LocalToWorld = Matrix4x4.CreateRotationZ( 0.6f ) } );
-		Assert.AreNotEqual( volume, volume with { A = new Vector3( 1, 2, 4 ) } );
-		Assert.AreNotEqual( volume, volume with { B = new Vector3( 4, 6, 6 ) } );
-		Assert.AreNotEqual( volume, volume with { Radius = 7.5f } );
+		var builder = new NavBuilder();
+		foreach ( var job in jobs ) builder.Build( job, Vertices, Indices );
+		Assert.AreEqual( 0, mesh.Commit( jobs ) );
+	}
+
+	[TestMethod]
+	public void TileEmptiedByABlockerComesBackAfterLoad()
+	{
+		// The blocker takes all ground of tile 0,0: the tile has no polygons, only the volume set it was built with.
+		var mesh = new NavMesh( Settings, NavMeshOptions.Create( Settings ) );
+		var blocker = Blocker( 128, 128, 170 );
+		mesh.AddVolume( blocker );
+		Assert.AreEqual( 0, mesh.Build( new NavBuilder(), Vertices, Indices ) );
+		Assert.IsNull( mesh.State.Find( 0, 0 ) );
+		Assert.AreEqual( 3, mesh.GetStats().Tiles );
+		ulong hash = mesh.VolumeHashOf( 0, 0 );
+		Assert.AreNotEqual( 0ul, hash );
+		var writer = new ArrayBufferWriter<byte>();
+		Assert.IsTrue( mesh.Save( writer ) );
+		var bake = writer.WrittenSpan.ToArray();
+
+		// Four records: first the place without polygons, at 0,0, as its hash alone. One with a hash of 0 is refused.
+		const int Header = 56;
+		Assert.AreEqual( 4, BinaryPrimitives.ReadInt32LittleEndian( bake.AsSpan( Header - 4 ) ) );
+		CollectionAssert.AreEqual( new byte[] { 0, 0, 1, 0 }, bake[Header..(Header + 4)] );
+		Assert.AreEqual( hash, BinaryPrimitives.ReadUInt64LittleEndian( bake.AsSpan( Header + 4 ) ) );
+		var broken = bake.ToArray();
+		broken.AsSpan( Header + 4, 8 ).Clear();
+		Assert.IsNull( BakeTests.Load( broken ) );
+
+		// Loaded under the same blocker, nothing is built.
+		var same = BakeTests.Load( bake )!;
+		Assert.AreEqual( hash, same.VolumeHashOf( 0, 0 ) );
+		Assert.AreEqual( 3, same.GetStats().Tiles );
+		same.AddVolume( blocker );
+		Assert.AreEqual( 0, Take( same ).Length );
+		var again = new ArrayBufferWriter<byte>();
+		Assert.IsTrue( same.Save( again ) );
+		CollectionAssert.AreEqual( bake, again.WrittenSpan.ToArray(), "The loaded mesh bakes the same bytes" );
+
+		// Without the blocker the first take rebuilds the tile from geometry, and it is whole again.
+		var gone = BakeTests.Load( bake )!;
+		var jobs = Take( gone );
+		Assert.IsTrue( jobs.Any( j => (j.X, j.Y) == (0, 0) && j.NeedsGeometry ), "The emptied tile is rebuilt" );
+		BuildAll( gone, jobs );
+		Assert.IsNotNull( gone.State.Find( 0, 0 ) );
+		Assert.AreEqual( 0ul, gone.VolumeHashOf( 0, 0 ) );
+		Assert.AreEqual( 0, gone.PendingTiles );
+
+		// A smaller blocker after the load gives part of the tile back.
+		var shrunk = BakeTests.Load( bake )!;
+		shrunk.AddVolume( Blocker( 128, 128, 40 ) );
+		jobs = Take( shrunk );
+		Assert.IsTrue( jobs.Any( j => (j.X, j.Y) == (0, 0) ), "The emptied tile is rebuilt under the smaller blocker" );
+		BuildAll( shrunk, jobs );
+		Assert.IsTrue( Area( shrunk, 0, 0 ) > 0 && Area( shrunk, 0, 0 ) < Area( shrunk, 1, 1 ) );
+	}
+
+	static (ulong Hash, int Polygons) Place( NavMesh mesh, int x, int y ) => (mesh.VolumeHashOf( x, y ), mesh.State.Find( x, y )?.Polys.Length ?? 0);
+
+	[TestMethod]
+	public void SaveDuringCommitsPairsEveryTileWithItsOwnVolumeSet()
+	{
+		// An area over everything, so every tile has a volume set, and a blocker toggled on tile 0,0 while
+		// another thread saves: every bake holds tile 0,0 open with the open set or blocked with the blocked set.
+		var mesh = new NavMesh( Settings, NavMeshOptions.Create( Settings ) );
+		mesh.AddVolume( new NavVolume { Shape = VolumeShape.Box, Area = 5, LocalToWorld = Matrix4x4.Identity, A = new Vector3( -100, -100, -50 ), B = new Vector3( 600, 600, 50 ) } );
+		Assert.AreEqual( 0, mesh.Build( new NavBuilder(), Vertices, Indices ) );
+		var open = Place( mesh, 0, 0 );
+		int id = mesh.AddVolume( Blocker( 128, 128 ) );
+		BuildAll( mesh, Take( mesh ) );
+		var blocked = Place( mesh, 0, 0 );
+		Assert.AreNotEqual( open.Hash, blocked.Hash );
+		Assert.AreNotEqual( open.Polygons, blocked.Polygons );
+
+		bool stop = false;
+		int saves = 0;
+		string? wrong = null;
+		var saver = new Thread( () =>
+		{
+			var writer = new ArrayBufferWriter<byte>();
+			while ( !Volatile.Read( ref stop ) )
+			{
+				writer.Clear();
+				if ( !mesh.Save( writer ) ) wrong ??= "Save refused";
+				var place = Place( BakeTests.Load( writer.WrittenSpan )!, 0, 0 );
+				if ( place != open && place != blocked ) wrong ??= $"{place} is neither {open} nor {blocked}";
+				saves++;
+			}
+		} );
+		saver.Start();
+		var watch = Stopwatch.StartNew();
+		int toggles = 0;
+		for ( ; watch.ElapsedMilliseconds < 500 || saves < 50; toggles++ )
+		{
+			if ( id >= 0 )
+			{
+				mesh.RemoveVolume( id );
+				id = -1;
+			}
+			else id = mesh.AddVolume( Blocker( 128, 128 ) );
+			BuildAll( mesh, Take( mesh ) );
+		}
+		Volatile.Write( ref stop, true );
+		saver.Join();
+		Assert.IsNull( wrong, $"{wrong}: {toggles} toggles, {saves} saves" );
+	}
+
+	[TestMethod]
+	public void VolumeHashIsTheOneBakesFromBeforeDecision77Have()
+	{
+		// FNV-1a as Fnv.Hash makes it over shape, area, the matrix, A, B, radius and a margin of 0 (98 bytes),
+		// worked out by hand: an area volume, or a blocker that had no margin, keeps the hash its old bakes hold.
+		var mesh = new NavMesh( Settings, NavMeshOptions.Create( Settings ) );
+		mesh.AddVolume( new NavVolume { Shape = VolumeShape.Box, Area = 3, LocalToWorld = Matrix4x4.CreateTranslation( 100, 200, 0 ), A = new Vector3( -10, -20, -30 ), B = new Vector3( 10, 20, 30 ) } );
+		Assert.AreEqual( 0, mesh.Build( new NavBuilder(), Vertices, Indices ) );
+		Assert.AreEqual( 0xFE421582EAC58527ul, mesh.VolumeHashOf( 0, 0 ) );
+	}
+
+	[TestMethod]
+	public void MarginIsHashedWhereItWasBeforeDecision77()
+	{
+		// A margin of 0 set on purpose is the hash above. A margin of 16 is the hash worked out by hand over the same
+		// bytes with 16 as the last float, as bakes from before decision 77 hold it
+		var volume = new NavVolume { Shape = VolumeShape.Box, Area = 3, LocalToWorld = Matrix4x4.CreateTranslation( 100, 200, 0 ), A = new Vector3( -10, -20, -30 ), B = new Vector3( 10, 20, 30 ) };
+		static ulong HashOf( NavVolume v )
+		{
+			var mesh = new NavMesh( Settings, NavMeshOptions.Create( Settings ) );
+			mesh.AddVolume( v );
+			Assert.AreEqual( 0, mesh.Build( new NavBuilder(), Vertices, Indices ) );
+			return mesh.VolumeHashOf( 0, 0 );
+		}
+		Assert.AreEqual( 0xFE421582EAC58527ul, HashOf( volume with { Margin = 0 } ) );
+		Assert.AreEqual( 0xFC8F5482E9545BB4ul, HashOf( volume with { Margin = 16 } ) );
+	}
+
+	[TestMethod]
+	public void BlockerWithAMarginKeepsItsTilesAfterLoad()
+	{
+		var mesh = new NavMesh( Settings, NavMeshOptions.Create( Settings ) );
+		var blocker = Blocker( 128, 128 ) with { Margin = 16 };
+		mesh.AddVolume( blocker );
+		Assert.AreEqual( 0, mesh.Build( new NavBuilder(), Vertices, Indices ) );
+		Assert.IsTrue( Area( mesh, 0, 0 ) < Area( mesh, 1, 1 ) - 112 * 112 + 80 * 80 / 2, "The margin cut more of the tile" );
+		var writer = new ArrayBufferWriter<byte>();
+		Assert.IsTrue( mesh.Save( writer ) );
+
+		// Under the same blocker nothing is built; without its margin the tile is built again
+		var same = BakeTests.Load( writer.WrittenSpan )!;
+		same.AddVolume( blocker );
+		Assert.AreEqual( 0, Take( same ).Length );
+		Assert.AreEqual( Area( mesh, 0, 0 ), Area( same, 0, 0 ) );
+
+		var smaller = BakeTests.Load( writer.WrittenSpan )!;
+		smaller.AddVolume( blocker with { Margin = 0 } );
+		var jobs = Take( smaller );
+		Assert.AreEqual( 1, jobs.Length );
+		Assert.AreEqual( (0, 0), (jobs[0].X, jobs[0].Y) );
+		BuildAll( smaller, jobs );
+		Assert.IsTrue( Area( smaller, 0, 0 ) > Area( mesh, 0, 0 ) + 100 * 100 - 80 * 80, $"{Area( smaller, 0, 0 )} against {Area( mesh, 0, 0 )}" );
 	}
 }

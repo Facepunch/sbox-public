@@ -2,10 +2,8 @@ using System.Numerics;
 
 namespace Nav;
 
-/// <summary>
-/// The last step of a tile build: writes the polygons in tree order, builds the tree over them and lists
-/// the edges on the tile border. Holds scratch, so keep one per builder.
-/// </summary>
+// The last step of a tile build: writes the polygons in tree order, builds the tree over them and lists
+// the edges on the tile border. Holds scratch, so keep one per builder.
 internal sealed class TileAssembler
 {
 	Vector3[] mins = [], maxs = [];
@@ -13,11 +11,9 @@ internal sealed class TileAssembler
 	int[] order = [], remap = [];
 	BvNode[] nodes = [];
 
-	/// <summary>
-	/// Per polygon six vertex indices, clockwise seen from above with the unused ones Poly.Wall, six
-	/// neighbours as Poly.Neis holds them, and an area. Keeps verts as the tile's vertices. Returns null
-	/// and the reason when a limit is exceeded.
-	/// </summary>
+	// Per polygon six vertex indices, clockwise seen from above with the unused ones Poly.Wall, six
+	// neighbours as Poly.Neis holds them, and an area. Keeps verts as the tile's vertices. Returns null
+	// and the reason when a limit is exceeded.
 	public Tile? Create( int x, int y, Vector3[] verts, ReadOnlySpan<ushort> polyVerts, ReadOnlySpan<ushort> neighbours, ReadOnlySpan<byte> areas, in NavSettings settings, out string? error )
 	{
 		int count = areas.Length, limit = settings.MaxTilePolygons;

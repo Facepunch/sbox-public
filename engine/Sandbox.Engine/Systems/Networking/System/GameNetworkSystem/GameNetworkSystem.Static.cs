@@ -1,7 +1,6 @@
 ﻿using NativeEngine;
 using Sandbox.Engine;
-using Steamworks;
-using Steamworks.Data;
+using Sandbox.SteamApi;
 using System.Threading;
 
 namespace Sandbox.Network;
@@ -165,8 +164,7 @@ internal static class DedicatedServer
 	internal static SteamNetwork.IdListenSocket IdSocket { get; private set; }
 
 	private static bool IsGameServerActive { get; set; }
-	private static bool Initialized { get; set; }
-	private static Task<bool> _steamLogOn;
+	private static TaskCompletionSource<bool> _steamLogOn;
 
 	private static Dictionary<string, string> _data = new();
 	private static string _mapName;
@@ -186,8 +184,7 @@ internal static class DedicatedServer
 		get => _name;
 		set
 		{
-			var sgs = Steam.SteamGameServer();
-			if ( !sgs.IsValid || !Networking.IsHost )
+			if ( !SteamNative.GameServer.IsAvailable() || !Networking.IsHost )
 			{
 				_name = value;
 				return;
@@ -196,8 +193,8 @@ internal static class DedicatedServer
 			if ( _name == value )
 				return;
 
-			sgs.SetServerName( value );
-			sgs.SetAdvertiseServerActive( true );
+			SteamNative.GameServer.SetServerName( value );
+			SteamNative.GameServer.SetAdvertiseServerActive( true );
 
 			_name = value;
 		}
@@ -211,8 +208,7 @@ internal static class DedicatedServer
 		get => _passwordProtected;
 		set
 		{
-			var sgs = Steam.SteamGameServer();
-			if ( !sgs.IsValid || !Networking.IsHost )
+			if ( !SteamNative.GameServer.IsAvailable() || !Networking.IsHost )
 			{
 				_passwordProtected = value;
 				return;
@@ -221,8 +217,8 @@ internal static class DedicatedServer
 			if ( _passwordProtected == value )
 				return;
 
-			sgs.SetPasswordProtected( value );
-			sgs.SetAdvertiseServerActive( true );
+			SteamNative.GameServer.SetPasswordProtected( value );
+			SteamNative.GameServer.SetAdvertiseServerActive( true );
 
 			_passwordProtected = value;
 		}
@@ -236,8 +232,7 @@ internal static class DedicatedServer
 		get => _mapName;
 		set
 		{
-			var sgs = Steam.SteamGameServer();
-			if ( !sgs.IsValid || !Networking.IsHost )
+			if ( !SteamNative.GameServer.IsAvailable() || !Networking.IsHost )
 			{
 				_mapName = value;
 				return;
@@ -246,46 +241,24 @@ internal static class DedicatedServer
 			if ( _mapName == value )
 				return;
 
-			sgs.SetMapName( value );
-			sgs.SetAdvertiseServerActive( true );
+			SteamNative.GameServer.SetMapName( value );
+			SteamNative.GameServer.SetAdvertiseServerActive( true );
 
 			_mapName = value;
 		}
 	}
 
-	/// <summary>
-	/// Log a warning if the tags string is too long.
-	/// </summary>
-	private static void LogTagsLengthWarning( string tagsString )
-	{
-		if ( tagsString.Length <= 128 )
-			return;
-
-		var lost = tagsString[128..];
-		Log.Warning( $"Steam game tags exceed 128 char limit ({tagsString.Length} chars). Data dropped: \"{lost}\"" );
-	}
+	static string GameTags => string.Join( ",", _data.Select( kv => $"{kv.Key}:{kv.Value}" ) );
 
 	/// <summary>
 	/// Set data for this dedicated server. This data is used when querying or filtering servers. Uses game tags
-	/// internally, which have a hardcoded character limit enforced by Steam.
+	/// internally, which the native wrapper limits to the Steam UTF-8 buffer size.
 	/// </summary>
 	public static void SetData( string key, string value )
 	{
-		var sgs = Steam.SteamGameServer();
-		if ( !sgs.IsValid || !Networking.IsHost )
-		{
-			_data[key] = value;
-			return;
-		}
-
 		_data[key] = value;
-
-		var tagsString = string.Join( ",", _data.Select( kv => $"{kv.Key}:{kv.Value}" ) );
-
-		if ( tagsString.Length > 128 )
-			LogTagsLengthWarning( tagsString );
-
-		sgs.SetGameTags( tagsString[..Math.Min( 128, tagsString.Length )] );
+		if ( Networking.IsHost && SteamNative.GameServer.IsAvailable() )
+			SteamNative.GameServer.SetGameTags( GameTags );
 	}
 
 	/// <summary>
@@ -298,17 +271,6 @@ internal static class DedicatedServer
 
 	public static async Task<bool> Start( LobbyConfig config )
 	{
-		if ( !Initialized )
-		{
-			Dispatch.Install<SteamServersConnected_t>( OnConnected, true );
-			Dispatch.Install<SteamServerConnectFailure_t>( OnConnectionFailed, true );
-			Dispatch.Install<SteamServersDisconnected_t>( OnDisconnected, true );
-			Dispatch.Install<ValidateAuthTicketResponse_t>( SteamNetwork.SocketConnection.OnValidateAuthTicket, false );
-			Dispatch.Install<ValidateAuthTicketResponse_t>( SteamNetwork.SocketConnection.OnValidateAuthTicket, true );
-
-			Initialized = true;
-		}
-
 		if ( !IsGameServerActive )
 		{
 			await LogOnToSteamAsync();
@@ -317,8 +279,7 @@ internal static class DedicatedServer
 			// Conna: we can abstract this stuff out later, but for now we only use Steam networking for dedicated servers.
 			if ( Networking.HideAddress )
 			{
-				var sns = Steam.SteamNetworkingSockets();
-				sns.BeginRequestFakeIP();
+				SteamNative.NetworkingSockets.BeginAsyncRequestFakeIP();
 			}
 		}
 
@@ -354,23 +315,8 @@ internal static class DedicatedServer
 				_data[kvp.Key] = kvp.Value;
 			}
 
-			var tagsString = string.Join( ",", _data.Select( kv => $"{kv.Key}:{kv.Value}" ) );
-
-			if ( tagsString.Length > 128 )
-				LogTagsLengthWarning( tagsString );
-
-			var sgs = Steam.SteamGameServer();
-			sgs.SetGameDescription( gameTitle );
-			sgs.SetGameTags( tagsString[..Math.Min( 128, tagsString.Length )] );
-			sgs.SetMaxPlayerCount( config.MaxPlayers );
-			sgs.SetProduct( "sbox" );
-			sgs.SetModDir( "sbox" );
-			sgs.SetDedicatedServer( true );
-			sgs.SetServerName( hostname );
-			sgs.SetMapName( mapName );
-
 			var passwordProtected = Networking.System?.Access.HasPassword ?? false;
-			sgs.SetPasswordProtected( passwordProtected );
+			SteamNative.GameServer.SetAdvertisement( gameTitle, hostname, mapName, config.MaxPlayers, passwordProtected, GameTags );
 
 			Networking.UpdateServerName( hostname );
 			Networking.MaxPlayers = config.MaxPlayers;
@@ -380,27 +326,9 @@ internal static class DedicatedServer
 			_name = hostname;
 			_passwordProtected = passwordProtected;
 
-			if ( !IsGameServerActive && !sgs.BLoggedOn() )
-			{
-				if ( !string.IsNullOrEmpty( Networking.GameServerToken ) )
-					sgs.LogOn( Networking.GameServerToken );
-				else
-					sgs.LogOnAnonymous();
-			}
+			if ( !await LogOnToSteamAsync() ) return false;
 
-			var timeout = TimeSpan.FromSeconds( 10f );
-			using var timeoutSource = new CancellationTokenSource( timeout );
-			var delay = TimeSpan.FromMilliseconds( 100 );
-
-			while ( !sgs.BLoggedOn() )
-			{
-				if ( timeoutSource.IsCancellationRequested )
-					return false;
-
-				await Task.Delay( delay, timeoutSource.Token );
-			}
-
-			sgs.SetAdvertiseServerActive( true );
+			SteamNative.GameServer.SetAdvertiseServerActive( true );
 
 			IpSocket ??= new SteamNetwork.IpListenSocket
 			{
@@ -433,66 +361,63 @@ internal static class DedicatedServer
 	/// Bring up the Steam game server and log on. The server's packages install from the workshop
 	/// before the server is started, so they call this too. Returns false if we couldn't log on.
 	/// </summary>
-	internal static Task<bool> LogOnToSteamAsync()
+	internal static async Task<bool> LogOnToSteamAsync()
 	{
-		return _steamLogOn ??= LogOnToSteamInternalAsync();
-	}
+		if ( !ThreadSafe.IsMainThread ) await MainThread.Wait();
+		if ( _steamLogOn is { } pending ) return await pending.Task;
 
-	static async Task<bool> LogOnToSteamInternalAsync()
-	{
-		Steam.SteamGameServer_Init( Networking.Port, Networking.QueryPort, "1.0.0.0" );
-
-		EngineFileSystem.DownloadedFiles.CreateDirectory( "/workshop" );
-		if ( !CUgcSubscriptions.InitWorkshopForGameServer( EngineFileSystem.DownloadedFiles.GetFullPath( "/workshop" ) ) )
+		if ( !SteamNative.GameServer.IsAvailable() )
 		{
-			Log.Warning( "Couldn't initialize the workshop for the game server" );
+			SteamNative.GameServer.Initialize( Networking.Port, Networking.QueryPort, "1.0.0.0" );
+			if ( !SteamNative.GameServer.IsAvailable() ) return false;
+
+			EngineFileSystem.DownloadedFiles.CreateDirectory( "/workshop" );
+			if ( !SteamNative.Workshop.InitWorkshopForGameServer( EngineFileSystem.DownloadedFiles.GetFullPath( "/workshop" ) ) )
+				Log.Warning( "Couldn't initialize the workshop for the game server" );
+
+			SteamNative.GameServer.ConfigureDedicatedServer( Application.GamePackage?.Title ?? "s&box" );
 		}
 
-		var sgs = Steam.SteamGameServer();
-		if ( !sgs.IsValid )
+		if ( SteamNative.GameServer.IsLoggedOn() ) return true;
+
+		var completion = new TaskCompletionSource<bool>( TaskCreationOptions.RunContinuationsAsynchronously );
+		_steamLogOn = completion;
+
+		try
+		{
+			SteamNative.GameServer.LogOn( Networking.GameServerToken );
+			return await completion.Task.WaitAsync( TimeSpan.FromSeconds( 10 ) );
+		}
+		catch ( TimeoutException )
+		{
+			Log.Warning( "Timed out waiting for Steam game server logon." );
 			return false;
-
-		// These can only be set before logging on
-		sgs.SetProduct( "sbox" );
-		sgs.SetModDir( "sbox" );
-		sgs.SetDedicatedServer( true );
-		sgs.SetGameDescription( Application.GamePackage?.Title ?? "s&box" );
-
-		if ( !string.IsNullOrEmpty( Networking.GameServerToken ) )
-			sgs.LogOn( Networking.GameServerToken );
-		else
-			sgs.LogOnAnonymous();
-
-		var timeout = RealTime.Now + 10.0f;
-		while ( !sgs.BLoggedOn() )
-		{
-			if ( RealTime.Now > timeout )
-			{
-				Log.Warning( "Unable to log on to Steam in a reasonable time!" );
-				return false;
-			}
-
-			await Task.Delay( 100 );
 		}
-
-		return true;
+		finally
+		{
+			completion.TrySetResult( false );
+			if ( _steamLogOn == completion ) _steamLogOn = null;
+		}
 	}
 
-	private static void OnConnected( SteamServersConnected_t cb )
+	internal static void OnConnected()
 	{
-		Log.Warning( $"Connected to Steam" );
+		_steamLogOn?.TrySetResult( true );
+		Log.Info( "Connected to Steam" );
 
 		Utility.Steam.InitializeClient();
 	}
 
-	private static void OnDisconnected( SteamServersDisconnected_t cb )
+	internal static void OnDisconnected( Result result )
 	{
-		Log.Warning( $"Connection to Steam Disconnected: {cb.Result}" );
+		_steamLogOn?.TrySetResult( false );
+		Log.Warning( $"Connection to Steam Disconnected: {result}" );
 	}
 
-	private static void OnConnectionFailed( SteamServerConnectFailure_t cb )
+	internal static void OnConnectionFailed( Result result, bool stillRetrying )
 	{
-		Log.Warning( $"Connection to Steam Failed: {cb.Result}" );
+		if ( !stillRetrying ) _steamLogOn?.TrySetResult( false );
+		Log.Warning( $"Connection to Steam Failed: {result} (retrying: {stillRetrying})" );
 	}
 
 	public static void Hide()
@@ -500,17 +425,19 @@ internal static class DedicatedServer
 		if ( !IsGameServerActive )
 			return;
 
-		var sgs = Steam.SteamGameServer();
 
-		if ( sgs.IsValid )
+		if ( SteamNative.GameServer.IsAvailable() )
 		{
-			sgs.SetAdvertiseServerActive( false );
+			SteamNative.GameServer.SetAdvertiseServerActive( false );
 		}
 	}
 
 	public static void Shutdown()
 	{
-		if ( !IsGameServerActive )
+		_steamLogOn?.TrySetResult( false );
+		_steamLogOn = null;
+
+		if ( !IsGameServerActive && !SteamNative.GameServer.IsAvailable() )
 			return;
 
 		IdSocket?.Dispose();
@@ -521,11 +448,11 @@ internal static class DedicatedServer
 
 		try
 		{
-			var sgs = Steam.SteamGameServer();
 
-			if ( sgs.IsValid )
+
+			if ( SteamNative.GameServer.IsAvailable() )
 			{
-				sgs.LogOff();
+				SteamNative.GameServer.LogOff();
 			}
 		}
 		catch ( Exception e )
@@ -533,8 +460,10 @@ internal static class DedicatedServer
 			Log.Error( e );
 		}
 
-		Steam.SteamGameServer_Shutdown();
+		if ( Application.IsDedicatedServer )
+			Services.Ugc.CancelDownloads();
+
+		SteamNative.GameServer.Shutdown();
 		IsGameServerActive = false;
-		_steamLogOn = null;
 	}
 }
