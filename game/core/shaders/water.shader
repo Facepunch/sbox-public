@@ -185,6 +185,37 @@ PS
 	// A WaterBody draws the surface twice, the underside with flipped winding, so each draw shows one side.
 	RenderState( CullMode, BACK );
 
+	#include "common/classes/WaterHoles.hlsl"
+	// This body's holes, binned by WaterHoleGrid on the surface plane into square cells, hashed into buckets.
+	// Bucket b holds WaterHoleIndices[WaterHoleStarts[b] .. WaterHoleStarts[b + 1]); the bucket after the last
+	// holds footprints too large to bin, which every pixel tests.
+	StructuredBuffer<WaterHoleData> WaterHoleBoxes < Attribute( "WaterHoles" ); >;
+	StructuredBuffer<uint> WaterHoleStarts < Attribute( "WaterHoleStarts" ); >;
+	StructuredBuffer<uint> WaterHoleIndices < Attribute( "WaterHoleIndices" ); >;
+	int WaterHoleCount < Attribute( "WaterHoleCount" ); Default( 0 ); >;
+	float WaterHoleGridInverseCell < Attribute( "WaterHoleGridInverseCell" ); >;
+	int WaterHoleGridMask < Attribute( "WaterHoleGridMask" ); >;
+
+	bool InWaterHoleBucket( float3 position, uint bucket )
+	{
+		uint end = WaterHoleStarts[bucket + 1];
+		for ( uint k = WaterHoleStarts[bucket]; k < end; k++ )
+		{
+			if ( WaterHoles::BoxContains( WaterHoleBoxes[WaterHoleIndices[k]], position ) )
+				return true;
+		}
+		return false;
+	}
+
+	bool InWaterHole( float3 position )
+	{
+		if ( WaterHoleCount <= 0 )
+			return false;
+
+		uint bucket = WaterHoles::Bucket( WaterLocal( position ).xy, WaterHoleGridInverseCell, (uint)WaterHoleGridMask );
+		return InWaterHoleBucket( position, bucket ) || InWaterHoleBucket( position, (uint)WaterHoleGridMask + 1 );
+	}
+
 	bool HasRefractionTexture < Attribute( "HasRefractionTexture" ); Default( 0 ); >;
 	bool HasPlanarReflection < Attribute( "HasPlanarReflection" ); Default( 0 ); >;
 	bool ReflectionEnabled < Attribute( "ReflectionEnabled" ); Default( 1 ); >;
@@ -266,6 +297,8 @@ PS
 		m.Normal = underwater ? -normal : normal;
 		m.Roughness = max( 0.001, g_fRoughness );
 		float4 overlay = SampleWaterOverlays( point, normal, m.Roughness );
+		// Discard after the derivatives above, so pixels beside a hole keep their quad's neighbours.
+		clip( InWaterHole( m.WorldPosition ) ? -1 : 1 );
 		if ( DepthNormals::WantsDepthNormals() )
 			return DepthNormals::Output( m.Normal, m.Roughness, 1 );
 

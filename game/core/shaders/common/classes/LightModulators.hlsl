@@ -4,6 +4,7 @@
 #include "common/Bindless.hlsl"
 #include "common_samplers.fxc"
 #include "common.fxc"
+#include "common/classes/WaterHoles.hlsl"
 
 // Scalar-layout mirror of LightModulatorData. Rectangles belong to the scene, not the camera.
 struct LightModulatorRectangle
@@ -33,6 +34,7 @@ struct LightModulatorRectangle
     float4 EffectParameters;
     int WorldSizedUVs;
     int Infinite;
+    int MaskWaterHoles;
 };
 
 StructuredBuffer<LightModulatorRectangle> LightModulatorRectangles < Attribute( "LightModulatorRectangles" ); >;
@@ -137,6 +139,11 @@ struct LightModulators
             return 1.0f;
 
         float3 relative = position + toLight * distance - rect.Origin;
+
+        // Light crossing the plane inside a water hole passed through air, not the water.
+        if ( rect.MaskWaterHoles != 0 && WaterHoles::SceneContains( rect.Origin + relative ) )
+            return 1.0f;
+
         float2 projected = float2( dot( relative, rect.U ), dot( relative, rect.V ) ) * float2( 1.0f, -1.0f );
         float2 uv = projected + 0.5f;
 

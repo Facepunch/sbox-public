@@ -119,7 +119,7 @@ public sealed partial class WaterBody
 				}
 				fraction = (low + high) * 0.5f;
 				position = Vector3.Lerp( start, end, fraction );
-				return true;
+				return InFootprint( position );
 			}
 			t = next;
 			previous = depth;

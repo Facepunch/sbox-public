@@ -113,6 +113,7 @@ public sealed partial class WaterBody : Component, Component.ExecuteInEditor
 		SetReflectionAttributes( attributes );
 		UpdateReflectionPlane( attributes );
 		SetOverlayAttributes( attributes );
+		SetHoleAttributes( attributes );
 	}
 
 	/// <summary>
@@ -254,6 +255,7 @@ public sealed partial class WaterBody : Component, Component.ExecuteInEditor
 		_captureExclusions = null;
 		_reflectionSkies.Clear();
 		DestroyOverlays();
+		DestroyHoles();
 		_boundsUndoScope?.Dispose();
 		_boundsUndoScope = null;
 		_boundsDragFrame = null;

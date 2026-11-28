@@ -54,6 +54,7 @@ public sealed partial class WaterBody
 		}
 		_caustics.Size = new Vector2( MathF.Abs( Size.y * WorldScale.y ), MathF.Abs( Size.x * WorldScale.x ) );
 		_caustics.Infinite = Ocean;
+		_caustics.MaskWaterHoles = true;
 		_caustics.TwoSided = true;
 		_caustics.WorldSizedUVs = true;
 		_caustics.EdgeFeather = 0.015f;
