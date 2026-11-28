@@ -277,7 +277,11 @@ public static partial class AssetSystem
 
 		// Make sure the ResoureLibrary has proper loaded version, so that properties that target
 		// GameResources do not break child assets if child asset was not loaded with Asset.CreateUI beforehand.
-		ret.TryLoadGameResource( typeof( GameResource ), out _, true );
+		ret.TryLoadGameResource( typeof( GameResource ), out var resource, true );
+
+		// Registering recompiles an outdated asset, e.g. one changed while the editor was closed, but a resource that's
+		// already loaded keeps its old data until the file watchers catch up - after last session's scenes are reopened.
+		ResourceLoader.LoadIfRecompiled( resource, ret.AbsoluteCompiledPath, ret.AbsoluteSourcePath );
 
 		return ret;
 	}
