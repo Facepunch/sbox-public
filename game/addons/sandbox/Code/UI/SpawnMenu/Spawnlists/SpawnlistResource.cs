@@ -171,6 +171,7 @@ public class SpawnlistResource : GameResource
 	public static IEnumerable<SpawnlistResource> GetVisible()
 	{
 		return ResourceLibrary.GetAll<SpawnlistResource>()
+			.Concat( MountedSpawnlists.Build() )
 			.Where( x => !x.HideInSidebar && x.ShouldShow() )
 			.OrderBy( x => x.Order )
 			.ThenBy( x => x.DisplayName, StringComparer.OrdinalIgnoreCase );

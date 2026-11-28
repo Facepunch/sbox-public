@@ -69,4 +69,33 @@ public ref struct InitializeContext
 
 		return system.Steam?.GetFileSystem( appid );
 	}
+
+	/// <summary>
+	/// If this app is installed and has downloaded Workshop content, return a read-only virtual filesystem
+	/// rooted at it, one folder per Workshop item. Returns null otherwise. Like <see cref="GetFileSystem"/>,
+	/// the mount never sees a real disk path.
+	/// </summary>
+	public BaseFileSystem GetWorkshopFileSystem( long appid )
+	{
+		if ( !IsAppInstalled( appid ) ) return null;
+
+		if ( system.IsDedicatedServer )
+			return OpenWorkshopContent( ServerInstallPath, appid );
+
+		return system.Steam?.GetWorkshopFileSystem( appid );
+	}
+
+	/// <summary>
+	/// Steam keeps an app's Workshop content in the library the app is installed in:
+	/// steamapps/common/&lt;game&gt; sits next to steamapps/workshop/content/&lt;appid&gt;.
+	/// </summary>
+	internal static BaseFileSystem OpenWorkshopContent( string installPath, long appid )
+	{
+		if ( string.IsNullOrWhiteSpace( installPath ) ) return null;
+
+		var content = System.IO.Path.GetFullPath( System.IO.Path.Combine( installPath, "..", "..", "workshop", "content", appid.ToString() ) );
+		if ( !System.IO.Directory.Exists( content ) ) return null;
+
+		return new LocalFileSystem( content, makereadonly: true );
+	}
 }

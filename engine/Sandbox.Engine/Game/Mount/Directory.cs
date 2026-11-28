@@ -625,6 +625,12 @@ class SteamIntegration : ISteamIntegration
 		return new LocalFileSystem( dir, makereadonly: true );
 	}
 
+	public BaseFileSystem GetWorkshopFileSystem( long appid )
+	{
+		// Read-only and rooted at the Workshop content folder, like the install dir above.
+		return InitializeContext.OpenWorkshopContent( SteamNative.Apps.GetAppInstallDir( (int)appid ), appid );
+	}
+
 	public bool IsAppInstalled( long appid )
 	{
 		return SteamNative.Apps.IsInstalled( (int)appid );
