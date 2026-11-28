@@ -30,10 +30,16 @@ namespace Sandbox
 					return root;
 				}
 
-				_roots.Add( member, root = new ReferencePath( null, member ) );
-
-				return root;
+				// Atomic: a separate check and Add throws when two threads ask for the same new root.
+				return _roots.GetValue( member, m => new ReferencePath( null, m ) );
 			}
+
+			/// <summary>
+			/// Drops every path. Called after each hotload: paths are only for diagnosing that hotload, and a kept tree
+			/// pinned unloaded assemblies. A child keyed by a long-lived member (an engine type, say) stays reachable
+			/// through its weakly keyed table, and its <see cref="Parent"/> chain held every outgoing field above it.
+			/// </summary>
+			internal static void Clear() => _roots.Clear();
 
 			public ReferencePath Parent { get; }
 			public MemberInfo Member { get; }
