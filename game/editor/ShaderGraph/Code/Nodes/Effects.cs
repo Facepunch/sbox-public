@@ -43,6 +43,6 @@ public sealed class Fresnel : ShaderNode
 		var direction = Direction.IsValid ? compiler.Result( Direction ).Cast( 3 ) :
 			$"CalculatePositionToCameraDirWs( {(compiler.IsVs ? "i.vPositionWs.xyz" : "i.vPositionWithOffsetWs.xyz + g_vHighPrecisionLightingOffsetWs.xyz")} )";
 
-		return new( 3, $"pow( 1.0 - dot( normalize( {normal} ), normalize( {direction} ) ), {power} )" );
+		return new( NodeResultType.Vector3, $"pow( 1.0 - dot( normalize( {normal} ), normalize( {direction} ) ), {power} )" );
 	};
 }
