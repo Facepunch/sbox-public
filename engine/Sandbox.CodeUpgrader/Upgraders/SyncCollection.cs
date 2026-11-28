@@ -21,31 +21,18 @@ public sealed class SyncCollectionAnalyzer : Analyzer
 
 		var type = property.Type;
 		// NetList/NetDictionary implement this engine-internal change-tracking interface.
-		if ( Implements( type, context.Compilation, "Sandbox.INetworkSerializer" ) ) return;
+		if ( SymbolHelpers.Implements( type, context.Compilation, "Sandbox.INetworkSerializer" ) ) return;
 
 		// Match NetworkTable.Entry.Init: only non-generic collection contracts opt into polling.
 		string replacement;
-		if ( Implements( type, context.Compilation, "System.Collections.IDictionary" ) )
+		if ( SymbolHelpers.Implements( type, context.Compilation, "System.Collections.IDictionary" ) )
 			replacement = "NetDictionary<TKey, TValue>";
-		else if ( type is IArrayTypeSymbol || Implements( type, context.Compilation, "System.Collections.IList" ) )
+		else if ( type is IArrayTypeSymbol || SymbolHelpers.Implements( type, context.Compilation, "System.Collections.IList" ) )
 			replacement = "NetList<T>";
 		else
 			return;
 
 		context.ReportDiagnostic( Diagnostic.Create( Rule, syntax.Type.GetLocation(), property.Name, replacement ) );
-	}
-
-	static bool Implements( ITypeSymbol type, Compilation compilation, params string[] metadataNames )
-	{
-		foreach ( var name in metadataNames )
-		{
-			var contract = compilation.GetTypeByMetadataName( name );
-			if ( contract is null ) continue;
-			if ( SymbolEqualityComparer.Default.Equals( type.OriginalDefinition, contract )
-				|| type.AllInterfaces.Any( x => SymbolEqualityComparer.Default.Equals( x.OriginalDefinition, contract ) ) )
-				return true;
-		}
-		return false;
 	}
 
 	public override async Task RunTests( IAnalyzerTest tester )
