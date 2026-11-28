@@ -23,6 +23,8 @@ public partial class EditableCurve : GraphicsItem
 
 
 	CurveEditor editor;
+	internal CurveEditorHistory History => editor?.History;
+
 
 	Curve _curve;
 	public Curve Value
@@ -222,6 +224,8 @@ public partial class EditableCurve : GraphicsItem
 		if ( Handles.Count == 1 )
 			return;
 
+		using var scope = History?.Push( "Delete Keyframe" );
+
 		if ( Handles.Remove( editableCurveHandle ) )
 		{
 			editableCurveHandle.Destroy();
@@ -237,6 +241,8 @@ public partial class EditableCurve : GraphicsItem
 
 		if ( e.Key == KeyCode.Delete )
 		{
+			using var scope = History?.Push( "Delete Keyframes" );
+
 			foreach ( var selected in selectedHandles )
 			{
 				Delete( selected );
@@ -288,6 +294,8 @@ public partial class EditableCurve : GraphicsItem
 
 		if ( e.LeftMouseButton )
 		{
+			using var scope = History?.Push( "Add Keyframe" );
+
 			var curve = GetViewportAdjustedCurve();
 
 			var x = e.LocalPosition.x / Size.x;
