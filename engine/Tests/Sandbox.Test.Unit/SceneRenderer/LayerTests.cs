@@ -17,10 +17,10 @@ public class LayerTests
 	static MeshRenderFeature.RunLists MainRuns( RenderSystem system ) => system.GetFeature<MeshRenderFeature>().RunsFor( system.MainPass );
 
 	/// <summary>
-	/// An overlay draws where it is, in the world's layers, and again in the overlay's, as native's does.
+	/// An overlay draws in the overlay's layers only, over the world.
 	/// </summary>
 	[TestMethod]
-	public void OverlayDrawsInTheWorldAndOverIt()
+	public void OverlayDrawsOnlyOverTheWorld()
 	{
 		var world = new RenderWorld();
 		world.Add( new MeshObject( TestMesh( false ), new Transform( new Vector3( 20, 0, 0 ) ) ) { Overlay = true } );
@@ -30,8 +30,8 @@ public class LayerTests
 		CollectAndPrepare( system, world, LookingDownX() );
 
 		var runs = MainRuns( system );
-		Assert.AreEqual( 1, runs.OverlayPrepass.Count, "the opaque one in the world, prepassed on its own" );
-		Assert.AreEqual( 1, runs.Translucent.Count, "the translucent one in the world" );
+		Assert.AreEqual( 1, runs.OverlayPrepass.Count, "the opaque one, prepassed on its own" );
+		Assert.AreEqual( 0, runs.Translucent.Count, "the translucent one not in the world" );
 		Assert.AreEqual( 1, runs.OverlayOpaque.Count, "the opaque one over it" );
 		Assert.AreEqual( 1, runs.OverlayTranslucent.Count, "the translucent one over it" );
 
@@ -40,7 +40,7 @@ public class LayerTests
 	}
 
 	/// <summary>
-	/// An overlay in the prepass prepasses on its own, first, as native's overlay prepass does, and draws with the world in
+	/// An overlay in the prepass prepasses on its own, first, as native's overlay prepass does, and not with the world in
 	/// forward; the world's prepass then tests the overlay stencil bit.
 	/// </summary>
 	[TestMethod]
@@ -61,7 +61,7 @@ public class LayerTests
 		var overlayPrepass = system.Layers.OfType<OverlayDepthPrepassLayer>().Single();
 		var opaque = system.Layers.OfType<OpaqueLayer>().Single();
 		Assert.IsTrue( overlayPrepass.IsNeeded( system.Frame ) );
-		Assert.AreEqual( 2, system.RunCount( view, opaque ), "both in forward" );
+		Assert.AreEqual( 1, system.RunCount( view, opaque ), "only the world's in forward" );
 		var worldPrepass = system.Layers.OfType<DepthPrepassLayer>().Single( l => l.GetType() == typeof( DepthPrepassLayer ) );
 		Assert.IsTrue( System.Array.IndexOf( system.Layers, overlayPrepass ) < System.Array.IndexOf<RenderLayer>( system.Layers, worldPrepass ), "overlays first" );
 	}

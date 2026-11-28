@@ -79,14 +79,14 @@ public class ClassifierTests
 	}
 
 	/// <summary>
-	/// An overlay prepasses on its own and draws again over everything; its translucent draws go in both translucent layers.
+	/// An overlay prepasses on its own and draws over everything, not in the world's layers too.
 	/// </summary>
 	[TestMethod]
-	public void OverlaysPrepassOnTheirOwnAndDrawAgain()
+	public void OverlaysPrepassOnTheirOwnAndDrawOverTheWorld()
 	{
 		var overlay = new MeshObject( TestMesh( false ), Transform.Zero ) { Overlay = true };
 		Assert.AreEqual( MeshRuns.OverlayPrepass | MeshRuns.OverlayOpaque, InMain( overlay ) );
-		Assert.AreEqual( MeshRuns.Translucent | MeshRuns.OverlayTranslucent, InMain( overlay, MeshBlend.Translucent ) );
+		Assert.AreEqual( MeshRuns.OverlayTranslucent, InMain( overlay, MeshBlend.Translucent ) );
 		Assert.AreEqual( MeshRuns.Opaque, Shadow( overlay ), "shadow views have no overlay layers" );
 	}
 
@@ -139,7 +139,7 @@ public class ClassifierTests
 	public void CustomObjectsSortWithTheMeshes()
 	{
 		var custom = new TestCustomObject { IsOpaque = false, Overlay = true, Bloom = true };
-		Assert.AreEqual( MeshRuns.Translucent | MeshRuns.OverlayTranslucent | MeshRuns.Bloom, MeshRenderFeature.ListsFor( custom, shadow: false ) );
+		Assert.AreEqual( MeshRuns.OverlayTranslucent | MeshRuns.Bloom, MeshRenderFeature.ListsFor( custom, shadow: false ) );
 		Assert.AreEqual( MeshRuns.Translucent, MeshRenderFeature.ListsFor( custom, shadow: true ) );
 
 		custom.LayerMatch = LayerMatch.OverlayWithoutDepth;
