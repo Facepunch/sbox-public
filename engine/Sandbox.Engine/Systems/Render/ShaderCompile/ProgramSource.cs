@@ -82,7 +82,7 @@ class ProgramSource
 			Console.ForegroundColor = ConsoleColor.White;
 		}
 
-		var originalPos = nonInteractiveConsole ? default : Console.GetCursorPosition();
+		var originalPos = nonInteractiveConsole || !options.ConsoleOutput ? default : Console.GetCursorPosition();
 		var updateUI = () =>
 		{
 			if ( nonInteractiveConsole )
