@@ -32,6 +32,12 @@ public abstract class Renderer : Component, SceneObjectCallbacks
 		//RenderOptions = other.RenderOptions;
 	}
 
+	/// <summary>
+	/// The attributes held by this renderer while it has no scene object of its own, or null if
+	/// <see cref="Attributes"/> was never used. Renderers drawn by a shared batch, like sprites, read these.
+	/// </summary>
+	internal RenderAttributes PendingAttributes => _attributes;
+
 	CommandList _before;
 	CommandList _after;
 
