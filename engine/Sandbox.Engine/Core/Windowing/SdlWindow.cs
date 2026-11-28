@@ -25,6 +25,52 @@ internal sealed class SdlWindow : IDisposable
 		if ( handle == IntPtr.Zero )
 			throw new InvalidOperationException( $"Couldn't create the SDL window: {Sdl.GetError()}" );
 		Handle = handle;
+
+		if ( OperatingSystem.IsMacOS() ) SetMacDockIcon();
+	}
+
+	static bool macDockIconSet;
+
+	/// <summary>
+	/// macOS has no exe icon, and SDL's window icon is the app's Dock icon there. Use the launcher's
+	/// ApplicationIcon (embedded as app.ico by LaunchShared.projitems), inset to Apple's icon grid
+	/// (824 of 1024) so it sits the same size as other Dock icons.
+	/// </summary>
+	void SetMacDockIcon()
+	{
+		if ( macDockIconSet ) return;
+		macDockIconSet = true;
+
+		using var stream = System.Reflection.Assembly.GetEntryAssembly()?.GetManifestResourceStream( "app.ico" );
+		if ( stream is null ) return;
+
+		var bytes = new byte[stream.Length];
+		stream.ReadExactly( bytes );
+
+		using var source = Bitmap.CreateFromBytes( bytes );
+		if ( source is null ) return;
+
+		using var icon = new Bitmap( 1024, 1024 );
+		icon.Clear( Color.Transparent );
+		icon.DrawBitmap( source, new Rect( 100, 100, 824, 824 ) );
+		SetIcon( icon );
+	}
+
+	/// <summary>
+	/// Set the window's icon. It's copied, so the bitmap can go afterwards.
+	/// </summary>
+	internal unsafe void SetIcon( Bitmap icon )
+	{
+		var pixels = icon.GetPixels32();
+
+		fixed ( Color32* p = pixels )
+		{
+			// SDL_PIXELFORMAT_RGBA32 is byte-ordered RGBA on either endian.
+			var surface = Sdl.CreateSurfaceFrom( icon.Width, icon.Height, Sdl.PixelFormatRgba32, (IntPtr)p, icon.Width * 4 );
+			if ( surface == IntPtr.Zero ) return;
+			try { WarnIfFailed( Sdl.SetWindowIcon( Handle, surface ) ); }
+			finally { Sdl.DestroySurface( surface ); }
+		}
 	}
 
 	internal string Title

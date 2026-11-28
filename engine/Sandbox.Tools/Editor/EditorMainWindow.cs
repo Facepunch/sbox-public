@@ -169,6 +169,8 @@ public class EditorMainWindow : DockWindow, IUndoSystemProvider
 
 		{
 			ViewsMenu = MenuBar.AddMenu( "View" );
+			// The macOS native menu bar hides empty menus, so it'd never get to AboutToShow
+			CreateDynamicViewMenu( ViewsMenu );
 			ViewsMenu.AboutToShow += OnViewsMenuAboutToShow;
 		}
 
