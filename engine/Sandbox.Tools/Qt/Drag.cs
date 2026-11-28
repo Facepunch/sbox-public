@@ -37,6 +37,9 @@ namespace Editor
 
 		public DragData Data { get; private set; }
 
+		// Without a pixmap, Qt on macOS draws the drag text in a white box under the cursor.
+		// Windows shows only the cursor, so match that with an empty image.
+		static Pixmap _emptyImage;
 
 		public Drag( QObject parent )
 		{
@@ -44,6 +47,7 @@ namespace Editor
 
 			Data = new DragData();
 			_drag.setMimeData( Data._data );
+			SetEmptyImageOnMac();
 		}
 
 		public Drag( GraphicsMouseEvent e )
@@ -52,6 +56,16 @@ namespace Editor
 
 			Data = new DragData();
 			_drag.setMimeData( Data._data );
+			SetEmptyImageOnMac();
+		}
+
+		void SetEmptyImageOnMac()
+		{
+			if ( !OperatingSystem.IsMacOS() )
+				return;
+
+			_emptyImage ??= new Pixmap( 1, 1 );
+			_drag.setPixmap( _emptyImage.ptr );
 		}
 
 		internal override void NativeInit( IntPtr ptr )
