@@ -34,9 +34,27 @@ public abstract partial class ToolMode
 	}
 
 	/// <summary>
-	/// Lets a tool override camera movement while the player manipulates its preview.
+	/// While snapping, steers the view onto the grid corner nearest to where the mouse is heading.
 	/// </summary>
-	public virtual void OnCameraMove( Player player, ref Angles angles ) { }
+	public virtual void OnCameraMove( Player player, ref Angles angles )
+	{
+		var snapped = SnappedSelection;
+		if ( !snapped.IsValid() ) return;
+
+		var eye = player.EyeTransform;
+		var current = eye.Rotation.Angles();
+		var predicted = (Rotation.From( angles ) * eye.Rotation).Angles();
+
+		var surface = snapped.WorldTransform();
+		var hit = TraceFromRay( new Ray( eye.Position, Rotation.From( predicted ).Forward ), ToolTraceDistance, player.GameObject );
+		var aim = hit.IsValid() ? hit.WorldPosition() : surface.Position;
+
+		var corner = SnapGrid.GetSnappedPoint( aim );
+		const float tolerance = 0.01f;
+		if ( corner.Distance( SnapGrid.LastLatticePoint ) < tolerance ) corner = surface.Position;
+		var target = Rotation.LookAt( corner - eye.Position ).Angles();
+		angles = (target - current).Normal;
+	}
 
 	/// <summary>
 	/// Override to control which objects show the snap grid. Excludes player geometry by default.
