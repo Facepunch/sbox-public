@@ -67,7 +67,9 @@ internal partial class ShadowMapper
 		var cacheEntry = GetOrCreateCacheEntry( light, desiredResolution, isCube: false, flScreenSize );
 
 		// Already rendered this frame, or not this light's turn. A light filling the view never waits its turn.
-		if ( cacheEntry.RenderedFrame == Application.FrameCount || (cacheEntry.RenderedFrame != 0 && !cacheEntry.Scheduled && cacheEntry.ScreenSize < 1f) )
+		// RenderedFaces, not RenderedFrame, says the map holds anything: a culled view counts as a turn taken, so
+		// the light stops looking stale to the time slicer, but it has still never been drawn.
+		if ( cacheEntry.RenderedFrame == Application.FrameCount || (cacheEntry.RenderedFaces != 0 && !cacheEntry.Scheduled && cacheEntry.ScreenSize < 1f) )
 			return AddProjectedShadow( cacheEntry );
 
 		Matrix ScaleBias = Matrix.Identity;
@@ -91,18 +93,30 @@ internal partial class ShadowMapper
 			SlopeScaledDepthBias = ShadowSlopeScale * biasScale,
 		};
 
-		// Static lights render their static casters once into a cache that gets copied in
-		// each frame, and only dynamic casters are re-rendered on top.
-		if ( isStaticLight && !isBakedLight && cacheEntry.StaticCache is null )
-		{
-			cacheEntry.StaticCache = AcquireTexture( cacheEntry.CurrentResolution, isCube: false );
+		// A spot is one cone out of the light, and the only receivers that sample its map are inside it: a cone that
+		// misses the camera's frustum casts onto nothing anybody sees, so it renders no view at all - just its matrix.
+		bool reachesCamera = ShadowViewReachesCamera( shadowView );
+		shadowView.MatrixOnly = !reachesCamera;
 
-			// Render static objects to the static cache, once
-			var staticView = shadowView;
-			staticView.Name = cacheEntry.DebugName + "_StaticCache";
-			staticView.Target = cacheEntry.StaticCache;
-			staticView.RequiredFlags = SceneObjectFlags.StaticObject;
-			Renderer.RenderShadowView( staticView );
+		if ( reachesCamera )
+		{
+			// Clutter and anything else culling per caster narrows what's left down to the volume between the light
+			// and what the camera sees
+			PublishLocalCasterVolume( light.Position );
+
+			// Static lights render their static casters once into a cache that gets copied in
+			// each frame, and only dynamic casters are re-rendered on top.
+			if ( isStaticLight && !isBakedLight && cacheEntry.StaticCache is null )
+			{
+				cacheEntry.StaticCache = AcquireTexture( cacheEntry.CurrentResolution, isCube: false );
+
+				// Render static objects to the static cache, once
+				var staticView = shadowView;
+				staticView.Name = cacheEntry.DebugName + "_StaticCache";
+				staticView.Target = cacheEntry.StaticCache;
+				staticView.RequiredFlags = SceneObjectFlags.StaticObject;
+				Renderer.RenderShadowView( staticView );
+			}
 		}
 
 		bool useStaticCache = cacheEntry.StaticCache is not null;
@@ -128,7 +142,17 @@ internal partial class ShadowMapper
 		shadow.InvShadowMapRes = 1.0f / (float)cacheEntry.ShadowMap.Resolution;
 
 		cacheEntry.Projected = shadow;
+
+		// A culled view drew nothing, so the map stays empty (RenderedFaces) and it renders as soon as the camera
+		// can see what it casts onto - but the turn counts, or it would take an update slot every frame forever
 		cacheEntry.RenderedFrame = Application.FrameCount;
+		if ( !reachesCamera )
+		{
+			ShadowViewsCulled++;
+			return AddProjectedShadow( cacheEntry );
+		}
+
+		cacheEntry.RenderedFaces = 1;
 		ProjectedShadowsRendered++;
 
 		return AddProjectedShadow( cacheEntry );
