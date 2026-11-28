@@ -696,7 +696,8 @@ partial class GameObjectNode : TreeNode<GameObject>
 				{
 					using var scene = SceneEditorSession.Scope();
 
-					using ( SceneEditorSession.Active.UndoScope( revertChangesActionName ).WithGameObjectChanges( selectedGos, GameObjectUndoFlags.Properties ).Push() )
+					// Reverting can change components and children, not just the object's own properties
+					using ( SceneEditorSession.Active.UndoScope( revertChangesActionName ).WithGameObjectChanges( selectedGos, GameObjectUndoFlags.All ).Push() )
 					{
 						foreach ( var go in selectedGos )
 						{
@@ -771,28 +772,35 @@ partial class GameObjectNode : TreeNode<GameObject>
 	{
 		using var scene = SceneEditorSession.Scope();
 
-		using ( SceneEditorSession.Active.UndoScope( "Convert to Prefab" ).WithGameObjectChanges( gameObjects, GameObjectUndoFlags.All ).WithGameObjectCreations().Push() )
+		var selection = gameObjects.ToArray();
+		var first = selection.FirstOrDefault();
+
+		if ( first is null ) return;
+
+		var saveLocation = "";
+
+		var fd = new FileDialog( null );
+		fd.Title = $"Save {first.Name} as Prefab..";
+		fd.Directory = Project.Current.GetAssetsPath();
+		fd.DefaultSuffix = $".prefab";
+		fd.SelectFile( first.Name );
+		fd.SetFindFile();
+		fd.SetModeSave();
+		fd.SetNameFilter( $"Prefab File (*.prefab)" );
+
+		if ( !fd.Execute() ) return;
+
+		saveLocation = fd.SelectedFile;
+
+		var undoScope = SceneEditorSession.Active.UndoScope( "Convert to Prefab" ).WithGameObjectChanges( selection, GameObjectUndoFlags.All ).WithGameObjectCreations();
+
+		// ConvertGameObjectToPrefab replaces a prefab instance with a clone and destroys the original,
+		// so the destruction has to be recorded for undo to bring the original back
+		if ( selection.Length == 1 && first.IsPrefabInstance )
+			undoScope = undoScope.WithGameObjectDestructions( first );
+
+		using ( undoScope.Push() )
 		{
-			var selection = gameObjects.ToArray();
-			var first = selection.FirstOrDefault();
-
-			if ( first is null ) return;
-
-			var saveLocation = "";
-
-			var fd = new FileDialog( null );
-			fd.Title = $"Save {first.Name} as Prefab..";
-			fd.Directory = Project.Current.GetAssetsPath();
-			fd.DefaultSuffix = $".prefab";
-			fd.SelectFile( first.Name );
-			fd.SetFindFile();
-			fd.SetModeSave();
-			fd.SetNameFilter( $"Prefab File (*.prefab)" );
-
-			if ( !fd.Execute() ) return;
-
-			saveLocation = fd.SelectedFile;
-
 			GameObject prefabRoot;
 
 			if ( selection.Count() == 1 )
