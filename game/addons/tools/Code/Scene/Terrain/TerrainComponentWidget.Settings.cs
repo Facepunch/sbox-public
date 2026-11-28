@@ -18,6 +18,11 @@ partial class TerrainComponentWidget : ComponentEditorWidget
 		if ( o.Name == nameof( Collider.Surface ) ) return false;
 		if ( o.Name == nameof( Collider.IsTrigger ) ) return false;
 
+		// Size and height are only editable through the Rescale Terrain tool, which can
+		// compensate the heightmap instead of silently stretching the sculpted geometry.
+		if ( o.Name == nameof( Terrain.TerrainSize ) ) return false;
+		if ( o.Name == nameof( Terrain.TerrainHeight ) ) return false;
+
 		return true;
 	}
 
@@ -191,6 +196,28 @@ partial class TerrainComponentWidget : ComponentEditorWidget
 
 		container.Layout.Add( sheet );
 
+		var scaleColumn = container.Layout.AddColumn();
+		scaleColumn.Spacing = 8;
+		scaleColumn.Margin = 16;
+
+		var scaleHeader = new Label( "Size & Placement" );
+		scaleHeader.SetStyles( "font-weight: bold" );
+		scaleColumn.Add( scaleHeader );
+
+		// Read-only mirrors of the properties the tools own, so the current values stay visible.
+		var sizeSheet = new ControlSheet();
+		foreach ( var name in new[] { nameof( Terrain.TerrainSize ), nameof( Terrain.TerrainHeight ) } )
+		{
+			var control = sizeSheet.AddRow( SerializedObject.GetProperty( name ) );
+			if ( control.IsValid() ) control.ReadOnly = true;
+		}
+		scaleColumn.Add( sizeSheet );
+
+		var toolRow = scaleColumn.AddRow();
+		toolRow.Spacing = 8;
+		toolRow.Add( new Button( "Rescale Terrain...", "aspect_ratio" ) { Clicked = RescaleTerrain }, 1 );
+		toolRow.Add( new Button( "Move Terrain...", "open_with" ) { Clicked = TranslateTerrain }, 1 );
+
 		return container;
 	}
 
@@ -346,5 +373,21 @@ partial class TerrainComponentWidget : ComponentEditorWidget
 			return;
 
 		new ImportHeightmapPopup( this, terrain, fd.SelectedFile );
+	}
+
+	void RescaleTerrain()
+	{
+		var terrain = SerializedObject.Targets.FirstOrDefault() as Terrain;
+		if ( !terrain.IsValid() || terrain.Storage is null ) return;
+
+		new RescaleTerrainPopup( this, terrain );
+	}
+
+	void TranslateTerrain()
+	{
+		var terrain = SerializedObject.Targets.FirstOrDefault() as Terrain;
+		if ( !terrain.IsValid() || terrain.Storage is null ) return;
+
+		new TranslateTerrainPopup( this, terrain );
 	}
 }
