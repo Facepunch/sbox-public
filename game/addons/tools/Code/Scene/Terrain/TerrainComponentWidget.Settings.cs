@@ -68,10 +68,17 @@ partial class TerrainComponentWidget : ComponentEditorWidget
 			cloudMats.Clicked += () =>
 			{
 				var picker = AssetPicker.Create( null, AssetType.FromExtension( "tmat" ) );
-				picker.OnAssetPicked = x =>
+				picker.OnAssetPicked = assets =>
 				{
-					var material = x.First().LoadResource<TerrainMaterial>();
-					terrain.Storage.Materials.Add( material );
+					foreach ( var asset in assets )
+					{
+						var material = asset.LoadResource<TerrainMaterial>();
+						if ( terrain.Storage.Materials.Contains( material ) )
+							continue;
+
+						terrain.Storage.Materials.Add( material );
+					}
+
 					terrain.UpdateMaterialsBuffer();
 					MaterialList?.BuildItems();
 				};
