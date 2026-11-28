@@ -12,6 +12,7 @@ public abstract partial class BaseStyles : ICloneable
 		get => _bordershape;
 		set
 		{
+			OnPropertySet( "border-shape" );
 			if ( Equals( _bordershape, value ) ) return;
 			_bordershape = value;
 			Dirty();
@@ -22,6 +23,11 @@ public abstract partial class BaseStyles : ICloneable
 	/// Called when any CSS properties are changed.
 	/// </summary>
 	public abstract void Dirty();
+
+	internal virtual void OnPropertySet( string property ) { }
+	internal virtual void OnRawPropertySet( string property ) { }
+	internal virtual void OnStyleCloned( BaseStyles source ) { }
+	internal virtual void OnStyleScaled() { }
 
 	/// <summary>
 	/// Represents the <c>overflow</c> CSS property.
@@ -37,6 +43,8 @@ public abstract partial class BaseStyles : ICloneable
 		}
 		set
 		{
+			OnPropertySet( "overflow-x" );
+			OnPropertySet( "overflow-y" );
 			if ( _overflowx == value && _overflowy == value ) return;
 
 			_overflowx = value;
@@ -80,6 +88,72 @@ public abstract partial class BaseStyles : ICloneable
 
 		CssWide = bs.CssWide == null ? null : new System.Collections.Generic.Dictionary<string, CssWideKeyword>( bs.CssWide );
 		HasCurrentColor = bs.HasCurrentColor;
+	}
+
+	internal void TrackAddedProperties( BaseStyles source )
+	{
+		TrackAddedPropertiesGenerated( source );
+		if ( source._bordershape != null ) OnPropertySet( "border-shape" );
+		if ( source._backgroundImage != null ) OnPropertySet( "background-image" );
+		if ( source._maskImage != null ) OnPropertySet( "mask-image" );
+		if ( source._borderImageSource != null ) OnPropertySet( "border-image-source" );
+		if ( source._backgroundPlaybackPaused.HasValue ) OnPropertySet( "background-playback-state" );
+		if ( source.CssWide != null )
+			foreach ( var property in source.CssWide.Keys ) OnPropertySet( property );
+	}
+
+	internal void RestoreMatchingValues( BaseStyles before, BaseStyles after, System.Collections.Generic.HashSet<string> written = null )
+	{
+		RestoreMatchingValuesGenerated( before, after, written );
+		RestoreMatchingProperty( ref _bordershape, before._bordershape, after._bordershape, "border-shape", before, after, written );
+		if ( written?.Contains( "background-image" ) != true ) RestoreMatchingValue( ref _backgroundImage, before._backgroundImage, after._backgroundImage );
+		if ( written?.Contains( "mask-image" ) != true ) RestoreMatchingValue( ref _maskImage, before._maskImage, after._maskImage );
+		if ( written?.Contains( "border-image-source" ) != true ) RestoreMatchingValue( ref _borderImageSource, before._borderImageSource, after._borderImageSource );
+		if ( written?.Contains( "background-playback-state" ) != true ) RestoreMatchingValue( ref _backgroundPlaybackPaused, before._backgroundPlaybackPaused, after._backgroundPlaybackPaused );
+		// Like Set, keep this flag conservative: a later C# write may also use currentColor.
+		HasCurrentColor |= before.HasCurrentColor;
+	}
+
+	internal static void RestoreMatchingValue<T>( ref T value, T before, T after )
+	{
+		if ( System.Collections.Generic.EqualityComparer<T>.Default.Equals( value, after ) )
+			value = before;
+	}
+
+	void RestoreMatchingProperty<T>( ref T value, T beforeValue, T afterValue, string property, BaseStyles before, BaseStyles after, System.Collections.Generic.HashSet<string> written )
+	{
+		if ( written?.Contains( property ) == true ) return;
+		var beforeKeyword = GetKeyword( before.CssWide, property );
+		var afterKeyword = GetKeyword( after.CssWide, property );
+		if ( beforeKeyword == afterKeyword && System.Collections.Generic.EqualityComparer<T>.Default.Equals( beforeValue, afterValue ) )
+			return;
+
+		if ( GetKeyword( CssWide, property ) != afterKeyword )
+			return;
+
+		if ( !System.Collections.Generic.EqualityComparer<T>.Default.Equals( value, afterValue ) )
+		{
+			// A typed C# setter doesn't clear a keyword. Remove the attribute's keyword,
+			// but don't restore an older keyword over the newer normal value.
+			if ( beforeKeyword != afterKeyword && afterKeyword.HasValue ) CssWide?.Remove( property );
+			return;
+		}
+
+		value = beforeValue;
+		if ( beforeKeyword.HasValue )
+		{
+			CssWide ??= new();
+			CssWide[property] = beforeKeyword.Value;
+		}
+		else
+		{
+			CssWide?.Remove( property );
+		}
+	}
+
+	static CssWideKeyword? GetKeyword( System.Collections.Generic.Dictionary<string, CssWideKeyword> values, string property )
+	{
+		return values != null && values.TryGetValue( property, out var value ) ? value : null;
 	}
 
 	/// <summary>

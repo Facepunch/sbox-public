@@ -1,6 +1,6 @@
 ﻿namespace Sandbox.UI;
 
-public sealed class PanelStyle : Styles
+public sealed partial class PanelStyle : Styles
 {
 	Panel panel;
 
@@ -299,8 +299,10 @@ public sealed class PanelStyle : Styles
 	public override bool Set( string property, string value )
 	{
 		Dirty();
-
-		return base.Set( property, value );
+		property = StyleParser.GetPropertyFromAlias( property );
+		var result = base.Set( property, value );
+		if ( result ) TrackTransitionSet( property, value );
+		return result;
 	}
 
 	internal void OnRuleAdded( StyleSelector selector )
