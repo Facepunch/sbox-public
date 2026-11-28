@@ -89,6 +89,11 @@ public static class FileSystem
 			Content.Mount( addon.AssetsFileSystem );
 		}
 
+		foreach ( var assets in MountedAddons.FileSystems )
+		{
+			Content.Mount( assets );
+		}
+
 		var watch = Content.Watch();
 		watch.OnChangedFile += OnContentFileChanged;
 

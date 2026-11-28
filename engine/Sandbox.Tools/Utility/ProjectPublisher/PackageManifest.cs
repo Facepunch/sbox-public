@@ -462,6 +462,9 @@ public partial class ProjectPublisher
 		{
 			if ( IsShippedMapContent( mapGameRoot, absPath ) ) return;
 
+			// Files from addons/local belong to their own project, which publishes them
+			if ( MountedAddons.Contains( absPath ) ) return;
+
 			await YieldPreview();
 			if ( !System.IO.File.Exists( absPath ) )
 			{

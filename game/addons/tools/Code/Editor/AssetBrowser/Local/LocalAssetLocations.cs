@@ -5,6 +5,8 @@ namespace Editor;
 public class LocalAssetLocations : AssetLocations
 {
 	TreeNode LibrariesNode;
+	TreeNode LocalAddonsNode;
+	TreeNode LocalAddonsSpacer;
 	TreeNode PinsNode;
 	TreeNode PinsNodeSpacer;
 	TreeNode BaseContentNode;
@@ -85,6 +87,16 @@ public class LocalAssetLocations : AssetLocations
 		}
 
 		//
+		// Local addons - projects in addons/local, their assets mounted into this one
+		//
+		{
+			LocalAddonsSpacer = AddItem( new TreeNode.Spacer( 10 ) );
+			LocalAddonsNode = new TreeNode.SmallHeader( "extension", "Local Addons" );
+			AddItem( LocalAddonsNode );
+			Open( LocalAddonsNode );
+		}
+
+		//
 		// Base
 		//
 		BaseContentNode = new TreeNode.SmallHeader( "dns", "s&box" );
@@ -117,6 +129,7 @@ public class LocalAssetLocations : AssetLocations
 	void UpdateAddonList()
 	{
 		LibrariesNode.Clear();
+		LocalAddonsNode.Clear();
 
 		foreach ( var project in EditorUtility.Projects.GetAll().OrderBy( x => x.Config.Title ) )
 		{
@@ -131,11 +144,14 @@ public class LocalAssetLocations : AssetLocations
 			if ( !d.Exists )
 				continue;
 
-			var loc = new DiskLocation( d );
-			LibrariesNode.AddItem( new FolderNode( loc ) );
+			// Assets from addons/local are mounted into this project, they get their own section
+			var node = new FolderNode( new DiskLocation( d ) );
+			(MountedAddons.IsMounted( project ) ? LocalAddonsNode : LibrariesNode).AddItem( node );
 		}
 
 		LibrariesNode.Enabled = LibrariesNode.HasChildren;
+		LocalAddonsNode.Enabled = LocalAddonsNode.HasChildren;
+		LocalAddonsSpacer.Enabled = LocalAddonsNode.Enabled;
 	}
 
 	internal void AddPinnedFolder( string filter )

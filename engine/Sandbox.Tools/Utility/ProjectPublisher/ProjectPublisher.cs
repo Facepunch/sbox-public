@@ -648,6 +648,9 @@ public partial class ProjectPublisher
 		// Core shaders should never be uploaded
 		if ( a.AbsolutePath.Contains( "/core/shaders/", StringComparison.OrdinalIgnoreCase ) ) return false;
 
+		// Assets mounted from addons/local are published with their own project
+		if ( MountedAddons.Contains( a.AbsolutePath ) ) return false;
+
 		return true;
 	}
 
