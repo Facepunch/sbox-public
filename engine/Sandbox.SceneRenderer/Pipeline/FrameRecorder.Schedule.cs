@@ -172,14 +172,20 @@ internal sealed partial class FrameRecorder
 				AddDrawSegments( planned.Frame, planned.WorkFrom, planned.WorkTo, maxSegments );
 			}
 		}
-		else if ( !separate && segmentCount > 0 && segments[segmentCount - 1] is { Kind: SegmentKind.Layers, Async: false } last
-			&& last.Frame == planned.Frame && last.Index + last.Count == index )
-		{
-			segments[segmentCount - 1].Count++;
-		}
 		else
 		{
-			AddSegment( SegmentKind.Layers, planned.Frame, index, true );
+			// Layers that run no game code record on workers beside the draws. Consecutive layers on the same thread share a segment
+			var onMain = !Parallel || !planned.Layer.RecordsOffMainThread( planned.Frame );
+
+			if ( !separate && segmentCount > 0 && segments[segmentCount - 1] is { Kind: SegmentKind.Layers, Async: false } last
+				&& last.Frame == planned.Frame && last.Index + last.Count == index && last.OnMainThread == onMain )
+			{
+				segments[segmentCount - 1].Count++;
+			}
+			else
+			{
+				AddSegment( SegmentKind.Layers, planned.Frame, index, onMain );
+			}
 		}
 	}
 }
